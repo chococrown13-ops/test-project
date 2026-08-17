@@ -11,6 +11,11 @@ TTS(ElevenLabs), 편집 툴(CapCut)** 에 그대로 붙여넣을 수 있는 샷 
 - 총 길이: 40초 (5개 씬)
 - 톤: 뉴스/정보형, 신뢰감 있는 톤
 
+> 💡 아래 프롬프트를 손으로 복붙하는 대신, Runway API로 자동 생성하려면
+> [`scripts/runway_generate.py`](../scripts/runway_generate.py)와
+> [`production/lee_kangin_atletico_shots.json`](lee_kangin_atletico_shots.json)을
+> 사용하세요. 자세한 실행 방법은 [README](../README.md#ai-영상-자동-생성-runway-api) 참고.
+
 ---
 
 ## Scene 1 — 훅 (0:00~0:02, 2초)
