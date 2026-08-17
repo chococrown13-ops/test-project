@@ -1,0 +1,41 @@
+{
+  "ratio": "720:1280",
+  "model": "gen4_turbo",
+  "scenes": [
+    {
+      "id": "scene1_hook",
+      "duration": 5,
+      "prompt": "Dark cinematic intro, red and white light streaks sweeping across frame (Atletico Madrid club colors), fast dynamic camera movement, particles and light flares, stadium ambience, no visible faces, photorealistic, dramatic, vertical video"
+    },
+    {
+      "id": "scene2_setup",
+      "duration": 5,
+      "prompt": "Top-down holographic tactics board style animation, glowing route line travelling from a Paris icon to a Madrid icon on an abstract dark map, blue and gold UI elements, smooth camera drift, minimalist futuristic style, vertical video"
+    },
+    {
+      "id": "scene3_1_fee",
+      "duration": 5,
+      "prompt": "Abstract dark background with glowing golden light forming near the center, particle light effects, subtle camera zoom in, futuristic data visualization style, vertical video"
+    },
+    {
+      "id": "scene3_2_contract",
+      "duration": 5,
+      "prompt": "Close-up of a football jersey back with dramatic spotlight, red and white striped fabric, rim lighting, slow motion fabric movement, vertical video"
+    },
+    {
+      "id": "scene3_3_career",
+      "duration": 5,
+      "prompt": "Animated glowing route line connecting four location markers on a stylized dark map of Europe, minimalist holographic UI style, smooth continuous camera pan, blue and white light trails, vertical video"
+    },
+    {
+      "id": "scene4_turn",
+      "duration": 5,
+      "prompt": "Bright sunlit football stadium, empty pitch with warm golden hour light, slow forward tracking shot toward the center circle, optimistic uplifting mood, cinematic, vertical video"
+    },
+    {
+      "id": "scene5_cta",
+      "duration": 5,
+      "prompt": "Atletico Madrid red and white color gradient background, subtle light particles floating upward, calm outro mood, space reserved for text overlay in center, vertical video"
+    }
+  ]
+}
