@@ -14,6 +14,7 @@ AI 영상 생성 도구를 활용해 축구 관련 유튜브 쇼츠 / 인스타�
 | [`examples/example_script_lionel_messi_dribble.md`](examples/example_script_lionel_messi_dribble.md) | 템플릿을 채운 완성 예시 대본 (레전드 스토리텔링형) |
 | [`examples/example_script_lee_kangin_atletico_transfer.md`](examples/example_script_lee_kangin_atletico_transfer.md) | 실제 최신 이적 소식(이강인 → 아틀레티코 마드리드, 2026.07)을 다룬 시사/이적 뉴스형 예시 대본, 출처 표기 포함 |
 | [`scripts/generate_script.py`](scripts/generate_script.py) | 주제만 입력하면 대본 초안을 만들어주는 CLI 도구 |
+| [`production/lee_kangin_atletico_shotlist.md`](production/lee_kangin_atletico_shotlist.md) | 이강인 이적 대본을 실제 영상으로 만들기 위한 씬별 AI 영상 프롬프트·타이밍·TTS·자막 조립 패키지 |
 
 ## 빠른 시작
 
