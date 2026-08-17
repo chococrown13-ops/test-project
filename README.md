@@ -11,7 +11,8 @@ AI 영상 생성 도구를 활용해 축구 관련 유튜브 쇼츠 / 인스타�
 | [`docs/production-workflow.md`](docs/production-workflow.md) | 기획 → 스크립트 → 내레이션 → AI 영상 생성 → 편집 → 업로드 전체 워크플로우, 추천 도구 |
 | [`docs/video-prompt-library.md`](docs/video-prompt-library.md) | Runway/Pika/Luma 등 AI 영상 생성 도구용 축구 특화 프롬프트 예시 |
 | [`templates/script_template.md`](templates/script_template.md) | 15~60초 쇼츠 대본 템플릿 (훅-본문-CTA 구조) |
-| [`examples/example_script_lionel_messi_dribble.md`](examples/example_script_lionel_messi_dribble.md) | 템플릿을 채운 완성 예시 대본 |
+| [`examples/example_script_lionel_messi_dribble.md`](examples/example_script_lionel_messi_dribble.md) | 템플릿을 채운 완성 예시 대본 (레전드 스토리텔링형) |
+| [`examples/example_script_lee_kangin_atletico_transfer.md`](examples/example_script_lee_kangin_atletico_transfer.md) | 실제 최신 이적 소식(이강인 → 아틀레티코 마드리드, 2026.07)을 다룬 시사/이적 뉴스형 예시 대본, 출처 표기 포함 |
 | [`scripts/generate_script.py`](scripts/generate_script.py) | 주제만 입력하면 대본 초안을 만들어주는 CLI 도구 |
 
 ## 빠른 시작
