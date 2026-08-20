@@ -251,7 +251,17 @@ export function buildFixtures(teamIds: string[], rng: Rng): Fixture[] {
   return fixtures;
 }
 
-export function createNewGame(managerName: string, clubId: string | null, seed = Date.now()): GameState {
+export interface NewGameOptions {
+  managerName: string;
+  clubId: string | null;
+  leagueName?: string;
+  /** Overrides for club identity, keyed by team id. */
+  teamNames?: Record<string, { name?: string; shortName?: string }>;
+  seed?: number;
+}
+
+export function createNewGame(options: NewGameOptions): GameState {
+  const { managerName, clubId, leagueName, teamNames, seed = Date.now() } = options;
   idCounter = 0;
   const rng = new Rng(seed);
 
@@ -259,10 +269,11 @@ export function createNewGame(managerName: string, clubId: string | null, seed =
   TEAM_SEEDS.forEach((seedTeam, index) => {
     const id = `t${index}`;
     const players = makeSquad(rng, seedTeam.reputation);
+    const override = teamNames?.[id];
     const team: Team = {
       id,
-      name: seedTeam.name,
-      shortName: seedTeam.shortName,
+      name: override?.name?.trim() || seedTeam.name,
+      shortName: override?.shortName?.trim().toUpperCase() || seedTeam.shortName,
       color: seedTeam.color,
       accent: seedTeam.accent,
       players,
@@ -277,7 +288,10 @@ export function createNewGame(managerName: string, clubId: string | null, seed =
       },
       // Stronger clubs are expected to finish higher.
       expectation: clamp(index + 1 + rng.int(-2, 3), 1, TEAM_SEEDS.length),
-      budget: Math.round(seedTeam.reputation * seedTeam.reputation * 1.6),
+      // Enough to buy a genuine upgrade or two, not a whole new spine.
+      budget: Math.round(seedTeam.reputation * seedTeam.reputation * 2.4),
+      // Headroom above the current bill so every club can sign somebody.
+      wageBudget: Math.round(players.reduce((sum, p) => sum + p.wage, 0) * 1.35),
       reputation: seedTeam.reputation,
     };
     const picked = autoPickLineup(team);
@@ -292,6 +306,7 @@ export function createNewGame(managerName: string, clubId: string | null, seed =
   return {
     seed,
     managerName: managerName.trim() || '감독',
+    leagueName: leagueName?.trim() || '프리미어 리그',
     clubId: chosenClub,
     season: 1,
     round: 0,
@@ -310,6 +325,7 @@ export function createNewGame(managerName: string, clubId: string | null, seed =
         tone: 'neutral',
       },
     ],
+    transfer: { listed: [], offers: [], log: [] },
     live: null,
     seasonOver: false,
     history: [],

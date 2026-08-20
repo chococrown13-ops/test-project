@@ -8,11 +8,13 @@ import { MatchScreen } from './screens/MatchScreen';
 import { SquadScreen } from './screens/SquadScreen';
 import { StartScreen } from './screens/StartScreen';
 import { TacticsScreen } from './screens/TacticsScreen';
+import { TransferScreen } from './screens/TransferScreen';
 
 const TABS: { id: Screen; label: string; icon: string }[] = [
   { id: 'squad', label: '선수단', icon: '👥' },
   { id: 'tactics', label: '전술', icon: '📋' },
   { id: 'match', label: '경기', icon: '⚽' },
+  { id: 'transfer', label: '이적', icon: '🔁' },
   { id: 'league', label: '리그', icon: '🏆' },
   { id: 'club', label: '구단', icon: '🏟' },
 ];
@@ -42,6 +44,7 @@ export function App() {
   const table = buildTable(state.fixtures, Object.keys(state.teams));
   const position = positionOf(table, state.clubId);
   const unread = state.inbox.filter((i) => !i.read).length;
+  const offers = state.transfer.offers.length;
 
   return (
     <div className="app">
@@ -75,6 +78,7 @@ export function App() {
         {screen === 'squad' && <SquadScreen state={state} />}
         {screen === 'tactics' && <TacticsScreen state={state} />}
         {screen === 'match' && <MatchScreen state={state} />}
+        {screen === 'transfer' && <TransferScreen state={state} />}
         {screen === 'league' && <LeagueScreen state={state} />}
         {screen === 'club' && <ClubScreen state={state} />}
       </main>
@@ -90,6 +94,7 @@ export function App() {
             <span className="tab__icon">{tab.icon}</span>
             <span>{tab.label}</span>
             {tab.id === 'club' && unread > 0 && <span className="tab__badge">{unread}</span>}
+            {tab.id === 'transfer' && offers > 0 && <span className="tab__badge">{offers}</span>}
           </button>
         ))}
       </nav>

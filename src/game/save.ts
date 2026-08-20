@@ -18,10 +18,30 @@ export function loadGame(): GameState | null {
     const parsed = JSON.parse(raw) as GameState;
     // Guard against a save written by an incompatible build.
     if (!parsed?.teams || !parsed?.fixtures || !parsed?.clubId) return null;
-    return parsed;
+    return migrate(parsed);
   } catch {
     return null;
   }
+}
+
+/**
+ * Fill in fields added after a save was written, so an in-progress career
+ * survives an update instead of being thrown away.
+ */
+function migrate(state: GameState): GameState {
+  if (!state.leagueName) state.leagueName = '프리미어 리그';
+  if (!state.transfer) state.transfer = { listed: [], offers: [], log: [] };
+  if (!state.transfer.listed) state.transfer.listed = [];
+  if (!state.transfer.offers) state.transfer.offers = [];
+  if (!state.transfer.log) state.transfer.log = [];
+
+  Object.values(state.teams).forEach((team) => {
+    if (typeof team.wageBudget !== 'number') {
+      team.wageBudget = Math.round(team.players.reduce((sum, p) => sum + p.wage, 0) * 1.25);
+    }
+  });
+
+  return state;
 }
 
 export function hasSave(): boolean {

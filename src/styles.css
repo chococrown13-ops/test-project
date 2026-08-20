@@ -116,7 +116,7 @@ button {
 .tabs {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   background: var(--bg-raised);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);
@@ -129,9 +129,11 @@ button {
   align-items: center;
   justify-content: center;
   gap: 3px;
-  font-size: 10.5px;
+  /* Six tabs share the width, so the label has to stay compact. */
+  font-size: 10px;
   color: var(--text-faint);
   transition: color 0.15s;
+  white-space: nowrap;
 }
 
 .tab--active {
@@ -139,13 +141,13 @@ button {
 }
 
 .tab__icon {
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1;
 }
 
 .tab__badge {
   position: absolute;
-  transform: translate(14px, -10px);
+  transform: translate(13px, -11px);
   background: var(--bad);
   color: #fff;
   font-size: 9px;

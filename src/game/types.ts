@@ -84,8 +84,10 @@ export interface Team {
   tactics: Tactics;
   /** Board expectation for the season, as a league position. */
   expectation: number;
-  /** Transfer/wage budget in thousands. */
+  /** Transfer budget in thousands, spent on fees. */
   budget: number;
+  /** Ceiling on the total weekly wage bill, in thousands. */
+  wageBudget: number;
   /** Baseline club strength, used when generating squads. */
   reputation: number;
 }
@@ -207,9 +209,40 @@ export interface InboxItem {
   tone: 'neutral' | 'good' | 'bad';
 }
 
+/** A bid from an AI club for one of the user's players. */
+export interface TransferOffer {
+  id: string;
+  playerId: string;
+  /** Club making the bid. */
+  fromTeamId: string;
+  fee: number;
+  /** Round after which the offer lapses. */
+  expiresRound: number;
+}
+
+export interface TransferRecord {
+  season: number;
+  round: number;
+  playerName: string;
+  fromName: string;
+  toName: string;
+  fee: number;
+}
+
+export interface TransferState {
+  /** Player ids the user has put up for sale. */
+  listed: string[];
+  /** Live bids for the user's players. */
+  offers: TransferOffer[];
+  /** League-wide completed deals, newest first. */
+  log: TransferRecord[];
+}
+
 export interface GameState {
   seed: number;
   managerName: string;
+  /** Player-editable competition name. */
+  leagueName: string;
   clubId: string;
   season: number;
   /** Index into the fixture rounds. */
@@ -217,6 +250,7 @@ export interface GameState {
   teams: Record<string, Team>;
   fixtures: Fixture[];
   inbox: InboxItem[];
+  transfer: TransferState;
   live: LiveMatch | null;
   /** Set when the season is complete and awaiting rollover. */
   seasonOver: boolean;

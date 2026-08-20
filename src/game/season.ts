@@ -117,7 +117,22 @@ export function rolloverSeason(state: GameState, rng: Rng): SeasonRecord {
     const picked = autoPickLineup(team);
     team.lineup = picked.lineup;
     team.bench = picked.bench;
+
+    // Prize money: finishing higher funds a bigger rebuild next season.
+    const finish = positionOf(table, team.id);
+    const prize = Math.round((teamIds.length - finish + 1) * team.reputation * 6);
+    team.budget += prize;
+    team.wageBudget = Math.round(
+      Math.max(
+        team.wageBudget,
+        team.players.reduce((sum, p) => sum + p.wage, 0) * 1.2,
+      ),
+    );
   });
+
+  // Windows reopen for pre-season with a clean slate.
+  state.transfer.listed = [];
+  state.transfer.offers = [];
 
   state.history.push(record);
   state.season += 1;

@@ -4,6 +4,7 @@ import { teamStrength } from '../../game/ratings';
 import type { GameState } from '../../game/types';
 import { useGame } from '../../store/useGame';
 import { Card } from '../components/common';
+import { CustomiseScreen } from './CustomiseScreen';
 
 const money = (thousands: number): string =>
   thousands >= 1000 ? `${(thousands / 1000).toFixed(1)}M` : `${thousands}K`;
@@ -13,6 +14,11 @@ export function ClubScreen({ state }: { state: GameState }) {
   const abandonGame = useGame((s) => s.abandonGame);
   const [open, setOpen] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [customising, setCustomising] = useState(false);
+
+  if (customising) {
+    return <CustomiseScreen state={state} onDone={() => setCustomising(false)} />;
+  }
 
   const club = state.teams[state.clubId];
   const table = buildTable(state.fixtures, Object.keys(state.teams));
@@ -27,6 +33,10 @@ export function ClubScreen({ state }: { state: GameState }) {
         <div className="kv">
           <span className="kv__key">감독</span>
           <span className="kv__value">{state.managerName}</span>
+        </div>
+        <div className="kv">
+          <span className="kv__key">리그</span>
+          <span className="kv__value">{state.leagueName}</span>
         </div>
         <div className="kv">
           <span className="kv__key">시즌 / 라운드</span>
@@ -112,6 +122,14 @@ export function ClubScreen({ state }: { state: GameState }) {
       )}
 
       <Card title="게임" padded>
+        <button
+          type="button"
+          className="btn btn--block"
+          style={{ marginBottom: 10 }}
+          onClick={() => setCustomising(true)}
+        >
+          리그 · 구단 이름 편집
+        </button>
         {confirmReset ? (
           <>
             <p className="tiny" style={{ color: 'var(--bad)', marginTop: 0 }}>

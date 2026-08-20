@@ -32,7 +32,7 @@ function LeagueTable({ state }: { state: GameState }) {
   const table = buildTable(state.fixtures, Object.keys(state.teams));
 
   return (
-    <Card title={`${state.season}시즌 순위`}>
+    <Card title={`${state.leagueName} · ${state.season}시즌`}>
       <table className="table">
         <thead>
           <tr>

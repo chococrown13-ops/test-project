@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { FORMATIONS } from '../game/formations';
-import { autoPickLineup, createNewGame } from '../game/generate';
+import { autoPickLineup, createNewGame, type NewGameOptions } from '../game/generate';
 import { buildTable, positionOf, totalRounds } from '../game/league';
 import {
   autoSubstitute,
@@ -12,9 +12,18 @@ import {
 import { Rng } from '../game/rng';
 import { clearSave, loadGame, saveGame } from '../game/save';
 import { advanceWeek, applyMatchForm, applyResultMorale, pushInbox, rolloverSeason } from '../game/season';
+import {
+  evaluateBid,
+  executeTransfer,
+  expireOffers,
+  generateOffers,
+  runAiTransfers,
+  transferWindow,
+  type BidResult,
+} from '../game/transfer';
 import type { FormationId, GameState, MatchEvent, Tactics } from '../game/types';
 
-export type Screen = 'squad' | 'tactics' | 'match' | 'league' | 'club';
+export type Screen = 'squad' | 'tactics' | 'match' | 'transfer' | 'league' | 'club';
 
 interface GameStore {
   state: GameState | null;
@@ -22,9 +31,24 @@ interface GameStore {
   /** Latest events, so the match screen can flash the newest line. */
   lastEvents: MatchEvent[];
 
-  newGame: (managerName: string, clubId: string | null) => void;
+  newGame: (options: NewGameOptions) => void;
   continueGame: () => boolean;
   abandonGame: () => void;
+
+  /** Rename the competition. */
+  setLeagueName: (name: string) => void;
+  /** Rename or recolour any club in the league. */
+  setTeamIdentity: (
+    teamId: string,
+    identity: { name?: string; shortName?: string; color?: string; accent?: string },
+  ) => void;
+
+  /** Bid for another club's player. Returns the club's answer. */
+  bidForPlayer: (playerId: string, fee: number) => BidResult;
+  /** Put one of your own players on the transfer list, or take him off it. */
+  toggleTransferList: (playerId: string) => void;
+  acceptOffer: (offerId: string) => void;
+  rejectOffer: (offerId: string) => void;
 
   setScreen: (screen: Screen) => void;
 
@@ -66,9 +90,101 @@ export const useGame = create<GameStore>((set, get) => ({
   screen: 'squad',
   lastEvents: [],
 
-  newGame: (managerName, clubId) => {
-    const state = createNewGame(managerName, clubId);
+  newGame: (options) => {
+    const state = createNewGame(options);
     commit(set, state, { screen: 'squad', lastEvents: [] });
+  },
+
+  setLeagueName: (name) => {
+    const state = get().state;
+    if (!state) return;
+    state.leagueName = name.trim() || state.leagueName;
+    commit(set, state);
+  },
+
+  setTeamIdentity: (teamId, identity) => {
+    const state = get().state;
+    if (!state) return;
+    const team = state.teams[teamId];
+    if (!team) return;
+
+    const name = identity.name?.trim();
+    const shortName = identity.shortName?.trim().toUpperCase();
+    if (name) team.name = name;
+    // Keep the badge legible: two to four characters.
+    if (shortName) team.shortName = shortName.slice(0, 4);
+    if (identity.color) team.color = identity.color;
+    if (identity.accent) team.accent = identity.accent;
+    commit(set, state);
+  },
+
+  bidForPlayer: (playerId, fee) => {
+    const state = get().state;
+    if (!state) return { accepted: false, reason: '게임이 시작되지 않았습니다.' };
+
+    const window = transferWindow(state.round, totalRounds(state.fixtures));
+    if (!window.open) return { accepted: false, reason: '이적시장이 닫혀 있습니다.' };
+    if (state.live) return { accepted: false, reason: '경기 중에는 영입할 수 없습니다.' };
+
+    const seller = Object.values(state.teams).find(
+      (team) => team.id !== state.clubId && team.players.some((p) => p.id === playerId),
+    );
+    const player = seller?.players.find((p) => p.id === playerId);
+    if (!seller || !player) return { accepted: false, reason: '해당 선수를 찾을 수 없습니다.' };
+
+    const club = state.teams[state.clubId];
+    const rng = rngFor(state);
+    const result = evaluateBid(club, seller, player, fee, rng);
+
+    if (result.accepted) {
+      executeTransfer(state, player, seller, club, fee);
+      pushInbox(
+        state,
+        `영입 완료 — ${player.name}`,
+        `${seller.name}으로부터 ${player.name} 영입에 합의했습니다.\n이적료 ${fee}K.`,
+        'good',
+      );
+      commit(set, state);
+    }
+    return result;
+  },
+
+  toggleTransferList: (playerId) => {
+    const state = get().state;
+    if (!state) return;
+    const listed = state.transfer.listed;
+    const index = listed.indexOf(playerId);
+    if (index >= 0) listed.splice(index, 1);
+    else listed.push(playerId);
+    commit(set, state);
+  },
+
+  acceptOffer: (offerId) => {
+    const state = get().state;
+    if (!state) return;
+    const offer = state.transfer.offers.find((o) => o.id === offerId);
+    if (!offer) return;
+
+    const club = state.teams[state.clubId];
+    const buyer = state.teams[offer.fromTeamId];
+    const player = club.players.find((p) => p.id === offer.playerId);
+    if (!buyer || !player) return;
+
+    executeTransfer(state, player, club, buyer, offer.fee);
+    pushInbox(
+      state,
+      `이적 완료 — ${player.name}`,
+      `${player.name}이(가) ${buyer.name}(으)로 이적했습니다.\n이적료 ${offer.fee}K가 예산에 반영되었습니다.`,
+      'neutral',
+    );
+    commit(set, state);
+  },
+
+  rejectOffer: (offerId) => {
+    const state = get().state;
+    if (!state) return;
+    state.transfer.offers = state.transfer.offers.filter((o) => o.id !== offerId);
+    commit(set, state);
   },
 
   continueGame: () => {
@@ -260,6 +376,7 @@ export const useGame = create<GameStore>((set, get) => ({
       state.seasonOver = true;
     } else {
       reportProgress(state);
+      runTransferActivity(state, rng);
     }
 
     commit(set, state, { screen: state.seasonOver ? 'league' : 'league', lastEvents: [] });
@@ -280,6 +397,49 @@ export const useGame = create<GameStore>((set, get) => ({
     commit(set, state);
   },
 }));
+
+/**
+ * Everything the transfer market does between rounds: lapse stale bids, let
+ * the AI clubs deal with each other, and put new offers on the user's desk.
+ */
+function runTransferActivity(state: GameState, rng: Rng): void {
+  const window = transferWindow(state.round, totalRounds(state.fixtures));
+
+  const expired = expireOffers(state);
+  if (!window.open) {
+    // Nothing carries across a closed window.
+    state.transfer.offers = [];
+    return;
+  }
+
+  runAiTransfers(state, rng);
+
+  const offers = generateOffers(state, rng);
+  state.transfer.offers.push(...offers);
+
+  const club = state.teams[state.clubId];
+  offers.forEach((offer) => {
+    const player = club.players.find((p) => p.id === offer.playerId);
+    const buyer = state.teams[offer.fromTeamId];
+    if (!player || !buyer) return;
+    pushInbox(
+      state,
+      `이적 제안 — ${player.name}`,
+      `${buyer.name}이(가) ${player.name}에 대해 ${offer.fee}K를 제안했습니다.\n` +
+        `이적 탭에서 수락하거나 거절할 수 있습니다. ${offer.expiresRound + 1}라운드까지 유효합니다.`,
+      'neutral',
+    );
+  });
+
+  if (expired.length > 0 && offers.length === 0) {
+    pushInbox(
+      state,
+      '이적 제안 만료',
+      `${expired.length}건의 제안이 답을 받지 못하고 철회되었습니다.`,
+      'neutral',
+    );
+  }
+}
 
 /** Board check-ins at the quarter marks of the season. */
 function reportProgress(state: GameState): void {
