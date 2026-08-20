@@ -9,9 +9,26 @@ React + TypeScript + Vite로 작성했고, 서버 없이 브라우저에서 전�
 npm install
 npm run dev      # http://localhost:5173
 npm run build    # dist/ 로 정적 빌드
+npm run preview  # 빌드 결과물 확인 (http://localhost:4173)
 ```
 
 390×844(아이폰 세로) 기준으로 레이아웃을 잡았습니다. 데스크톱에서는 가운데 520px 폭으로 표시됩니다.
+
+### 휴대폰에서 열기
+
+`vite.config.ts`에 `host: true`가 설정되어 있어 `npm run dev`를 실행하면 LAN 주소도 함께 출력됩니다.
+PC와 폰이 같은 Wi-Fi에 있으면 그 `Network` 주소로 접속할 수 있습니다. iOS Safari에서 "홈 화면에
+추가"를 하면 주소창 없이 전체화면으로 실행됩니다.
+
+## 배포
+
+`main`에 푸시되면 `.github/workflows/deploy.yml`이 빌드해 GitHub Pages로 배포합니다.
+Actions 탭에서 수동 실행(`workflow_dispatch`)도 가능해 머지 전에 미리 확인할 수 있습니다.
+
+최초 1회만 저장소 설정이 필요합니다: **Settings → Pages → Source 를 "GitHub Actions"로 변경.**
+
+백엔드가 없는 정적 사이트라 Netlify, Vercel, S3 등 어디에 올려도 그대로 동작합니다.
+`vite.config.ts`의 `base: './'` 덕분에 하위 경로(`/test-project/`)로 서빙해도 문제가 없습니다.
 
 ## 게임 내용
 
