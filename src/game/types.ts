@@ -1,123 +1,199 @@
-export type PositionGroup = 'GK' | 'DF' | 'MF' | 'FW';
+import type { Attributes, PositionGroup, Role } from './attributes';
+import type { ContinentId } from '../data/countries';
 
-/** Concrete slot on the pitch. Formations are expressed as lists of these. */
-export type Role =
-  | 'GK'
-  | 'DC'
-  | 'DL'
-  | 'DR'
-  | 'DM'
-  | 'MC'
-  | 'ML'
-  | 'MR'
-  | 'AM'
-  | 'ST';
+// ── 달력 ────────────────────────────────────────────────────────────────
 
-export interface Attributes {
-  /** Finishing, heading, composure in the box. */
-  shooting: number;
-  /** Vision, passing range, set pieces. */
-  passing: number;
-  /** Dribbling, first touch, flair. */
-  dribbling: number;
-  /** Tackling, marking, positioning. */
-  defending: number;
-  /** Pace, strength, stamina ceiling. */
-  physical: number;
-  /** Shot stopping, handling, command of area. GK only — outfielders get a token value. */
-  goalkeeping: number;
+/** 한 시즌의 길이(주). 아래 상수들이 이 안에 배치됩니다. */
+export const SEASON_WEEKS = 44;
+/** 리그 라운드가 배치되는 구간. 20개 구단(38라운드)이 딱 들어맞습니다. */
+export const LEAGUE_FIRST_WEEK = 5;
+export const LEAGUE_LAST_WEEK = 42;
+/** 여름 / 겨울 이적시장. */
+export const SUMMER_WINDOW: readonly [number, number] = [1, 6];
+export const WINTER_WINDOW: readonly [number, number] = [23, 25];
+/** 대륙 클럽 대항전 결승 주차. 라운드는 여기서 거꾸로 배치됩니다. */
+export const CONTINENTAL_FINAL_WEEK = 38;
+/** 클럽 월드컵 (8강 → 결승). */
+export const WORLD_CUP_WEEKS: readonly number[] = [40, 41, 42];
+/** 시상식 주차. */
+export const AWARDS_WEEK = 43;
+
+// ── 선수 ────────────────────────────────────────────────────────────────
+
+export type PersonalityId =
+  | 'professional' | 'ambitious' | 'loyal' | 'determined' | 'balanced'
+  | 'temperamental' | 'mercenary' | 'lowKey' | 'perfectionist' | 'volatile';
+
+export interface PersonalityDef {
+  id: PersonalityId;
+  label: string;
+  /** 요구 주급 배율. */
+  wageGreed: number;
+  /** 이적 제안에 대한 저항. 높을수록 현 구단에 남고 싶어 합니다. */
+  loyalty: number;
+  /** 큰 구단·출전 시간에 대한 갈망. */
+  ambition: number;
+  /** 성장 속도 배율. */
+  growth: number;
+  /** 불만이 쌓이는 속도 배율. */
+  volatility: number;
+  note: string;
 }
 
-export type AttributeKey = keyof Attributes;
+export interface Contract {
+  clubId: string;
+  /** 주급, 천 단위. */
+  wage: number;
+  /** 계약이 끝나는 시즌(연도). 이 시즌 종료와 함께 만료됩니다. */
+  expires: number;
+  /** 바이아웃 조항. 0이면 없음. */
+  releaseClause: number;
+  /** 이적 시 에이전트가 받는 비율(%). */
+  agentFeePct: number;
+  signedSeason: number;
+  /** 이 계약을 성사시킨 에이전트. 'you'면 플레이어. */
+  brokeredBy: string | null;
+}
+
+export interface SeasonStats {
+  apps: number;
+  subApps: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  cleanSheets: number;
+  conceded: number;
+  /** 평점 합계. apps 로 나눠 평균을 냅니다. */
+  ratingSum: number;
+  yellow: number;
+  red: number;
+  motm: number;
+}
+
+/** 대회별 기록. 리그 득점왕과 대륙컵 득점왕을 따로 뽑으려면 필요합니다. */
+export interface CompStat {
+  apps: number;
+  goals: number;
+  assists: number;
+  cleanSheets: number;
+  ratingSum: number;
+}
+
+export interface CareerStats extends SeasonStats {
+  seasons: number;
+  trophies: number;
+}
+
+export interface Honour {
+  season: number;
+  label: string;
+  /** 대회 id. 리그 우승 등 구단 성적과 구분하는 용도. */
+  competitionId?: string;
+}
 
 export interface Player {
   id: string;
   name: string;
   age: number;
+  /** 국적 코드(CountryDef.code). */
   nationality: string;
-  role: Role;
-  group: PositionGroup;
+  /** 이중 국적. 없으면 undefined. */
+  secondNationality?: string;
+  /** 키(cm) / 몸무게(kg). */
+  height: number;
+  weight: number;
+  /** 왼발 / 오른발 능력 1-20. 주발은 여기서 계산합니다. */
+  footLeft: number;
+  footRight: number;
   attributes: Attributes;
-  /** Long-term ceiling, 40-99. Drives development. */
-  potential: number;
-  /** 0-100. Recovers between matches, drains during them. */
-  fitness: number;
-  /** 0-100. Recent performances move this. Multiplies effective ability. */
-  form: number;
-  /** 0-100. Playing time, results and squad status move this. */
+  /** 포지션별 숙련도 1-20. */
+  positions: Partial<Record<Role, number>>;
+  bestRole: Role;
+  group: PositionGroup;
+  /** 현재 능력 1-200. */
+  ca: number;
+  /** 잠재 능력 1-200. */
+  pa: number;
+  personality: PersonalityId;
+  clubId: string | null;
+  contract: Contract | null;
+  /** 담당 에이전트. 'you' = 플레이어, null = 무소속, 그 외 = AI 에이전트. */
+  agentId: string | null;
+  /** 0-100. */
   morale: number;
-  /** Remaining matches out. 0 = available. */
-  injuredFor: number;
-  /** Weekly wage in thousands. */
-  wage: number;
-  /** Estimated market value in thousands. */
-  value: number;
+  form: number;
+  fitness: number;
+  injuredWeeks: number;
+  /** 이번 시즌 부상 누적 주 수. 잦은 부상은 가치를 깎습니다. */
   season: SeasonStats;
-  career: SeasonStats;
+  /** 대회 id → 이번 시즌 그 대회에서의 기록. */
+  compStats: Record<string, CompStat>;
+  career: CareerStats;
+  honours: Honour[];
+  /** 추정 시장 가치, 천 단위. 매주 갱신됩니다. */
+  value: number;
+  /** 플레이어가 스카우팅으로 얼마나 파악했는지 0-100. */
+  scouted: number;
+  retired: boolean;
 }
 
-export interface SeasonStats {
-  appearances: number;
-  goals: number;
-  assists: number;
-  cleanSheets: number;
-  /** Sum of per-match ratings, for averaging. */
-  ratingSum: number;
-  yellowCards: number;
-  redCards: number;
-}
+// ── 구단 ────────────────────────────────────────────────────────────────
 
-export interface Team {
+export interface Club {
   id: string;
   name: string;
   shortName: string;
-  /** Primary shirt colour, used across the UI. */
+  countryId: string;
   color: string;
-  /** Secondary/accent colour. */
   accent: string;
-  players: Player[];
-  /** Selected XI, player ids in formation-slot order. */
-  lineup: string[];
-  /** Bench, player ids. */
-  bench: string[];
-  formation: FormationId;
-  tactics: Tactics;
-  /** Board expectation for the season, as a league position. */
-  expectation: number;
-  /** Transfer budget in thousands, spent on fees. */
-  budget: number;
-  /** Ceiling on the total weekly wage bill, in thousands. */
-  wageBudget: number;
-  /** Baseline club strength, used when generating squads. */
+  /** 1-100. 선수 영입력과 매력도. */
   reputation: number;
+  /** 이적료 예산, 천 단위. */
+  budget: number;
+  /** 주급 총액 상한, 천 단위. */
+  wageBudget: number;
+  playerIds: string[];
+  /** 이사회가 기대하는 리그 순위. */
+  expectation: number;
+  style: 'attacking' | 'balanced' | 'defensive';
+  /** 지난 시즌 리그 순위. 0이면 신생/승격. */
+  lastPosition: number;
+  honours: Honour[];
 }
 
-export type FormationId = '4-4-2' | '4-3-3' | '4-2-3-1' | '3-5-2' | '5-3-2';
+// ── 대회 ────────────────────────────────────────────────────────────────
 
-export type Mentality = 'defensive' | 'cautious' | 'balanced' | 'positive' | 'attacking';
-export type Tempo = 'slow' | 'normal' | 'high';
-export type Pressing = 'low' | 'medium' | 'high';
-export type PassingStyle = 'short' | 'mixed' | 'direct';
+export type CompetitionKind = 'league' | 'continental' | 'world';
 
-export interface Tactics {
-  mentality: Mentality;
-  tempo: Tempo;
-  pressing: Pressing;
-  passing: PassingStyle;
+export interface Competition {
+  id: string;
+  kind: CompetitionKind;
+  name: string;
+  shortName: string;
+  countryId?: string;
+  continentId?: ContinentId;
+  /** 대회 수준 1-100. 경기 중요도와 수상 가중치에 씁니다. */
+  prestige: number;
+  color: string;
 }
 
 export interface Fixture {
   id: string;
+  competitionId: string;
+  week: number;
+  /** 리그는 라운드 번호, 컵은 라운드 인덱스. */
   round: number;
   homeId: string;
   awayId: string;
   played: boolean;
   homeGoals: number;
   awayGoals: number;
+  /** 승부차기가 있었다면 [홈, 원정]. */
+  shootout?: [number, number];
 }
 
 export interface TableRow {
-  teamId: string;
+  clubId: string;
   played: number;
   won: number;
   drawn: number;
@@ -127,145 +203,246 @@ export interface TableRow {
   points: number;
 }
 
-export type MatchEventKind =
-  | 'kickoff'
-  | 'chance'
-  | 'goal'
-  | 'save'
-  | 'miss'
-  | 'foul'
-  | 'yellow'
-  | 'red'
-  | 'injury'
-  | 'sub'
-  | 'halftime'
-  | 'fulltime'
-  | 'info';
-
-export interface MatchEvent {
-  minute: number;
-  kind: MatchEventKind;
-  /** Which side the event belongs to. 'neutral' for clock events. */
-  side: 'home' | 'away' | 'neutral';
-  text: string;
-  /** Score after this event, for the timeline. */
-  homeGoals: number;
-  awayGoals: number;
-}
-
-export interface MatchStats {
-  shots: number;
-  onTarget: number;
-  possession: number;
-  corners: number;
-  fouls: number;
-  yellows: number;
-  reds: number;
-}
-
-/** Live state of a match in progress, owned by the store. */
-export interface LiveMatch {
-  fixtureId: string;
-  homeId: string;
-  awayId: string;
-  minute: number;
-  homeGoals: number;
-  awayGoals: number;
-  events: MatchEvent[];
-  homeStats: MatchStats;
-  awayStats: MatchStats;
-  /** Player id -> current match rating (0-10). */
-  ratings: Record<string, number>;
-  /** Player id -> goals this match, for the summary. */
-  scorers: Record<string, number>;
-  /** Ids on the pitch right now, per side. */
-  homeOnPitch: string[];
-  awayOnPitch: string[];
-  /**
-   * Everyone who took part, per side: the starting XI plus every substitute
-   * brought on. End-of-match stats settle over these, not `onPitch`, so a
-   * player who is taken off still gets his appearance and rating recorded.
-   */
-  homeParticipants: string[];
-  awayParticipants: string[];
-  /** Substitutions remaining. */
-  homeSubsLeft: number;
-  awaySubsLeft: number;
-  /** Player ids sent off. */
-  sentOff: string[];
-  /** Player ids injured during this match. */
-  injured: string[];
-  finished: boolean;
-  /** Set once the user has seen the result screen. */
-  acknowledged: boolean;
-}
-
-export interface InboxItem {
+export interface LeagueState {
+  /** 국가 id 와 같습니다. */
   id: string;
+  competitionId: string;
+  clubIds: string[];
+  fixtures: Fixture[];
+  table: Record<string, TableRow>;
+  /** 총 라운드 수. */
+  rounds: number;
+  championId?: string;
+}
+
+export interface CupRound {
+  name: string;
   week: number;
-  subject: string;
+  /** 이 라운드 대진의 fixture id 목록. */
+  fixtureIds: string[];
+  done: boolean;
+}
+
+export interface CupState {
+  id: string;
+  competitionId: string;
+  continentId?: ContinentId;
+  entrants: string[];
+  rounds: CupRound[];
+  fixtures: Fixture[];
+  /** 아직 남아 있는 구단. */
+  alive: string[];
+  championId?: string;
+  runnerUpId?: string;
+}
+
+// ── 에이전트 ────────────────────────────────────────────────────────────
+
+export interface LedgerEntry {
+  season: number;
+  week: number;
+  label: string;
+  /** 양수 = 수입, 음수 = 지출. 천 단위. */
+  amount: number;
+}
+
+export interface AgentState {
+  name: string;
+  agencyName: string;
+  /** 보유 자금, 천 단위. */
+  cash: number;
+  /** 0-100. 구단이 전화를 받아 주는 정도. */
+  reputation: number;
+  /** 라이선스 등급 1-5. 동시 진행 가능한 협상 수와 의뢰인 정원을 정합니다. */
+  licence: number;
+  /** 구단별 관계 0-100. */
+  clubRelations: Record<string, number>;
+  /** 스카우팅에 쓰는 주간 포인트. */
+  scoutPoints: number;
+  ledger: LedgerEntry[];
+  /** 통산 실적. */
+  totals: { deals: number; feeVolume: number; commission: number };
+}
+
+export interface ClientDemand {
+  id: string;
+  kind: 'playing-time' | 'wage' | 'transfer' | 'personal' | 'discipline' | 'renewal';
+  title: string;
   body: string;
-  read: boolean;
+  createdWeek: number;
+  /** 이 주차를 넘기면 자동으로 실패 처리됩니다. */
+  deadlineWeek: number;
+  /** 선택지. 플레이어가 하나를 고릅니다. */
+  options: DemandOption[];
+  resolution?: 'success' | 'fail' | 'expired';
+}
+
+export interface DemandOption {
+  id: string;
+  label: string;
+  /** 성공 확률 0-1. 계산된 값이 저장됩니다. */
+  chance: number;
+  /** 성공/실패 시 신뢰도 변화. */
+  trustOnSuccess: number;
+  trustOnFail: number;
+  /** 비용(천 단위). 0이면 무료. */
+  cost: number;
+  hint: string;
+}
+
+export interface Client {
+  playerId: string;
+  /** 에이전시와 계약한 시즌. */
+  since: number;
+  /** 대리인 계약 만료 시즌. */
+  until: number;
+  /** 0-100. 낮아지면 다른 에이전트로 떠납니다. */
+  trust: number;
+  /** 이적·계약 성사 시 받는 수수료율(%). */
+  commissionPct: number;
+  demands: ClientDemand[];
+}
+
+// ── 협상 ────────────────────────────────────────────────────────────────
+
+export type NegotiationKind = 'transfer' | 'renewal' | 'free-agent';
+export type NegotiationStage = 'fee' | 'terms' | 'commission' | 'agreed' | 'failed';
+
+export interface NegotiationMessage {
+  week: number;
+  from: 'you' | 'club' | 'player' | 'seller';
+  text: string;
   tone: 'neutral' | 'good' | 'bad';
 }
 
-/** A bid from an AI club for one of the user's players. */
-export interface TransferOffer {
+export interface Negotiation {
   id: string;
+  kind: NegotiationKind;
   playerId: string;
-  /** Club making the bid. */
-  fromTeamId: string;
+  /** 영입하려는 구단(재계약이면 현 구단). */
+  clubId: string;
+  /** 파는 구단. 자유계약이면 null. */
+  fromClubId: string | null;
+  stage: NegotiationStage;
+  /** 현재 테이블에 올라온 조건. */
   fee: number;
-  /** Round after which the offer lapses. */
-  expiresRound: number;
+  wage: number;
+  years: number;
+  commissionPct: number;
+  releaseClause: number;
+  /** 상대가 속으로 생각하는 상한/하한. UI 에는 힌트로만 노출됩니다. */
+  clubMaxFee: number;
+  clubMaxWage: number;
+  playerMinWage: number;
+  /** 0-100. 0이 되면 결렬. */
+  patience: number;
+  messages: NegotiationMessage[];
+  openedWeek: number;
+  expiresWeek: number;
+  /** 구단이 먼저 접근해 온 건인지. */
+  inbound: boolean;
 }
 
-export interface TransferRecord {
+// ── 스카우팅 ────────────────────────────────────────────────────────────
+
+export interface ScoutReport {
+  playerId: string;
+  week: number;
+  /** 파악한 정도 0-100. */
+  depth: number;
+}
+
+export interface ScoutingState {
+  /** 이번 시즌 남은 스카우팅 포인트. */
+  points: number;
+  /** 주당 회복량. */
+  regen: number;
+  /** 관심 목록. */
+  shortlist: string[];
+  reports: Record<string, ScoutReport>;
+}
+
+// ── 뉴스 · 수상 · 기록 ──────────────────────────────────────────────────
+
+export interface NewsItem {
+  id: string;
   season: number;
-  round: number;
-  playerName: string;
-  fromName: string;
-  toName: string;
-  fee: number;
+  week: number;
+  category: 'transfer' | 'client' | 'award' | 'match' | 'finance' | 'league' | 'system';
+  title: string;
+  body: string;
+  tone: 'neutral' | 'good' | 'bad';
+  read: boolean;
+  /** 관련 선수/구단. 탭하면 상세로 이동합니다. */
+  playerId?: string;
+  clubId?: string;
 }
 
-export interface TransferState {
-  /** Player ids the user has put up for sale. */
-  listed: string[];
-  /** Live bids for the user's players. */
-  offers: TransferOffer[];
-  /** League-wide completed deals, newest first. */
-  log: TransferRecord[];
+export type AwardId =
+  | 'top-scorer' | 'top-assists' | 'player-of-year' | 'young-player' | 'golden-glove'
+  | 'continental-player' | 'continental-scorer'
+  | 'world-player' | 'world-young-player' | 'world-scorer';
+
+export interface AwardWinner {
+  awardId: AwardId;
+  season: number;
+  /** 리그·대륙 단위 상이면 대회 id. 세계 상이면 undefined. */
+  competitionId?: string;
+  continentId?: ContinentId;
+  playerId: string;
+  /** 수상 시점의 이름/구단을 박제해 둡니다. 은퇴 후에도 기록이 남습니다. */
+  playerName: string;
+  clubName: string;
+  /** 득점왕이면 골 수, 올해의 선수면 점수. */
+  value: number;
+  /** 플레이어의 의뢰인이었는지. */
+  wasClient: boolean;
 }
+
+export interface SeasonHistory {
+  season: number;
+  /** 리그별 우승 구단. */
+  leagueChampions: Record<string, string>;
+  /** 대륙컵 우승 구단. */
+  continentalChampions: Record<string, string>;
+  worldChampionId?: string;
+  awards: AwardWinner[];
+  /** 에이전트 실적. */
+  agent: { cash: number; reputation: number; deals: number; commission: number; clients: number };
+}
+
+// ── 전체 상태 ───────────────────────────────────────────────────────────
+
+export type Phase = 'preseason' | 'season' | 'awards' | 'rollover';
 
 export interface GameState {
   seed: number;
-  managerName: string;
-  /** Player-editable competition name. */
-  leagueName: string;
-  clubId: string;
+  /** 시작 연도. 시즌 표기는 `${season}/${season+1}`. */
   season: number;
-  /** Index into the fixture rounds. */
-  round: number;
-  teams: Record<string, Team>;
-  fixtures: Fixture[];
-  inbox: InboxItem[];
-  transfer: TransferState;
-  live: LiveMatch | null;
-  /** Set when the season is complete and awaiting rollover. */
-  seasonOver: boolean;
-  history: SeasonRecord[];
+  week: number;
+  phase: Phase;
+  /** 활성화된 국가 id 목록. */
+  countryIds: string[];
+  agent: AgentState;
+  clubs: Record<string, Club>;
+  players: Record<string, Player>;
+  competitions: Record<string, Competition>;
+  leagues: Record<string, LeagueState>;
+  cups: Record<string, CupState>;
+  clients: Record<string, Client>;
+  negotiations: Negotiation[];
+  scouting: ScoutingState;
+  news: NewsItem[];
+  awards: AwardWinner[];
+  history: SeasonHistory[];
+  /** 지난 주에 치러진 경기 결과 — 주간 요약 화면에 씁니다. */
+  lastWeekResults: Fixture[];
+  /** 리그명·구단명 사용자 편집분. */
+  renames: Record<string, string>;
 }
 
-export interface SeasonRecord {
-  season: number;
-  position: number;
-  points: number;
-  won: number;
-  drawn: number;
-  lost: number;
-  goalsFor: number;
-  goalsAgainst: number;
-  topScorer: string;
-  topScorerGoals: number;
-}
+export const isWindowOpen = (week: number): boolean =>
+  (week >= SUMMER_WINDOW[0] && week <= SUMMER_WINDOW[1]) ||
+  (week >= WINTER_WINDOW[0] && week <= WINTER_WINDOW[1]);
+
+export const seasonLabel = (season: number): string => `${season}/${String((season + 1) % 100).padStart(2, '0')}`;
