@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit false --emitDeclarationOnly false",
     "sim": "esbuild tools/simulate.ts --bundle --platform=node --format=esm --outfile=.tmp/sim.mjs --log-level=warning && node .tmp/sim.mjs",
+    "clubcheck": "esbuild tools/clubcheck.ts --bundle --platform=node --format=esm --outfile=.tmp/clubcheck.mjs --log-level=warning && node .tmp/clubcheck.mjs",
     "play": "esbuild tools/playthrough.ts --bundle --platform=node --format=esm --outfile=.tmp/play.mjs --log-level=warning && node .tmp/play.mjs"
   },
   "dependencies": {

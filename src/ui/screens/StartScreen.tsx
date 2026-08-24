@@ -5,7 +5,7 @@ import {
 import { SQUAD_SIZE } from '../../game/player';
 import { hasSave } from '../../game/save';
 import { useGame } from '../../store/useGame';
-import { Btn, Card, Field, KV } from '../components/common';
+import { Btn, Card, Field, KV, Segmented } from '../components/common';
 
 /** 대륙 대항전이 성립하려면 한 대륙에 두 나라는 있어야 합니다. */
 function continentalReadiness(selected: Set<string>): Array<{ name: string; countries: number; cup: boolean }> {
@@ -25,6 +25,7 @@ export default function StartScreen() {
   const [name, setName] = useState('');
   const [agency, setAgency] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set(DEFAULT_COUNTRY_IDS));
+  const [realClubs, setRealClubs] = useState(true);
   const [canResume, setCanResume] = useState(false);
 
   useEffect(() => { setCanResume(hasSave()); }, []);
@@ -71,6 +72,22 @@ export default function StartScreen() {
           <input className="input" value={agency} placeholder="수현 스포츠 매니지먼트" maxLength={30}
             onChange={(e) => setAgency(e.target.value)} />
         </Field>
+      </Card>
+
+      <Card title="구단명">
+        <Segmented
+          value={realClubs ? 'real' : 'fictional'}
+          onChange={(value) => setRealClubs(value === 'real')}
+          options={[
+            { value: 'real', label: '실제 구단' },
+            { value: 'fictional', label: '가상 구단' },
+          ]}
+        />
+        <p className="faint small">
+          {realClubs
+            ? '실제 구단의 이름과 색상을 씁니다. 엠블럼은 쓰지 않고, 선수는 전부 가상입니다.'
+            : '도시 이름을 조합해 가상 구단을 만듭니다. 실존하는 것과 무관한 세계가 됩니다.'}
+        </p>
       </Card>
 
       <Card
@@ -148,11 +165,14 @@ export default function StartScreen() {
           agentName: name,
           agencyName: agency,
           countryIds: [...selected],
+          fictionalClubs: !realClubs,
         })}
       >
         {selected.size === 0 ? '리그를 하나 이상 선택하세요' : '새 게임 시작'}
       </Btn>
-      <p className="faint small center">구단과 선수는 모두 가상입니다.</p>
+      <p className="faint small center">
+        {realClubs ? '선수는 모두 가상입니다.' : '구단과 선수는 모두 가상입니다.'}
+      </p>
     </div>
   );
 }

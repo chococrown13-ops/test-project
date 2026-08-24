@@ -6,6 +6,7 @@
 
 import { Rng, clamp } from './rng';
 import { NameFactory, shortenClubName } from '../data/names';
+import { REAL_CLUBS } from '../data/clubs';
 import { COUNTRY_BY_ID, CONTINENTS, CONTINENT_ORDER, type ContinentId, type CountryDef } from '../data/countries';
 import { generateSquad, generatePlayer, estimateValue, expectedWage, PERSONALITY_BY_ID } from './player';
 import { clubStrength } from './ratings';
@@ -43,6 +44,8 @@ export interface WorldSetup {
   seed: number;
   countryIds: string[];
   season: number;
+  /** true 면 실제 구단명 대신 가상 구단명을 만들어 씁니다. */
+  fictionalClubs?: boolean;
 }
 
 export interface World {
@@ -95,21 +98,34 @@ function spreadOverWeeks(roundCount: number): number[] {
 
 // ── 구단 · 리그 ─────────────────────────────────────────────────────────
 
-function buildClubs(rng: Rng, names: NameFactory, country: CountryDef): Club[] {
+/**
+ * 한 나라의 구단을 만듭니다.
+ *
+ * 실제 구단을 쓸 때는 `REAL_CLUBS` 의 **나열 순서가 곧 체급**입니다. 여기에
+ * 약간의 흔들림을 더해 세이브마다 판도가 조금씩 달라지게 합니다 — 매번 같은
+ * 팀이 같은 순위로 시작하면 두 번째 게임을 할 이유가 없습니다.
+ */
+function buildClubs(rng: Rng, names: NameFactory, country: CountryDef, fictional: boolean): Club[] {
+  const real = fictional ? undefined : REAL_CLUBS[country.id];
+  const count = real?.length ?? country.clubCount;
   const clubs: Club[] = [];
-  for (let i = 0; i < country.clubCount; i++) {
+
+  for (let i = 0; i < count; i++) {
     // 리그 안에서 최상위와 최하위의 격차. 명성이 높은 리그일수록 위가 두껍습니다.
-    const rank = i / Math.max(1, country.clubCount - 1);
+    const rank = i / Math.max(1, count - 1);
     const reputation = clamp(
       Math.round(country.reputation + 9 - rank * (26 + country.reputation * 0.12) + rng.float(-3, 3)),
       12, 99,
     );
-    const [color, accent] = PALETTE[(i + country.id.length) % PALETTE.length];
-    const name = names.club(country.namePool);
+    const seed = real?.[i];
+    const [fallbackColor, fallbackAccent] = PALETTE[(i + country.id.length) % PALETTE.length];
+    const name = seed?.name ?? names.club(country.namePool);
+    const color = seed?.color ?? fallbackColor;
+    const accent = seed?.accent ?? fallbackAccent;
     clubs.push({
       id: `${country.id}-${i}`,
       name,
-      shortName: shortenClubName(name),
+      shortName: seed?.short ?? shortenClubName(name),
       countryId: country.id,
       color,
       accent,
@@ -318,7 +334,7 @@ export function buildWorld(setup: WorldSetup): World {
       color: country.color,
     };
 
-    const countryClubs = buildClubs(rng, names, country);
+    const countryClubs = buildClubs(rng, names, country, setup.fictionalClubs ?? false);
     for (const club of countryClubs) {
       clubs[club.id] = club;
       const squad = generateSquad(rng, names, country, club.reputation, `${club.id}p`);

@@ -10,6 +10,8 @@ export interface NewGameOptions {
   agentName?: string;
   agencyName?: string;
   season?: number;
+  /** 실제 구단명 대신 가상 구단명을 씁니다. */
+  fictionalClubs?: boolean;
 }
 
 /** 라이선스 등급별 정원. 평판이 오르면 등급이 올라갑니다. */
@@ -30,7 +32,7 @@ export function createGame(options: NewGameOptions = {}): GameState {
   const countryIds = requested.length > 0 ? requested : DEFAULT_COUNTRY_IDS;
   const season = options.season ?? 2026;
 
-  const world = buildWorld({ seed, countryIds, season });
+  const world = buildWorld({ seed, countryIds, season, fictionalClubs: options.fictionalClubs });
 
   return {
     seed,
