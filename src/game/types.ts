@@ -330,10 +330,23 @@ export interface Negotiation {
   years: number;
   commissionPct: number;
   releaseClause: number;
-  /** 상대가 속으로 생각하는 상한/하한. UI 에는 힌트로만 노출됩니다. */
+  /** 상대가 속으로 생각하는 상한/하한. 협상 전에는 보이지 않습니다. */
   clubMaxFee: number;
+  sellerMinFee: number;
   clubMaxWage: number;
   playerMinWage: number;
+  /** 구단이 받아들이는 최대 수수료율(%). 조건 합의 시점에 정해집니다. */
+  commissionCap: number;
+  /**
+   * 한 번 퇴짜를 맞으면 상대가 자기 선을 흘립니다. 값이 들어 있으면 UI 에
+   * 표시됩니다 — 협상은 상한을 모르고 찌르는 게 아니라, 찔러서 알아낸 뒤
+   * 그 안에서 최선을 뽑아내는 놀이여야 합니다.
+   */
+  revealedClubMaxFee?: number;
+  revealedSellerMinFee?: number;
+  revealedClubMaxWage?: number;
+  revealedPlayerMinWage?: number;
+  revealedCommissionCap?: number;
   /** 0-100. 0이 되면 결렬. */
   patience: number;
   messages: NegotiationMessage[];

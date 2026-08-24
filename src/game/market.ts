@@ -11,6 +11,33 @@ import { estimateValue, expectedWage, PERSONALITY_BY_ID } from './player';
 import { COUNTRY_BY_ID } from '../data/countries';
 import type { Club, GameState, Player } from './types';
 
+/** 스쿼드 전체의 시장 가치 합계. */
+export function squadValue(club: Club, players: Record<string, Player>): number {
+  let total = 0;
+  for (const id of club.playerIds) {
+    const player = players[id];
+    if (player && !player.retired) total += player.value;
+  }
+  return total;
+}
+
+/**
+ * 구단 재정을 스쿼드 가치에서 역산합니다.
+ *
+ * 예산을 명성만 보고 정하면 선수 가치 곡선과 어긋나, 중위권 구단이 자기
+ * 리그 수준의 선수조차 못 사는 상태가 됩니다. 실제 구단이 그렇듯 "가진
+ * 선수단의 값어치에 비례해" 쓸 수 있게 하고, 리그에 도는 돈(wageFactor)으로
+ * 그 비율을 조절합니다.
+ */
+export function setClubFinances(
+  club: Club, players: Record<string, Player>, wageFactor: number, jitter = 1,
+): void {
+  const value = squadValue(club, players);
+  const share = clamp(0.06 + wageFactor * 0.10, 0.06, 0.22);
+  club.budget = Math.round(value * share * jitter);
+  club.wageBudget = Math.round(Math.pow(club.reputation / 100, 2.8) * 1900 * wageFactor);
+}
+
 /** 한 구단이 실제로 굴리는 주급 총액. */
 export function wageBill(club: Club, players: Record<string, Player>): number {
   let total = 0;

@@ -9,6 +9,7 @@ import { NameFactory, shortenClubName } from '../data/names';
 import { COUNTRY_BY_ID, CONTINENTS, CONTINENT_ORDER, type ContinentId, type CountryDef } from '../data/countries';
 import { generateSquad, generatePlayer, estimateValue, expectedWage, PERSONALITY_BY_ID } from './player';
 import { clubStrength } from './ratings';
+import { setClubFinances } from './market';
 import {
   LEAGUE_FIRST_WEEK, LEAGUE_LAST_WEEK, CONTINENTAL_FINAL_WEEK,
   type Club, type Competition, type CupState, type Fixture, type LeagueState,
@@ -327,6 +328,7 @@ export function buildWorld(setup: WorldSetup): World {
         players[player.id] = player;
         club.playerIds.push(player.id);
       }
+      setClubFinances(club, players, country.wageFactor, rng.float(0.85, 1.2));
     }
 
     const clubIds = countryClubs.map((c) => c.id);

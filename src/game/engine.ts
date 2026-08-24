@@ -111,6 +111,9 @@ export function advanceWeek(state: GameState, rng: Rng): WeekReport {
     pushNews(state, { category: 'system', title: '겨울 이적시장이 열렸습니다', body: '짧은 창구입니다. 서두르세요.', tone: 'good' });
   }
 
+  // 이적시장이 닫힌 구간에도 세계가 돌아간다는 느낌이 있어야 합니다.
+  if (state.week % 4 === 2 && state.week > 6) reportLeagueHighlight(state, rng);
+
   let awarded = false;
   if (state.week === AWARDS_WEEK) {
     const { history } = finishSeason(state);
@@ -149,6 +152,33 @@ export function advanceWeek(state: GameState, rng: Rng): WeekReport {
     seasonRolled,
     awarded,
   };
+}
+
+/** 활성화된 리그 하나를 골라 선두와 득점 선두를 짚어 줍니다. */
+function reportLeagueHighlight(state: GameState, rng: Rng): void {
+  const leagues = Object.values(state.leagues).filter((league) =>
+    Object.values(league.table).some((row) => row.played > 2));
+  if (leagues.length === 0) return;
+  const league = rng.pick(leagues);
+  const competition = state.competitions[league.competitionId];
+  const leader = Object.values(league.table).slice()
+    .sort((a, b) => b.points - a.points || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst))[0];
+  const topScorer = Object.values(state.players)
+    .filter((p) => (p.compStats[league.competitionId]?.goals ?? 0) > 0)
+    .sort((a, b) => b.compStats[league.competitionId].goals - a.compStats[league.competitionId].goals)[0];
+  if (!leader || !competition) return;
+
+  const scorerLine = topScorer
+    ? ` 득점 선두는 ${topScorer.name} (${topScorer.compStats[league.competitionId].goals}골).`
+    : '';
+  pushNews(state, {
+    category: 'league',
+    title: `${competition.name} 판세`,
+    body: `${state.clubs[leader.clubId]?.name} 이(가) ${leader.played}경기 승점 ${leader.points}로 선두입니다.${scorerLine}`,
+    tone: 'neutral',
+    playerId: topScorer?.id,
+    clubId: leader.clubId,
+  });
 }
 
 /** 의뢰인이 골이나 도움을 올렸으면 알려 줍니다. */

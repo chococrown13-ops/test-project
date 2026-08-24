@@ -41,7 +41,7 @@ export function createGame(options: NewGameOptions = {}): GameState {
     agent: {
       name: options.agentName?.trim() || '이수현',
       agencyName: options.agencyName?.trim() || '수현 스포츠 매니지먼트',
-      cash: 400,
+      cash: 650,
       reputation: 12,
       licence: 1,
       clubRelations: {},

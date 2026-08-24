@@ -84,8 +84,8 @@ export function approachPlayer(
     return { ok: false, signed: false, message: `라이선스 등급 ${state.agent.licence} 정원(${clientLimit(state)}명)이 찼습니다.` };
   }
 
-  // 접근 비용 — 만나러 가는 데도 돈이 듭니다.
-  const cost = Math.round(8 + player.ca / 6);
+  // 접근 비용 — 만나러 가는 데도 돈이 듭니다. 거절당해도 나갑니다.
+  const cost = Math.round(3 + player.ca / 22);
   if (state.agent.cash < cost) {
     return { ok: false, signed: false, message: `접촉 비용 ${cost}k 이 모자랍니다.` };
   }

@@ -14,7 +14,7 @@ import { computeSeasonAwards, recordHonours } from './awards';
 import {
   buildLeagueFixtures, continentalEntrants, createCup, drawCupRound, rankLeague, compareTableRows,
 } from './world';
-import { processExpiries, retireStaleFreeAgents, signFreeAgents } from './market';
+import { processExpiries, retireStaleFreeAgents, setClubFinances, signFreeAgents } from './market';
 import { COUNTRY_BY_ID, CONTINENTS, CONTINENT_ORDER } from '../data/countries';
 import { NameFactory } from '../data/names';
 import {
@@ -386,12 +386,11 @@ export function rolloverSeason(state: GameState, rng: Rng): { retired: Player[] 
       state.players[player.id] = player;
       club.playerIds.push(player.id);
     }
-    // 예산 재설정 — 성적에 따라 오르내립니다.
+    // 명성과 예산 재설정 — 성적에 따라 오르내립니다.
     const placement = club.lastPosition > 0 ? club.lastPosition : club.expectation;
     const overPerformance = clamp((club.expectation - placement) / 10, -0.3, 0.4);
     club.reputation = clamp(Math.round(club.reputation + overPerformance * 6), 12, 99);
-    club.budget = Math.round(Math.pow(club.reputation / 100, 3.4) * 90000 * country.wageFactor * rng.float(0.85, 1.2));
-    club.wageBudget = Math.round(Math.pow(club.reputation / 100, 2.8) * 1900 * country.wageFactor);
+    setClubFinances(club, state.players, country.wageFactor, rng.float(0.85, 1.2) * (1 + overPerformance * 0.25));
   }
 
   // 새 시즌 달력

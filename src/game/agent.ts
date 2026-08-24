@@ -42,10 +42,16 @@ export function ledger(state: GameState, label: string, amount: number): void {
   state.agent.cash = Math.round((state.agent.cash + entry.amount) * 10) / 10;
 }
 
-/** 사무실 유지비 — 의뢰인이 많을수록 비쌉니다. */
+/**
+ * 사무실 유지비 — 의뢰인이 많을수록 비쌉니다.
+ *
+ * 에이전트 수입의 대부분은 이적 성사 수수료이고 주급에서 떼는 몫은 얼마
+ * 안 됩니다. 그래서 유지비가 조금만 세도 첫 거래를 성사시키기 전에 파산해
+ * 게임이 끝나 버립니다.
+ */
 export function weeklyExpenses(state: GameState): number {
   const clients = Object.keys(state.clients).length;
-  return Math.round((6 + clients * 2.4 + state.agent.licence * 3) * 10) / 10;
+  return Math.round((4 + clients * 1.2 + state.agent.licence * 2) * 10) / 10;
 }
 
 /**

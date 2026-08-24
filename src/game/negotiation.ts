@@ -38,7 +38,76 @@ function standing(player: Player, state: GameState): number {
   return index < 0 ? 0 : 1 - index / Math.max(1, ranked.length - 1);
 }
 
-/** 사는 구단에게 이 선수가 얼마나 필요한지 0-1. */
+/**
+ * 파는 구단이 받아들이는 최소 이적료.
+ *
+ * 사는 구단의 상한과 겹치는 구간이 생기도록 잡아야 합니다. 하한이 상한보다
+ * 늘 높으면 어떤 금액을 불러도 거래가 안 되고, 플레이어는 이유도 모른 채
+ * 인내심만 깎아 먹습니다.
+ */
+function sellerFloor(player: Player, state: GameState): number {
+  if (!player.clubId) return 0;
+  const value = estimateValue(player);
+  const contractYears = player.contract ? Math.max(0, player.contract.expires - state.season) : 0;
+  let floor = value * (0.85 + standing(player, state) * 0.45 + contractYears * 0.05);
+  // 나가고 싶어 하는 선수는 구단도 오래 붙잡지 못합니다.
+  const wantsOut = state.clients[player.id]?.demands.some(
+    (d) => d.kind === 'transfer' && !d.resolution) ?? false;
+  if (wantsOut || player.morale < 40) floor *= 0.85;
+  if (player.contract?.releaseClause) floor = Math.min(floor, player.contract.releaseClause);
+  return Math.round(floor);
+}
+
+/** 사는 구단이 지를 수 있는 최대 이적료. */
+function buyerCeiling(player: Player, buyerId: string, state: GameState): number {
+  const buyer = state.clubs[buyerId];
+  if (!buyer) return 0;
+  const value = estimateValue(player);
+  const relation = relationWith(state, buyerId);
+  return Math.round(Math.min(
+    buyer.budget,
+    value * (1.05 + need(player, buyerId, state) * 0.6 + relation / 200),
+  ));
+}
+
+/**
+ * 구단이 이 선수를 데려갈 뜻이 있는지 미리 가늠합니다.
+ *
+ * 구단마다 필요한 자리가 다르고 예산도 다릅니다. 이걸 보여 주지 않으면
+ * 플레이어는 성사될 리 없는 협상에 이적시장을 통째로 날립니다.
+ */
+export interface Outlook {
+  /** 0-1. 이 선수가 전력 보강이 되는 정도. */
+  interest: number;
+  /** 예산 안에서 이야기가 되는지. */
+  affordable: boolean;
+  label: string;
+  tone: 'good' | 'warn' | 'bad';
+}
+
+export function transferOutlook(state: GameState, playerId: string, clubId: string): Outlook {
+  const player = state.players[playerId];
+  const club = state.clubs[clubId];
+  if (!player || !club) return { interest: 0, affordable: false, label: '알 수 없음', tone: 'bad' };
+
+  const interest = need(player, clubId, state);
+  const ceiling = buyerCeiling(player, clubId, state);
+  const floor = player.clubId ? sellerFloor(player, state) : 0;
+  const affordable = ceiling >= floor;
+
+  if (!affordable) return { interest, affordable, label: '예산 부족', tone: 'bad' };
+  if (interest < 0.2) return { interest, affordable, label: '자리 없음', tone: 'bad' };
+  if (interest < 0.5) return { interest, affordable, label: '관심 보통', tone: 'warn' };
+  return { interest, affordable, label: '관심 높음', tone: 'good' };
+}
+
+/**
+ * 사는 구단에게 이 선수가 얼마나 필요한지 0-1.
+ *
+ * 기준은 그 포지션의 **주전 언저리**(세 번째로 좋은 선수)입니다. 구단 최고
+ * 선수와 비교하면 어떤 영입도 보강으로 잡히지 않아, 사실상 모든 이적이
+ * 막혀 버립니다.
+ */
 function need(player: Player, buyerId: string, state: GameState): number {
   const buyer = state.clubs[buyerId];
   if (!buyer) return 0;
@@ -46,9 +115,10 @@ function need(player: Player, buyerId: string, state: GameState): number {
     .map((id) => state.players[id])
     .filter((p): p is Player => Boolean(p) && p.group === player.group)
     .sort((a, b) => b.ca - a.ca);
-  const best = sameGroup[0]?.ca ?? 0;
+  if (sameGroup.length === 0) return 1;
+  const benchmark = sameGroup[Math.min(2, sameGroup.length - 1)].ca;
   const thin = sameGroup.length < (player.group === 'GK' ? 3 : 5) ? 0.25 : 0;
-  return clamp((player.ca - best) / 40 + 0.35 + thin, 0, 1);
+  return clamp((player.ca - benchmark) / 35 + 0.4 + thin, 0, 1);
 }
 
 export interface OpenResult {
@@ -84,21 +154,10 @@ export function openNegotiation(
 
   const relation = relationWith(state, toClubId);
   const personality = PERSONALITY_BY_ID[player.personality];
-  const value = estimateValue(player);
   const seller = player.clubId ? state.clubs[player.clubId] : null;
 
-  // 사는 구단의 상한 — 예산, 필요도, 나와의 관계가 함께 정합니다.
-  const buyerMaxFee = kind === 'renewal' || !seller ? 0 : Math.round(Math.min(
-    buyer.budget,
-    value * (0.85 + need(player, toClubId, state) * 0.55 + relation / 260),
-  ));
-
-  // 파는 구단의 하한. 바이아웃이 있으면 그 금액에서 막힙니다.
-  const contractYears = player.contract ? Math.max(0, player.contract.expires - state.season) : 0;
-  let sellerMin = seller
-    ? Math.round(value * (1.0 + standing(player, state) * 0.55 + contractYears * 0.07))
-    : 0;
-  if (player.contract?.releaseClause) sellerMin = Math.min(sellerMin, player.contract.releaseClause);
+  const buyerMaxFee = kind === 'renewal' || !seller ? 0 : buyerCeiling(player, toClubId, state);
+  const sellerMin = kind === 'renewal' || !seller ? 0 : sellerFloor(player, state);
 
   const marketWage = expectedWage(player, buyer.reputation, country);
   const playerMinWage = Math.round(marketWage * personality.wageGreed * rng.float(0.88, 1.08) * 10) / 10;
@@ -118,8 +177,10 @@ export function openNegotiation(
     commissionPct: 0,
     releaseClause: 0,
     clubMaxFee: buyerMaxFee,
+    sellerMinFee: sellerMin,
     clubMaxWage: buyerMaxWage,
     playerMinWage,
+    commissionCap: 0,
     patience: Math.round(clamp(55 + relation * 0.45 + state.agent.reputation * 0.2, 30, 100)),
     messages: [],
     openedWeek: state.week,
@@ -127,11 +188,15 @@ export function openNegotiation(
     inbound: false,
   };
 
-  // 협상 시작 시점에 이미 성립 불가능한 경우가 있습니다. 힌트를 남깁니다.
+  // 시작부터 구간이 겹치지 않으면 어떤 금액을 불러도 안 됩니다. 인내심을
+  // 태우기 전에 알려 줍니다.
   if (negotiation.stage === 'fee' && sellerMin > buyerMaxFee) {
-    say(negotiation, state.week, 'seller', `${seller?.name ?? '구단'} 은(는) 선수를 팔 생각이 별로 없어 보입니다.`, 'bad');
+    say(negotiation, state.week, 'seller',
+      `${seller?.name ?? '구단'} 이(가) 부르는 값과 ${buyer.name} 의 예산 차이가 큽니다. 이번 창구에서는 어려워 보입니다.`, 'bad');
   }
-  negotiation.fee = sellerMin;
+  // 시작값은 "관행적인 첫 제안"입니다. 곧바로 통과하는 값을 넣어 두면
+  // 이적료 단계가 버튼 한 번으로 끝나 버려 협상이랄 게 없어집니다.
+  negotiation.fee = Math.round(estimateValue(player) * 0.85);
   say(negotiation, state.week, 'club',
     kind === 'renewal'
       ? `${buyer.name} 이(가) 재계약 논의를 시작했습니다.`
@@ -159,6 +224,13 @@ function find(state: GameState, id: string): Negotiation | undefined {
   return state.negotiations.find((n) => n.id === id);
 }
 
+/** 어긋난 정도에 비례한 인내심 소모. 살짝 빗나간 제안까지 크게 깎지 않습니다. */
+function impatience(offer: number, limit: number, tooHigh: boolean): number {
+  if (limit <= 0) return 12;
+  const miss = tooHigh ? offer / limit : limit / offer;
+  return Math.round(clamp(5 + (miss - 1) * 45, 5, 26));
+}
+
 /** 1단계 — 이적료. 두 구단이 모두 받아들여야 넘어갑니다. */
 export function proposeFee(state: GameState, id: string, fee: number, rng: Rng): ProposeResult {
   const negotiation = find(state, id);
@@ -168,31 +240,33 @@ export function proposeFee(state: GameState, id: string, fee: number, rng: Rng):
   const buyer = state.clubs[negotiation.clubId];
   if (!player || !buyer) return { ok: false, accepted: false, message: '협상 대상을 찾을 수 없습니다.' };
 
-  const value = estimateValue(player);
-  const contractYears = player.contract ? Math.max(0, player.contract.expires - state.season) : 0;
-  let sellerMin = seller ? Math.round(value * (1.0 + standing(player, state) * 0.55 + contractYears * 0.07)) : 0;
-  if (player.contract?.releaseClause) sellerMin = Math.min(sellerMin, player.contract.releaseClause);
-
   negotiation.fee = Math.round(fee);
 
   if (fee > negotiation.clubMaxFee) {
-    negotiation.patience -= 22;
-    say(negotiation, state.week, 'club', `${buyer.name}: 그 금액은 우리 예산 밖입니다.`, 'bad');
+    negotiation.patience -= impatience(fee, negotiation.clubMaxFee, true);
+    // 한 번 퇴짜를 놓으면 구단이 자기 한도를 알려 줍니다.
+    negotiation.revealedClubMaxFee = negotiation.clubMaxFee;
+    say(negotiation, state.week, 'club',
+      `${buyer.name}: 우리가 쓸 수 있는 최대는 ${negotiation.clubMaxFee.toLocaleString()}k 입니다.`, 'bad');
     if (negotiation.patience <= 0) return fail(negotiation, state, `${buyer.name} 이(가) 협상을 접었습니다.`);
-    return { ok: true, accepted: false, message: '사는 구단이 난색을 표합니다.' };
+    return { ok: true, accepted: false, message: '사는 구단의 예산을 넘습니다.' };
   }
-  if (seller && fee < sellerMin) {
-    negotiation.patience -= 16;
-    const gap = sellerMin / Math.max(1, fee);
+  if (seller && fee < negotiation.sellerMinFee) {
+    negotiation.patience -= impatience(fee, negotiation.sellerMinFee, false);
+    // 관계가 좋을수록 정확한 숫자를 알려 줍니다.
+    const relation = relationWith(state, seller.id);
+    const fuzz = clamp(0.18 - relation / 700, 0.02, 0.18);
+    const hint = Math.round(negotiation.sellerMinFee * (1 + rng.float(0, fuzz)));
+    negotiation.revealedSellerMinFee = hint;
     say(negotiation, state.week, 'seller',
-      `${seller.name}: ${gap > 1.4 ? '턱없이 부족합니다.' : '조금만 더 올려 주십시오.'}`, 'bad');
+      `${seller.name}: ${hint.toLocaleString()}k 은 받아야 내줄 수 있습니다.`, 'bad');
     if (negotiation.patience <= 0) return fail(negotiation, state, `${seller.name} 이(가) 협상을 중단했습니다.`);
     return { ok: true, accepted: false, message: '파는 구단이 거절했습니다.' };
   }
 
   say(negotiation, state.week, 'club', `이적료 ${Math.round(fee).toLocaleString()}k 에 합의했습니다.`, 'good');
   negotiation.stage = 'terms';
-  negotiation.wage = Math.round(negotiation.playerMinWage * rng.float(0.95, 1.05) * 10) / 10;
+  negotiation.wage = Math.round(negotiation.playerMinWage * rng.float(0.80, 0.9) * 10) / 10;
   return { ok: true, accepted: true, message: '이적료 합의. 이제 선수 조건을 정합니다.' };
 }
 
@@ -211,28 +285,44 @@ export function proposeTerms(
   negotiation.releaseClause = Math.max(0, Math.round(releaseClause));
 
   if (wage > negotiation.clubMaxWage) {
-    negotiation.patience -= 20;
-    say(negotiation, state.week, 'club', `${buyer.name}: 주급 상한을 넘습니다.`, 'bad');
+    negotiation.patience -= impatience(wage, negotiation.clubMaxWage, true);
+    negotiation.revealedClubMaxWage = negotiation.clubMaxWage;
+    say(negotiation, state.week, 'club',
+      `${buyer.name}: 우리 주급 상한은 ${negotiation.clubMaxWage.toFixed(1)}k 입니다.`, 'bad');
     if (negotiation.patience <= 0) return fail(negotiation, state, `${buyer.name} 이(가) 협상을 접었습니다.`);
     return { ok: true, accepted: false, message: '구단이 주급을 거절했습니다.' };
   }
   if (wage < negotiation.playerMinWage) {
-    negotiation.patience -= 12;
-    say(negotiation, state.week, 'player', `${player.name}: 이 조건으로는 서명하지 않겠습니다.`, 'bad');
+    negotiation.patience -= impatience(wage, negotiation.playerMinWage, false);
+    negotiation.revealedPlayerMinWage = negotiation.playerMinWage;
+    say(negotiation, state.week, 'player',
+      `${player.name}: 최소 ${negotiation.playerMinWage.toFixed(1)}k 은 받아야겠습니다.`, 'bad');
     if (negotiation.patience <= 0) return fail(negotiation, state, `${player.name} 이(가) 협상 테이블을 떠났습니다.`);
     return { ok: true, accepted: false, message: '선수가 주급에 만족하지 못합니다.' };
   }
   // 바이아웃을 낮게 걸면 구단이 싫어합니다.
   if (negotiation.releaseClause > 0 && negotiation.releaseClause < estimateValue(player) * 1.4) {
-    negotiation.patience -= 10;
-    say(negotiation, state.week, 'club', `${buyer.name}: 바이아웃이 너무 낮습니다.`, 'bad');
+    negotiation.patience -= 8;
+    say(negotiation, state.week, 'club',
+      `${buyer.name}: 바이아웃은 최소 ${Math.round(estimateValue(player) * 1.4).toLocaleString()}k 이어야 합니다.`, 'bad');
     if (negotiation.patience <= 0) return fail(negotiation, state, `${buyer.name} 이(가) 협상을 접었습니다.`);
     return { ok: true, accepted: false, message: '바이아웃 조항을 조정해야 합니다.' };
   }
 
   say(negotiation, state.week, 'player', `${player.name} 이(가) 조건에 만족했습니다.`, 'good');
   negotiation.stage = 'commission';
-  negotiation.commissionPct = 5;
+
+  // 구단은 수수료 정책을 대략 밝힙니다. 관계가 좋을수록 정확하게 알려 주고,
+  // 그 위를 노리면 인내심을 씁니다. 숨겨 두면 몇 %를 불러야 할지 알 길이
+  // 없어 협상이 순수한 찍기가 됩니다.
+  const relation = relationWith(state, negotiation.clubId);
+  const cap = 3 + relation / 22 + state.agent.reputation / 22;
+  negotiation.commissionCap = Math.round(cap * 10) / 10;
+  const fuzz = clamp(1.6 - relation / 90, 0.2, 1.6);
+  negotiation.revealedCommissionCap = Math.round(Math.max(0.5, cap - fuzz) * 10) / 10;
+  negotiation.commissionPct = negotiation.revealedCommissionCap;
+  say(negotiation, state.week, 'club',
+    `${buyer.name}: 저희가 통상 쓰는 대리인 수수료는 ${negotiation.revealedCommissionCap}% 안팎입니다.`, 'neutral');
   return { ok: true, accepted: true, message: '선수 조건 합의. 이제 내 수수료를 정합니다.' };
 }
 
@@ -243,13 +333,14 @@ export function proposeCommission(state: GameState, id: string, pct: number): Pr
   const buyer = state.clubs[negotiation.clubId];
   if (!buyer) return { ok: false, accepted: false, message: '구단을 찾을 수 없습니다.' };
 
-  const relation = relationWith(state, negotiation.clubId);
-  const ceiling = 3 + relation / 22 + state.agent.reputation / 22;
+  const ceiling = negotiation.commissionCap;
   negotiation.commissionPct = Math.round(clamp(pct, 0, 25) * 10) / 10;
 
   if (pct > ceiling) {
-    negotiation.patience -= 18;
-    say(negotiation, state.week, 'club', `${buyer.name}: 수수료가 과합니다. 우리 기준은 ${ceiling.toFixed(1)}% 선입니다.`, 'bad');
+    // 퍼센트는 절대 폭이 작아 비율로 재면 한 번의 오판이 협상을 끝내 버립니다.
+    negotiation.patience -= Math.round(clamp(5 + (pct - ceiling) * 6, 5, 24));
+    negotiation.revealedCommissionCap = Math.round(ceiling * 10) / 10;
+    say(negotiation, state.week, 'club', `${buyer.name}: 수수료가 과합니다. 우리 상한은 ${ceiling.toFixed(1)}% 입니다.`, 'bad');
     if (negotiation.patience <= 0) return fail(negotiation, state, `${buyer.name} 이(가) 협상을 접었습니다.`);
     return { ok: true, accepted: false, message: '구단이 수수료를 거절했습니다.' };
   }
@@ -375,7 +466,7 @@ export function weeklyNegotiationTick(state: GameState, rng: Rng, windowOpen: bo
     if (!player || player.retired || !player.clubId) continue;
     if (state.negotiations.some((n) => n.playerId === player.id)) continue;
 
-    const interest = clamp((player.ca - 90) / 260 + (player.form - 50) / 500, 0.005, 0.09);
+    const interest = clamp((player.ca - 70) / 340 + (player.form - 50) / 400, 0.01, 0.14);
     if (!rng.bool(interest)) continue;
 
     const suitors = Object.values(state.clubs).filter((club) =>
