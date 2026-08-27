@@ -8,7 +8,7 @@ import { PERSONALITY_BY_ID } from '../../game/player';
 import { depthOf, potentialRange, potentialStars, revealRange } from '../../game/scouting';
 import { approachEstimate } from '../../game/clients';
 import { formatMoney } from '../../game/engine';
-import { COUNTRY_BY_ID } from '../../data/countries';
+import { COUNTRY_BY_ID, leagueName } from '../../data/countries';
 import { AI_AGENT_NAMES } from '../../game/world';
 import { seasonLabel, type GameState, type Player } from '../../game/types';
 import { useGame, useGameState } from '../../store/useGame';
@@ -167,7 +167,7 @@ export function PlayerSheet({ playerId }: { playerId: string }) {
         {player.contract && club ? (
           <>
             <KV k="구단" v={<button type="button" className="linkish" onClick={() => openClub(club.id)}>{club.name}</button>} />
-            <KV k="리그" v={country?.leagueName ?? '-'} />
+            <KV k="리그" v={country ? leagueName(country, club.tier) : '-'} />
             <KV k="주급" v={`${player.contract.wage.toFixed(1)}k / 주`} />
             <KV k="계약 만료" v={seasonLabel(player.contract.expires)} />
             <KV k="바이아웃" v={player.contract.releaseClause ? formatMoney(player.contract.releaseClause) : '없음'} />

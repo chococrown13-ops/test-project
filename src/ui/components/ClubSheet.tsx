@@ -1,4 +1,4 @@
-import { COUNTRY_BY_ID } from '../../data/countries';
+import { COUNTRY_BY_ID, leagueKey, leagueName } from '../../data/countries';
 import { relationWith } from '../../game/agent';
 import { wageBill } from '../../game/market';
 import { formatMoney } from '../../game/engine';
@@ -15,7 +15,7 @@ export function ClubSheet({ clubId }: { clubId: string }) {
   if (!club) return null;
 
   const country = COUNTRY_BY_ID[club.countryId];
-  const league = state.leagues[club.countryId];
+  const league = state.leagues[leagueKey(club.countryId, club.tier)];
   const rows = league ? Object.values(league.table).slice().sort(compareTableRows) : [];
   const position = rows.findIndex((row) => row.clubId === clubId) + 1;
   const squad = club.playerIds
@@ -26,7 +26,7 @@ export function ClubSheet({ clubId }: { clubId: string }) {
   return (
     <Sheet
       title={club.name}
-      subtitle={`${country?.name ?? ''} · ${country?.leagueName ?? ''}`}
+      subtitle={country ? `${country.name} · ${leagueName(country, club.tier)}` : ''}
       onClose={() => openClub(null)}
     >
       <Card title="개요">

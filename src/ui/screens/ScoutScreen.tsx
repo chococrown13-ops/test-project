@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { COUNTRIES } from '../../data/countries';
 import { POSITION_GROUP_LABELS, type PositionGroup } from '../../game/attributes';
-import { DEFAULT_FILTERS, SWEEP_COST, depthOf, type ScoutFilters } from '../../game/scouting';
+import {
+  DEFAULT_FILTERS, SWEEP_COST, leagueAccess, playerLeagueLabel, scoutingCeiling,
+  type ScoutFilters,
+} from '../../game/scouting';
 import { formatMoney } from '../../game/engine';
 import { useGame, useGameState } from '../../store/useGame';
 import { Btn, Card, Chip, Empty, Field, KV, Meter } from '../components/common';
@@ -15,10 +17,15 @@ export default function ScoutScreen() {
   const [filters, setFilters] = useState<ScoutFilters>({ ...DEFAULT_FILTERS });
   const [tab, setTab] = useState<'found' | 'shortlist'>('found');
 
-  const available = COUNTRIES.filter((c) => state.countryIds.includes(c.id));
-  const toggleCountry = (id: string): void => setFilters((f) => ({
+  const access = leagueAccess(state);
+  const unlocked = access.filter((entry) => entry.unlocked);
+  const locked = access.filter((entry) => !entry.unlocked);
+  // 다음에 열릴 리그 하나만 보여 줍니다 — 목표가 하나여야 손에 잡힙니다.
+  const nextUp = locked[0];
+
+  const toggleLeague = (id: string): void => setFilters((f) => ({
     ...f,
-    countryIds: f.countryIds.includes(id) ? f.countryIds.filter((c) => c !== id) : [...f.countryIds, id],
+    leagueIds: f.leagueIds.includes(id) ? f.leagueIds.filter((l) => l !== id) : [...f.leagueIds, id],
   }));
   const toggleGroup = (group: PositionGroup): void => setFilters((f) => ({
     ...f,
@@ -63,11 +70,18 @@ export default function ScoutScreen() {
           </div>
         </Field>
 
-        <Field label="리그" hint={filters.countryIds.length === 0 ? '전체' : `${filters.countryIds.length}개국`}>
+        <Field
+          label="리그"
+          hint={filters.leagueIds.length === 0 ? '볼 수 있는 전체' : `${filters.leagueIds.length}개 리그`}
+        >
           <div className="chips chips--scroll">
-            {available.map((country) => (
-              <Chip key={country.id} active={filters.countryIds.includes(country.id)} onClick={() => toggleCountry(country.id)}>
-                {country.name}
+            {unlocked.map((entry) => (
+              <Chip
+                key={entry.leagueId}
+                active={filters.leagueIds.includes(entry.leagueId)}
+                onClick={() => toggleLeague(entry.leagueId)}
+              >
+                {entry.name}
               </Chip>
             ))}
           </div>
@@ -110,7 +124,7 @@ export default function ScoutScreen() {
                 right={
                   <span className="scout-row__right">
                     <span>{formatMoney(player.value)}</span>
-                    <span className="faint small">파악 {Math.round(depthOf(state, player.id))}%</span>
+                    <span className="faint small">{playerLeagueLabel(state, player)}</span>
                   </span>
                 }
               />
@@ -126,10 +140,33 @@ export default function ScoutScreen() {
           ))}
       </Card>
 
+      <Card
+        title="사정권"
+        action={<span className="faint small">{unlocked.length} / {access.length}개 리그</span>}
+      >
+        <p className="faint small">
+          무명 에이전트의 전화를 위 리그 구단은 받아 주지 않습니다. 거래를 성사시켜
+          평판을 쌓으면 상위 리그가 차례로 열립니다.
+        </p>
+        <Meter label="평판" value={state.agent.reputation} />
+        {nextUp
+          ? (
+            <KV
+              k={`다음: ${nextUp.name}`}
+              v={`평판 ${nextUp.required} 필요 (현재 ${Math.round(state.agent.reputation)})`}
+              tone="dim"
+            />
+          )
+          : <KV k="모든 리그" v="사정권 안입니다" tone="good" />}
+        {locked.slice(1, 5).map((entry) => (
+          <KV key={entry.leagueId} k={entry.name} v={`평판 ${entry.required}`} tone="dim" />
+        ))}
+      </Card>
+
       <Card title="요령">
-        <KV k="평판이 낮으면" v="눈에 띄는 선수가 잘 안 걸립니다" tone="dim" />
         <KV k="파악도 100%" v="능력치가 정확한 값으로 보입니다" tone="dim" />
         <KV k="자유계약 선수" v="이적료 없이 데려갈 수 있습니다" tone="dim" />
+        <KV k="무소속 선수" v={`지금은 능력치 ${Math.round(scoutingCeiling(state) / 0.55)} 이하까지 보입니다`} tone="dim" />
       </Card>
     </div>
   );

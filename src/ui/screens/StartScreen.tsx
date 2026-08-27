@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  CONTINENTS, CONTINENT_ORDER, COUNTRIES, DEFAULT_COUNTRY_IDS, type CountryDef,
+  CONTINENTS, CONTINENT_ORDER, COUNTRIES, DEFAULT_COUNTRY_IDS, HOME_TIERS,
+  COUNTRY_BY_ID, tierReputation, type CountryDef,
 } from '../../data/countries';
+import { REAL_CLUBS_T2 } from '../../data/clubs';
 import { SQUAD_SIZE } from '../../game/player';
 import { hasSave } from '../../game/save';
 import { useGame } from '../../store/useGame';
-import { Btn, Card, Field, KV, Segmented } from '../components/common';
+import { Btn, Card, Chip, Field, KV, Segmented } from '../components/common';
 
 /** 대륙 대항전이 성립하려면 한 대륙에 두 나라는 있어야 합니다. */
 function continentalReadiness(selected: Set<string>): Array<{ name: string; countries: number; cup: boolean }> {
@@ -26,6 +28,7 @@ export default function StartScreen() {
   const [agency, setAgency] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set(DEFAULT_COUNTRY_IDS));
   const [realClubs, setRealClubs] = useState(true);
+  const [homeCountryId, setHomeCountryId] = useState('eng');
   const [canResume, setCanResume] = useState(false);
 
   useEffect(() => { setCanResume(hasSave()); }, []);
@@ -41,11 +44,22 @@ export default function StartScreen() {
 
   const stats = useMemo(() => {
     const chosen = COUNTRIES.filter((c) => selected.has(c.id));
-    const clubs = chosen.reduce((sum, c) => sum + c.clubCount, 0);
-    return { leagues: chosen.length, clubs, players: clubs * SQUAD_SIZE };
-  }, [selected]);
+    // 본거지는 4부까지 열리므로 그만큼 구단이 늘어납니다.
+    const home = selected.has(homeCountryId) ? homeCountryId : [...selected][0];
+    const extraTiers = home ? (COUNTRY_BY_ID[home]?.clubCount ?? 0) * (HOME_TIERS - 1) : 0;
+    const clubs = chosen.reduce((sum, c) => sum + c.clubCount, 0) + extraTiers;
+    return {
+      countries: chosen.length,
+      leagues: chosen.length + (chosen.length > 0 ? HOME_TIERS - 1 : 0),
+      clubs,
+      players: clubs * SQUAD_SIZE,
+    };
+  }, [selected, homeCountryId]);
 
   const readiness = useMemo(() => continentalReadiness(selected), [selected]);
+  // 본거지를 껐다면 켜져 있는 나라 중 하나로 자동으로 옮깁니다.
+  const activeHomeId = selected.has(homeCountryId) ? homeCountryId : [...selected][0];
+  const homeCountry = activeHomeId ? COUNTRY_BY_ID[activeHomeId] : undefined;
   const heavy = stats.clubs > 330;
 
   return (
@@ -92,7 +106,7 @@ export default function StartScreen() {
 
       <Card
         title="활성화할 리그"
-        action={<span className="faint small">{stats.leagues}개국</span>}
+        action={<span className="faint small">{stats.countries}개국</span>}
       >
         <p className="faint small">
           켠 나라의 1부 리그가 전부 동시에 돌아갑니다. 끄면 그 나라 선수와 구단은 세계에서 아예 빠집니다.
@@ -132,6 +146,36 @@ export default function StartScreen() {
         })}
       </Card>
 
+      <Card title="본거지" action={<span className="faint small">{HOME_TIERS}부까지</span>}>
+        <p className="faint small">
+          본거지로 고른 나라만 {HOME_TIERS}부 리그까지 열리고 승격·강등이 돌아갑니다.
+          당신은 여기 하부 리그에서 시작합니다 — 무명 에이전트의 전화를 1부 구단은
+          받아 주지 않기 때문입니다.
+        </p>
+        <div className="chips chips--scroll">
+          {[...selected].map((id) => COUNTRY_BY_ID[id]).filter(Boolean).map((country) => (
+            <Chip key={country.id} active={country.id === activeHomeId} onClick={() => setHomeCountryId(country.id)}>
+              {country.name}
+            </Chip>
+          ))}
+        </div>
+        {homeCountry && (
+          <div className="tier-preview">
+            {Array.from({ length: HOME_TIERS }, (_, i) => i + 1).map((tier) => (
+              <div key={tier} className="tier-preview__row">
+                <span className="tier-preview__name">{homeCountry.leagueLabel} {tier}부</span>
+                <span className="tier-preview__meta">
+                  수준 {tierReputation(homeCountry, tier)}
+                  {realClubs && (tier === 1 || (tier === 2 && REAL_CLUBS_T2[homeCountry.id]))
+                    ? ' · 실제 구단'
+                    : ' · 가상 구단'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       <Card title="이 세계의 규모" tone={heavy ? 'warn' : undefined}>
         <KV k="리그" v={`${stats.leagues}개`} />
         <KV k="구단" v={`${stats.clubs}개`} />
@@ -166,6 +210,7 @@ export default function StartScreen() {
           agencyName: agency,
           countryIds: [...selected],
           fictionalClubs: !realClubs,
+          homeCountryId: activeHomeId,
         })}
       >
         {selected.size === 0 ? '리그를 하나 이상 선택하세요' : '새 게임 시작'}

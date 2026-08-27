@@ -144,6 +144,8 @@ export interface Club {
   name: string;
   shortName: string;
   countryId: string;
+  /** 소속 부. 승격·강등으로 바뀝니다. */
+  tier: number;
   color: string;
   accent: string;
   /** 1-100. 선수 영입력과 매력도. */
@@ -171,6 +173,8 @@ export interface Competition {
   name: string;
   shortName: string;
   countryId?: string;
+  /** 리그의 부(1 = 1부). 컵 대회에는 없습니다. */
+  tier?: number;
   continentId?: ContinentId;
   /** 대회 수준 1-100. 경기 중요도와 수상 가중치에 씁니다. */
   prestige: number;
@@ -204,8 +208,11 @@ export interface TableRow {
 }
 
 export interface LeagueState {
-  /** 국가 id 와 같습니다. */
+  /** 1부는 국가 id, 하부는 `eng:2` 형태. */
   id: string;
+  countryId: string;
+  /** 1 = 1부. 본거지 국가만 2 이상이 존재합니다. */
+  tier: number;
   competitionId: string;
   clubIds: string[];
   fixtures: Fixture[];
@@ -436,6 +443,8 @@ export interface GameState {
   phase: Phase;
   /** 활성화된 국가 id 목록. */
   countryIds: string[];
+  /** 본거지 국가. 이 나라만 하부 리그까지 열립니다. */
+  homeCountryId: string;
   agent: AgentState;
   clubs: Record<string, Club>;
   players: Record<string, Player>;

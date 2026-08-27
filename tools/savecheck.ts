@@ -10,7 +10,7 @@ for (const [label, ids] of [
   ['기본 16개국', DEFAULT_COUNTRY_IDS],
   ['전체 24개국', COUNTRIES.map((c) => c.id)],
 ] as const) {
-  const state = createGame({ seed: 7, countryIds: ids as string[] });
+  const state = createGame({ seed: 7, countryIds: ids as string[], homeCountryId: 'eng' });
   const rng = new Rng(7);
   for (let i = 0; i < 10; i++) advanceWeek(state, rng);
   const text = serialize(state);

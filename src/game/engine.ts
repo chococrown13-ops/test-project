@@ -15,7 +15,6 @@ import { weeklyNegotiationTick } from './negotiation';
 import { settleWeeklyFinance } from './agent';
 import { replenishScoutPoints } from './scouting';
 import { AWARD_LABELS } from './awards';
-import { COUNTRY_BY_ID } from '../data/countries';
 import {
   AWARDS_WEEK, SEASON_WEEKS, isWindowOpen,
   type GameState, type NewsItem,
@@ -119,12 +118,13 @@ export function advanceWeek(state: GameState, rng: Rng): WeekReport {
     const { history } = finishSeason(state);
     awarded = true;
     reportAwards(state);
-    for (const [countryId, clubId] of Object.entries(history.leagueChampions)) {
-      const country = COUNTRY_BY_ID[countryId];
-      if (!country) continue;
+    for (const [leagueId, clubId] of Object.entries(history.leagueChampions)) {
+      const league = state.leagues[leagueId];
+      const competition = league ? state.competitions[league.competitionId] : undefined;
+      if (!competition) continue;
       pushNews(state, {
         category: 'league',
-        title: `${country.leagueName} 우승`,
+        title: `${competition.name} 우승`,
         body: `${state.clubs[clubId]?.name ?? ''} 이(가) 리그를 제패했습니다.`,
         tone: 'neutral',
         clubId,

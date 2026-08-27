@@ -8,7 +8,7 @@
 
 import { Rng, clamp } from './rng';
 import { estimateValue, expectedWage, PERSONALITY_BY_ID } from './player';
-import { COUNTRY_BY_ID } from '../data/countries';
+import { countryOfClub } from '../data/countries';
 import type { Club, GameState, Player } from './types';
 
 /** 스쿼드 전체의 시장 가치 합계. */
@@ -67,7 +67,7 @@ export function processExpiries(state: GameState, rng: Rng): Player[] {
   const released: Player[] = [];
 
   for (const club of Object.values(state.clubs)) {
-    const country = COUNTRY_BY_ID[club.countryId];
+    const country = countryOfClub(club);
     if (!country) continue;
     let bill = wageBill(club, state.players);
 
@@ -146,7 +146,7 @@ export function signFreeAgents(state: GameState, rng: Rng, minSquad: number): nu
 
   const clubs = Object.values(state.clubs).sort((a, b) => b.reputation - a.reputation);
   for (const club of clubs) {
-    const country = COUNTRY_BY_ID[club.countryId];
+    const country = countryOfClub(club);
     if (!country) continue;
     let bill = wageBill(club, state.players);
     let needed = minSquad - club.playerIds.length;
@@ -233,7 +233,7 @@ export function runAiTransfers(state: GameState, rng: Rng, deals: number): AiDea
     if (!buyer || !seller || buyer.id === seller.id) continue;
     if (seller.playerIds.length <= 20) continue;
 
-    const country = COUNTRY_BY_ID[buyer.countryId];
+    const country = countryOfClub(buyer);
     if (!country) continue;
 
     // 파는 쪽에서 벤치를 겉도는 선수를 고릅니다.

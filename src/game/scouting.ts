@@ -8,7 +8,7 @@
  */
 
 import { Rng, clamp } from './rng';
-import { COUNTRY_BY_ID } from '../data/countries';
+import { COUNTRY_BY_ID, leagueKey, requiredReputation } from '../data/countries';
 import type { PositionGroup } from './attributes';
 import type { GameState, Player } from './types';
 
@@ -20,8 +20,8 @@ export const FOCUS_COST = 8;
 export const FOCUS_DEPTH = 26;
 
 export interface ScoutFilters {
-  /** 비우면 활성화된 모든 국가. */
-  countryIds: string[];
+  /** 리그 키(`eng`, `eng:2`) 목록. 비우면 볼 수 있는 모든 리그. */
+  leagueIds: string[];
   groups: PositionGroup[];
   minAge: number;
   maxAge: number;
@@ -32,7 +32,7 @@ export interface ScoutFilters {
 }
 
 export const DEFAULT_FILTERS: ScoutFilters = {
-  countryIds: [],
+  leagueIds: [],
   groups: ['GK', 'DF', 'MF', 'FW'],
   minAge: 16,
   maxAge: 34,
@@ -61,6 +61,61 @@ export function potentialRange(player: Player, depth: number): [number, number] 
   ];
 }
 
+// ── 스카우팅 사정권 ─────────────────────────────────────────────────────
+
+/**
+ * 지금 평판으로 들여다볼 수 있는 리그 수준의 상한.
+ *
+ * 무명 에이전트의 전화를 1부 구단이 받아 주지 않듯, 처음에는 하부 리그
+ * 선수만 명단에 뜹니다. 거래를 성사시켜 이름값이 쌓이면 위쪽 리그가 차례로
+ * 열립니다. `requiredReputation` 의 역함수입니다.
+ */
+export function scoutingCeiling(state: GameState): number {
+  return state.agent.reputation / 1.3 + 45;
+}
+
+export interface LeagueAccess {
+  leagueId: string;
+  competitionId: string;
+  name: string;
+  prestige: number;
+  unlocked: boolean;
+  /** 잠겨 있다면 필요한 평판. */
+  required: number;
+}
+
+/** 활성화된 모든 리그와 그 해금 상태. 스카우트 화면이 이걸 그대로 그립니다. */
+export function leagueAccess(state: GameState): LeagueAccess[] {
+  const ceiling = scoutingCeiling(state);
+  return Object.values(state.leagues)
+    .map((league) => {
+      const competition = state.competitions[league.competitionId];
+      const prestige = competition?.prestige ?? 50;
+      return {
+        leagueId: league.id,
+        competitionId: league.competitionId,
+        name: competition?.name ?? league.id,
+        prestige,
+        unlocked: prestige <= ceiling,
+        required: requiredReputation(prestige),
+      };
+    })
+    .sort((a, b) => a.prestige - b.prestige);
+}
+
+/** 이 선수를 명단에 띄울 수 있는지. 소속 리그 수준으로 판단합니다. */
+export function withinReach(state: GameState, player: Player): boolean {
+  const ceiling = scoutingCeiling(state);
+  if (!player.clubId) {
+    // 무소속 선수는 소속 리그가 없으니 능력치로 체급을 가늠합니다.
+    return player.ca * 0.55 <= ceiling;
+  }
+  const club = state.clubs[player.clubId];
+  if (!club) return false;
+  const competition = state.competitions[`lg:${leagueKey(club.countryId, club.tier)}`];
+  return (competition?.prestige ?? 50) <= ceiling;
+}
+
 export function depthOf(state: GameState, playerId: string): number {
   return state.scouting.reports[playerId]?.depth ?? 0;
 }
@@ -79,12 +134,14 @@ function matches(state: GameState, player: Player, filters: ScoutFilters): boole
   if (filters.freeAgentsOnly && player.clubId) return false;
   if (filters.unrepresentedOnly && player.agentId) return false;
   if (player.agentId === 'you') return false;
-  if (filters.countryIds.length > 0) {
-    const clubCountry = player.clubId ? state.clubs[player.clubId]?.countryId : null;
-    if (!clubCountry || !filters.countryIds.includes(clubCountry)) return false;
-  } else if (player.clubId) {
-    const clubCountry = state.clubs[player.clubId]?.countryId;
-    if (!clubCountry || !state.countryIds.includes(clubCountry)) return false;
+  if (!withinReach(state, player)) return false;
+
+  const club = player.clubId ? state.clubs[player.clubId] : null;
+  if (filters.leagueIds.length > 0) {
+    if (!club) return false;
+    if (!filters.leagueIds.includes(leagueKey(club.countryId, club.tier))) return false;
+  } else if (club && !state.countryIds.includes(club.countryId)) {
+    return false;
   }
   return true;
 }
@@ -108,10 +165,6 @@ export function sweep(state: GameState, filters: ScoutFilters, rng: Rng): SweepR
   for (const player of Object.values(state.players)) {
     if (!matches(state, player, filters)) continue;
     if (depthOf(state, player.id) >= 25) continue;
-
-    // 평판이 낮으면 눈에 띄는 선수를 못 알아봅니다.
-    const reach = 40 + state.agent.reputation * 1.5;
-    if (player.ca > reach + 60) continue;
 
     const upside = clamp((player.pa - player.ca) / 60, 0, 1);
     const quality = clamp(player.ca / 160, 0.1, 1.2);
@@ -182,5 +235,7 @@ export function playerLeagueLabel(state: GameState, player: Player): string {
   if (!player.clubId) return '무소속';
   const club = state.clubs[player.clubId];
   if (!club) return '무소속';
-  return COUNTRY_BY_ID[club.countryId]?.name ?? '';
+  const country = COUNTRY_BY_ID[club.countryId];
+  if (!country) return '';
+  return `${country.name} ${club.tier}부`;
 }

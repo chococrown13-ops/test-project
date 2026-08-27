@@ -51,7 +51,7 @@ export function ledger(state: GameState, label: string, amount: number): void {
  */
 export function weeklyExpenses(state: GameState): number {
   const clients = Object.keys(state.clients).length;
-  return Math.round((4 + clients * 1.2 + state.agent.licence * 2) * 10) / 10;
+  return Math.round((3 + clients * 1.0 + state.agent.licence * 1.5) * 10) / 10;
 }
 
 /**

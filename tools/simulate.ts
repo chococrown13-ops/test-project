@@ -17,10 +17,11 @@ const countryLimit = Number(process.argv[3] ?? 24);
 const countryIds = COUNTRIES.slice(0, countryLimit).map((c) => c.id);
 
 const t0 = Date.now();
-const state = createGame({ seed: 20260824, countryIds, season: 2026 });
+const state = createGame({ seed: 20260824, countryIds, season: 2026, homeCountryId: countryIds[0] });
 const rng = new Rng(state.seed ^ 0x9e3779b9);
 
-console.log(`세계 생성: ${Object.keys(state.clubs).length}개 구단, ${Object.keys(state.players).length}명 선수, ${Date.now() - t0}ms`);
+console.log(`세계 생성: ${Object.keys(state.leagues).length}개 리그, ${Object.keys(state.clubs).length}개 구단, ${Object.keys(state.players).length}명 선수, ${Date.now() - t0}ms`);
+console.log(`본거지 ${state.homeCountryId} — ${Object.values(state.leagues).filter((l) => l.countryId === state.homeCountryId).length}개 부`);
 
 let totalMatches = 0;
 let totalGoals = 0;

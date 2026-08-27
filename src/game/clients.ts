@@ -7,10 +7,10 @@
  */
 
 import { Rng, clamp } from './rng';
-import { COUNTRY_BY_ID } from '../data/countries';
+import { countryOfClub } from '../data/countries';
 import { PERSONALITY_BY_ID, expectedWage } from './player';
 import { adjustReputation, clientLimit, ledger, relationWith } from './agent';
-import { depthOf } from './scouting';
+import { depthOf, withinReach } from './scouting';
 import { SEASON_WEEKS, isWindowOpen, type Client, type ClientDemand, type DemandOption, type GameState, type Player } from './types';
 
 /** 신뢰도가 이 아래로 떨어지면 떠날 준비를 합니다. */
@@ -55,6 +55,11 @@ export function approachEstimate(state: GameState, player: Player, commissionPct
   chance += (depth / 100) * 0.16;
   if (depth < 40) reasons.push('선수를 충분히 파악하지 못했습니다');
 
+  if (!withinReach(state, player)) {
+    reasons.push('이 급의 선수에게는 아직 접근할 수 없습니다');
+    return { chance: 0, reasons };
+  }
+
   if (player.morale < 40) {
     chance += 0.1;
     reasons.push('현재 상황에 불만이 있습니다');
@@ -82,6 +87,13 @@ export function approachPlayer(
   if (state.clients[playerId]) return { ok: false, signed: false, message: '이미 당신의 의뢰인입니다.' };
   if (Object.keys(state.clients).length >= clientLimit(state)) {
     return { ok: false, signed: false, message: `라이선스 등급 ${state.agent.licence} 정원(${clientLimit(state)}명)이 찼습니다.` };
+  }
+  // 사정권 밖 선수는 만나 주지도 않습니다. 평판을 먼저 쌓아야 합니다.
+  if (!withinReach(state, player)) {
+    return {
+      ok: false, signed: false,
+      message: '아직 이 급의 선수에게 접근할 평판이 못 됩니다. 하부 리그에서 실적을 쌓으세요.',
+    };
   }
 
   // 접근 비용 — 만나러 가는 데도 돈이 듭니다. 거절당해도 나갑니다.
@@ -153,7 +165,7 @@ function buildDemand(ctx: DemandContext): ClientDemand | null {
   const rep = state.agent.reputation;
   const personality = PERSONALITY_BY_ID[player.personality];
   const club = player.clubId ? state.clubs[player.clubId] : null;
-  const country = club ? COUNTRY_BY_ID[club.countryId] : null;
+  const country = club ? countryOfClub(club) : null;
   const seasonProgress = state.week / SEASON_WEEKS;
 
   const base = {

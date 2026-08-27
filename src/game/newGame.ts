@@ -12,6 +12,8 @@ export interface NewGameOptions {
   season?: number;
   /** 실제 구단명 대신 가상 구단명을 씁니다. */
   fictionalClubs?: boolean;
+  /** 하부 리그까지 열리는 본거지 국가. 활성 목록에 없으면 자동으로 추가됩니다. */
+  homeCountryId?: string;
 }
 
 /** 라이선스 등급별 정원. 평판이 오르면 등급이 올라갑니다. */
@@ -29,10 +31,17 @@ export const licenceFor = (reputation: number) =>
 export function createGame(options: NewGameOptions = {}): GameState {
   const seed = options.seed ?? Math.floor(Math.random() * 2 ** 31);
   const requested = options.countryIds?.filter((id) => COUNTRY_BY_ID[id]) ?? [];
-  const countryIds = requested.length > 0 ? requested : DEFAULT_COUNTRY_IDS;
+  const chosen = requested.length > 0 ? requested : DEFAULT_COUNTRY_IDS;
+  const homeCountryId = options.homeCountryId && COUNTRY_BY_ID[options.homeCountryId]
+    ? options.homeCountryId
+    : chosen[0];
+  // 본거지는 반드시 켜져 있어야 합니다.
+  const countryIds = chosen.includes(homeCountryId) ? chosen : [homeCountryId, ...chosen];
   const season = options.season ?? 2026;
 
-  const world = buildWorld({ seed, countryIds, season, fictionalClubs: options.fictionalClubs });
+  const world = buildWorld({
+    seed, countryIds, homeCountryId, season, fictionalClubs: options.fictionalClubs,
+  });
 
   return {
     seed,
@@ -40,6 +49,7 @@ export function createGame(options: NewGameOptions = {}): GameState {
     week: 1,
     phase: 'preseason',
     countryIds,
+    homeCountryId,
     agent: {
       name: options.agentName?.trim() || '이수현',
       agencyName: options.agencyName?.trim() || '수현 스포츠 매니지먼트',

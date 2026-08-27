@@ -8,7 +8,7 @@
  */
 
 import { Rng, clamp } from './rng';
-import { COUNTRY_BY_ID } from '../data/countries';
+import { countryOfClub } from '../data/countries';
 import { PERSONALITY_BY_ID, estimateValue, expectedWage } from './player';
 import { wageBill } from './market';
 import {
@@ -149,7 +149,7 @@ export function openNegotiation(
     return { ok: false, message: '이미 그 구단 소속입니다.' };
   }
 
-  const country = COUNTRY_BY_ID[buyer.countryId];
+  const country = countryOfClub(buyer);
   if (!country) return { ok: false, message: '구단 정보를 읽을 수 없습니다.' };
 
   const relation = relationWith(state, toClubId);

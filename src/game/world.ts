@@ -6,8 +6,12 @@
 
 import { Rng, clamp } from './rng';
 import { NameFactory, shortenClubName } from '../data/names';
-import { REAL_CLUBS } from '../data/clubs';
-import { COUNTRY_BY_ID, CONTINENTS, CONTINENT_ORDER, type ContinentId, type CountryDef } from '../data/countries';
+import { REAL_CLUBS, REAL_CLUBS_T2 } from '../data/clubs';
+import {
+  COUNTRY_BY_ID, CONTINENTS, CONTINENT_ORDER, HOME_TIERS,
+  competitionKey, leagueKey, leagueName, tierCountry,
+  type ContinentId, type CountryDef,
+} from '../data/countries';
 import { generateSquad, generatePlayer, estimateValue, expectedWage, PERSONALITY_BY_ID } from './player';
 import { clubStrength } from './ratings';
 import { setClubFinances } from './market';
@@ -43,6 +47,8 @@ export const AI_AGENT_NAMES: Record<string, string> = {
 export interface WorldSetup {
   seed: number;
   countryIds: string[];
+  /** 하부 리그까지 열리는 본거지 국가. */
+  homeCountryId: string;
   season: number;
   /** true 면 실제 구단명 대신 가상 구단명을 만들어 씁니다. */
   fictionalClubs?: boolean;
@@ -105,17 +111,25 @@ function spreadOverWeeks(roundCount: number): number[] {
  * 약간의 흔들림을 더해 세이브마다 판도가 조금씩 달라지게 합니다 — 매번 같은
  * 팀이 같은 순위로 시작하면 두 번째 게임을 할 이유가 없습니다.
  */
-function buildClubs(rng: Rng, names: NameFactory, country: CountryDef, fictional: boolean): Club[] {
-  const real = fictional ? undefined : REAL_CLUBS[country.id];
+function buildClubs(
+  rng: Rng, names: NameFactory, country: CountryDef, tier: number, fictional: boolean,
+): Club[] {
+  // 3·4부는 실제 이름을 쓰지 않습니다 — 대부분의 나라에서 그 아래는 지역별로
+  // 쪼개져 있어 하나의 전국 리그로 옮길 수가 없습니다.
+  const real = fictional ? undefined
+    : tier === 1 ? REAL_CLUBS[country.id]
+    : tier === 2 ? REAL_CLUBS_T2[country.id]
+    : undefined;
   const count = real?.length ?? country.clubCount;
+  const leagueRep = country.reputation;
   const clubs: Club[] = [];
 
   for (let i = 0; i < count; i++) {
     // 리그 안에서 최상위와 최하위의 격차. 명성이 높은 리그일수록 위가 두껍습니다.
     const rank = i / Math.max(1, count - 1);
     const reputation = clamp(
-      Math.round(country.reputation + 9 - rank * (26 + country.reputation * 0.12) + rng.float(-3, 3)),
-      12, 99,
+      Math.round(leagueRep + 9 - rank * (26 + leagueRep * 0.12) + rng.float(-3, 3)),
+      6, 99,
     );
     const seed = real?.[i];
     const [fallbackColor, fallbackAccent] = PALETTE[(i + country.id.length) % PALETTE.length];
@@ -123,8 +137,9 @@ function buildClubs(rng: Rng, names: NameFactory, country: CountryDef, fictional
     const color = seed?.color ?? fallbackColor;
     const accent = seed?.accent ?? fallbackAccent;
     clubs.push({
-      id: `${country.id}-${i}`,
+      id: `${leagueKey(country.id, tier)}-${i}`,
       name,
+      tier,
       shortName: seed?.short ?? shortenClubName(name),
       countryId: country.id,
       color,
@@ -246,8 +261,9 @@ export function continentalEntrants(
   for (const countryId of countryIds) {
     const country = COUNTRY_BY_ID[countryId];
     if (!country || country.continent !== continentId) continue;
+    // 대륙 대항전 출전권은 1부에서만 나옵니다.
     const league = leagues[countryId];
-    if (!league) continue;
+    if (!league || league.tier !== 1) continue;
     const ranked = rankLeague(league, clubs, players);
     const slots = Math.min(country.continentalSlots, ranked.length);
     for (let i = 0; i < slots; i++) {
@@ -320,42 +336,54 @@ export function buildWorld(setup: WorldSetup): World {
   const cups: Record<string, CupState> = {};
 
   const countryIds = setup.countryIds.filter((id) => COUNTRY_BY_ID[id]);
+  const homeCountryId = COUNTRY_BY_ID[setup.homeCountryId] ? setup.homeCountryId : countryIds[0];
 
   for (const countryId of countryIds) {
-    const country = COUNTRY_BY_ID[countryId];
-    const competitionId = `lg:${countryId}`;
-    competitions[competitionId] = {
-      id: competitionId,
-      kind: 'league',
-      name: country.leagueName,
-      shortName: country.code,
-      countryId,
-      prestige: country.reputation,
-      color: country.color,
-    };
+    const base = COUNTRY_BY_ID[countryId];
+    // 본거지만 하부 리그까지 열립니다. 나머지는 1부만 돌아갑니다.
+    const tiers = countryId === homeCountryId ? HOME_TIERS : 1;
 
-    const countryClubs = buildClubs(rng, names, country, setup.fictionalClubs ?? false);
-    for (const club of countryClubs) {
-      clubs[club.id] = club;
-      const squad = generateSquad(rng, names, country, club.reputation, `${club.id}p`);
-      for (const player of squad) {
-        signInitialContract(rng, player, club, country, setup.season);
-        player.value = estimateValue(player);
-        players[player.id] = player;
-        club.playerIds.push(player.id);
+    for (let tier = 1; tier <= tiers; tier++) {
+      const country = tierCountry(base, tier);
+      const competitionId = competitionKey(countryId, tier);
+      const prestige = country.reputation;
+
+      competitions[competitionId] = {
+        id: competitionId,
+        kind: 'league',
+        name: leagueName(base, tier),
+        shortName: tier === 1 ? base.code : `${base.code}${tier}`,
+        countryId,
+        tier,
+        prestige,
+        color: base.color,
+      };
+
+      const countryClubs = buildClubs(rng, names, country, tier, setup.fictionalClubs ?? false);
+      for (const club of countryClubs) {
+        clubs[club.id] = club;
+        const squad = generateSquad(rng, names, country, club.reputation, `${club.id}p`);
+        for (const player of squad) {
+          signInitialContract(rng, player, club, country, setup.season);
+          player.value = estimateValue(player);
+          players[player.id] = player;
+          club.playerIds.push(player.id);
+        }
+        setClubFinances(club, players, country.wageFactor, rng.float(0.85, 1.2));
       }
-      setClubFinances(club, players, country.wageFactor, rng.float(0.85, 1.2));
-    }
 
-    const clubIds = countryClubs.map((c) => c.id);
-    leagues[countryId] = {
-      id: countryId,
-      competitionId,
-      clubIds,
-      fixtures: buildLeagueFixtures(rng, competitionId, clubIds),
-      table: emptyTable(clubIds),
-      rounds: (clubIds.length - 1) * 2,
-    };
+      const clubIds = countryClubs.map((c) => c.id);
+      leagues[leagueKey(countryId, tier)] = {
+        id: leagueKey(countryId, tier),
+        countryId,
+        tier,
+        competitionId,
+        clubIds,
+        fixtures: buildLeagueFixtures(rng, competitionId, clubIds),
+        table: emptyTable(clubIds),
+        rounds: (clubIds.length - 1) * 2,
+      };
+    }
   }
 
   // 무소속 선수 — 스카우팅으로 발굴할 수 있는 자유계약 인력입니다.

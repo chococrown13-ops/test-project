@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { CONTINENTS, CONTINENT_ORDER, COUNTRY_BY_ID } from '../../data/countries';
+import {
+  CONTINENTS, CONTINENT_ORDER, COUNTRY_BY_ID, PROMOTION_SLOTS,
+  competitionKey, leagueKey, leagueName,
+} from '../../data/countries';
 import { compareTableRows } from '../../game/world';
 import { AWARD_LABELS } from '../../game/awards';
 import { seasonLabel } from '../../game/types';
@@ -35,9 +38,17 @@ export default function WorldScreen() {
 function LeagueView() {
   const state = useGameState();
   const { openPlayer, openClub } = useGame();
-  const [countryId, setCountryId] = useState(state.countryIds[0]);
-  const league = state.leagues[countryId];
+  const [countryId, setCountryId] = useState(state.homeCountryId);
+  const [tier, setTier] = useState(1);
+
   const country = COUNTRY_BY_ID[countryId];
+  // 이 나라에 열려 있는 부. 본거지만 여러 개입니다.
+  const tiers = Object.values(state.leagues)
+    .filter((entry) => entry.countryId === countryId)
+    .map((entry) => entry.tier)
+    .sort((a, b) => a - b);
+  const activeTier = tiers.includes(tier) ? tier : (tiers[0] ?? 1);
+  const league = state.leagues[leagueKey(countryId, activeTier)];
 
   if (!league || !country) return <Empty>리그를 찾을 수 없습니다.</Empty>;
 
@@ -51,17 +62,30 @@ function LeagueView() {
     .sort((a, b) => b.compStats[league.competitionId].assists - a.compStats[league.competitionId].assists)
     .slice(0, 5);
 
+  const topTier = activeTier === 1;
+  const hasLowerTier = tiers.includes(activeTier + 1);
+  const promotionZone = topTier ? country.continentalSlots : PROMOTION_SLOTS;
+
   return (
     <>
       <div className="chips chips--scroll">
         {state.countryIds.map((id) => (
-          <Chip key={id} active={id === countryId} onClick={() => setCountryId(id)}>
+          <Chip key={id} active={id === countryId} onClick={() => { setCountryId(id); setTier(1); }}>
             {COUNTRY_BY_ID[id]?.name}
+            {id === state.homeCountryId && ' ★'}
           </Chip>
         ))}
       </div>
 
-      <Card title={country.leagueName} action={league.championId
+      {tiers.length > 1 && (
+        <div className="chips">
+          {tiers.map((t) => (
+            <Chip key={t} active={t === activeTier} onClick={() => setTier(t)}>{t}부</Chip>
+          ))}
+        </div>
+      )}
+
+      <Card title={leagueName(country, activeTier)} action={league.championId
         ? <span className="pill pill--good">우승 {state.clubs[league.championId]?.shortName}</span>
         : null}>
         <table className="table">
@@ -71,10 +95,14 @@ function LeagueView() {
           <tbody>
             {rows.map((row, index) => {
               const club = state.clubs[row.clubId];
-              const european = index < country.continentalSlots;
+              const up = index < promotionZone;
+              const down = hasLowerTier && index >= rows.length - PROMOTION_SLOTS;
               return (
-                <tr key={row.clubId} className={european ? 'table__row--qualified' : undefined}
-                  onClick={() => openClub(row.clubId)}>
+                <tr
+                  key={row.clubId}
+                  className={up ? 'table__row--qualified' : down ? 'table__row--relegated' : undefined}
+                  onClick={() => openClub(row.clubId)}
+                >
                   <td className="table__pos">{index + 1}</td>
                   <td className="table__club">
                     <Crest color={club.color} accent={club.accent} label={club.shortName} size={20} />
@@ -89,7 +117,12 @@ function LeagueView() {
             })}
           </tbody>
         </table>
-        <p className="faint small">색이 들어간 순위가 대륙 대항전 출전권({country.continentalSlots}장)입니다.</p>
+        <p className="faint small">
+          {topTier
+            ? `초록색 ${promotionZone}자리가 대륙 대항전 출전권입니다.`
+            : `초록색 ${PROMOTION_SLOTS}자리가 ${activeTier - 1}부 승격권입니다.`}
+          {hasLowerTier && ` 아래 ${PROMOTION_SLOTS}자리는 ${activeTier + 1}부로 강등됩니다.`}
+        </p>
       </Card>
 
       <Card title="득점 순위">
@@ -239,13 +272,13 @@ function AwardsView() {
       <Card title="리그별">
         {leagueAwards.length === 0
           ? <Empty>기록 없음</Empty>
-          : state.countryIds.map((countryId) => {
-            const competitionId = `lg:${countryId}`;
+          : Object.values(state.leagues).map((league) => {
+            const competitionId = competitionKey(league.countryId, league.tier);
             const forLeague = leagueAwards.filter((a) => a.competitionId === competitionId);
             if (forLeague.length === 0) return null;
             return (
-              <div key={countryId} className="award-group">
-                <h4 className="subhead">{COUNTRY_BY_ID[countryId]?.leagueName}</h4>
+              <div key={league.id} className="award-group">
+                <h4 className="subhead">{state.competitions[competitionId]?.name}</h4>
                 {forLeague.map((award, i) => (
                   <KV
                     key={`${award.awardId}-${i}`}

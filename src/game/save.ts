@@ -16,8 +16,10 @@ import type {
   PersonalityId, SeasonStats, TableRow,
 } from './types';
 
-export const SAVE_VERSION = 1;
-export const SAVE_KEY = 'football-agent-save-v1';
+export const SAVE_VERSION = 2;
+export const SAVE_KEY = 'football-agent-save-v2';
+/** 리그 계층이 들어오기 전 포맷. 남아 있으면 지웁니다. */
+const LEGACY_KEYS = ['football-agent-save-v1'];
 
 /** 1-20 값을 한 글자로. 코드 포인트 48('0')부터 씁니다. */
 const encodeAttributes = (attrs: Attributes): string =>
@@ -173,7 +175,10 @@ function encodeLeague(league: LeagueState): unknown[] {
     const row = [f.week, f.round, index.get(f.homeId) ?? 0, index.get(f.awayId) ?? 0, f.played ? 1 : 0, f.homeGoals, f.awayGoals];
     return trimZeros(row);
   });
-  return [league.id, league.competitionId, league.clubIds, league.rounds, league.championId ?? 0, fixtures];
+  return [
+    league.id, league.competitionId, league.clubIds, league.rounds,
+    league.championId ?? 0, fixtures, league.countryId, league.tier,
+  ];
 }
 
 function decodeLeague(t: unknown[]): LeagueState {
@@ -192,6 +197,8 @@ function decodeLeague(t: unknown[]): LeagueState {
   }));
   const league: LeagueState = {
     id: t[0] as string,
+    countryId: (t[6] as string) ?? (t[0] as string),
+    tier: (t[7] as number) ?? 1,
     competitionId,
     clubIds,
     fixtures,
@@ -364,6 +371,7 @@ export async function saveGame(state: GameState): Promise<SaveResult> {
 
 export async function loadGame(): Promise<GameState | null> {
   try {
+    for (const key of LEGACY_KEYS) localStorage.removeItem(key);
     const text = localStorage.getItem(SAVE_KEY);
     if (!text) return null;
     return deserialize(await decompress(text));

@@ -15,7 +15,7 @@ import {
   buildLeagueFixtures, continentalEntrants, createCup, drawCupRound, rankLeague, compareTableRows,
 } from './world';
 import { processExpiries, retireStaleFreeAgents, setClubFinances, signFreeAgents } from './market';
-import { COUNTRY_BY_ID, CONTINENTS, CONTINENT_ORDER } from '../data/countries';
+import { CONTINENTS, CONTINENT_ORDER, PROMOTION_SLOTS, countryOfClub } from '../data/countries';
 import { NameFactory } from '../data/names';
 import {
   SEASON_WEEKS, AWARDS_WEEK, WORLD_CUP_WEEKS, CONTINENTAL_FINAL_WEEK,
@@ -356,7 +356,8 @@ export function rolloverSeason(state: GameState, rng: Rng): { retired: Player[] 
       const player = state.players[id];
       return player && !player.retired && player.clubId === club.id;
     });
-    const country = COUNTRY_BY_ID[club.countryId];
+    const country = countryOfClub(club);
+    if (!country) continue;
     // 골키퍼는 대체가 안 되므로 인원수보다 먼저 확인합니다.
     const keeperCount = () => club.playerIds.filter((id) => state.players[id]?.group === 'GK').length;
 
@@ -392,6 +393,8 @@ export function rolloverSeason(state: GameState, rng: Rng): { retired: Player[] 
     club.reputation = clamp(Math.round(club.reputation + overPerformance * 6), 12, 99);
     setClubFinances(club, state.players, country.wageFactor, rng.float(0.85, 1.2) * (1 + overPerformance * 0.25));
   }
+
+  applyPromotions(state);
 
   // 새 시즌 달력
   state.season += 1;
@@ -431,7 +434,7 @@ function runAcademyIntake(state: GameState, rng: Rng): number {
   let index = 0;
   let made = 0;
   for (const club of Object.values(state.clubs)) {
-    const country = COUNTRY_BY_ID[club.countryId];
+    const country = countryOfClub(club);
     if (!country) continue;
     const count = rng.bool(0.45 + club.reputation / 320) ? 2 : 1;
     for (let i = 0; i < count; i++) {
@@ -491,6 +494,57 @@ function trimOversizedSquads(state: GameState, rng: Rng): number {
     }
   }
   return released;
+}
+
+/**
+ * 승격과 강등.
+ *
+ * 본거지 국가의 인접한 두 부 사이에서 위 리그 최하위 세 팀과 아래 리그 상위
+ * 세 팀을 맞바꿉니다. 4부 무명 구단의 선수를 1부로 올려 보내는 경로가 실제로
+ * 존재해야 하부 리그에서 시작하는 의미가 생깁니다.
+ */
+function applyPromotions(state: GameState): void {
+  const ordered = Object.values(state.leagues)
+    .filter((league) => league.countryId === state.homeCountryId)
+    .sort((a, b) => a.tier - b.tier);
+
+  for (let i = 0; i + 1 < ordered.length; i++) {
+    const upper = ordered[i];
+    const lower = ordered[i + 1];
+    const upperRanked = Object.values(upper.table).slice().sort(compareTableRows).map((r) => r.clubId);
+    const lowerRanked = Object.values(lower.table).slice().sort(compareTableRows).map((r) => r.clubId);
+
+    const slots = Math.min(PROMOTION_SLOTS, upperRanked.length, lowerRanked.length);
+    if (slots === 0) continue;
+    const relegated = upperRanked.slice(-slots);
+    const promoted = lowerRanked.slice(0, slots);
+
+    upper.clubIds = upper.clubIds.filter((id) => !relegated.includes(id)).concat(promoted);
+    lower.clubIds = lower.clubIds.filter((id) => !promoted.includes(id)).concat(relegated);
+
+    for (const clubId of promoted) {
+      const club = state.clubs[clubId];
+      if (!club) continue;
+      club.tier = upper.tier;
+      // 승격하면 몸값과 수입이 함께 오릅니다.
+      club.reputation = clamp(Math.round(club.reputation * 1.18 + 4), 6, 99);
+    }
+    for (const clubId of relegated) {
+      const club = state.clubs[clubId];
+      if (!club) continue;
+      club.tier = lower.tier;
+      club.reputation = clamp(Math.round(club.reputation * 0.82 - 2), 6, 99);
+    }
+  }
+
+  // 부가 바뀌었으니 이사회 기대 순위를 리그별로 다시 매깁니다.
+  for (const league of Object.values(state.leagues)) {
+    league.clubIds
+      .map((id) => state.clubs[id])
+      .filter((club): club is Club => Boolean(club))
+      .sort((a, b) => b.reputation - a.reputation)
+      .forEach((club, index) => { club.expectation = index + 1; });
+  }
 }
 
 function removeFromClub(state: GameState, player: Player): void {
