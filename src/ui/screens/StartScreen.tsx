@@ -3,7 +3,7 @@ import {
   CONTINENTS, CONTINENT_ORDER, COUNTRIES, DEFAULT_COUNTRY_IDS, HOME_TIERS,
   COUNTRY_BY_ID, tierReputation, type CountryDef,
 } from '../../data/countries';
-import { REAL_CLUBS_T2 } from '../../data/clubs';
+import { isMergedTier, realClubsFor } from '../../data/clubs';
 import { SQUAD_SIZE } from '../../game/player';
 import { hasSave } from '../../game/save';
 import { useGame } from '../../store/useGame';
@@ -166,9 +166,11 @@ export default function StartScreen() {
                 <span className="tier-preview__name">{homeCountry.leagueLabel} {tier}부</span>
                 <span className="tier-preview__meta">
                   수준 {tierReputation(homeCountry, tier)}
-                  {realClubs && (tier === 1 || (tier === 2 && REAL_CLUBS_T2[homeCountry.id]))
-                    ? ' · 실제 구단'
-                    : ' · 가상 구단'}
+                  {!realClubs || !realClubsFor(homeCountry.id, tier)
+                    ? ' · 가상 구단'
+                    : isMergedTier(homeCountry.id, tier)
+                      ? ' · 실제 구단 (지역 리그 통합)'
+                      : ' · 실제 구단'}
                 </span>
               </div>
             ))}

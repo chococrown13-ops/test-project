@@ -6,7 +6,7 @@
 
 import { Rng, clamp } from './rng';
 import { NameFactory, shortenClubName } from '../data/names';
-import { REAL_CLUBS, REAL_CLUBS_T2 } from '../data/clubs';
+import { realClubsFor } from '../data/clubs';
 import {
   COUNTRY_BY_ID, CONTINENTS, CONTINENT_ORDER, HOME_TIERS,
   competitionKey, leagueKey, leagueName, tierCountry,
@@ -107,19 +107,15 @@ function spreadOverWeeks(roundCount: number): number[] {
 /**
  * 한 나라의 구단을 만듭니다.
  *
- * 실제 구단을 쓸 때는 `REAL_CLUBS` 의 **나열 순서가 곧 체급**입니다. 여기에
+ * 실제 구단을 쓸 때는 목록의 **나열 순서가 곧 체급**입니다. 여기에
  * 약간의 흔들림을 더해 세이브마다 판도가 조금씩 달라지게 합니다 — 매번 같은
  * 팀이 같은 순위로 시작하면 두 번째 게임을 할 이유가 없습니다.
  */
 function buildClubs(
   rng: Rng, names: NameFactory, country: CountryDef, tier: number, fictional: boolean,
 ): Club[] {
-  // 3·4부는 실제 이름을 쓰지 않습니다 — 대부분의 나라에서 그 아래는 지역별로
-  // 쪼개져 있어 하나의 전국 리그로 옮길 수가 없습니다.
-  const real = fictional ? undefined
-    : tier === 1 ? REAL_CLUBS[country.id]
-    : tier === 2 ? REAL_CLUBS_T2[country.id]
-    : undefined;
+  // 목록이 있는 나라·부만 실제 구단을 씁니다. 나머지는 가상으로 채웁니다.
+  const real = fictional ? undefined : realClubsFor(country.id, tier);
   const count = real?.length ?? country.clubCount;
   const leagueRep = country.reputation;
   const clubs: Club[] = [];

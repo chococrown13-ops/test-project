@@ -6,13 +6,15 @@ import { leagueAccess, scoutingCeiling, sweep, DEFAULT_FILTERS } from '../src/ga
 import { SEASON_WEEKS } from '../src/game/types';
 import { adjustReputation } from '../src/game/agent';
 
-const state = createGame({ seed: 555, countryIds: ['eng', 'esp', 'kor', 'bra'], homeCountryId: 'eng' });
+const home = process.argv[2] ?? 'eng';
+const state = createGame({ seed: 555, countryIds: ['eng', 'esp', 'kor', 'bra'], homeCountryId: home });
 const rng = new Rng(555);
 
 console.log(`리그 ${Object.keys(state.leagues).length}개 · 본거지 ${state.homeCountryId}`);
 for (const league of Object.values(state.leagues).sort((a, b) => a.countryId.localeCompare(b.countryId) || a.tier - b.tier)) {
   const comp = state.competitions[league.competitionId];
-  console.log(`  ${comp.name.padEnd(14)} 수준 ${String(comp.prestige).padStart(3)} · ${league.clubIds.length}팀 · 예: ${state.clubs[league.clubIds[0]].name}`);
+  const sample = league.clubIds.slice(0, 3).map((id) => state.clubs[id].name).join(', ');
+  console.log(`  ${comp.name.padEnd(14)} 수준 ${String(comp.prestige).padStart(3)} · ${league.clubIds.length}팀 · ${sample}`);
 }
 
 console.log(`\n평판별 사정권 (현재 평판 ${state.agent.reputation}, 상한 ${scoutingCeiling(state).toFixed(0)})`);
