@@ -48,7 +48,15 @@ for (const country of COUNTRIES) {
   }
 }
 
+// 어느 나라의 어느 부까지 실제 데이터가 있는지 한눈에.
+console.log('\n실제 구단 보유 현황 (● 실제 · ○ 가상)');
+for (const country of COUNTRIES) {
+  const marks = Array.from({ length: HOME_TIERS }, (_, i) =>
+    realClubsFor(country.id, i + 1) ? '●' : '○').join('');
+  console.log(`  ${marks}  ${country.name}`);
+}
+
 console.log(problems === 0
-  ? `✓ ${leagues}개 리그 ${total}개 구단 모두 정상`
-  : `${problems}건 문제`);
+  ? `\n✓ ${leagues}개 리그 ${total}개 구단 모두 정상`
+  : `\n${problems}건 문제`);
 process.exit(problems === 0 ? 0 : 1);
