@@ -40,11 +40,35 @@ export const DEFAULT_FILTERS: ScoutFilters = {
   unrepresentedOnly: true,
 };
 
-/** 파악도에 따른 능력치 표시 오차. 100이면 정확한 값이 보입니다. */
-export function revealRange(value: number, depth: number): [number, number] {
+/**
+ * 문자열 → 0-1. 같은 선수의 같은 능력치는 언제나 같은 값이 나옵니다.
+ * 화면을 다시 그릴 때마다 추정 구간이 흔들리면 안 되기 때문입니다.
+ */
+function stableNoise(seed: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return ((hash >>> 0) % 100003) / 100003;
+}
+
+/**
+ * 파악도에 따른 능력치 표시 오차. 100이면 정확한 값이 보입니다.
+ *
+ * 구간을 참값에서 한쪽으로 밀어 둡니다. 참값이 늘 한가운데 놓이면 중앙값만
+ * 읽어도 정답이 되어 파악도를 올릴 이유가 사라집니다. 밀어낸 폭은 선수와
+ * 능력치마다 고정이라, 어떤 항목은 실제보다 좋아 보이고 어떤 항목은 나빠
+ * 보입니다 — 스카우팅이 실제로 필요한 이유입니다.
+ */
+export function revealRange(seed: string, value: number, depth: number): [number, number] {
   const slack = Math.round((1 - clamp(depth, 0, 100) / 100) * 6);
-  if (slack === 0) return [value, value];
-  return [Math.max(1, value - slack), Math.min(20, value + slack)];
+  if (slack <= 0) return [value, value];
+  const shift = Math.round((stableNoise(seed) - 0.5) * 2 * slack * 0.8);
+  // 참값은 반드시 구간 안에 남아 있어야 합니다.
+  const low = Math.min(value - slack + shift, value);
+  const high = Math.max(value + slack + shift, value);
+  return [clamp(Math.round(low), 1, 20), clamp(Math.round(high), 1, 20)];
 }
 
 /** 잠재력 표시 — 별 다섯 개 척도. 파악도가 낮으면 범위로 나옵니다. */
@@ -55,9 +79,14 @@ export function potentialStars(pa: number): number {
 export function potentialRange(player: Player, depth: number): [number, number] {
   const exact = potentialStars(player.pa);
   const slack = (1 - clamp(depth, 0, 100) / 100) * 2;
+  if (slack <= 0.05) return [exact, exact];
+  // 능력치와 같은 이유로 잠재력 구간도 참값에서 밀어 둡니다.
+  const shift = (stableNoise(`${player.id}:pa`) - 0.5) * 2 * slack * 0.8;
+  const low = Math.min(exact - slack + shift, exact);
+  const high = Math.max(exact + slack + shift, exact);
   return [
-    Math.max(0.5, Math.round((exact - slack) * 2) / 2),
-    Math.min(5, Math.round((exact + slack) * 2) / 2),
+    Math.max(0.5, Math.round(low * 2) / 2),
+    Math.min(5, Math.round(high * 2) / 2),
   ];
 }
 

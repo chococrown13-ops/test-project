@@ -189,11 +189,13 @@ function settleSide(
     for (let attempt = 0; attempt < 4; attempt++) {
       const id = pickWeighted(rng, side.assistWeights);
       if (id && id !== scorerId && players[id]) {
+        const assistStat = compStat(players[id], ctx.competitionId);
         players[id].season.assists += 1;
-        compStat(players[id], ctx.competitionId).assists += 1;
+        assistStat.assists += 1;
         const current = ratings.get(id);
         if (current !== undefined) ratings.set(id, current + 0.45);
         players[id].season.ratingSum += 0.45;
+        assistStat.ratingSum += 0.45;
         break;
       }
     }
@@ -203,10 +205,16 @@ function settleSide(
     const player = players[id];
     if (!player) continue;
     const minutes = rng.int(10, 32);
+    // apps 는 **총 출전 수**입니다. 교체로 뛴 경기도 여기 포함되어야
+    // ratingSum / apps 가 평점이 됩니다. 교체 출전을 빼먹으면 선발 한 번에
+    // 교체 일곱 번을 뛴 선수의 평점이 50점대로 튑니다.
+    player.season.apps += 1;
     player.season.subApps += 1;
     player.season.minutes += minutes;
     const rating = 6.3 + rng.float(-0.4, 0.6) + resultBonus * 0.5;
-    compStat(player, ctx.competitionId).ratingSum += rating;
+    const subStat = compStat(player, ctx.competitionId);
+    subStat.apps += 1;
+    subStat.ratingSum += rating;
     player.season.ratingSum += rating;
     ratings.set(id, rating);
     updateCondition(player, minutes, rating, prestige);

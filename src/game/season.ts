@@ -6,7 +6,7 @@
  */
 
 import { Rng, clamp } from './rng';
-import { GROUP_KEYS, type AttributeKey } from './attributes';
+import { ATTRIBUTE_BY_KEY, GROUP_KEYS, type AttributeKey } from './attributes';
 import { buildSnapshot, type TeamSnapshot } from './ratings';
 import { playMatch } from './match';
 import { caToBase, estimateValue, expectedWage, generatePlayer, PERSONALITY_BY_ID, SQUAD_SIZE } from './player';
@@ -15,6 +15,7 @@ import {
   buildLeagueFixtures, continentalEntrants, createCup, drawCupRound, rankLeague, compareTableRows,
 } from './world';
 import { processExpiries, retireStaleFreeAgents, setClubFinances, signFreeAgents } from './market';
+import { returnLoans, type LoanReturn } from './loan';
 import { CONTINENTS, CONTINENT_ORDER, PROMOTION_SLOTS, countryOfClub } from '../data/countries';
 import { NameFactory } from '../data/names';
 import {
@@ -295,16 +296,38 @@ function intakeAge(rng: Rng): number {
   return rng.int(24, 28);
 }
 
+/** 한 시즌 동안 자란 의뢰인. 소식함에 올릴 재료입니다. */
+export interface GrowthReport {
+  playerId: string;
+  playerName: string;
+  caGain: number;
+  /** 가장 많이 오른 능력치 몇 개. */
+  improved: Array<{ label: string; from: number; to: number }>;
+}
+
+export interface RolloverResult {
+  retired: Player[];
+  growth: GrowthReport[];
+  loansEnded: LoanReturn[];
+}
+
 /**
  * 시즌을 넘깁니다. 나이·성장·은퇴·계약 만료·유스 충원·새 일정까지 한 번에.
- * 반환값은 은퇴한 선수 목록으로, 의뢰인이 은퇴하면 알려 줘야 합니다.
  */
-export function rolloverSeason(state: GameState, rng: Rng): { retired: Player[] } {
+export function rolloverSeason(state: GameState, rng: Rng): RolloverResult {
   const names = new NameFactory((items) => rng.pick(items));
   const retired: Player[] = [];
+  const growth: GrowthReport[] = [];
+
+  // 임대는 다른 무엇보다 먼저 정리합니다 — 이 아래의 계약·방출 처리가 전부
+  // 소속 구단을 기준으로 도는데, 임대 중인 선수는 계약과 소속이 갈려 있습니다.
+  const loansEnded = returnLoans(state);
 
   for (const player of Object.values(state.players)) {
     if (player.retired) continue;
+    const isClient = Boolean(state.clients[player.id]);
+    const caBefore = player.ca;
+    const attributesBefore = isClient ? { ...player.attributes } : null;
 
     // 통산 기록 적립 후 시즌 기록 초기화
     player.career.apps += player.season.apps;
@@ -322,6 +345,25 @@ export function rolloverSeason(state: GameState, rng: Rng): { retired: Player[] 
 
     player.age += 1;
     applyCaChange(player, player.ca + caDelta(player, rng), rng);
+
+    if (attributesBefore && player.ca - caBefore >= 2) {
+      const improved = (Object.keys(player.attributes) as AttributeKey[])
+        .map((key) => ({ key, gain: player.attributes[key] - attributesBefore[key] }))
+        .filter((entry) => entry.gain > 0)
+        .sort((a, b) => b.gain - a.gain)
+        .slice(0, 3)
+        .map((entry) => ({
+          label: ATTRIBUTE_BY_KEY[entry.key].label,
+          from: attributesBefore[entry.key],
+          to: player.attributes[entry.key],
+        }));
+      growth.push({
+        playerId: player.id,
+        playerName: player.name,
+        caGain: player.ca - caBefore,
+        improved,
+      });
+    }
 
     player.season = { apps: 0, subApps: 0, minutes: 0, goals: 0, assists: 0, cleanSheets: 0, conceded: 0, ratingSum: 0, yellow: 0, red: 0, motm: 0 };
     player.compStats = {};
@@ -422,7 +464,7 @@ export function rolloverSeason(state: GameState, rng: Rng): { retired: Player[] 
     );
   }
 
-  return { retired };
+  return { retired, growth, loansEnded };
 }
 
 /**

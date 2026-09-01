@@ -41,11 +41,18 @@ export default function ClientsScreen() {
               playerId={player.id}
               right={player.contract ? `${player.contract.wage.toFixed(1)}k/주` : 'FA'}
             />
+            {player.loan && (
+              <KV
+                k="임대 중"
+                v={`${state.clubs[player.loan.parentClubId]?.name ?? '원 소속'} → ${club?.name ?? ''}`}
+                tone="good"
+              />
+            )}
             <Meter label="신뢰" value={client.trust} />
             <KV k="대리인 계약" v={`${seasonLabel(client.since)} ~ ${seasonLabel(client.until)}`} />
             <KV
               k="이번 시즌"
-              v={`${player.season.apps + player.season.subApps}경기 ${player.season.goals}골 ${player.season.assists}도움`}
+              v={`${player.season.apps}경기 ${player.season.goals}골 ${player.season.assists}도움`}
             />
             {club && player.contract && (
               <KV k="계약 만료" v={seasonLabel(player.contract.expires)}

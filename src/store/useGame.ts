@@ -16,6 +16,7 @@ import {
   completeNegotiation, openNegotiation, proposeCommission, proposeFee, proposeTerms, withdraw,
 } from '../game/negotiation';
 import { focus, sweep, toggleShortlist, type ScoutFilters } from '../game/scouting';
+import { arrangeLoan } from '../game/loan';
 import type { GameState, Negotiation } from '../game/types';
 
 export type Tab = 'home' | 'clients' | 'scout' | 'deals' | 'world';
@@ -53,6 +54,7 @@ interface GameStore {
   answerDemand: (playerId: string, demandId: string, optionId: string) => void;
 
   startDeal: (playerId: string, clubId: string, kind: Negotiation['kind']) => void;
+  sendOnLoan: (playerId: string, clubId: string) => void;
   offerFee: (id: string, fee: number) => void;
   offerTerms: (id: string, wage: number, years: number, releaseClause: number) => void;
   offerCommission: (id: string, pct: number) => void;
@@ -182,6 +184,14 @@ export const useGame = create<GameStore>((set, get) => {
       if (result.ok && result.negotiationId) {
         set({ negotiationSheet: result.negotiationId, playerSheet: null, clubSheet: null, tab: 'deals' });
       }
+      commit(result.message);
+    },
+
+    sendOnLoan: (playerId, clubId) => {
+      const game = get().game;
+      if (!game) return;
+      const result = arrangeLoan(game, playerId, clubId, rng);
+      if (result.agreed) set({ playerSheet: null });
       commit(result.message);
     },
 

@@ -95,7 +95,9 @@ export function buildSnapshot(club: Club, players: Record<string, Player>): Team
       if (taken.has(player.id)) continue;
       // 체력이 70 아래면 선발에서 밀립니다.
       const rotation = player.fitness < 70 ? 0.72 : 1;
-      const score = abilityInRole(player, role) * rotation;
+      // 임대로 데려온 선수는 뛰게 하려고 데려온 것입니다. 같은 값이면 먼저 씁니다.
+      const onLoan = player.loan ? 1.08 : 1;
+      const score = abilityInRole(player, role) * rotation * onLoan;
       if (score > bestScore) { bestScore = score; best = player; }
     }
     if (!best) break;

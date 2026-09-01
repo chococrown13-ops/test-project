@@ -71,7 +71,7 @@ function AttributeGrid({ player, depth, group }: { player: Player; depth: number
       <div className="attrs__grid">
         {GROUP_KEYS[group].map((key) => {
           const value = player.attributes[key];
-          const [low, high] = revealRange(value, depth);
+          const [low, high] = revealRange(`${player.id}:${key}`, value, depth);
           const exact = low === high;
           return (
             <div key={key} className="attr">
@@ -164,9 +164,16 @@ export function PlayerSheet({ playerId }: { playerId: string }) {
       </Card>
 
       <Card title="계약">
+        {player.loan && (
+          <KV
+            k="임대 중"
+            v={`${state.clubs[player.loan.parentClubId]?.name ?? '원 소속'} 소속 · 시즌 종료 후 복귀`}
+            tone="good"
+          />
+        )}
         {player.contract && club ? (
           <>
-            <KV k="구단" v={<button type="button" className="linkish" onClick={() => openClub(club.id)}>{club.name}</button>} />
+            <KV k={player.loan ? '임대 구단' : '구단'} v={<button type="button" className="linkish" onClick={() => openClub(club.id)}>{club.name}</button>} />
             <KV k="리그" v={country ? leagueName(country, club.tier) : '-'} />
             <KV k="주급" v={`${player.contract.wage.toFixed(1)}k / 주`} />
             <KV k="계약 만료" v={seasonLabel(player.contract.expires)} />
@@ -217,7 +224,11 @@ export function PlayerSheet({ playerId }: { playerId: string }) {
 
       <Card title="이번 시즌">
         <div className="stat-row">
-          <Stat label="출전" value={player.season.apps + player.season.subApps} />
+          <Stat
+            label="출전"
+            value={player.season.apps}
+            sub={player.season.subApps > 0 ? `교체 ${player.season.subApps}` : undefined}
+          />
           <Stat label="골" value={player.season.goals} />
           <Stat label="도움" value={player.season.assists} />
           <Stat

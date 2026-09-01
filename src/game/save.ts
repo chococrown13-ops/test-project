@@ -16,10 +16,15 @@ import type {
   PersonalityId, SeasonStats, TableRow,
 } from './types';
 
-export const SAVE_VERSION = 2;
-export const SAVE_KEY = 'football-agent-save-v2';
+export const SAVE_VERSION = 3;
+export const SAVE_KEY = 'football-agent-save-v3';
 /** 리그 계층이 들어오기 전 포맷. 남아 있으면 지웁니다. */
 const LEGACY_KEYS = ['football-agent-save-v1'];
+/**
+ * v2 는 계층까지는 같고 출전 수 의미만 다릅니다 — apps 가 선발만 세고 있어서
+ * 평점이 부풀어 있었습니다. 진행 중인 게임을 버리지 않도록 읽어서 고칩니다.
+ */
+const MIGRATABLE_KEYS = ['football-agent-save-v2'];
 
 /** 1-20 값을 한 글자로. 코드 포인트 48('0')부터 씁니다. */
 const encodeAttributes = (attrs: Attributes): string =>
@@ -112,6 +117,7 @@ function encodePlayer(p: Player): PlayerTuple {
     careerTuple(p.career),
     p.honours.map((h) => [h.season, h.label, h.competitionId ?? 0]),
     p.value, Math.round(p.scouted), p.retired ? 1 : 0,
+    p.loan ? [p.loan.parentClubId, p.loan.untilSeason] : 0,
   ];
 }
 
@@ -125,6 +131,11 @@ function decodePlayer(t: PlayerTuple): Player {
   for (const row of (t[23] as unknown[][]) ?? []) {
     compStats[row[0] as string] = compFromTuple(row.slice(1) as number[]);
   }
+
+  const loanTuple = t[29];
+  const loan = Array.isArray(loanTuple)
+    ? { parentClubId: String(loanTuple[0]), untilSeason: Number(loanTuple[1]) }
+    : undefined;
 
   return {
     id: t[0] as string,
@@ -144,7 +155,11 @@ function decodePlayer(t: PlayerTuple): Player {
     pa: t[13] as number,
     personality: (PERSONALITY_IDS[t[14] as number] ?? 'balanced') as PersonalityId,
     clubId: t[15] === 0 ? null : (t[15] as string),
-    contract: t[16] === 0 ? null : contractFromTuple(t[16] as Array<number | string | null>, String(t[15])),
+    loan,
+    // 임대 중이면 계약은 원 소속 구단 것입니다. 여기서 clubId 를 쓰면
+    // 저장했다 불러오는 것만으로 임대가 완전 이적이 되어 버립니다.
+    contract: t[16] === 0 ? null
+      : contractFromTuple(t[16] as Array<number | string | null>, loan?.parentClubId ?? String(t[15])),
     agentId: t[17] === 0 ? null : (t[17] as string),
     morale: t[18] as number,
     form: t[19] as number,
@@ -256,11 +271,18 @@ export function serialize(state: GameState): string {
 export function deserialize(text: string): GameState | null {
   try {
     const envelope = JSON.parse(text) as SaveEnvelope;
-    if (!envelope || envelope.v !== SAVE_VERSION) return null;
+    if (!envelope) return null;
+    if (envelope.v !== SAVE_VERSION && envelope.v !== 2) return null;
+    const needsAppsFix = envelope.v === 2;
 
     const players: Record<string, Player> = {};
     for (const tuple of envelope.players) {
       const player = decodePlayer(tuple);
+      if (needsAppsFix) {
+        // v2 의 apps 는 선발만 셌습니다. 교체 출전을 더해 총 출전으로 맞춥니다.
+        player.season.apps += player.season.subApps;
+        player.career.apps += player.career.subApps;
+      }
       players[player.id] = player;
     }
 
@@ -372,9 +394,21 @@ export async function saveGame(state: GameState): Promise<SaveResult> {
 export async function loadGame(): Promise<GameState | null> {
   try {
     for (const key of LEGACY_KEYS) localStorage.removeItem(key);
-    const text = localStorage.getItem(SAVE_KEY);
+    // 새 키가 없으면 이전 버전 세이브를 읽어 옮겨 옵니다.
+    let text = localStorage.getItem(SAVE_KEY);
+    let migratedFrom: string | null = null;
+    if (!text) {
+      for (const key of MIGRATABLE_KEYS) {
+        const legacy = localStorage.getItem(key);
+        if (legacy) { text = legacy; migratedFrom = key; break; }
+      }
+    }
     if (!text) return null;
-    return deserialize(await decompress(text));
+    const state = deserialize(await decompress(text));
+    if (state && migratedFrom) {
+      void saveGame(state).then(() => localStorage.removeItem(migratedFrom!));
+    }
+    return state;
   } catch {
     return null;
   }
@@ -385,5 +419,8 @@ export function clearSave(): void {
 }
 
 export function hasSave(): boolean {
-  try { return localStorage.getItem(SAVE_KEY) !== null; } catch { return false; }
+  try {
+    return localStorage.getItem(SAVE_KEY) !== null
+      || MIGRATABLE_KEYS.some((key) => localStorage.getItem(key) !== null);
+  } catch { return false; }
 }

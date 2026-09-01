@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { COUNTRY_BY_ID } from '../../data/countries';
 import { relationWith } from '../../game/agent';
 import { transferOutlook } from '../../game/negotiation';
+import { loanEligibility, loanOutlook } from '../../game/loan';
 import { estimateValue } from '../../game/player';
 import { formatMoney } from '../../game/engine';
 import { isWindowOpen, type Club, type Negotiation } from '../../game/types';
 import { useGame, useGameState } from '../../store/useGame';
-import { Btn, Card, Chip, Crest, Empty, Field, KV, Meter, Sheet, Stat, Stepper } from '../components/common';
+import { Btn, Card, Chip, Crest, Empty, Field, KV, Meter, Segmented, Sheet, Stat, Stepper } from '../components/common';
 import { PlayerRow } from '../components/PlayerView';
 
 const STAGE_LABELS: Record<Negotiation['stage'], string> = {
@@ -56,10 +57,11 @@ export default function DealsScreen() {
   );
 }
 
-/** 의뢰인 하나를 골라 이적을 추진합니다. */
+/** 의뢰인 하나를 골라 이적이나 임대를 추진합니다. */
 function NewDealPicker() {
   const state = useGameState();
-  const { startDeal } = useGame();
+  const { startDeal, sendOnLoan } = useGame();
+  const [mode, setMode] = useState<'transfer' | 'loan'>('transfer');
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
@@ -69,15 +71,22 @@ function NewDealPicker() {
     .filter((player) => player && !player.retired
       && !state.negotiations.some((n) => n.playerId === player.id));
 
-  const player = playerId ? state.players[playerId] : null;
+  const loanable = clients.filter((player) => loanEligibility(state, player).ok);
+  const available = mode === 'loan' ? loanable : clients.filter((p) => !p.loan);
+  const player = playerId && available.some((p) => p.id === playerId) ? state.players[playerId] : null;
+
+  const matchesQuery = (club: Club): boolean => !query
+    || club.name.toLowerCase().includes(query.toLowerCase())
+    || (COUNTRY_BY_ID[club.countryId]?.name ?? '').includes(query);
+
   const suitors: Club[] = player
     ? Object.values(state.clubs)
-      .filter((club) => club.id !== player.clubId)
-      .filter((club) => !query || club.name.toLowerCase().includes(query.toLowerCase())
-        || (COUNTRY_BY_ID[club.countryId]?.name ?? '').includes(query))
-      // 명성이 아니라 "이 선수를 원하고, 살 돈도 있는가" 순으로 보여 줍니다.
-      // 관심만으로 줄 세우면 살 수 없는 약체 구단이 목록 맨 위를 차지합니다.
+      .filter((club) => club.id !== player.clubId && matchesQuery(club))
+      // 명성이 아니라 "이 선수를 원하고, 데려갈 여력도 있는가" 순으로 보여 줍니다.
       .sort((a, b) => {
+        if (mode === 'loan') {
+          return loanOutlook(state, player, b).chance - loanOutlook(state, player, a).chance;
+        }
         const left = transferOutlook(state, player.id, a.id);
         const right = transferOutlook(state, player.id, b.id);
         if (left.affordable !== right.affordable) return left.affordable ? -1 : 1;
@@ -87,19 +96,40 @@ function NewDealPicker() {
     : [];
 
   return (
-    <Card title="새 이적 추진">
+    <Card title="새 거래 추진">
+      <Segmented
+        value={mode}
+        onChange={(value) => { setMode(value); setPlayerId(null); }}
+        options={[{ value: 'transfer', label: '이적' }, { value: 'loan', label: '임대' }]}
+      />
+
+      {mode === 'loan' && (
+        <p className="faint small">
+          어린 의뢰인이 벤치에서 시즌을 버리면 성장도 멈춥니다. 한 시즌 임대를 보내
+          출전 시간을 만들어 주세요. 계약은 원 소속 구단에 남고, 시즌이 끝나면
+          자동으로 돌아옵니다.
+        </p>
+      )}
+
       {!windowOpen && (
         <p className="warn small">
           이적시장이 닫혀 있습니다. 지금은 재계약만 진행할 수 있습니다 (선수 상세에서).
         </p>
       )}
-      {clients.length === 0
-        ? <Empty>추진할 수 있는 의뢰인이 없습니다.</Empty>
+
+      {available.length === 0
+        ? (
+          <Empty>
+            {mode === 'loan'
+              ? '임대를 보낼 만한 의뢰인이 없습니다. 어리거나 출전 시간이 적은 선수가 대상입니다.'
+              : '추진할 수 있는 의뢰인이 없습니다.'}
+          </Empty>
+        )
         : (
           <>
             <Field label="의뢰인">
               <div className="chips chips--scroll">
-                {clients.map((client) => (
+                {available.map((client) => (
                   <Chip key={client.id} active={playerId === client.id} onClick={() => setPlayerId(client.id)}>
                     {client.name}
                   </Chip>
@@ -111,7 +141,13 @@ function NewDealPicker() {
               <>
                 <KV k="추정 가치" v={formatMoney(estimateValue(player))} />
                 <KV k="현 소속" v={player.clubId ? state.clubs[player.clubId].name : '무소속'} />
-                <Field label="행선지 구단" hint="구단이 이 선수를 원하는 순서로 정렬됩니다">
+                {mode === 'loan' && (
+                  <KV k="올 시즌 출전" v={`${player.season.apps}경기 ${player.season.minutes.toLocaleString()}분`} />
+                )}
+                <Field
+                  label={mode === 'loan' ? '임대 보낼 구단' : '행선지 구단'}
+                  hint={mode === 'loan' ? '주전으로 뛸 수 있는 곳일수록 성사가 쉽습니다' : '구단이 이 선수를 원하는 순서로 정렬됩니다'}
+                >
                   <input
                     className="input"
                     placeholder="구단 또는 나라 이름"
@@ -122,24 +158,34 @@ function NewDealPicker() {
                 <div className="club-list">
                   {suitors.map((club) => {
                     const relation = relationWith(state, club.id);
-                    const outlook = transferOutlook(state, player.id, club.id);
+                    const loan = mode === 'loan' ? loanOutlook(state, player, club) : null;
+                    const outlook = mode === 'transfer' ? transferOutlook(state, player.id, club.id) : null;
+                    const tone = loan
+                      ? (loan.chance > 0.55 ? 'good' : loan.chance > 0.25 ? 'warn' : 'bad')
+                      : outlook!.tone;
                     return (
                       <button
                         key={club.id}
                         type="button"
                         className="club-row"
                         disabled={!windowOpen}
-                        onClick={() => startDeal(player.id, club.id, 'transfer')}
+                        onClick={() => (mode === 'loan'
+                          ? sendOnLoan(player.id, club.id)
+                          : startDeal(player.id, club.id, 'transfer'))}
                       >
                         <Crest color={club.color} accent={club.accent} label={club.shortName} />
                         <span className="club-row__main">
                           <span className="club-row__name">{club.name}</span>
                           <span className="club-row__meta">
-                            {COUNTRY_BY_ID[club.countryId]?.name} · 예산 {formatMoney(club.budget)} · 관계 {Math.round(relation)}
+                            {COUNTRY_BY_ID[club.countryId]?.name} {club.tier}부
+                            {loan
+                              ? ` · 주전 가능성 ${Math.round(loan.playingChance * 100)}%`
+                              : ` · 예산 ${formatMoney(club.budget)}`}
+                            {` · 관계 ${Math.round(relation)}`}
                           </span>
                         </span>
-                        <span className={`club-row__rel club-row__rel--${outlook.tone}`}>
-                          {outlook.label}
+                        <span className={`club-row__rel club-row__rel--${tone}`}>
+                          {loan ? `성사 ${Math.round(loan.chance * 100)}%` : outlook!.label}
                         </span>
                       </button>
                     );

@@ -49,7 +49,7 @@ export function wageBill(club: Club, players: Record<string, Player>): number {
 }
 
 /** 구단이 이 선수를 스쿼드에서 어느 정도로 치는지 0-1. */
-function squadStanding(player: Player, club: Club, players: Record<string, Player>): number {
+export function squadStanding(player: Player, club: Club, players: Record<string, Player>): number {
   const ranked = club.playerIds
     .map((id) => players[id])
     .filter((p): p is Player => Boolean(p) && !p.retired)
@@ -74,6 +74,7 @@ export function processExpiries(state: GameState, rng: Rng): Player[] {
     for (const playerId of club.playerIds.slice()) {
       const player = state.players[playerId];
       if (!player || player.retired || !player.contract) continue;
+      if (player.loan) continue;
       if (player.contract.expires > state.season) continue;
 
       const standing = squadStanding(player, club, state.players);
@@ -242,6 +243,8 @@ export function runAiTransfers(state: GameState, rng: Rng, deals: number): AiDea
       .filter((p): p is Player => Boolean(p) && !p.retired && Boolean(p.contract));
     if (candidates.length === 0) continue;
     const player = rng.pick(candidates);
+    // 임대 온 선수는 그 구단 소유가 아닙니다. 팔 수 없습니다.
+    if (player.loan) continue;
     const standing = squadStanding(player, seller, state.players);
     if (standing > 0.65 && !rng.bool(0.15)) continue;
 

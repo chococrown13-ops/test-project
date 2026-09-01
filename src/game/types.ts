@@ -56,7 +56,9 @@ export interface Contract {
 }
 
 export interface SeasonStats {
+  /** 총 출전 수. 선발과 교체를 모두 포함합니다 — ratingSum 을 이 값으로 나눠 평점을 냅니다. */
   apps: number;
+  /** 그중 교체로 들어간 경기 수. */
   subApps: number;
   minutes: number;
   goals: number;
@@ -91,6 +93,13 @@ export interface Honour {
   competitionId?: string;
 }
 
+/** 임대 중인 선수. 소속(clubId)은 임대 구단이고 계약은 원 소속 구단에 남습니다. */
+export interface Loan {
+  parentClubId: string;
+  /** 이 시즌이 끝나면 복귀합니다. */
+  untilSeason: number;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -116,6 +125,8 @@ export interface Player {
   pa: number;
   personality: PersonalityId;
   clubId: string | null;
+  /** 임대 중이면 원 소속 구단. 시즌이 끝나면 자동으로 돌아갑니다. */
+  loan?: Loan;
   contract: Contract | null;
   /** 담당 에이전트. 'you' = 플레이어, null = 무소속, 그 외 = AI 에이전트. */
   agentId: string | null;

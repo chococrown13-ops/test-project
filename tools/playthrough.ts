@@ -152,3 +152,13 @@ log(`  시즌 ${state.season} · ${state.week}주`);
 log(`  자금 ${state.agent.cash.toFixed(0)}k · 평판 ${state.agent.reputation.toFixed(1)} · 라이선스 ${state.agent.licence}`);
 log(`  의뢰인 ${Object.keys(state.clients).length}명 · 성사 ${state.agent.totals.deals}건 · 누적 수수료 ${state.agent.totals.commission.toFixed(0)}k`);
 log(`  받은 요구 ${demandsSeen}건 · 구단 영입 문의 ${inbound}건 · 소식 ${state.news.length}건`);
+
+const growthNews = state.news.filter((n) => n.title.includes('성장했습니다'));
+log(`  성장 소식 ${growthNews.length}건`);
+for (const item of growthNews.slice(0, 3)) log(`    ${item.title} — ${item.body}`);
+
+// 시즌 기록은 롤오버에서 비워지므로 통산으로 확인합니다.
+const ratings = Object.values(state.players)
+  .filter((p) => p.career.apps > 0)
+  .map((p) => p.career.ratingSum / p.career.apps);
+log(`  통산 평점 범위 ${Math.min(...ratings).toFixed(2)} ~ ${Math.max(...ratings).toFixed(2)} (10점 만점)`);

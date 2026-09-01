@@ -148,6 +148,9 @@ export function openNegotiation(
   if (kind === 'transfer' && player.clubId === toClubId) {
     return { ok: false, message: '이미 그 구단 소속입니다.' };
   }
+  if (player.loan) {
+    return { ok: false, message: '임대 중인 선수입니다. 시즌이 끝나 복귀한 뒤에 움직일 수 있습니다.' };
+  }
 
   const country = countryOfClub(buyer);
   if (!country) return { ok: false, message: '구단 정보를 읽을 수 없습니다.' };

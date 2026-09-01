@@ -11,6 +11,8 @@
     "sim": "esbuild tools/simulate.ts --bundle --platform=node --format=esm --outfile=.tmp/sim.mjs --log-level=warning && node .tmp/sim.mjs",
     "clubcheck": "esbuild tools/clubcheck.ts --bundle --platform=node --format=esm --outfile=.tmp/clubcheck.mjs --log-level=warning && node .tmp/clubcheck.mjs",
     "tiercheck": "esbuild tools/tiercheck.ts --bundle --platform=node --format=esm --outfile=.tmp/tiercheck.mjs --log-level=warning && node .tmp/tiercheck.mjs",
+    "loancheck": "esbuild tools/loancheck.ts --bundle --platform=node --format=esm --outfile=.tmp/loancheck.mjs --log-level=warning && node .tmp/loancheck.mjs",
+    "revealcheck": "esbuild tools/revealcheck.ts --bundle --platform=node --format=esm --outfile=.tmp/revealcheck.mjs --log-level=warning && node .tmp/revealcheck.mjs",
     "play": "esbuild tools/playthrough.ts --bundle --platform=node --format=esm --outfile=.tmp/play.mjs --log-level=warning && node .tmp/play.mjs"
   },
   "dependencies": {

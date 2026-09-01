@@ -87,6 +87,16 @@ function checkInvariants(state: ReturnType<typeof createGame>, index: number): v
       else if (player.retired) problems.push(`은퇴 선수가 스쿼드에: ${player.name}`);
     }
   }
+  // 평점은 10점 만점입니다. 출전 수와 평점 합계가 어긋나면 여기서 터집니다.
+  const rated = Object.values(state.players).filter((p) => p.career.apps > 0);
+  let worstAvg = 0;
+  let worstName = '';
+  for (const player of rated) {
+    const avg = player.career.ratingSum / player.career.apps;
+    if (avg > worstAvg) { worstAvg = avg; worstName = player.name; }
+  }
+  if (worstAvg > 10) problems.push(`평점 범위 초과: ${worstName} ${worstAvg.toFixed(1)}`);
+
   const active = Object.values(state.players).filter((p) => !p.retired);
   const ages = active.map((p) => p.age);
   const avgAge = ages.reduce((a, b) => a + b, 0) / ages.length;
@@ -94,6 +104,7 @@ function checkInvariants(state: ReturnType<typeof createGame>, index: number): v
   const topValue = active.slice().sort((a, b) => b.value - a.value)[0];
   const topWage = active.filter((p) => p.contract).sort((a, b) => b.contract!.wage - a.contract!.wage)[0];
   const freeAgents = active.filter((p) => !p.clubId).length;
+  console.log(`    최고 통산 평점 ${worstAvg.toFixed(2)} (${worstName})`);
   console.log(`    최고 CA ${topCa.map((p) => p.ca).join('/')} · 최고가 ${topValue.name} ${(topValue.value / 1000).toFixed(1)}M · 최고 주급 ${topWage.contract!.wage.toFixed(0)}k · FA ${freeAgents}명`);
   if (avgAge < 20 || avgAge > 31) problems.push(`평균 나이 이상: ${avgAge.toFixed(1)}`);
 
