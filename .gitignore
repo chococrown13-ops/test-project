@@ -1,5 +1,7 @@
-node_modules/
-dist/
 *.local
+*.tsbuildinfo
 .DS_Store
+.tmp
+dist/
+node_modules/
 tsconfig.tsbuildinfo
