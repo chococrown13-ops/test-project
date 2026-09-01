@@ -118,6 +118,7 @@ function encodePlayer(p: Player): PlayerTuple {
     p.honours.map((h) => [h.season, h.label, h.competitionId ?? 0]),
     p.value, Math.round(p.scouted), p.retired ? 1 : 0,
     p.loan ? [p.loan.parentClubId, p.loan.untilSeason] : 0,
+    Math.round((p.caProgress ?? 0) * 100),
   ];
 }
 
@@ -173,6 +174,7 @@ function decodePlayer(t: PlayerTuple): Player {
       label: h[1] as string,
       competitionId: h[2] === 0 ? undefined : (h[2] as string),
     })),
+    caProgress: ((t[30] as number) ?? 0) / 100,
     value: t[26] as number,
     scouted: t[27] as number,
     retired: t[28] === 1,

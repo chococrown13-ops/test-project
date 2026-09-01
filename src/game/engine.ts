@@ -7,7 +7,8 @@
 
 import { Rng } from './rng';
 import {
-  ensureWorldCup, finishSeason, playWeek, rolloverSeason, weeklyRecovery, type GrowthReport,
+  ensureWorldCup, finishSeason, isGrowthWeek, playWeek, rolloverSeason, trainingTick,
+  weeklyRecovery, type GrowthReport,
 } from './season';
 import { runAiTransfers } from './market';
 import { weeklyClientTick } from './clients';
@@ -56,6 +57,10 @@ export function advanceWeek(state: GameState, rng: Rng): WeekReport {
   replenishScoutPoints(state);
 
   reportClientMatches(state);
+
+  // 4주에 한 번 훈련 성과를 반영합니다. 시즌이 끝나야 알 수 있으면
+  // 에이전트는 반 시즌 내내 의뢰인이 자라는지도 모른 채 지나갑니다.
+  if (isGrowthWeek(state.week)) reportGrowth(state, trainingTick(state, rng));
 
   if (windowOpen) {
     const deals = runAiTransfers(state, rng, rng.int(2, 6));
@@ -137,7 +142,6 @@ export function advanceWeek(state: GameState, rng: Rng): WeekReport {
   if (state.week > SEASON_WEEKS) {
     const rollover = rolloverSeason(state, rng);
     seasonRolled = true;
-    reportGrowth(state, rollover.growth);
     for (const loan of rollover.loansEnded) {
       if (!state.clients[loan.playerId]) continue;
       pushNews(state, {
@@ -166,24 +170,36 @@ export function advanceWeek(state: GameState, rng: Rng): WeekReport {
 }
 
 /**
- * 의뢰인의 성장 보고.
+ * 의뢰인의 성장·하락 보고.
  *
- * 능력치는 시즌이 끝날 때 한 번에 움직입니다. 숫자만 조용히 바뀌면 눈치채기
- * 어려우니, 어느 항목이 얼마나 올랐는지 짚어 줍니다.
+ * 숫자만 조용히 바뀌면 눈치채기 어려우니 어느 항목이 얼마나 움직였는지
+ * 짚어 줍니다. 나이 든 선수가 꺾이는 것도 에이전트에게는 정보입니다 —
+ * 팔 때를 놓치면 값이 없어집니다.
  */
 function reportGrowth(state: GameState, growth: GrowthReport[]): void {
   for (const report of growth) {
     if (!state.clients[report.playerId]) continue;
-    const detail = report.improved.length > 0
-      ? report.improved.map((entry) => `${entry.label} ${entry.from}→${entry.to}`).join(', ')
-      : '전반적으로 고르게 올랐습니다';
-    pushNews(state, {
-      category: 'client',
-      title: `${report.playerName} 이(가) 성장했습니다`,
-      body: `한 시즌 동안 눈에 띄게 좋아졌습니다. ${detail}.`,
-      tone: 'good',
-      playerId: report.playerId,
-    });
+
+    if (report.caGain > 0) {
+      const detail = report.improved.length > 0
+        ? report.improved.map((entry) => `${entry.label} ${entry.from}→${entry.to}`).join(', ')
+        : '전반적으로 고르게 올랐습니다';
+      pushNews(state, {
+        category: 'client',
+        title: `${report.playerName} 이(가) 성장했습니다`,
+        body: `최근 훈련에서 눈에 띄게 좋아졌습니다. ${detail}.`,
+        tone: 'good',
+        playerId: report.playerId,
+      });
+    } else if (report.caGain <= -2) {
+      pushNews(state, {
+        category: 'client',
+        title: `${report.playerName} 의 기량이 떨어지고 있습니다`,
+        body: '나이가 실력에 드러나기 시작했습니다. 값이 더 빠지기 전에 움직일지 판단해야 합니다.',
+        tone: 'bad',
+        playerId: report.playerId,
+      });
+    }
   }
 }
 

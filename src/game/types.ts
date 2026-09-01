@@ -130,6 +130,12 @@ export interface Player {
   contract: Contract | null;
   /** 담당 에이전트. 'you' = 플레이어, null = 무소속, 그 외 = AI 에이전트. */
   agentId: string | null;
+  /**
+   * 아직 능력치에 반영되지 않은 CA 잔돈(-1 ~ 1).
+   * 시즌 중 성장은 4주에 조금씩 쌓이는데, 매번 반올림해 버리면 천천히 자라는
+   * 선수는 영원히 제자리에 머뭅니다.
+   */
+  caProgress?: number;
   /** 0-100. */
   morale: number;
   form: number;

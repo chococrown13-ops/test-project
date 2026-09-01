@@ -154,8 +154,12 @@ log(`  의뢰인 ${Object.keys(state.clients).length}명 · 성사 ${state.agent
 log(`  받은 요구 ${demandsSeen}건 · 구단 영입 문의 ${inbound}건 · 소식 ${state.news.length}건`);
 
 const growthNews = state.news.filter((n) => n.title.includes('성장했습니다'));
-log(`  성장 소식 ${growthNews.length}건`);
-for (const item of growthNews.slice(0, 3)) log(`    ${item.title} — ${item.body}`);
+const declineNews = state.news.filter((n) => n.title.includes('기량이 떨어지'));
+log(`  성장 소식 ${growthNews.length}건 (주차: ${[...new Set(growthNews.map((n) => n.week))].sort((a, b) => a - b).join(', ')})`);
+log(`  기량 하락 소식 ${declineNews.length}건`);
+const empty = growthNews.filter((n) => n.body.includes('고르게')).length;
+log(`  능력치 항목이 비어 있는 소식 ${empty}건 / ${growthNews.length}건`);
+for (const item of growthNews.slice(0, 3)) log(`    [${item.week}주] ${item.title} — ${item.body}`);
 
 // 시즌 기록은 롤오버에서 비워지므로 통산으로 확인합니다.
 const ratings = Object.values(state.players)

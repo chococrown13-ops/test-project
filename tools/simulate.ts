@@ -5,12 +5,13 @@
  */
 
 import { createGame } from '../src/game/newGame';
-import { playWeek, weeklyRecovery, ensureWorldCup, finishSeason, rolloverSeason } from '../src/game/season';
+import { advanceWeek } from '../src/game/engine';
 import { Rng } from '../src/game/rng';
-import { SEASON_WEEKS, AWARDS_WEEK } from '../src/game/types';
+import { SEASON_WEEKS } from '../src/game/types';
 import { COUNTRIES } from '../src/data/countries';
 import { AWARD_LABELS } from '../src/game/awards';
-import { SQUAD_SIZE } from '../src/game/player';
+import { SQUAD_SIZE, caToBase } from '../src/game/player';
+import { GROUP_KEYS, visibleGroups } from '../src/game/attributes';
 
 const seasons = Number(process.argv[2] ?? 3);
 const countryLimit = Number(process.argv[3] ?? 24);
@@ -29,34 +30,33 @@ let homeWins = 0, draws = 0, awayWins = 0;
 
 for (let s = 0; s < seasons; s++) {
   const seasonStart = Date.now();
-  for (let week = 1; week <= SEASON_WEEKS; week++) {
-    state.week = week;
-    ensureWorldCup(state, rng);
-    const results = playWeek(state, rng);
-    weeklyRecovery(state);
-    for (const fixture of results) {
+  const before = Object.values(state.players).filter((p) => p.retired).length;
+
+  // 게임과 같은 경로로 돌립니다. 주간 루프를 여기서 다시 구현하면 엔진에만
+  // 있는 처리(시즌 중 훈련 등)가 통째로 빠진 채 검증하게 됩니다 — 실제로
+  // 그렇게 새어 나가 성장이 하나도 반영되지 않은 세계를 재고 있었습니다.
+  for (let w = 0; w < SEASON_WEEKS; w++) {
+    const report = advanceWeek(state, rng);
+    for (const fixture of state.lastWeekResults) {
       totalMatches++;
       totalGoals += fixture.homeGoals + fixture.awayGoals;
       if (fixture.homeGoals > fixture.awayGoals) homeWins++;
       else if (fixture.homeGoals < fixture.awayGoals) awayWins++;
       else draws++;
     }
-    if (week === AWARDS_WEEK) {
-      const { history } = finishSeason(state);
+    if (report.awarded) {
+      const history = state.history[state.history.length - 1];
       const world = history.awards.filter((a) => a.awardId.startsWith('world-'));
       console.log(`\n[${history.season}] 시상식`);
       for (const award of world) {
         console.log(`  ${AWARD_LABELS[award.awardId]}: ${award.playerName} (${award.clubName}) — ${award.value}`);
       }
-      const eng = history.awards.find((a) => a.awardId === 'top-scorer' && a.competitionId === 'lg:eng');
-      if (eng) console.log(`  잉글랜드 득점왕: ${eng.playerName} ${eng.value}골`);
-      const glove = history.awards.find((a) => a.awardId === 'golden-glove' && a.competitionId === 'lg:eng');
-      if (glove) console.log(`  잉글랜드 골든글러브: ${glove.playerName} ${glove.value}클린시트`);
-      console.log(`  개인상 총 ${history.awards.length}개, 대륙 우승 ${Object.keys(history.continentalChampions).length}개, 클럽 월드컵: ${history.worldChampionId ? state.clubs[history.worldChampionId].name : '없음'}`);
+      console.log(`  개인상 총 ${history.awards.length}개, 대륙 우승 ${Object.keys(history.continentalChampions).length}개`);
     }
   }
-  const { retired } = rolloverSeason(state, rng);
-  console.log(`  롤오버: 은퇴 ${retired.length}명, ${Date.now() - seasonStart}ms`);
+
+  const retiredCount = Object.values(state.players).filter((p) => p.retired).length - before;
+  console.log(`  롤오버: 은퇴 ${retiredCount}명, ${Date.now() - seasonStart}ms`);
   checkInvariants(state, s);
 }
 
@@ -104,6 +104,32 @@ function checkInvariants(state: ReturnType<typeof createGame>, index: number): v
   const topValue = active.slice().sort((a, b) => b.value - a.value)[0];
   const topWage = active.filter((p) => p.contract).sort((a, b) => b.contract!.wage - a.contract!.wage)[0];
   const freeAgents = active.filter((p) => !p.clubId).length;
+  // 능력치가 CA 와 따로 놀지 않는지. 시즌 중 조금씩 반영하다 보면 둘이
+  // 어긋난 채 굳어 버리기 쉽습니다.
+  let drift = 0;
+  for (const p of active) {
+    const keys = visibleGroups(p.group === 'GK').flatMap((g) => GROUP_KEYS[g]);
+    const mean = keys.reduce((sum, k) => sum + p.attributes[k], 0) / keys.length;
+    drift += Math.abs(mean - caToBase(p.ca));
+  }
+  drift /= active.length;
+  if (drift > 1.5) problems.push(`능력치가 CA 와 괴리: 평균 ${drift.toFixed(2)}`);
+
+  const meanCa = active.reduce((sum, p) => sum + p.ca, 0) / active.length;
+  const nearPa = active.filter((p) => p.pa - p.ca <= 8).length;
+  const prospects = active.filter((p) => p.age <= 23);
+  const topProspectPa = prospects.slice().sort((a, b) => b.pa - a.pa).slice(0, 3).map((p) => `${p.ca}/${p.pa}`);
+  const peak = active.filter((p) => p.age >= 24 && p.age <= 28);
+  const meanPeakCa = peak.length ? peak.reduce((s, p) => s + p.ca, 0) / peak.length : 0;
+  const buckets: Array<[string, number, number]> = [['16-19', 16, 19], ['20-23', 20, 23], ['24-27', 24, 27], ['28-31', 28, 31], ['32+', 32, 99]];
+  const byAge = buckets.map(([label, lo, hi]) => {
+    const group = active.filter((p) => p.age >= lo && p.age <= hi);
+    const mean = group.length ? group.reduce((s, p) => s + p.ca, 0) / group.length : 0;
+    return `${label} ${mean.toFixed(0)}(${group.length})`;
+  }).join(' · ');
+  console.log(`    능력치-CA 괴리 ${drift.toFixed(2)}`);
+  console.log(`    나이대별 CA: ${byAge}`);
+  console.log(`    평균 CA ${meanCa.toFixed(1)} · 전성기(24-28) 평균 ${meanPeakCa.toFixed(1)} · PA 도달 ${nearPa}명 · 상위 유망주 ${topProspectPa.join(' ')}`);
   console.log(`    최고 통산 평점 ${worstAvg.toFixed(2)} (${worstName})`);
   console.log(`    최고 CA ${topCa.map((p) => p.ca).join('/')} · 최고가 ${topValue.name} ${(topValue.value / 1000).toFixed(1)}M · 최고 주급 ${topWage.contract!.wage.toFixed(0)}k · FA ${freeAgents}명`);
   if (avgAge < 20 || avgAge > 31) problems.push(`평균 나이 이상: ${avgAge.toFixed(1)}`);

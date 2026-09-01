@@ -11,6 +11,9 @@ import { Rng, clamp } from './rng';
 import type { TeamSnapshot } from './ratings';
 import type { CompStat, Fixture, Player } from './types';
 
+/** 경기 평점 상한. 10점 만점입니다. */
+const MAX_RATING = 10;
+
 /** 평균 팀끼리 붙었을 때의 기대 득점. */
 const BASE_XG = 1.35;
 const HOME_ADVANTAGE = 1.08;
@@ -175,6 +178,8 @@ function settleSide(
     if (index === 0) rating += conceded === 0 ? 0.55 : -0.18 * conceded;
     // 팀 전력 차가 크면 약팀 선수의 평점이 더 흔들립니다.
     rating += clamp((side.attack - opponent.attack) / 220, -0.25, 0.25);
+    // 평점은 10점 만점입니다. 해트트릭에 도움까지 얹히면 그냥 두면 넘어갑니다.
+    rating = clamp(rating, 1, MAX_RATING);
 
     applyCardsAndInjury(player, rng, minutes);
     stat.ratingSum += rating;
@@ -192,10 +197,12 @@ function settleSide(
         const assistStat = compStat(players[id], ctx.competitionId);
         players[id].season.assists += 1;
         assistStat.assists += 1;
-        const current = ratings.get(id);
-        if (current !== undefined) ratings.set(id, current + 0.45);
-        players[id].season.ratingSum += 0.45;
-        assistStat.ratingSum += 0.45;
+        // 상한을 넘지 않는 만큼만 얹습니다.
+        const current = ratings.get(id) ?? 6.5;
+        const bonus = Math.max(0, Math.min(0.45, MAX_RATING - current));
+        ratings.set(id, current + bonus);
+        players[id].season.ratingSum += bonus;
+        assistStat.ratingSum += bonus;
         break;
       }
     }
@@ -211,7 +218,7 @@ function settleSide(
     player.season.apps += 1;
     player.season.subApps += 1;
     player.season.minutes += minutes;
-    const rating = 6.3 + rng.float(-0.4, 0.6) + resultBonus * 0.5;
+    const rating = clamp(6.3 + rng.float(-0.4, 0.6) + resultBonus * 0.5, 1, MAX_RATING);
     const subStat = compStat(player, ctx.competitionId);
     subStat.apps += 1;
     subStat.ratingSum += rating;

@@ -6,7 +6,9 @@
  */
 
 import { Rng, clamp } from './rng';
-import { ATTRIBUTE_BY_KEY, GROUP_KEYS, type AttributeKey } from './attributes';
+import {
+  ATTRIBUTE_BY_KEY, GROUP_KEYS, visibleGroups, type AttributeKey, type Attributes,
+} from './attributes';
 import { buildSnapshot, type TeamSnapshot } from './ratings';
 import { playMatch } from './match';
 import { caToBase, estimateValue, expectedWage, generatePlayer, PERSONALITY_BY_ID, SQUAD_SIZE } from './player';
@@ -232,9 +234,8 @@ export function finishSeason(state: GameState): SeasonSummary {
  * 않으면 특급 유망주가 평생 잠재력의 절반도 못 채우고, 그 결과 세대가
  * 바뀔 때마다 세계 최고 수준이 통째로 내려앉습니다.
  */
-function caDelta(player: Player, rng: Rng): number {
+function caDelta(player: Player, rng: Rng, playingTime: number): number {
   const personality = PERSONALITY_BY_ID[player.personality];
-  const playingTime = clamp(player.season.minutes / 2200, 0, 1.15);
   const room = player.pa - player.ca;
   const drive = 0.5 + (player.attributes.determination / 20) * 0.5;
   const roomFactor = clamp(room / 45, 0.15, 1.8);
@@ -252,28 +253,54 @@ function caDelta(player: Player, rng: Rng): number {
   return rng.float(-14, -4);
 }
 
-/** CA 변화를 능력치에 반영합니다. 나이 들면 신체 능력이 먼저 무너집니다. */
+/**
+ * CA 변화를 능력치에 반영합니다.
+ *
+ * 전체를 비례 확대하는 방식은 시즌 말 한 번에 크게 움직일 때만 통합니다.
+ * CA 를 1씩 올리면 능력치는 0.6% 커지는데 그대로 반올림에 먹혀, CA 만 오르고
+ * 능력치 화면은 그대로인 상태가 됩니다. 대신 변화량을 **능력치 점수로 환산해
+ * 몇 항목에 실제로 얹습니다** — 눈에 보이고, 총량도 예전과 같습니다.
+ */
 function applyCaChange(player: Player, newCa: number, rng: Rng): void {
+  const target = clamp(Math.round(newCa), 20, 200);
   const oldBase = caToBase(player.ca);
-  const newBase = caToBase(newCa);
-  const scale = newBase / Math.max(0.1, oldBase);
-  const declining = newCa < player.ca;
+  const newBase = caToBase(target);
+  player.ca = target;
 
-  const groupScale = (key: AttributeKey): number => {
-    if (!declining) {
-      // 성장기에는 정신 능력이 조금 더 잘 오릅니다.
-      return GROUP_KEYS.mental.includes(key) ? scale * 1.03 : scale;
-    }
-    if (GROUP_KEYS.physical.includes(key)) return scale * 0.94;
-    if (GROUP_KEYS.mental.includes(key)) return Math.min(1.01, scale * 1.06);
-    return scale;
+  // 이 선수에게 의미 있는 항목만 움직입니다. 필드 플레이어의 골키핑 능력은
+  // 평생 3 언저리에 머물러야 합니다.
+  const relevant = visibleGroups(player.group === 'GK').flatMap((group) => GROUP_KEYS[group]);
+  const exact = (newBase - oldBase) * relevant.length;
+  // 소수점은 확률적으로 반올림합니다. 0.4 점짜리 변화가 늘 0이 되면 천천히
+  // 자라는 선수는 영원히 제자리입니다.
+  let points = Math.trunc(exact);
+  if (rng.next() < Math.abs(exact - points)) points += Math.sign(exact);
+  if (points === 0) return;
+
+  const growing = points > 0;
+  const weightOf = (key: AttributeKey): number => {
+    const value = player.attributes[key];
+    if (growing ? value >= 20 : value <= 1) return 0;
+    // 값이 큰 항목이 더 크게 움직입니다 — 비례 확대와 같은 모양을 유지합니다.
+    const bias = growing
+      ? (GROUP_KEYS.mental.includes(key) ? 1.15 : 1)
+      : (GROUP_KEYS.physical.includes(key) ? 1.6 : GROUP_KEYS.mental.includes(key) ? 0.5 : 1);
+    return value * bias;
   };
 
-  for (const key of Object.keys(player.attributes) as AttributeKey[]) {
-    const target = player.attributes[key] * groupScale(key) + rng.float(-0.35, 0.35);
-    player.attributes[key] = clamp(Math.round(target), 1, 20);
+  for (let i = 0; i < Math.abs(points); i++) {
+    const weights = relevant.map(weightOf);
+    const total = weights.reduce((sum, w) => sum + w, 0);
+    if (total <= 0) break;
+    let roll = rng.next() * total;
+    let picked = relevant.length - 1;
+    for (let j = 0; j < relevant.length; j++) {
+      roll -= weights[j];
+      if (roll <= 0) { picked = j; break; }
+    }
+    const key = relevant[picked];
+    player.attributes[key] = clamp(player.attributes[key] + (growing ? 1 : -1), 1, 20);
   }
-  player.ca = clamp(Math.round(newCa), 20, 200);
 }
 
 function shouldRetire(player: Player, rng: Rng): boolean {
@@ -307,7 +334,6 @@ export interface GrowthReport {
 
 export interface RolloverResult {
   retired: Player[];
-  growth: GrowthReport[];
   loansEnded: LoanReturn[];
 }
 
@@ -317,7 +343,6 @@ export interface RolloverResult {
 export function rolloverSeason(state: GameState, rng: Rng): RolloverResult {
   const names = new NameFactory((items) => rng.pick(items));
   const retired: Player[] = [];
-  const growth: GrowthReport[] = [];
 
   // 임대는 다른 무엇보다 먼저 정리합니다 — 이 아래의 계약·방출 처리가 전부
   // 소속 구단을 기준으로 도는데, 임대 중인 선수는 계약과 소속이 갈려 있습니다.
@@ -325,9 +350,6 @@ export function rolloverSeason(state: GameState, rng: Rng): RolloverResult {
 
   for (const player of Object.values(state.players)) {
     if (player.retired) continue;
-    const isClient = Boolean(state.clients[player.id]);
-    const caBefore = player.ca;
-    const attributesBefore = isClient ? { ...player.attributes } : null;
 
     // 통산 기록 적립 후 시즌 기록 초기화
     player.career.apps += player.season.apps;
@@ -344,26 +366,11 @@ export function rolloverSeason(state: GameState, rng: Rng): RolloverResult {
     if (player.season.apps > 0) player.career.seasons += 1;
 
     player.age += 1;
-    applyCaChange(player, player.ca + caDelta(player, rng), rng);
+    // 능력치는 시즌 중 훈련(trainingTick)에서 이미 움직였습니다.
 
-    if (attributesBefore && player.ca - caBefore >= 2) {
-      const improved = (Object.keys(player.attributes) as AttributeKey[])
-        .map((key) => ({ key, gain: player.attributes[key] - attributesBefore[key] }))
-        .filter((entry) => entry.gain > 0)
-        .sort((a, b) => b.gain - a.gain)
-        .slice(0, 3)
-        .map((entry) => ({
-          label: ATTRIBUTE_BY_KEY[entry.key].label,
-          from: attributesBefore[entry.key],
-          to: player.attributes[entry.key],
-        }));
-      growth.push({
-        playerId: player.id,
-        playerName: player.name,
-        caGain: player.ca - caBefore,
-        improved,
-      });
-    }
+    // 은퇴 판정은 시즌 기록을 지우기 **전에** 해야 합니다. 뒤로 넘기면
+    // "출전 시간이 적었나"가 언제나 참이 되어 모두가 한꺼번에 은퇴합니다.
+    const retiring = shouldRetire(player, rng);
 
     player.season = { apps: 0, subApps: 0, minutes: 0, goals: 0, assists: 0, cleanSheets: 0, conceded: 0, ratingSum: 0, yellow: 0, red: 0, motm: 0 };
     player.compStats = {};
@@ -371,7 +378,7 @@ export function rolloverSeason(state: GameState, rng: Rng): RolloverResult {
     player.injuredWeeks = 0;
     player.form = clamp(player.form * 0.5 + 25, 20, 80);
 
-    if (shouldRetire(player, rng)) {
+    if (retiring) {
       player.retired = true;
       player.value = 0;
       if (player.clubId) removeFromClub(state, player);
@@ -464,7 +471,7 @@ export function rolloverSeason(state: GameState, rng: Rng): RolloverResult {
     );
   }
 
-  return { retired, growth, loansEnded };
+  return { retired, loansEnded };
 }
 
 /**
@@ -536,6 +543,72 @@ function trimOversizedSquads(state: GameState, rng: Rng): number {
     }
   }
   return released;
+}
+
+// ── 시즌 중 성장 ────────────────────────────────────────────────────────
+
+/**
+ * 훈련 성과를 반영하는 주차. 4주에 한 번입니다.
+ *
+ * 예전에는 시즌이 끝날 때 한 번에 몰아서 자랐습니다. 그러면 에이전트가
+ * 반 시즌을 지켜봐도 의뢰인이 늘었는지 알 수가 없습니다. 한 시즌 총량은
+ * 그대로 두고 열 번에 나눠 반영합니다.
+ */
+export const GROWTH_WEEKS: readonly number[] = [10, 14, 18, 22, 26, 30, 34, 38, 42];
+
+export const isGrowthWeek = (week: number): boolean => GROWTH_WEEKS.includes(week);
+
+function buildGrowthReport(
+  player: Player, before: Attributes, caBefore: number,
+): GrowthReport {
+  const improved = (Object.keys(player.attributes) as AttributeKey[])
+    .map((key) => ({ key, gain: player.attributes[key] - before[key] }))
+    .filter((entry) => entry.gain > 0)
+    .sort((a, b) => b.gain - a.gain)
+    .slice(0, 3)
+    .map((entry) => ({
+      label: ATTRIBUTE_BY_KEY[entry.key].label,
+      from: before[entry.key],
+      to: player.attributes[entry.key],
+    }));
+  return {
+    playerId: player.id,
+    playerName: player.name,
+    caGain: player.ca - caBefore,
+    improved,
+  };
+}
+
+/**
+ * 4주치 훈련. 시즌 진행률 대비 출전 시간을 보고 조금씩 자랍니다.
+ *
+ * 한 틱의 변화는 1 미만인 경우가 대부분이라 `caProgress` 에 모아 두었다가
+ * 1을 넘을 때만 능력치에 반영합니다.
+ */
+export function trainingTick(state: GameState, rng: Rng): GrowthReport[] {
+  const reports: GrowthReport[] = [];
+  const progress = clamp(state.week / SEASON_WEEKS, 0.15, 1);
+
+  for (const player of Object.values(state.players)) {
+    if (player.retired) continue;
+    const share = clamp(player.season.minutes / (progress * 2100), 0, 1.15);
+    const carried = (player.caProgress ?? 0)
+      + caDelta(player, rng, share) / GROWTH_WEEKS.length;
+    const whole = Math.trunc(carried);
+    player.caProgress = carried - whole;
+    if (whole === 0) continue;
+
+    const isClient = Boolean(state.clients[player.id]);
+    const before = isClient ? { ...player.attributes } : null;
+    const caBefore = player.ca;
+    applyCaChange(player, player.ca + whole, rng);
+    player.value = estimateValue(player);
+
+    if (before && player.ca !== caBefore) {
+      reports.push(buildGrowthReport(player, before, caBefore));
+    }
+  }
+  return reports;
 }
 
 /**
