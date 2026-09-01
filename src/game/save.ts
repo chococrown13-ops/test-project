@@ -60,6 +60,29 @@ function decodePositions(text: string): Partial<Record<Role, number>> {
 
 const PERSONALITY_IDS = PERSONALITIES.map((p) => p.id);
 
+/** 이번 시즌 능력치 증감 — [항목 인덱스, 증감+20] 쌍을 두 글자씩. */
+function encodeGrowth(growth?: Partial<Record<string, number>>): string {
+  if (!growth) return '';
+  let out = '';
+  for (const [key, delta] of Object.entries(growth)) {
+    const index = ATTRIBUTE_KEYS.indexOf(key as (typeof ATTRIBUTE_KEYS)[number]);
+    if (index < 0 || !delta) continue;
+    const packed = Math.max(0, Math.min(40, Math.round(delta) + 20));
+    out += String.fromCharCode(48 + index) + String.fromCharCode(48 + packed);
+  }
+  return out;
+}
+
+function decodeGrowth(text: string): Partial<Record<string, number>> | undefined {
+  if (!text) return undefined;
+  const out: Partial<Record<string, number>> = {};
+  for (let i = 0; i + 1 < text.length; i += 2) {
+    const key = ATTRIBUTE_KEYS[text.charCodeAt(i) - 48];
+    if (key) out[key] = text.charCodeAt(i + 1) - 48 - 20;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /** 꼬리의 0 을 잘라 냅니다. 개막 직후에는 대부분의 기록이 전부 0 입니다. */
 function trimZeros(values: number[]): number[] {
   let end = values.length;
@@ -119,6 +142,7 @@ function encodePlayer(p: Player): PlayerTuple {
     p.value, Math.round(p.scouted), p.retired ? 1 : 0,
     p.loan ? [p.loan.parentClubId, p.loan.untilSeason] : 0,
     Math.round((p.caProgress ?? 0) * 100),
+    encodeGrowth(p.growth), Math.round(p.caGain ?? 0),
   ];
 }
 
@@ -175,6 +199,8 @@ function decodePlayer(t: PlayerTuple): Player {
       competitionId: h[2] === 0 ? undefined : (h[2] as string),
     })),
     caProgress: ((t[30] as number) ?? 0) / 100,
+    growth: decodeGrowth((t[31] as string) ?? ''),
+    caGain: (t[32] as number) ?? 0,
     value: t[26] as number,
     scouted: t[27] as number,
     retired: t[28] === 1,

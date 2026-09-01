@@ -299,7 +299,13 @@ function applyCaChange(player: Player, newCa: number, rng: Rng): void {
       if (roll <= 0) { picked = j; break; }
     }
     const key = relevant[picked];
-    player.attributes[key] = clamp(player.attributes[key] + (growing ? 1 : -1), 1, 20);
+    const step = growing ? 1 : -1;
+    const next = clamp(player.attributes[key] + step, 1, 20);
+    if (next === player.attributes[key]) continue;
+    player.attributes[key] = next;
+    // 시즌 중 변동을 기록해 두면 선수 정보에서 화살표로 보여 줄 수 있습니다.
+    if (!player.growth) player.growth = {};
+    player.growth[key] = (player.growth[key] ?? 0) + step;
   }
 }
 
@@ -377,6 +383,9 @@ export function rolloverSeason(state: GameState, rng: Rng): RolloverResult {
     player.fitness = 100;
     player.injuredWeeks = 0;
     player.form = clamp(player.form * 0.5 + 25, 20, 80);
+    // 성장 표시는 시즌 단위입니다.
+    player.growth = undefined;
+    player.caGain = 0;
 
     if (retiring) {
       player.retired = true;
@@ -602,6 +611,7 @@ export function trainingTick(state: GameState, rng: Rng): GrowthReport[] {
     const before = isClient ? { ...player.attributes } : null;
     const caBefore = player.ca;
     applyCaChange(player, player.ca + whole, rng);
+    player.caGain = (player.caGain ?? 0) + (player.ca - caBefore);
     player.value = estimateValue(player);
 
     if (before && player.ca !== caBefore) {

@@ -131,6 +131,13 @@ export interface Player {
   /** 담당 에이전트. 'you' = 플레이어, null = 무소속, 그 외 = AI 에이전트. */
   agentId: string | null;
   /**
+   * 이번 시즌 능력치별 증감. 선수 정보에서 화살표로 보여 줍니다.
+   * 시즌이 넘어가면 비워집니다.
+   */
+  growth?: Partial<Record<string, number>>;
+  /** 이번 시즌 CA 증감. */
+  caGain?: number;
+  /**
    * 아직 능력치에 반영되지 않은 CA 잔돈(-1 ~ 1).
    * 시즌 중 성장은 4주에 조금씩 쌓이는데, 매번 반올림해 버리면 천천히 자라는
    * 선수는 영원히 제자리에 머뭅니다.

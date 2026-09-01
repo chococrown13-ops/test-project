@@ -64,6 +64,21 @@ function Stars({ value, range }: { value: number; range?: [number, number] }) {
   return <span className="stars">{'★'.repeat(Math.round(value))}<span className="stars__num">{label}</span></span>;
 }
 
+/** 이번 시즌 변동폭을 화살표로. 정확한 값을 볼 수 없는 선수는 방향만 보여 줍니다. */
+function GrowthMark({ delta, exact }: { delta: number; exact: boolean }) {
+  if (!delta) return null;
+  const up = delta > 0;
+  return (
+    <span
+      className={`growth growth--${up ? 'up' : 'down'}`}
+      title={`이번 시즌 ${up ? '+' : ''}${delta}`}
+    >
+      {up ? '▲' : '▼'}
+      {exact && <span className="growth__num">{Math.abs(delta)}</span>}
+    </span>
+  );
+}
+
 function AttributeGrid({ player, depth, group }: { player: Player; depth: number; group: AttributeGroup }) {
   return (
     <div className="attrs">
@@ -73,11 +88,13 @@ function AttributeGrid({ player, depth, group }: { player: Player; depth: number
           const value = player.attributes[key];
           const [low, high] = revealRange(`${player.id}:${key}`, value, depth);
           const exact = low === high;
+          const delta = player.growth?.[key] ?? 0;
           return (
-            <div key={key} className="attr">
+            <div key={key} className={`attr${delta ? ' attr--moved' : ''}`}>
               <span className="attr__label">{ATTRIBUTE_BY_KEY[key].label}</span>
               <span className={`attr__value attr__value--${attributeTone(value)}${exact ? '' : ' attr__value--fuzzy'}`}>
                 {exact ? value : `${low}–${high}`}
+                <GrowthMark delta={delta} exact={exact} />
               </span>
             </div>
           );
@@ -106,6 +123,8 @@ export function PlayerSheet({ playerId }: { playerId: string }) {
   const inNegotiation = state.negotiations.some((n) => n.playerId === playerId);
   const onShortlist = state.scouting.shortlist.includes(playerId);
   const [paLow, paHigh] = potentialRange(player, depth);
+  const caGain = player.caGain ?? 0;
+  const movedCount = player.growth ? Object.values(player.growth).filter(Boolean).length : 0;
 
   return (
     <Sheet
@@ -128,7 +147,11 @@ export function PlayerSheet({ playerId }: { playerId: string }) {
     >
       <Card title="프로필">
         <div className="stat-row">
-          <Stat label="현재 능력" value={<Stars value={potentialStars(player.ca)} />} />
+          <Stat
+            label="현재 능력"
+            value={<Stars value={potentialStars(player.ca)} />}
+            sub={caGain ? <>이번 시즌 <GrowthMark delta={caGain} exact /></> : undefined}
+          />
           <Stat label="잠재 능력" value={<Stars value={potentialStars(player.pa)} range={[paLow, paHigh]} />} />
           <Stat label="파악도" value={`${Math.round(depth)}%`} />
         </div>
@@ -150,7 +173,11 @@ export function PlayerSheet({ playerId }: { playerId: string }) {
         </div>
       </Card>
 
-      <Card title="능력치" action={depth < 100 ? <span className="faint small">파악도가 낮아 범위로 표시됩니다</span> : null}>
+      <Card
+        title="능력치"
+        action={movedCount > 0 ? <span className="faint small">이번 시즌 {movedCount}개 변동</span> : null}
+      >
+        {depth < 100 && <p className="faint small">파악도가 낮아 범위로 표시됩니다.</p>}
         {visibleGroups(isKeeper).map((group) => (
           <AttributeGrid key={group} player={player} depth={depth} group={group} />
         ))}
