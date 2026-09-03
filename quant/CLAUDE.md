@@ -14,8 +14,9 @@
 ```
 config/       # 유니버스/팩터/점수표/백테스트 파라미터 (YAML)
 data/         # 시세·재무 데이터 소스, 캐싱, 정합성 검증
-  sources/kis.py  # 한국투자증권(KIS) Open API — 실시간 스크리닝용 (아래 "데이터 소스" 참고)
-  sources/krx.py  # pykrx — 과거 대량 이력/유니버스 스냅샷용
+  sources/kis.py   # 한국투자증권(KIS) Open API — 실시간 시세/랭킹용 (아래 "데이터 소스" 참고)
+  sources/krx.py   # pykrx — 과거 대량 이력/유니버스 스냅샷용
+  sources/dart.py  # OpenDART — 재무제표 원본(ROIC/OCF/이자보상배율/EPS성장률용)
 factors/      # 팩터 계산 (모멘텀/추세/변동성/퀄리티/밸류)
 screening/    # 유니버스 필터 → RS 필터 → 트렌드 템플릿 → 점수표 채점
 portfolio/    # ATR 기반 포지션 사이징, 리밸런싱
@@ -25,20 +26,31 @@ tests/        # 룩어헤드/생존편향 검증 테스트 포함
 scripts/      # cron/CI용 실행 스크립트
 ```
 
-## 데이터 소스: KIS vs pykrx
+## 데이터 소스: KIS vs pykrx vs DART
 
-두 소스를 용도별로 나눠 쓴다 (`data/sources/kis.py` 상단 docstring에 근거 정리됨).
+세 소스를 용도별로 나눠 쓴다 (`data/sources/kis.py`, `data/sources/dart.py` 상단 docstring에 근거 정리됨).
 
 | 용도 | 소스 | 이유 |
 |---|---|---|
 | 주말 스크리닝(오늘 시점 신호 생성) | `KisPriceSource` (`data/sources/kis.py`) | PER/PBR/EPS/BPS, 외국인·기관 순매수까지 실시간으로 제공, 무료 |
 | 과거 수년치 대량 백테스트 | `KrxPriceSource` (`data/sources/krx.py`, pykrx) | KIS 일봉 조회는 호출당 최대 ~95거래일 캡이라 여러 번 나눠 호출해야 함(느림·불안정) |
 | 특정 과거 시점 유니버스(생존편향 방지) | `KrxPriceSource` | KIS 랭킹 API는 "오늘 시점"만 가능. `KisPriceSource.get_universe()`는 오늘이 아닌 날짜에 `NotImplementedError`를 던지도록 명시적으로 막아둠 |
-| 재무제표(ROIC/OCF/이자보상배율) | 둘 다 없음 — OpenDART 등 별도 연동 필요 | KIS는 PER/PBR/EPS/BPS 비율만 제공, 원본 재무 라인아이템 없음 |
+| 재무제표(ROIC/OCF/이자보상배율/EPS성장률) | `DartFundamentalSource` (`data/sources/dart.py`) | OpenDART가 유일하게 재무제표 원본 라인아이템을 제공. KIS·pykrx 둘 다 없음 |
 
-KIS 인증 정보는 `.env.example`을 복사해 `.env`로 저장하고 채운다 (커밋 금지, `.gitignore`에 등록됨).
+KIS·DART 인증 정보는 `.env.example`을 복사해 `.env`로 저장하고 채운다 (커밋 금지, `.gitignore`에
+등록됨). `DART_API_KEY`는 선택 사항 — 없으면 quality_score/value_score(PEG)가 0으로 처리된 채
+기존처럼 동작한다.
+
 `data/sources/kis.py`의 우회 로직(가격구간 나눠 시총 랭킹 30종목 캡 우회, 일봉 청크 분할 등)은
 `otterstock-ai-office`(chococrown13-ops) 저장소의 `worker/kis.ts`에서 실측 검증된 방식을 그대로 옮긴 것이다.
+
+**`data/sources/dart.py`는 실제 API 키로 검증되지 않았다** (이 작업 환경에 `DART_API_KEY`가
+없음). 계정명 매칭 후보(`ACCOUNT_CANDIDATES`)는 DART 공식 문서 기반 추정치다. 실제 연동 후
+quality_score가 비정상적으로 0에 몰려 있으면 `DartFundamentalSource.debug_list_accounts()`로
+실제 응답의 (sj_div, account_nm)을 확인해 `ACCOUNT_CANDIDATES`를 보정할 것 — 모듈 docstring 참고.
+EPS 성장률은 실제 EPS가 아니라 당기순이익 YoY 성장률로 근사한다(`eps_growth_pct_proxy`,
+발행주식수 변동 미반영). ROIC의 투하자본은 `자산총계 - 유동부채`로 근사한다(이자부채만 분리한
+정밀 계산 아님) — 둘 다 실용적 근사치이며 필요하면 더 정밀하게 다듬을 수 있다.
 
 ## 실행
 
@@ -46,19 +58,20 @@ KIS 인증 정보는 `.env.example`을 복사해 `.env`로 저장하고 채운�
 cd quant
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env               # KIS_APP_KEY 등 채우기
+cp .env.example .env               # KIS_APP_KEY 등, 선택적으로 DART_API_KEY 채우기
 python -m pytest                   # 테스트
 python -m pipeline.run_screening --out out/screening.csv   # 오늘 시점 스크리닝 실행
 ```
 
-`pipeline/run_screening.py::run()`은 `KisPriceSource`를 그대로 연결해 동작한다
-(유니버스 → 20일 평균 거래대금까지 채운 유니버스 필터 → RS 상위 percentile →
-트렌드 템플릿 하드 필터 → 서브스코어 채점 → 커트라인). 단, **quality_score와
-value_score의 PEG 부분은 KIS가 재무제표 원본/EPS 성장률을 제공하지 않아 0으로
-고정**되어 있다 (`_build_raw_metrics()`, 사용자와 상의해 확정한 임시 조치).
-그 결과 커트라인(70점)을 넘으려면 rs_score+trend_score+volatility_score(최대
-70점)가 사실상 만점에 가까워야 한다 — OpenDART 등으로 재무데이터를 연동하기
-전까지는 원래 의도보다 훨씬 엄격한 스크리너로 동작한다는 뜻이다.
+`pipeline/run_screening.py::run()`은 `KisPriceSource`(시세·유니버스)와 `DartFundamentalSource`
+(재무데이터, 선택)를 연결해 동작한다: 유니버스 → 20일 평균 거래대금까지 채운 유니버스 필터 →
+RS 상위 percentile → 트렌드 템플릿 하드 필터 → 서브스코어 채점 → 커트라인.
+
+`DART_API_KEY`가 설정되어 있으면 `_build_raw_metrics()`가 `_dart_quality_inputs()`를 통해
+quality_score·value_score(PEG)에 실제 재무데이터를 채운다. 없거나 특정 종목의 DART 조회가
+실패하면 **그 종목만** 기존처럼 0으로 처리된다 — 파이프라인 전체가 죽지 않는다. DART 없이
+KIS만 연결된 상태에서는 커트라인(70점)을 넘으려면 rs_score+trend_score+volatility_score
+(최대 70점)가 사실상 만점에 가까워야 한다는 점은 여전히 유효하다.
 
 ## 원칙 (위반하면 안 되는 것)
 
@@ -82,10 +95,12 @@ value_score의 PEG 부분은 KIS가 재무제표 원본/EPS 성장률을 제공�
    `build_sub_scores()` → `screening.score.score_candidates()` → `apply_cutoff()`까지
    체인이 동작함 (`tests/test_subscores.py`로 검증)
 3. ~~`run()` 배선~~ 완료 — `KisPriceSource`로 유니버스→RS→트렌드템플릿→채점까지 연결됨
-   (`tests/test_run_screening.py`로 검증). quality_score/value_score(PEG)는 KIS 데이터
-   공백으로 0 고정 — 재무데이터(OpenDART) 연동 시 `_build_raw_metrics()`에서 실제 값으로
-   교체할 것
-4. 스크리닝 결과를 CSV로 뽑아 상위 10개가 합리적인지 육안 검증 (실제 KIS 계정으로 1회 실행 필요)
+   (`tests/test_run_screening.py`로 검증)
+3b. ~~OpenDART 연동~~ 완료 — `data/sources/dart.py::DartFundamentalSource`가 quality_score/
+    value_score(PEG)에 실제 재무데이터를 채움 (`tests/test_dart_source.py`로 검증). **단,
+    계정명 매칭이 실제 API로 미검증** — 실제 키로 첫 실행 시 `debug_list_accounts()`로 확인 필요
+    (위 "데이터 소스" 섹션 참고)
+4. 스크리닝 결과를 CSV로 뽑아 상위 10개가 합리적인지 육안 검증 (실제 KIS/DART 계정으로 1회 실행 필요)
 5. `backtest/engine.py`로 과거 데이터 백테스트(`KrxPriceSource` 사용) → `backtest/report.py`의
    `score_bucket_performance`로 커트라인 70점이 실제로 유효한지 확인
 6. 실행 결과가 안정적이면 `.github/workflows/quant-screening.yml`로 주말 자동화

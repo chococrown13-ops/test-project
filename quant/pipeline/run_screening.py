@@ -1,17 +1,18 @@
 """전체 스크리닝 파이프라인 실행 (CLI). KIS Open API로 "오늘" 시점만 스크리닝한다.
 
 사용 예:
-    cp .env.example .env   # KIS_APP_KEY 등을 채운 뒤
+    cp .env.example .env   # KIS_APP_KEY, (선택) DART_API_KEY 채운 뒤
     python -m pipeline.run_screening --out out/screening.csv
 
-주의 — quality_score/value_score 관련 데이터 공백 (사용자 확인된 임시 조치):
+주의 — quality_score/value_score(PEG) 데이터 공백:
 KIS Open API는 재무제표 원본(영업이익/투하자본/OCF/이자비용)과 EPS 성장률을 제공하지
-않는다. 이 파이프라인은 그 값들을 0으로 채워 quality_score와 value_score의 PEG
-부분을 명시적으로 0점 처리한다 (완전히 다른 결과를 조용히 만들어내는 대신, 데이터가
-없다는 사실을 그대로 반영). 그 결과 score_table.yaml 기본 배점(quality 20 + value 10)
-기준으로는 커트라인(70점)을 넘으려면 rs_score+trend_score+volatility_score(최대 70점)가
-거의 만점에 가까워야 한다. OpenDART 등으로 재무데이터를 연동하면 이 공백이 채워진다
-(quant/CLAUDE.md "데이터 소스: KIS vs pykrx" 참고).
+않는다. DART_API_KEY가 설정되어 있으면 data/sources/dart.py::DartFundamentalSource로
+그 값을 실제로 채운다. DART_API_KEY가 없거나 특정 종목의 DART 조회가 실패하면 그
+종목만 기존처럼 0으로 채워 quality_score와 value_score(PEG 부분)를 명시적으로 0점
+처리한다 (완전히 다른 결과를 조용히 만들어내는 대신, 데이터가 없다는 사실을 그대로
+반영). DART 없이 KIS만 연결된 상태에서는 score_table.yaml 기본 배점 기준 커트라인
+(70점)을 넘으려면 rs_score+trend_score+volatility_score(최대 70점)가 거의 만점에
+가까워야 한다 (quant/CLAUDE.md "데이터 소스: KIS vs pykrx" 참고).
 """
 from __future__ import annotations
 
@@ -22,8 +23,10 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
+from data.sources.dart import DartApiError, DartEnv, DartFundamentalSource
 from data.sources.kis import KisApiError, KisEnv, KisPriceSource
 from factors.momentum import compute_rs_raw
+from factors.quality import as_of_available_financials, compute_interest_coverage, compute_roic
 from factors.trend import trend_template_conditions
 from factors.volatility import compute_atr_ratio
 from screening.rs_filter import filter_by_rs
@@ -49,17 +52,62 @@ def _kis_market_param(markets: list[str]) -> str:
     return "all"
 
 
+_DART_QUALITY_DEFAULTS = {
+    "operating_cash_flow": 0.0,
+    "net_income": 0.0,
+    "roic": 0.0,
+    "interest_coverage": 0.0,
+    "eps_growth_pct": 0.0,
+}
+
+
+def _dart_quality_inputs(
+    dart_source: DartFundamentalSource | None,
+    code: str,
+    as_of: date,
+    lag_days: int,
+) -> dict:
+    """DART에서 구할 수 있는 값만 채우고 나머지는 0으로 둔다 (quality_subscore는 세 항목의
+    평균이라 부분적으로 채워져도 동작한다). dart_source가 없거나, 설정이 안 됐거나, 이
+    종목의 조회에 실패하면 전부 0 — KIS만 연결됐을 때와 동일하게 동작한다."""
+    if dart_source is None or not dart_source.env.configured:
+        return dict(_DART_QUALITY_DEFAULTS)
+
+    try:
+        financials = dart_source.get_financials(code, as_of - timedelta(days=730), as_of)
+        available = as_of_available_financials(financials, pd.Timestamp(as_of), lag_days)
+    except DartApiError as error:
+        print(f"      [DART] {code} 재무데이터 조회 실패, quality/value 0 처리: {error}")
+        return dict(_DART_QUALITY_DEFAULTS)
+
+    if available.empty:
+        return dict(_DART_QUALITY_DEFAULTS)
+
+    latest = available.iloc[-1]
+    result = dict(_DART_QUALITY_DEFAULTS)
+    result["operating_cash_flow"] = latest["operating_cash_flow"] or 0.0
+    result["net_income"] = latest["net_income"] or 0.0
+    if latest["invested_capital"]:
+        result["roic"] = compute_roic(latest["operating_income"], latest["tax_rate"], latest["invested_capital"])
+    if latest["interest_expense"]:
+        result["interest_coverage"] = compute_interest_coverage(latest["operating_income"], latest["interest_expense"])
+    if latest["eps_growth_pct_proxy"] is not None:
+        result["eps_growth_pct"] = latest["eps_growth_pct_proxy"]
+    return result
+
+
 def _build_raw_metrics(
-    source: KisPriceSource,
+    kis_source: KisPriceSource,
     survivors: pd.DataFrame,
     bars_by_code: dict[str, pd.DataFrame],
     factors_cfg: dict,
+    as_of: date,
+    dart_source: DartFundamentalSource | None = None,
+    financial_data_lag_days: int = 60,
 ) -> pd.DataFrame:
     """트렌드 템플릿까지 통과한 종목들의 raw 지표를 build_sub_scores()가 요구하는 형태로 조립.
 
-    quality(영업이익/투하자본/OCF/이자비용)와 eps_growth_pct는 KIS가 제공하지 않으므로
-    0으로 채운다 — quality_score와 value_score(PEG 부분)가 0점 처리된다는 뜻이다
-    (모듈 docstring 참고).
+    quality/eps_growth_pct는 dart_source가 있으면 실제 값, 없으면 0 (모듈 docstring 참고).
     """
     trend_cfg = factors_cfg["trend_template"]
     volatility_cfg = factors_cfg["volatility"]
@@ -73,9 +121,11 @@ def _build_raw_metrics(
         atr_ratio = compute_atr_ratio(bars, volatility_cfg["atr_period"]).iloc[-1]
 
         try:
-            per = source.fetch_stock_quote(code)["per"]
+            per = kis_source.fetch_stock_quote(code)["per"]
         except KisApiError:
             per = 0.0
+
+        quality_inputs = _dart_quality_inputs(dart_source, code, as_of, financial_data_lag_days)
 
         rows[code] = {
             "rs_percentile": survivors.loc[code, "rs_percentile"],
@@ -83,21 +133,23 @@ def _build_raw_metrics(
             "ma_long_trending_up": conditions["ma_long_trending_up"],
             "above_52w_low": conditions["above_52w_low"],
             "near_52w_high": conditions["near_52w_high"],
-            # KIS 미제공 — quality_score를 명시적으로 0점 처리하기 위한 플레이스홀더
-            "operating_cash_flow": 0.0,
-            "net_income": 0.0,
-            "roic": 0.0,
-            "interest_coverage": 0.0,
+            "operating_cash_flow": quality_inputs["operating_cash_flow"],
+            "net_income": quality_inputs["net_income"],
+            "roic": quality_inputs["roic"],
+            "interest_coverage": quality_inputs["interest_coverage"],
             "atr_ratio": atr_ratio,
             "per": per,
-            # KIS 미제공 — PEG를 inf로 만들어 value_score를 명시적으로 0점 처리하기 위한 플레이스홀더
-            "eps_growth_pct": 0.0,
+            "eps_growth_pct": quality_inputs["eps_growth_pct"],
         }
 
     return pd.DataFrame.from_dict(rows, orient="index")
 
 
-def run(as_of: date, source: KisPriceSource | None = None) -> pd.DataFrame:
+def run(
+    as_of: date,
+    kis_source: KisPriceSource | None = None,
+    dart_source: DartFundamentalSource | None = None,
+) -> pd.DataFrame:
     """KIS Open API로 as_of(오늘) 시점 스크리닝을 실행한다.
 
     1. 시가총액 유니버스 조회 (오늘 시점만 가능)
@@ -105,7 +157,7 @@ def run(as_of: date, source: KisPriceSource | None = None) -> pd.DataFrame:
     3. 유니버스 필터 (시총 + 20일 평균 거래대금 + 주가)
     4. RS 필터 (상위 percentile)
     5. 트렌드 템플릿 하드 필터 (4조건 전부 충족)
-    6. 서브스코어 채점 + 커트라인
+    6. 서브스코어 채점(quality/value는 DART 연동 시 실제 값, 아니면 0) + 커트라인
     """
     if as_of != date.today():
         raise ValueError(
@@ -116,16 +168,23 @@ def run(as_of: date, source: KisPriceSource | None = None) -> pd.DataFrame:
     universe_cfg = load_config("universe")
     factors_cfg = load_config("factors")
     score_cfg = load_config("score_table")
+    backtest_cfg = load_config("backtest")
 
-    source = source or KisPriceSource(KisEnv.from_env())
-    if not source.env.configured:
+    kis_source = kis_source or KisPriceSource(KisEnv.from_env())
+    if not kis_source.env.configured:
         raise RuntimeError(
             "KIS_APP_KEY / KIS_APP_SECRET / KIS_ACCOUNT_NO가 설정되지 않았습니다. "
             "quant/.env.example을 복사해 .env로 저장하고 값을 채운 뒤 다시 실행하세요."
         )
 
+    dart_source = dart_source or DartFundamentalSource(DartEnv.from_env())
+    if dart_source.env.configured:
+        print("      [DART] DART_API_KEY 확인됨 — quality_score/value_score(PEG)에 실제 재무데이터 사용")
+    else:
+        print("      [DART] DART_API_KEY 미설정 — quality_score/value_score(PEG)는 0으로 처리됩니다")
+
     print("[1/6] 시가총액 유니버스 조회 중...")
-    pool = source.fetch_market_cap_universe(
+    pool = kis_source.fetch_market_cap_universe(
         min_market_cap_eok=universe_cfg["min_market_cap"] / 1e8,
         market=_kis_market_param(universe_cfg["market"]),
     )
@@ -138,7 +197,7 @@ def run(as_of: date, source: KisPriceSource | None = None) -> pd.DataFrame:
 
     print("[2/6] 일봉 히스토리 조회 중... (종목 수에 비례해 수 분 소요될 수 있음)")
     start = as_of - timedelta(days=400)
-    bars_by_code = source.fetch_daily_bars_many(list(snapshot.index), start, as_of)
+    bars_by_code = kis_source.fetch_daily_bars_many(list(snapshot.index), start, as_of)
     bars_by_code = {code: bars for code, bars in bars_by_code.items() if bars is not None and not bars.empty}
     snapshot = snapshot.loc[snapshot.index.intersection(list(bars_by_code.keys()))]
     print(f"      일봉 확보: {len(snapshot)}종목")
@@ -184,7 +243,15 @@ def run(as_of: date, source: KisPriceSource | None = None) -> pd.DataFrame:
     if trend_filtered.empty:
         return pd.DataFrame()
 
-    raw_metrics = _build_raw_metrics(source, trend_filtered, bars_by_code, factors_cfg)
+    raw_metrics = _build_raw_metrics(
+        kis_source,
+        trend_filtered,
+        bars_by_code,
+        factors_cfg,
+        as_of,
+        dart_source=dart_source,
+        financial_data_lag_days=backtest_cfg["financial_data_lag_days"],
+    )
     sub_scores = build_sub_scores(raw_metrics, factors_cfg)
     scored = score_candidates(trend_filtered, sub_scores, score_cfg["weights"])
     passed = apply_cutoff(scored, cutoff=score_cfg["cutoff"])
