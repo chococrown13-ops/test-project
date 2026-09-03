@@ -5,8 +5,9 @@
 
 **중요**: 이 파이프라인이 구현하는 정확한 스크리닝 기준(스코어 배점, 유니버스 필터
 수치 등)은 실제 "종목선정 가이드" 문서를 기준으로 삼아야 합니다. 해당 문서는 아직
-이 저장소에 없습니다 (`docs/README.md` 참고). 가이드 문서가 `quant/docs/`에 추가되면
-`config/*.yaml`의 값, 특히 `score_table.yaml`의 `null` 항목을 그 문서 기준으로 채우세요.
+이 저장소에 없습니다 (`docs/README.md` 참고). `score_table.yaml`의 quality/volatility/value
+배점(20/15/10)은 가이드 부재로 사용자와 상의해 임시 배정한 값이므로, 가이드 문서가
+`quant/docs/`에 추가되면 그 기준으로 반드시 재검토하세요.
 
 ## 구조
 
@@ -47,9 +48,13 @@ python -m pipeline.run_screening --help    # 스크리닝 실행 (데이터 소�
 ## 다음 단계 (구현 순서 권장)
 
 1. `data/sources/krx.py` 실데이터 연동 확인 (pykrx 설치, 재무데이터는 별도 소스 필요)
-2. `config/score_table.yaml`의 `null` 배점 채우기 (가이드 문서 기준)
+2. quality/volatility/value 서브스코어를 0~1로 정규화하는 계산 함수 구현
+   (`factors/quality.py`, `factors/volatility.py`, `factors/value.py`에 raw 계산 함수는
+   이미 있음 — 이를 조합해 0~1 점수로 만드는 로직이 빠져 있음)
 3. `pipeline/run_screening.py::run()`의 `NotImplementedError` 채우기 (docstring에 단계별 순서 있음)
 4. 스크리닝 결과를 CSV로 뽑아 상위 10개가 합리적인지 육안 검증
 5. `backtest/engine.py`로 과거 데이터 백테스트 → `backtest/report.py`의
    `score_bucket_performance`로 커트라인 70점이 실제로 유효한지 확인
 6. 실행 결과가 안정적이면 `.github/workflows/quant-screening.yml`로 주말 자동화
+7. 가이드 문서가 확보되면 `score_table.yaml`의 임시 배점(quality 20/volatility 15/value 10)을
+   재검토

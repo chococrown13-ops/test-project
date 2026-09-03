@@ -1,12 +1,13 @@
 # 스윙 점수표 (100점 만점)
-# 대화에서 확인된 두 항목(rs_score 30, trend_score 25)만 채워져 있고
-# 나머지는 실제 종목선정 가이드 3-3 기준 배점으로 직접 채워야 합니다.
+# rs_score(30)/trend_score(25)는 대화에서 확인된 값. 나머지 45점은 모멘텀 중심 시스템에
+# 맞춰 quality(20)/volatility(15)/value(10)로 배분 (근거: quant/docs/README.md 참고).
+# 실제 "종목선정 가이드" 문서가 추가되면 그 기준으로 다시 검토할 것.
 # screening/score.py의 validate_weights()가 null 항목과 합계 100을 강제로 검증합니다.
 cutoff: 70
 
 weights:
-  rs_score: 30
-  trend_score: 25
-  quality_score: null    # TODO: ROIC / OCF>순이익 / 이자보상배율 배점
-  value_score: null      # TODO: PER 밴드 / PEG / FCF Yield 배점
-  volatility_score: null # TODO: ATR 비율 2~6% 구간 배점
+  rs_score: 30           # 모멘텀 (3/6/12개월 가중 RS)
+  trend_score: 25         # 트렌드 템플릿 4조건 충족도
+  quality_score: 20       # ROIC / OCF>순이익 / 이자보상배율
+  volatility_score: 15    # ATR 비율 2~6% 구간 (중앙에 가까울수록 고득점)
+  value_score: 10         # PER 밴드 / PEG (모멘텀과 역상관이라 비중을 낮게 둠)
