@@ -3,3 +3,10 @@ dist/
 *.local
 .DS_Store
 tsconfig.tsbuildinfo
+
+# quant pipeline
+quant/.venv/
+quant/data/cache/
+quant/out/
+quant/**/__pycache__/
+quant/.pytest_cache/

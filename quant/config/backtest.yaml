@@ -1,0 +1,10 @@
+start_date: "2015-01-01"
+end_date: "2025-12-31"
+initial_capital: 100_000_000
+rebalance_freq: "W"              # 주간 리밸런싱
+max_positions: 10
+risk_per_trade: 0.01              # 계좌 자본의 1% 리스크
+atr_stop_multiplier: 2.0
+transaction_tax: 0.0020           # 2026년 거래세 0.20% (매도시)
+slippage_bps: 10                   # 슬리피지 0.10%
+financial_data_lag_days: 60        # 재무데이터 공시 후 반영 지연 버퍼 (룩어헤드 방지)

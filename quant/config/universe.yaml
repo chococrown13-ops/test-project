@@ -1,0 +1,6 @@
+# 1단계: 국내 유니버스 필터
+market: ["KOSPI", "KOSDAQ"]
+min_market_cap: 100_000_000_000        # 시가총액 하한 (원) - 1000억
+min_avg_trading_value_20d: 1_000_000_000  # 20일 평균 거래대금 하한 (원) - 10억
+min_price: 2000                          # 동전주 제외
+exclude_sectors: []                       # 관리종목/투자주의 등은 data/validate.py에서 별도 필터링

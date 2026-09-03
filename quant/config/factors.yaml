@@ -1,0 +1,23 @@
+momentum:
+  lookback_months: [3, 6, 12]
+  weights: [0.4, 0.35, 0.25]        # 최근 구간에 가중치를 더 둠
+  universe_percentile_cutoff: 0.8   # RS 상위 20%
+
+trend_template:
+  ma_periods: [50, 150, 200]
+  low_252d_buffer: 0.30    # 52주 저가 대비 +30% 이상
+  high_252d_buffer: 0.75   # 52주 고가 대비 75% 이상 (고가 대비 -25% 이내)
+
+volatility:
+  atr_period: 14
+  atr_ratio_min: 0.02
+  atr_ratio_max: 0.06
+
+quality:
+  min_roic: 0.10
+  ocf_gt_net_income: true
+  min_interest_coverage: 5
+
+value:
+  per_band: [5, 25]
+  max_peg: 2.0

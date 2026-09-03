@@ -1,0 +1,12 @@
+# 스윙 점수표 (100점 만점)
+# 대화에서 확인된 두 항목(rs_score 30, trend_score 25)만 채워져 있고
+# 나머지는 실제 종목선정 가이드 3-3 기준 배점으로 직접 채워야 합니다.
+# screening/score.py의 validate_weights()가 null 항목과 합계 100을 강제로 검증합니다.
+cutoff: 70
+
+weights:
+  rs_score: 30
+  trend_score: 25
+  quality_score: null    # TODO: ROIC / OCF>순이익 / 이자보상배율 배점
+  value_score: null      # TODO: PER 밴드 / PEG / FCF Yield 배점
+  volatility_score: null # TODO: ATR 비율 2~6% 구간 배점
