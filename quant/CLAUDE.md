@@ -14,6 +14,8 @@
 ```
 config/       # 유니버스/팩터/점수표/백테스트 파라미터 (YAML)
 data/         # 시세·재무 데이터 소스, 캐싱, 정합성 검증
+  sources/kis.py  # 한국투자증권(KIS) Open API — 실시간 스크리닝용 (아래 "데이터 소스" 참고)
+  sources/krx.py  # pykrx — 과거 대량 이력/유니버스 스냅샷용
 factors/      # 팩터 계산 (모멘텀/추세/변동성/퀄리티/밸류)
 screening/    # 유니버스 필터 → RS 필터 → 트렌드 템플릿 → 점수표 채점
 portfolio/    # ATR 기반 포지션 사이징, 리밸런싱
@@ -22,6 +24,21 @@ pipeline/     # CLI 진입점 (run_screening.py)
 tests/        # 룩어헤드/생존편향 검증 테스트 포함
 scripts/      # cron/CI용 실행 스크립트
 ```
+
+## 데이터 소스: KIS vs pykrx
+
+두 소스를 용도별로 나눠 쓴다 (`data/sources/kis.py` 상단 docstring에 근거 정리됨).
+
+| 용도 | 소스 | 이유 |
+|---|---|---|
+| 주말 스크리닝(오늘 시점 신호 생성) | `KisPriceSource` (`data/sources/kis.py`) | PER/PBR/EPS/BPS, 외국인·기관 순매수까지 실시간으로 제공, 무료 |
+| 과거 수년치 대량 백테스트 | `KrxPriceSource` (`data/sources/krx.py`, pykrx) | KIS 일봉 조회는 호출당 최대 ~95거래일 캡이라 여러 번 나눠 호출해야 함(느림·불안정) |
+| 특정 과거 시점 유니버스(생존편향 방지) | `KrxPriceSource` | KIS 랭킹 API는 "오늘 시점"만 가능. `KisPriceSource.get_universe()`는 오늘이 아닌 날짜에 `NotImplementedError`를 던지도록 명시적으로 막아둠 |
+| 재무제표(ROIC/OCF/이자보상배율) | 둘 다 없음 — OpenDART 등 별도 연동 필요 | KIS는 PER/PBR/EPS/BPS 비율만 제공, 원본 재무 라인아이템 없음 |
+
+KIS 인증 정보는 `.env.example`을 복사해 `.env`로 저장하고 채운다 (커밋 금지, `.gitignore`에 등록됨).
+`data/sources/kis.py`의 우회 로직(가격구간 나눠 시총 랭킹 30종목 캡 우회, 일봉 청크 분할 등)은
+`otterstock-ai-office`(chococrown13-ops) 저장소의 `worker/kis.ts`에서 실측 검증된 방식을 그대로 옮긴 것이다.
 
 ## 실행
 
@@ -47,16 +64,18 @@ python -m pipeline.run_screening --help    # 스크리닝 실행 (데이터 소�
 
 ## 다음 단계 (구현 순서 권장)
 
-1. `data/sources/krx.py` 실데이터 연동 확인 (pykrx 설치, 재무데이터는 별도 소스 필요)
+1. ~~KIS API 데이터 소스 구현~~ 완료 — `data/sources/kis.py::KisPriceSource` (`.env`에 KIS
+   자격증명 채우면 바로 사용 가능, `tests/test_kis_source.py`로 검증). `data/sources/krx.py`는
+   pykrx 설치 후 과거 대량 이력/유니버스 스냅샷용으로 병행
 2. ~~서브스코어 정규화 함수 구현~~ 완료 — `factors/*.py`의 `*_subscore()` 함수들과
    이를 조합하는 `screening/subscores.py::build_sub_scores()` 참고. raw 팩터값 →
    `build_sub_scores()` → `screening.score.score_candidates()` → `apply_cutoff()`까지
    체인이 동작함 (`tests/test_subscores.py`로 검증)
-3. `pipeline/run_screening.py::run()`의 `NotImplementedError` 채우기 — 이제 실제 데이터
-   소스에서 `build_sub_scores()`가 요구하는 raw 컬럼(rs_percentile, roic, atr_ratio 등)만
-   채워 넣으면 됨
+3. `pipeline/run_screening.py::run()`의 `NotImplementedError` 채우기 — `KisPriceSource`로
+   유니버스·시세를 가져오고, PER/PBR은 `fetch_stock_quote()`로, 재무데이터(ROIC 등)는 여전히
+   별도 소스(OpenDART)가 필요함. `build_sub_scores()`가 요구하는 raw 컬럼만 채워 넣으면 됨
 4. 스크리닝 결과를 CSV로 뽑아 상위 10개가 합리적인지 육안 검증
-5. `backtest/engine.py`로 과거 데이터 백테스트 → `backtest/report.py`의
+5. `backtest/engine.py`로 과거 데이터 백테스트(`KrxPriceSource` 사용) → `backtest/report.py`의
    `score_bucket_performance`로 커트라인 70점이 실제로 유효한지 확인
 6. 실행 결과가 안정적이면 `.github/workflows/quant-screening.yml`로 주말 자동화
 7. 가이드 문서가 확보되면 `score_table.yaml`의 임시 배점(quality 20/volatility 15/value 10)과

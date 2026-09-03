@@ -10,3 +10,4 @@ quant/data/cache/
 quant/out/
 quant/**/__pycache__/
 quant/.pytest_cache/
+quant/.env
