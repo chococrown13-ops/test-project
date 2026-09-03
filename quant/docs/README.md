@@ -29,7 +29,7 @@
    가이드 문서 기준으로 다시 검토
 4. `screening/score.py::validate_weights()`가 배점 합계 100을 강제하므로,
    빠짐없이 채워야 파이프라인이 동작함
-5. 각 서브스코어(quality_score 등)를 0~1로 정규화하는 계산 함수가 아직 없음 —
-   `factors/*.py`의 raw 계산 함수(compute_roic, in_per_band 등)는 있지만, 이를 조합해
-   0~1 점수로 만드는 로직은 `screening/score.py::score_candidates()`를 호출하기 전
-   별도로 구현해야 함
+5. ~~서브스코어 정규화 로직 구현~~ 완료 (`factors/*.py`의 `*_subscore()`,
+   `screening/subscores.py::build_sub_scores()`). 정규화 공식(퀄리티는 기준선의 2배에서
+   만점, 변동성은 구간 중앙에서 만점 등)은 가이드 문서 부재로 임의 설계한 것이므로
+   가이드 확보 시 재검토 필요

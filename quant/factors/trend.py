@@ -27,3 +27,11 @@ def trend_template_conditions(
 
 def passes_trend_template(conditions: dict[str, bool]) -> bool:
     return all(conditions.values())
+
+
+def trend_subscore(conditions: dict[str, bool]) -> float:
+    """4조건 중 충족한 비율 (0~1). 전부 충족해야 커트라인을 넘기는 게 아니라
+    점수표 배점(trend_score)에는 부분 충족도 반영한다."""
+    if not conditions:
+        return 0.0
+    return sum(bool(v) for v in conditions.values()) / len(conditions)

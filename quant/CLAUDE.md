@@ -48,13 +48,17 @@ python -m pipeline.run_screening --help    # 스크리닝 실행 (데이터 소�
 ## 다음 단계 (구현 순서 권장)
 
 1. `data/sources/krx.py` 실데이터 연동 확인 (pykrx 설치, 재무데이터는 별도 소스 필요)
-2. quality/volatility/value 서브스코어를 0~1로 정규화하는 계산 함수 구현
-   (`factors/quality.py`, `factors/volatility.py`, `factors/value.py`에 raw 계산 함수는
-   이미 있음 — 이를 조합해 0~1 점수로 만드는 로직이 빠져 있음)
-3. `pipeline/run_screening.py::run()`의 `NotImplementedError` 채우기 (docstring에 단계별 순서 있음)
+2. ~~서브스코어 정규화 함수 구현~~ 완료 — `factors/*.py`의 `*_subscore()` 함수들과
+   이를 조합하는 `screening/subscores.py::build_sub_scores()` 참고. raw 팩터값 →
+   `build_sub_scores()` → `screening.score.score_candidates()` → `apply_cutoff()`까지
+   체인이 동작함 (`tests/test_subscores.py`로 검증)
+3. `pipeline/run_screening.py::run()`의 `NotImplementedError` 채우기 — 이제 실제 데이터
+   소스에서 `build_sub_scores()`가 요구하는 raw 컬럼(rs_percentile, roic, atr_ratio 등)만
+   채워 넣으면 됨
 4. 스크리닝 결과를 CSV로 뽑아 상위 10개가 합리적인지 육안 검증
 5. `backtest/engine.py`로 과거 데이터 백테스트 → `backtest/report.py`의
    `score_bucket_performance`로 커트라인 70점이 실제로 유효한지 확인
 6. 실행 결과가 안정적이면 `.github/workflows/quant-screening.yml`로 주말 자동화
-7. 가이드 문서가 확보되면 `score_table.yaml`의 임시 배점(quality 20/volatility 15/value 10)을
-   재검토
+7. 가이드 문서가 확보되면 `score_table.yaml`의 임시 배점(quality 20/volatility 15/value 10)과
+   `quality_subscore`/`value_subscore`/`volatility_subscore`의 정규화 방식(선형 스케일링,
+   구간 중앙 피크 등)을 그 기준으로 재검토

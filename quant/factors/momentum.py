@@ -25,3 +25,8 @@ def compute_rs_raw(price: pd.Series, lookback_months: list[int], weights: list[f
 def compute_rs_percentile(raw_scores: pd.Series) -> pd.Series:
     """유니버스 내 백분위 순위 (0~100). 상위 20% 필터링에 사용."""
     return raw_scores.rank(pct=True) * 100
+
+
+def rs_subscore(rs_percentile: float) -> float:
+    """백분위(0~100)를 점수표용 0~1로 정규화."""
+    return max(0.0, min(1.0, rs_percentile / 100))
