@@ -46,9 +46,19 @@ KIS 인증 정보는 `.env.example`을 복사해 `.env`로 저장하고 채운�
 cd quant
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python -m pytest                          # 테스트
-python -m pipeline.run_screening --help    # 스크리닝 실행 (데이터 소스 연동 전까지 NotImplementedError)
+cp .env.example .env               # KIS_APP_KEY 등 채우기
+python -m pytest                   # 테스트
+python -m pipeline.run_screening --out out/screening.csv   # 오늘 시점 스크리닝 실행
 ```
+
+`pipeline/run_screening.py::run()`은 `KisPriceSource`를 그대로 연결해 동작한다
+(유니버스 → 20일 평균 거래대금까지 채운 유니버스 필터 → RS 상위 percentile →
+트렌드 템플릿 하드 필터 → 서브스코어 채점 → 커트라인). 단, **quality_score와
+value_score의 PEG 부분은 KIS가 재무제표 원본/EPS 성장률을 제공하지 않아 0으로
+고정**되어 있다 (`_build_raw_metrics()`, 사용자와 상의해 확정한 임시 조치).
+그 결과 커트라인(70점)을 넘으려면 rs_score+trend_score+volatility_score(최대
+70점)가 사실상 만점에 가까워야 한다 — OpenDART 등으로 재무데이터를 연동하기
+전까지는 원래 의도보다 훨씬 엄격한 스크리너로 동작한다는 뜻이다.
 
 ## 원칙 (위반하면 안 되는 것)
 
@@ -71,10 +81,11 @@ python -m pipeline.run_screening --help    # 스크리닝 실행 (데이터 소�
    이를 조합하는 `screening/subscores.py::build_sub_scores()` 참고. raw 팩터값 →
    `build_sub_scores()` → `screening.score.score_candidates()` → `apply_cutoff()`까지
    체인이 동작함 (`tests/test_subscores.py`로 검증)
-3. `pipeline/run_screening.py::run()`의 `NotImplementedError` 채우기 — `KisPriceSource`로
-   유니버스·시세를 가져오고, PER/PBR은 `fetch_stock_quote()`로, 재무데이터(ROIC 등)는 여전히
-   별도 소스(OpenDART)가 필요함. `build_sub_scores()`가 요구하는 raw 컬럼만 채워 넣으면 됨
-4. 스크리닝 결과를 CSV로 뽑아 상위 10개가 합리적인지 육안 검증
+3. ~~`run()` 배선~~ 완료 — `KisPriceSource`로 유니버스→RS→트렌드템플릿→채점까지 연결됨
+   (`tests/test_run_screening.py`로 검증). quality_score/value_score(PEG)는 KIS 데이터
+   공백으로 0 고정 — 재무데이터(OpenDART) 연동 시 `_build_raw_metrics()`에서 실제 값으로
+   교체할 것
+4. 스크리닝 결과를 CSV로 뽑아 상위 10개가 합리적인지 육안 검증 (실제 KIS 계정으로 1회 실행 필요)
 5. `backtest/engine.py`로 과거 데이터 백테스트(`KrxPriceSource` 사용) → `backtest/report.py`의
    `score_bucket_performance`로 커트라인 70점이 실제로 유효한지 확인
 6. 실행 결과가 안정적이면 `.github/workflows/quant-screening.yml`로 주말 자동화
