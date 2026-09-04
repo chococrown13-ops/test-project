@@ -117,6 +117,13 @@ class DartFundamentalSource(FundamentalDataSource):
     report_date 컬럼 포함 DataFrame을 반환한다 — 룩어헤드 방지 체인에 그대로 연결된다.
     """
 
+    # get_financials()는 종목 하나당 (연도 x 보고서유형) 조합으로 최대 수십 건의 요청을
+    # 지연 없이 연속 발사한다. 실측 결과 DART의 방화벽/WAF가 이런 버스트를 어뷰징으로 보고
+    # 해당 IP의 모든 연결을 강제 종료(리셋)시키는 것을 확인했다 — 한 번 걸리면 정상 호출까지
+    # 막히고 언제 풀리는지 공개되어 있지 않다(수십 분 이상 걸릴 수 있음). 요청 사이 최소 간격을
+    # 둬서 애초에 버스트가 발생하지 않게 한다.
+    MIN_REQUEST_INTERVAL_SECONDS = 0.3
+
     def __init__(
         self,
         env: DartEnv | None = None,
@@ -127,10 +134,19 @@ class DartFundamentalSource(FundamentalDataSource):
         self.session = session or requests.Session()
         self.corp_code_cache_path = corp_code_cache_path
         self._corp_codes: dict[str, str] | None = None
+        self._last_request_at: float = 0.0
+
+    def _throttle(self) -> None:
+        elapsed = time.monotonic() - self._last_request_at
+        wait = self.MIN_REQUEST_INTERVAL_SECONDS - elapsed
+        if wait > 0:
+            time.sleep(wait)
+        self._last_request_at = time.monotonic()
 
     def _get(self, path: str, params: dict[str, str]) -> dict:
         if not self.env.configured:
             raise DartApiError("DART_API_KEY 미설정")
+        self._throttle()
         response = self.session.get(f"{BASE_URL}/{path}", params={**params, "crtfc_key": self.env.api_key}, timeout=15)
         data = response.json() if callable(getattr(response, "json", None)) else {}
         status = data.get("status")
