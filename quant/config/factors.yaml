@@ -11,7 +11,12 @@ trend_template:
 volatility:
   atr_period: 14
   atr_ratio_min: 0.02
-  atr_ratio_max: 0.06
+  # 상한 6%는 실제 가이드 문서 부재로 임시 배정한 값이었으나, 2026-09-04 실제 KIS 데이터로
+  # 스크리닝해보니 트렌드템플릿 통과 종목(강한 모멘텀 후보) 13개 중 12개의 ATR비율이
+  # 5.5~10.0%로 밴드를 벗어나 volatility_score가 전부 0이 되는 문제가 확인됨. 관측 분포에
+  # 여유를 두고 10%로 상향 — 이 값 역시 하루치 표본 기반 임시값이므로 실제 가이드 문서나
+  # 백테스트(backtest/report.py::score_bucket_performance)로 재검증 필요.
+  atr_ratio_max: 0.10
 
 quality:
   min_roic: 0.10
