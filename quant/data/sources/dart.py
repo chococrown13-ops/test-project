@@ -55,7 +55,10 @@ ACCOUNT_CANDIDATES: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
         ("법인세비용차감전순이익(손실)", "법인세비용차감전순이익", "법인세차감전순이익(손실)"),
     ),
     "tax_expense": (("IS", "CIS"), ("법인세비용", "법인세비용(수익)")),
-    "interest_expense": (("IS", "CIS"), ("이자비용",)),
+    # "이자비용"은 본표에 없고 주석에만 나오는 경우가 많아(fnlttSinglAcntAll.json은 주석 미포함)
+    # 실제 API 응답 확인 결과(삼성전자/SK하이닉스) "금융비용"으로 fallback. 금융비용은 이자비용보다
+    # 넓은 개념(외환손실 등 포함)이라 이자보상배율이 실제보다 보수적으로 나올 수 있는 근사치다.
+    "interest_expense": (("IS", "CIS"), ("이자비용", "금융비용")),
     "operating_cash_flow": (
         ("CF",),
         ("영업활동으로인한현금흐름", "영업활동현금흐름", "영업활동으로 인한 현금흐름"),
