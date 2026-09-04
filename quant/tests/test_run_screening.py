@@ -17,7 +17,8 @@ import yaml
 
 import pipeline.run_screening as run_screening
 from data.sources.kis import KisEnv, KisPriceSource
-from pipeline.run_screening import _build_raw_metrics, _dart_quality_inputs, _kis_market_param, run
+from pipeline.dart_quality import dart_quality_inputs
+from pipeline.run_screening import _build_raw_metrics, _kis_market_param, run
 
 
 def test_kis_market_param_mapping() -> None:
@@ -174,7 +175,7 @@ def test_run_end_to_end_uses_dart_quality_when_configured(loose_config_dir) -> N
 
 def test_dart_quality_inputs_defaults_when_not_configured() -> None:
     unconfigured = StubDartSource({}, configured=False)
-    result = _dart_quality_inputs(unconfigured, "GOOD", date.today(), lag_days=60)
+    result = dart_quality_inputs(unconfigured, "GOOD", date.today(), lag_days=60)
     assert result == {"operating_cash_flow": 0.0, "net_income": 0.0, "roic": 0.0, "interest_coverage": 0.0, "eps_growth_pct": 0.0}
 
 
@@ -182,14 +183,14 @@ def test_dart_quality_inputs_defaults_when_report_too_recent() -> None:
     # 공시일이 lag(60일)보다 최근이면 아직 "안전하게 알 수 있는" 데이터가 아니므로 0 처리
     report_date = date.today() - timedelta(days=10)
     dart_source = StubDartSource({"GOOD": _good_financials(report_date)})
-    result = _dart_quality_inputs(dart_source, "GOOD", date.today(), lag_days=60)
+    result = dart_quality_inputs(dart_source, "GOOD", date.today(), lag_days=60)
     assert result["roic"] == 0.0
 
 
 def test_dart_quality_inputs_computes_from_available_report() -> None:
     report_date = date.today() - timedelta(days=90)
     dart_source = StubDartSource({"GOOD": _good_financials(report_date)})
-    result = _dart_quality_inputs(dart_source, "GOOD", date.today(), lag_days=60)
+    result = dart_quality_inputs(dart_source, "GOOD", date.today(), lag_days=60)
 
     assert result["operating_cash_flow"] == 900.0
     assert result["net_income"] == 800.0

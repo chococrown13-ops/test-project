@@ -23,12 +23,12 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from data.sources.dart import DartApiError, DartEnv, DartFundamentalSource
+from data.sources.dart import DartEnv, DartFundamentalSource
 from data.sources.kis import KisApiError, KisEnv, KisPriceSource
 from factors.momentum import compute_rs_raw
-from factors.quality import as_of_available_financials, compute_interest_coverage, compute_roic
 from factors.trend import trend_template_conditions
 from factors.volatility import compute_atr_ratio
+from pipeline.dart_quality import dart_quality_inputs
 from screening.rs_filter import filter_by_rs
 from screening.score import apply_cutoff, score_candidates
 from screening.subscores import build_sub_scores
@@ -50,50 +50,6 @@ def _kis_market_param(markets: list[str]) -> str:
     if normalized == {"KOSDAQ"}:
         return "kosdaq"
     return "all"
-
-
-_DART_QUALITY_DEFAULTS = {
-    "operating_cash_flow": 0.0,
-    "net_income": 0.0,
-    "roic": 0.0,
-    "interest_coverage": 0.0,
-    "eps_growth_pct": 0.0,
-}
-
-
-def _dart_quality_inputs(
-    dart_source: DartFundamentalSource | None,
-    code: str,
-    as_of: date,
-    lag_days: int,
-) -> dict:
-    """DART에서 구할 수 있는 값만 채우고 나머지는 0으로 둔다 (quality_subscore는 세 항목의
-    평균이라 부분적으로 채워져도 동작한다). dart_source가 없거나, 설정이 안 됐거나, 이
-    종목의 조회에 실패하면 전부 0 — KIS만 연결됐을 때와 동일하게 동작한다."""
-    if dart_source is None or not dart_source.env.configured:
-        return dict(_DART_QUALITY_DEFAULTS)
-
-    try:
-        financials = dart_source.get_financials(code, as_of - timedelta(days=730), as_of)
-        available = as_of_available_financials(financials, pd.Timestamp(as_of), lag_days)
-    except DartApiError as error:
-        print(f"      [DART] {code} 재무데이터 조회 실패, quality/value 0 처리: {error}")
-        return dict(_DART_QUALITY_DEFAULTS)
-
-    if available.empty:
-        return dict(_DART_QUALITY_DEFAULTS)
-
-    latest = available.iloc[-1]
-    result = dict(_DART_QUALITY_DEFAULTS)
-    result["operating_cash_flow"] = latest["operating_cash_flow"] or 0.0
-    result["net_income"] = latest["net_income"] or 0.0
-    if latest["invested_capital"]:
-        result["roic"] = compute_roic(latest["operating_income"], latest["tax_rate"], latest["invested_capital"])
-    if latest["interest_expense"]:
-        result["interest_coverage"] = compute_interest_coverage(latest["operating_income"], latest["interest_expense"])
-    if latest["eps_growth_pct_proxy"] is not None:
-        result["eps_growth_pct"] = latest["eps_growth_pct_proxy"]
-    return result
 
 
 def _build_raw_metrics(
@@ -125,7 +81,7 @@ def _build_raw_metrics(
         except KisApiError:
             per = 0.0
 
-        quality_inputs = _dart_quality_inputs(dart_source, code, as_of, financial_data_lag_days)
+        quality_inputs = dart_quality_inputs(dart_source, code, as_of, financial_data_lag_days)
 
         rows[code] = {
             "rs_percentile": survivors.loc[code, "rs_percentile"],

@@ -5,6 +5,8 @@ import pandas as pd
 
 
 def cagr(equity_curve: pd.Series) -> float:
+    if len(equity_curve) == 0:
+        return float("nan")
     n_years = (equity_curve.index[-1] - equity_curve.index[0]).days / 365.25
     if n_years <= 0:
         return float("nan")

@@ -44,13 +44,22 @@ KIS·DART 인증 정보는 `.env.example`을 복사해 `.env`로 저장하고 �
 `data/sources/kis.py`의 우회 로직(가격구간 나눠 시총 랭킹 30종목 캡 우회, 일봉 청크 분할 등)은
 `otterstock-ai-office`(chococrown13-ops) 저장소의 `worker/kis.ts`에서 실측 검증된 방식을 그대로 옮긴 것이다.
 
-**`data/sources/dart.py`는 실제 API 키로 검증되지 않았다** (이 작업 환경에 `DART_API_KEY`가
-없음). 계정명 매칭 후보(`ACCOUNT_CANDIDATES`)는 DART 공식 문서 기반 추정치다. 실제 연동 후
-quality_score가 비정상적으로 0에 몰려 있으면 `DartFundamentalSource.debug_list_accounts()`로
-실제 응답의 (sj_div, account_nm)을 확인해 `ACCOUNT_CANDIDATES`를 보정할 것 — 모듈 docstring 참고.
+`data/sources/dart.py`는 2026-09-04에 실제 API 키로 검증했다. 계정명 매칭 후보
+(`ACCOUNT_CANDIDATES`)는 삼성전자/SK하이닉스 실제 응답으로 확인했고, `interest_expense`는
+본표에 `이자비용` 대신 `금융비용`으로 잡히는 경우가 많아 fallback을 추가했다(더 넓은 개념이라
+이자보상배율이 실제보다 보수적으로 나올 수 있는 근사치). 다른 종목/업종에서 quality_score가
+비정상적으로 0에 몰려 있으면 여전히 `DartFundamentalSource.debug_list_accounts()`로 실제
+응답의 (sj_div, account_nm)을 확인해 `ACCOUNT_CANDIDATES`를 보정할 것.
 EPS 성장률은 실제 EPS가 아니라 당기순이익 YoY 성장률로 근사한다(`eps_growth_pct_proxy`,
 발행주식수 변동 미반영). ROIC의 투하자본은 `자산총계 - 유동부채`로 근사한다(이자부채만 분리한
 정밀 계산 아님) — 둘 다 실용적 근사치이며 필요하면 더 정밀하게 다듬을 수 있다.
+
+**DART 요청 폭주 주의**: `get_financials()`는 종목 하나당 (연도 x 보고서유형) 최대 수십 건의
+HTTP 요청을 낸다. 실측 결과 지연 없이 여러 종목을 연속 조회하면(예: 백테스트) DART의
+방화벽/WAF가 버스트를 어뷰징으로 보고 해당 IP의 모든 연결을 20분 이상 강제 리셋시켰다.
+`DartFundamentalSource._get()`에 요청 간 최소 0.3초 간격(`MIN_REQUEST_INTERVAL_SECONDS`)이
+걸려있으니 다수 종목을 조회하는 새 코드를 짤 때도 이 소스를 통해서만 호출할 것 — 직접
+`requests`로 우회하지 말 것.
 
 ## 실행
 
@@ -67,11 +76,34 @@ python -m pipeline.run_screening --out out/screening.csv   # 오늘 시점 스�
 (재무데이터, 선택)를 연결해 동작한다: 유니버스 → 20일 평균 거래대금까지 채운 유니버스 필터 →
 RS 상위 percentile → 트렌드 템플릿 하드 필터 → 서브스코어 채점 → 커트라인.
 
-`DART_API_KEY`가 설정되어 있으면 `_build_raw_metrics()`가 `_dart_quality_inputs()`를 통해
-quality_score·value_score(PEG)에 실제 재무데이터를 채운다. 없거나 특정 종목의 DART 조회가
-실패하면 **그 종목만** 기존처럼 0으로 처리된다 — 파이프라인 전체가 죽지 않는다. DART 없이
-KIS만 연결된 상태에서는 커트라인(70점)을 넘으려면 rs_score+trend_score+volatility_score
-(최대 70점)가 사실상 만점에 가까워야 한다는 점은 여전히 유효하다.
+`DART_API_KEY`가 설정되어 있으면 `_build_raw_metrics()`가 `pipeline/dart_quality.py::
+dart_quality_inputs()`(run_backtest.py와 공유)를 통해 quality_score·value_score(PEG)에
+실제 재무데이터를 채운다. 없거나 특정 종목의 DART 조회가 실패하면 **그 종목만** 기존처럼
+0으로 처리된다 — 파이프라인 전체가 죽지 않는다. DART 없이 KIS만 연결된 상태에서는
+커트라인(70점)을 넘으려면 rs_score+trend_score+volatility_score(최대 70점)가 사실상
+만점에 가까워야 한다는 점은 여전히 유효하다.
+
+## 백테스트
+
+```bash
+python -m pipeline.run_backtest --years 2 --out out/backtest   # 실제 스크리닝 로직 기반 과거 백테스트
+```
+
+`pipeline/run_backtest.py::run()`은 `backtest/engine.py`에 매주(금요일) 재스크리닝하는
+`screening_fn`을 주입한다 — 유니버스 필터→RS→트렌드템플릿→quality/value 서브스코어→커트라인까지
+`run_screening.py`와 완전히 동일한 함수(`screening/*`, `factors/*`, `pipeline/dart_quality.py`)를
+그대로 쓴다. 다만 **두 가지 근사**가 있다 (모듈 docstring에 상세):
+1. KIS는 "오늘" 유니버스만 제공하므로, 오늘 유니버스를 전체 백테스트 기간의 고정 후보 풀로
+   쓴다 — 상장폐지/신규상장 미반영, 생존편향 있음 (`data/validate.py::check_survivorship`
+   경고가 항상 뜬다, 의도된 것)
+2. 과거 시점 PER을 주는 무료 API가 이 환경에 없어(pykrx의 시가총액/펀더멘털 스냅샷
+   엔드포인트가 이 환경에서 깨져있음, `get_ohlcv`만 정상 동작), 발행주식수를 "오늘 시총/오늘
+   종가"로 고정 근사해 과거 PER을 역산한다
+
+2026-09-04 실제 KIS/DART로 2년치(319종목 근사 유니버스, 119건 거래) 백테스트한 결과:
+CAGR +37.5%, 기대값 +1.07R, 커트라인 바로 위(70~74점) 구간이 가장 약한 성과(평균 0.11R)를
+보여 커트라인 자체는 대체로 타당하나 "턱걸이 통과"는 신뢰도가 낮다는 정황을 확인했다. 위
+근사들 때문에 정밀한 숫자보다는 방향성 참고용으로 볼 것.
 
 ## 원칙 (위반하면 안 되는 것)
 
@@ -100,10 +132,20 @@ KIS만 연결된 상태에서는 커트라인(70점)을 넘으려면 rs_score+tr
     value_score(PEG)에 실제 재무데이터를 채움 (`tests/test_dart_source.py`로 검증). **단,
     계정명 매칭이 실제 API로 미검증** — 실제 키로 첫 실행 시 `debug_list_accounts()`로 확인 필요
     (위 "데이터 소스" 섹션 참고)
-4. 스크리닝 결과를 CSV로 뽑아 상위 10개가 합리적인지 육안 검증 (실제 KIS/DART 계정으로 1회 실행 필요)
-5. `backtest/engine.py`로 과거 데이터 백테스트(`KrxPriceSource` 사용) → `backtest/report.py`의
-   `score_bucket_performance`로 커트라인 70점이 실제로 유효한지 확인
+4. ~~스크리닝 결과 실제 KIS/DART 계정으로 1회 실행~~ 완료 (2026-09-04) — 첫 실행은 커트라인
+   0종목이었는데, 원인이 volatility 밴드(2~6%)가 실제 트렌드템플릿 통과 종목의 ATR 분포
+   (5.5~10%)와 안 맞아서였음을 확인하고 상한을 10%로 조정(`config/factors.yaml`). 조정 후
+   4종목 통과. 이 값도 하루치 표본 기반 임시값이라 재검증 필요 (`config/factors.yaml` 주석 참고)
+5. ~~`backtest/engine.py`로 과거 데이터 백테스트~~ 완료 — `pipeline/run_backtest.py`가
+   `KrxPriceSource`(가격) + `DartFundamentalSource`(재무) + `score_bucket_performance`로
+   커트라인 70점의 유효성을 확인함 (위 "백테스트" 섹션 참고). **단, 완전한 시점별 유니버스가
+   아니라 "오늘 유니버스 고정" 근사** — 이 환경에서 pykrx의 시가총액/펀더멘털 스냅샷
+   엔드포인트가 깨져 있어 진짜 생존편향 없는 유니버스 재구성은 아직 미구현
 6. 실행 결과가 안정적이면 `.github/workflows/quant-screening.yml`로 주말 자동화
 7. 가이드 문서가 확보되면 `score_table.yaml`의 임시 배점(quality 20/volatility 15/value 10)과
    `quality_subscore`/`value_subscore`/`volatility_subscore`의 정규화 방식(선형 스케일링,
    구간 중앙 피크 등)을 그 기준으로 재검토
+8. (신규) `pipeline/run_backtest.py`의 "오늘 유니버스 고정" 근사를 진짜 시점별 유니버스로
+   교체 — pykrx의 `get_market_cap_by_ticker`/`get_market_fundamental_by_date`가 이 환경에서
+   깨져 있는 원인을 파악하거나(로그인 필요 여부 등), 다른 데이터 소스로 과거 시가총액 스냅샷을
+   확보해야 함

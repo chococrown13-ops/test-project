@@ -5,7 +5,7 @@ python-dateutil>=2.8
 pyarrow>=14.0
 pytest>=7.4
 requests>=2.31
+pykrx>=1.2.8  # pipeline/run_backtest.py의 과거 가격 히스토리 조회용 (data/sources/krx.py)
 
-# 데이터 소스 (선택 설치 - 실제 연동 시 활성화)
-# pykrx>=1.0.45
+# 선택 설치
 # finance-datareader>=0.9.50
