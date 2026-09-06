@@ -30,3 +30,17 @@ jobs:
           name: screening-result
           path: quant/out/*.csv
           if-no-files-found: warn
+      - name: Email screening result
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USERNAME }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          from: Quant Screening Bot <${{ secrets.GMAIL_USERNAME }}>
+          to: ${{ secrets.GMAIL_USERNAME }}
+          subject: "주간 퀀트 스크리닝 결과 (${{ github.run_id }})"
+          body: |
+            이번 주 스크리닝 결과가 첨부되어 있습니다 (CSV).
+            전체 실행 로그: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          attachments: quant/out/*.csv
