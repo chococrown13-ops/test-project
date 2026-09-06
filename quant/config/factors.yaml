@@ -1,0 +1,28 @@
+momentum:
+  lookback_months: [3, 6, 12]
+  weights: [0.4, 0.35, 0.25]        # 최근 구간에 가중치를 더 둠
+  universe_percentile_cutoff: 0.8   # RS 상위 20%
+
+trend_template:
+  ma_periods: [50, 150, 200]
+  low_252d_buffer: 0.30    # 52주 저가 대비 +30% 이상
+  high_252d_buffer: 0.75   # 52주 고가 대비 75% 이상 (고가 대비 -25% 이내)
+
+volatility:
+  atr_period: 14
+  atr_ratio_min: 0.02
+  # 상한 6%는 실제 가이드 문서 부재로 임시 배정한 값이었으나, 2026-09-04 실제 KIS 데이터로
+  # 스크리닝해보니 트렌드템플릿 통과 종목(강한 모멘텀 후보) 13개 중 12개의 ATR비율이
+  # 5.5~10.0%로 밴드를 벗어나 volatility_score가 전부 0이 되는 문제가 확인됨. 관측 분포에
+  # 여유를 두고 10%로 상향 — 이 값 역시 하루치 표본 기반 임시값이므로 실제 가이드 문서나
+  # 백테스트(backtest/report.py::score_bucket_performance)로 재검증 필요.
+  atr_ratio_max: 0.10
+
+quality:
+  min_roic: 0.10
+  ocf_gt_net_income: true
+  min_interest_coverage: 5
+
+value:
+  per_band: [5, 25]
+  max_peg: 2.0

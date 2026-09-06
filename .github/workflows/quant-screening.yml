@@ -1,0 +1,32 @@
+name: Weekly Quant Screening
+
+on:
+  schedule:
+    - cron: "0 22 * * 5"  # 매주 금요일 22:00 UTC = 토요일 07:00 KST
+  workflow_dispatch: {}
+
+jobs:
+  screening:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: quant
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - run: bash scripts/weekly_screening.sh
+        env:
+          KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
+          KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
+          KIS_ACCOUNT_NO: ${{ secrets.KIS_ACCOUNT_NO }}
+          KIS_ACCOUNT_PRODUCT_CD: ${{ secrets.KIS_ACCOUNT_PRODUCT_CD }}
+          KIS_ENV: ${{ secrets.KIS_ENV }}
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screening-result
+          path: quant/out/*.csv
+          if-no-files-found: warn
