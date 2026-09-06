@@ -216,6 +216,24 @@ def run(
     return passed
 
 
+def format_report(df: pd.DataFrame) -> pd.DataFrame:
+    """CSV/이메일용으로 보기 좋게 정리한다: 컬럼명 한글화, 시가총액·거래대금은 (억) 단위
+    숫자만 표시하고 단위는 헤더에 한 번만 적는다 (칸마다 "1100억"처럼 반복하지 않음)."""
+    if df.empty:
+        return df
+
+    report = pd.DataFrame(index=df.index)
+    report.index.name = "종목코드"
+    report["종목명"] = df["name"]
+    report["현재가"] = df["price"].round(0).astype(int)
+    report["등락률(%)"] = df["change_rate"].round(2)
+    report["시가총액(억)"] = df["market_cap_eok"].round(0).astype(int)
+    report["20일평균거래대금(억)"] = (df["avg_trading_value_20d"] / 1e8).round(0).astype(int)
+    report["RS점수"] = df["rs_percentile"].round(1)
+    report["종합점수"] = df["total_score"].round(1)
+    return report.sort_values("종합점수", ascending=False)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="주말 스크리닝 파이프라인 (KIS Open API, 오늘 시점만 지원)")
     parser.add_argument("--as-of", type=str, default=datetime.now().strftime("%Y-%m-%d"))
@@ -232,7 +250,7 @@ def main() -> None:
         print(f"실행 중단: {error}")
         raise SystemExit(1) from error
 
-    result.to_csv(out_path, encoding="utf-8-sig")
+    format_report(result).to_csv(out_path, encoding="utf-8-sig")
     print(f"스크리닝 완료: {len(result)}개 종목 -> {out_path}")
 
 
