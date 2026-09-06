@@ -18,7 +18,7 @@ import yaml
 import pipeline.run_screening as run_screening
 from data.sources.kis import KisEnv, KisPriceSource
 from pipeline.dart_quality import dart_quality_inputs
-from pipeline.run_screening import _build_raw_metrics, _kis_market_param, run
+from pipeline.run_screening import _build_raw_metrics, _kis_market_param, format_report, run
 
 
 def test_kis_market_param_mapping() -> None:
@@ -238,3 +238,36 @@ def test_build_raw_metrics_uses_dart_source_when_given() -> None:
 
     assert raw.loc["GOOD", "roic"] > 0
     assert raw.loc["GOOD", "eps_growth_pct"] == 30.0
+
+
+def test_format_report_renders_korean_headers_and_eok_units() -> None:
+    df = pd.DataFrame(
+        {
+            "name": ["삼성전자", "SK하이닉스"],
+            "price": [71234.0, 199876.0],
+            "change_rate": [1.234, -0.567],
+            "volume": [1000000, 500000],
+            "market_cap_eok": [1100.0, 2000.0],
+            "close": [71234.0, 199876.0],
+            "market_cap": [110000000000.0, 200000000000.0],
+            "avg_trading_value_20d": [50000000000.0, 30000000000.0],
+            "rs_percentile": [95.678, 88.123],
+            "total_score": [82.345, 76.789],
+        },
+        index=["005930", "000660"],
+    )
+
+    report = format_report(df)
+
+    assert list(report.columns) == ["종목명", "현재가", "등락률(%)", "시가총액(억)", "20일평균거래대금(억)", "RS점수", "종합점수"]
+    assert report.index.name == "종목코드"
+    # 시가총액은 "1100억"이 아니라 숫자 1100만 들어가야 함 (단위는 헤더에 표기)
+    assert report.loc["005930", "시가총액(억)"] == 1100
+    assert report.loc["000660", "시가총액(억)"] == 2000
+    assert report.loc["005930", "20일평균거래대금(억)"] == 500
+    # 점수 순 정렬
+    assert report.index.tolist() == ["005930", "000660"]
+
+
+def test_format_report_handles_empty_result() -> None:
+    assert format_report(pd.DataFrame()).empty
