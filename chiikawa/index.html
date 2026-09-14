@@ -138,11 +138,12 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 }
 .pet{width:100%; height:100%; transform:scaleX(var(--dir,1)) scale(var(--sc,1)); transform-origin:50% 100%}
 .pet svg{width:100%;height:100%; overflow:visible; animation:bob 1.9s ease-in-out infinite}
-.pet .sh{fill:#fdfdf6; stroke:var(--ink); stroke-width:3.2; stroke-linejoin:round}
-.pet .ln{fill:none; stroke:var(--ink); stroke-width:3.2; stroke-linecap:round; stroke-linejoin:round}
+.pet .sh{fill:var(--skin,#fdfdf6); stroke:var(--ink); stroke-width:2.9; stroke-linejoin:round}
+.pet .ln{fill:none; stroke:var(--ink); stroke-width:2.9; stroke-linecap:round; stroke-linejoin:round}
+.pet .ln2{fill:none; stroke:var(--ink); stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round}
 .pet .solid{fill:var(--ink)}
 .pet .blush{fill:#eb8aa4; opacity:.75}
-.pet .hair{fill:var(--sky)}
+.pet .hachi{fill:#9ec4de}
 .pet .inner{fill:#f0b6c4}
 .pet .band{fill:var(--berry)}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4%)}}
@@ -177,6 +178,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 [data-mood="sick"] .m-sad{display:block}
 [data-mood="sick"] .sweat{display:block}
 [data-mood="sick"] .sh{fill:#e6ecd2}
+[data-mood="sick"] .hachi{fill:#bccfc9}
 [data-mood="sick"] svg{animation:shiver .22s steps(2,end) infinite}
 @keyframes shiver{0%{transform:translateX(-1.2%)}100%{transform:translateX(1.2%)}}
 [data-stage="3"] .gear{display:block}
@@ -195,7 +197,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .particle{position:absolute; font-family:'DotGothic16',monospace; font-size:14px; color:var(--berry-deep); animation:float 1s ease-out forwards}
 @keyframes float{0%{opacity:1;transform:translateY(0) scale(.6)}100%{opacity:0;transform:translateY(-40px) scale(1.25)}}
 .bubble{
-  position:absolute; z-index:5; left:50%; bottom:48%; transform:translateX(calc(-50% + var(--x,0px))); transition:transform 2.4s linear;
+  position:absolute; z-index:5; left:50%; bottom:63%; transform:translateX(calc(-50% + var(--x,0px))); transition:transform 2.4s linear;
   background:#fdfdf6; color:var(--ink); border:2.5px solid var(--ink); border-radius:9px;
   padding:4px 9px; font-size:12px; white-space:nowrap; animation:pop .22s ease-out;
 }
@@ -350,36 +352,57 @@ const TYPES = {
   hachiware: {name:'하치와레', cry:['이야~!','오늘도 화이팅!','에헤헤']},
   usagi    : {name:'우사기',   cry:['우라!','하아?!','푸르르']},
 };
+let petSeq = 0;
 function petSVG(type){
-  const body = 'M50 13C35 13 26 24 26 37c0 7 3 12 6 15-7 4-10 12-10 20 0 12 12 19 28 19s28-7 28-19c0-8-3-16-10-20 3-3 6-8 6-15 0-13-9-24-24-24Z';
-  let ears, hair = '';
+  const uid = 'pc' + (++petSeq);
+  /* 큰 머리 + 살짝 잘록한 허리 + 둥근 아랫배로 이어지는 한 덩어리 실루엣 */
+  const BODY = 'M50 8 C32 8 20 21 20 39 C20 48 22 56 27 60 C25 64 24 69 24 76 C24 85 35 91 50 91 C65 91 76 85 76 76 C76 69 75 64 73 60 C78 56 80 48 80 39 C80 21 68 8 50 8 Z';
+  const skin = type === 'usagi' ? '#f7df85' : '#fdfdf6';
+  const F = {
+    chiikawa : {ex:9,   ey:43, rx:3.5, ry:4.3, blush:.85, mouth:'M46.4 50.6q1.8 2.6 3.6 0 1.8 2.6 3.6 0'},
+    hachiware: {ex:9.5, ey:43, rx:4.3, ry:5,   blush:.45, mouth:'M42.5 49.5q7.5 8 15 0'},
+    usagi    : {ex:9,   ey:43, rx:3.6, ry:4.4, blush:.6,  mouth:'M46.4 50.6q1.8 2.6 3.6 0 1.8 2.6 3.6 0'},
+  }[type];
+  const L = 50 - F.ex, R = 50 + F.ex, ey = F.ey;
+
+  let ears, mark = '';
   if (type === 'usagi') {
-    ears = '<g><ellipse class="sh" cx="36" cy="2" rx="6.5" ry="17" transform="rotate(-9 36 2)"/><ellipse class="inner" cx="36" cy="2" rx="2.4" ry="10" transform="rotate(-9 36 2)"/>'
-         + '<ellipse class="sh" cx="64" cy="2" rx="6.5" ry="17" transform="rotate(9 64 2)"/><ellipse class="inner" cx="64" cy="2" rx="2.4" ry="10" transform="rotate(9 64 2)"/></g>';
+    /* 쫑긋 선 긴 귀 */
+    ears = `<g><ellipse class="sh" cx="36" cy="3" rx="9" ry="18" transform="rotate(-8 36 3)"/>
+                <ellipse class="sh" cx="64" cy="3" rx="9" ry="18" transform="rotate(8 64 3)"/></g>`;
   } else if (type === 'hachiware') {
-    ears = '<g><path class="sh" d="M32 24 29 7l15 9Z"/><path class="sh" d="M68 24 71 7l-15 9Z"/></g>';
-    hair = '<path class="hair" d="M50 14c-13 1-22 11-23 24 0-1 0-2 .2-3C29 25 38 17 50 16Zm0 0c5 0 9 1 13 3l3-6c-5-2-10-3-16-3Z"/>';
+    /* 뾰족한 고양이 귀 + 이마가 갈라진 하치와레 무늬 */
+    ears = `<g><path class="sh hachi" d="M30 20 L27 4 L46 15 Z"/><path class="sh hachi" d="M70 20 L73 4 L54 15 Z"/></g>`;
+    mark = `<clipPath id="${uid}"><path d="${BODY}"/></clipPath>
+      <path class="hachi" clip-path="url(#${uid})" d="M10 -12 L90 -12 L90 48 C86 38 76 32 56 34 L50 23 L44 34 C24 32 14 38 10 48 Z"/>
+      <path class="ln2" clip-path="url(#${uid})" d="M10 48 C14 38 24 32 44 34 L50 23 L56 34 C76 32 86 38 90 48"/>`;
   } else {
-    ears = '<g><ellipse class="sh" cx="33" cy="17" rx="8.5" ry="9"/><ellipse class="sh" cx="67" cy="17" rx="8.5" ry="9"/></g>';
+    /* 작고 도톰한 귀 */
+    ears = `<g><path class="sh" d="M26 20 C22 10 27 2 34 5 C39 7 42 12 43 18 Z"/>
+                <path class="sh" d="M74 20 C78 10 73 2 66 5 C61 7 58 12 57 18 Z"/></g>`;
   }
-  return `<svg viewBox="-8 -22 116 124" role="img" aria-label="${TYPES[type].name}">
+
+  const eye = (cx) => `<ellipse class="solid" cx="${cx}" cy="${ey}" rx="${F.rx}" ry="${F.ry}"/>`;
+  const arc = (cx, d) => `<path class="ln" d="M${cx-4.2} ${ey+d.y}q4.2 ${d.k} 8.4 0"/>`;
+
+  return `<svg viewBox="-10 -24 120 128" style="--skin:${skin}" role="img" aria-label="${TYPES[type].name}">
     ${ears}
-    <ellipse class="sh" cx="20" cy="66" rx="8" ry="6"/><ellipse class="sh" cx="80" cy="66" rx="8" ry="6"/>
-    <ellipse class="sh" cx="39" cy="89" rx="9" ry="5.5"/><ellipse class="sh" cx="61" cy="89" rx="9" ry="5.5"/>
-    <path class="sh" d="${body}"/>
-    ${hair}
-    <g class="gear"><path class="band" d="M28 29q22-13 44 0l-2 6q-20-11-40 0Z"/><path class="band" d="M70 32l9-4 2 7-9 1Z"/></g>
-    <g class="eye-open"><ellipse class="solid" cx="41" cy="36" rx="3.4" ry="4.5"/><ellipse class="solid" cx="59" cy="36" rx="3.4" ry="4.5"/></g>
-    <g class="eye-shut"><path class="ln" d="M37 37q4-4 8 0"/><path class="ln" d="M55 37q4-4 8 0"/></g>
-    <g class="eye-happy"><path class="ln" d="M37 38q4-7 8 0"/><path class="ln" d="M55 38q4-7 8 0"/></g>
-    <g class="eye-dizzy"><path class="ln" d="M38 33l6 6m0-6l-6 6"/><path class="ln" d="M56 33l6 6m0-6l-6 6"/></g>
-    <ellipse class="blush" cx="30" cy="46" rx="5.4" ry="3.4"/><ellipse class="blush" cx="70" cy="46" rx="5.4" ry="3.4"/>
-    <path class="m-idle ln" d="M45 46q2.5 3.6 5 0 2.5 3.6 5 0"/>
-    <path class="m-smile ln" d="M43 45q7 9 14 0"/>
-    <ellipse class="m-open solid" cx="50" cy="49" rx="4.6" ry="5.2"/>
-    <path class="m-sad ln" d="M44 50q6-6 12 0"/>
-    <g class="tears"><ellipse cx="34" cy="46" rx="2.6" ry="4.2" fill="#7fb6d9"/><ellipse cx="66" cy="46" rx="2.6" ry="4.2" fill="#7fb6d9"/></g>
-    <g class="sweat"><path class="ln" d="M78 22c3.5 5 3.5 8 0 8s-3.5-3 0-8Z"/></g>
+    <ellipse class="sh" cx="23" cy="65" rx="8.2" ry="6"/><ellipse class="sh" cx="77" cy="65" rx="8.2" ry="6"/>
+    <ellipse class="sh" cx="40" cy="89" rx="8.5" ry="5.2"/><ellipse class="sh" cx="60" cy="89" rx="8.5" ry="5.2"/>
+    <path class="sh" d="${BODY}"/>
+    ${mark}
+    <g class="eye-open">${eye(L)}${eye(R)}</g>
+    <g class="eye-shut">${arc(L,{y:1,k:-4})}${arc(R,{y:1,k:-4})}</g>
+    <g class="eye-happy">${arc(L,{y:2,k:-7.5})}${arc(R,{y:2,k:-7.5})}</g>
+    <g class="eye-dizzy"><path class="ln" d="M${L-3.6} ${ey-3.6}l7.2 7.2m0-7.2l-7.2 7.2"/><path class="ln" d="M${R-3.6} ${ey-3.6}l7.2 7.2m0-7.2l-7.2 7.2"/></g>
+    <ellipse class="blush" cx="29" cy="51" rx="5.8" ry="3.7" style="opacity:${F.blush}"/>
+    <ellipse class="blush" cx="71" cy="51" rx="5.8" ry="3.7" style="opacity:${F.blush}"/>
+    <path class="m-idle ln" d="${F.mouth}"/>
+    <path class="m-smile ln" d="M42 49q8 9 16 0"/>
+    <ellipse class="m-open solid" cx="50" cy="53" rx="5" ry="5.6"/>
+    <path class="m-sad ln" d="M44 55q6-6 12 0"/>
+    <g class="tears"><ellipse cx="34" cy="48" rx="2.6" ry="4.2" fill="#7fb6d9"/><ellipse cx="66" cy="48" rx="2.6" ry="4.2" fill="#7fb6d9"/></g>
+    <g class="sweat"><path class="ln" d="M76 24c3.5 5 3.5 8 0 8s-3.5-3 0-8Z"/></g>
   </svg>`;
 }
 const EGG_SVG = `<svg viewBox="0 0 60 78"><path d="M30 3C14 3 4 27 4 45c0 18 12 30 26 30s26-12 26-30C56 27 46 3 30 3Z" fill="#fdfdf6" stroke="#2a3222" stroke-width="3.4"/>
@@ -553,7 +576,8 @@ function drawPet(){
   petWrap.style.display = '';
   if (drawnType !== S.type) { petEl.innerHTML = petSVG(S.type); drawnType = S.type; }
   petEl.dataset.stage = S.stage;
-  petEl.style.setProperty('--sc', S.stage===1 ? .68 : S.stage===2 ? .85 : 1);
+  const grow = S.stage===1 ? .66 : S.stage===2 ? .85 : 1;
+  petEl.style.setProperty('--sc', grow * ({chiikawa:.93, hachiware:1, usagi:1.05}[S.type] || 1));
 }
 function renderPoops(){
   poopBox.innerHTML = S.poops.map(x => `<div class="poop" style="left:${x}%">${POOP_SVG}</div>`).join('');
