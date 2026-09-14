@@ -16,7 +16,7 @@ python -m pytest -v
 ## 상태
 
 - 팩터 계산(RS/트렌드템플릿/ATR비율/퀄리티/밸류), 서브스코어 정규화, 스크리닝 파이프라인,
-  포지션 사이징, 이벤트 기반 백테스트 엔진, 룩어헤드/생존편향 방지 테스트까지 구현 완료 (75개 테스트 통과)
+  포지션 사이징, 이벤트 기반 백테스트 엔진, 룩어헤드/생존편향 방지 테스트까지 구현 완료 (95개 테스트 통과)
 - `pipeline/run_screening.py`가 `KisPriceSource`(시세)와 `DartFundamentalSource`(재무, 선택)에
   연결되어 실제로 동작함: `.env` 채우고 `python -m pipeline.run_screening --out out/screening.csv`
   실행하면 오늘 시점 스크리닝 결과가 CSV로 나옴. 2026-09-04 실제 계정으로 검증 완료
@@ -29,5 +29,11 @@ python -m pytest -v
   들어간다. 비워두면 기존처럼 0점 처리되어 커트라인(70점) 통과가 훨씬 엄격해진다. 다수 종목을
   조회할 때(백테스트 등) DART가 버스트 요청에 IP를 차단할 수 있으니 반드시
   `DartFundamentalSource`를 통해서만 호출할 것(요청 쓰로틀 내장)
+- `pipeline/weekly_brief.py`가 이번 주 스크리닝 결과를 `history/`의 지난주 결과와 비교해
+  편입/탈락/유지와 점수 변화를 계산하고, Claude에게 한글 해설을 받아 브리핑(.md)을 만든다.
+  `.github/workflows/quant-screening.yml`이 매주 토요일 07시(KST)에 스크리닝 → 브리핑 →
+  메일 발송 → `history/` 커밋까지 자동으로 돌린다
+- **알아둘 것**: 브리핑 해설에는 `ANTHROPIC_API_KEY` 시크릿이 필요하다. 없으면 해설 없이
+  계산된 비교표만 담긴 브리핑이 나가고, 워크플로가 실패하지는 않는다
 - `config/score_table.yaml`의 quality/volatility/value 배점은 실제 가이드 문서 부재로 임시 배정한 값
   (`docs/README.md` 참고)

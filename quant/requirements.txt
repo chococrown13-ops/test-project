@@ -6,6 +6,7 @@ pyarrow>=14.0
 pytest>=7.4
 requests>=2.31
 pykrx>=1.2.8  # pipeline/run_backtest.py의 과거 가격 히스토리 조회용 (data/sources/krx.py)
+anthropic>=1.5  # pipeline/weekly_brief.py의 주간 브리핑 해설 생성용 (ANTHROPIC_API_KEY 필요)
 
 # 선택 설치
 # finance-datareader>=0.9.50

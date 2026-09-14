@@ -210,15 +210,35 @@ def run(
     )
     sub_scores = build_sub_scores(raw_metrics, factors_cfg)
     scored = score_candidates(trend_filtered, sub_scores, score_cfg["weights"])
+    # 총점만으로는 "왜 통과했는지"를 알 수 없으므로 팩터별 기여 배점(0~weight)도 함께 싣는다.
+    # pipeline/weekly_brief.py가 주간 브리핑에서 이 분해를 근거로 쓴다.
+    for factor, weight in score_cfg["weights"].items():
+        scored[f"{factor}_points"] = sub_scores[factor].reindex(scored.index) * weight
     passed = apply_cutoff(scored, cutoff=score_cfg["cutoff"])
     print(f"[6/6] 커트라인({score_cfg['cutoff']}점) 통과: {len(passed)}종목")
 
     return passed
 
 
+# run()이 붙이는 팩터별 기여 배점(<factor>_points) -> CSV 헤더 이름.
+# "RS점수"(rs_percentile, 0~100 백분위)와 헷갈리지 않게 "배점"으로 구분해 적는다.
+POINT_COLUMNS = {
+    "rs_score_points": "모멘텀배점",
+    "trend_score_points": "추세배점",
+    "quality_score_points": "퀄리티배점",
+    "volatility_score_points": "변동성배점",
+    "value_score_points": "밸류배점",
+}
+
+
 def format_report(df: pd.DataFrame) -> pd.DataFrame:
     """CSV/이메일용으로 보기 좋게 정리한다: 컬럼명 한글화, 시가총액·거래대금은 (억) 단위
-    숫자만 표시하고 단위는 헤더에 한 번만 적는다 (칸마다 "1100억"처럼 반복하지 않음)."""
+    숫자만 표시하고 단위는 헤더에 한 번만 적는다 (칸마다 "1100억"처럼 반복하지 않음).
+
+    run()이 채워준 팩터별 기여 배점이 있으면 종합점수 뒤에 함께 싣는다 — 총점만으로는
+    "왜 통과했는지"를 알 수 없고, pipeline/weekly_brief.py의 주간 브리핑이 이 분해를
+    근거로 쓴다. 배점 컬럼이 없는 DataFrame(과거 산출물 등)도 그대로 처리된다.
+    """
     if df.empty:
         return df
 
@@ -231,6 +251,9 @@ def format_report(df: pd.DataFrame) -> pd.DataFrame:
     report["20일평균거래대금(억)"] = (df["avg_trading_value_20d"] / 1e8).round(0).astype(int)
     report["RS점수"] = df["rs_percentile"].round(1)
     report["종합점수"] = df["total_score"].round(1)
+    for source_column, header in POINT_COLUMNS.items():
+        if source_column in df.columns:
+            report[header] = df[source_column].round(1)
     return report.sort_values("종합점수", ascending=False)
 
 

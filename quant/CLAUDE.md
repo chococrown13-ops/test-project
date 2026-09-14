@@ -21,7 +21,8 @@ factors/      # 팩터 계산 (모멘텀/추세/변동성/퀄리티/밸류)
 screening/    # 유니버스 필터 → RS 필터 → 트렌드 템플릿 → 점수표 채점
 portfolio/    # ATR 기반 포지션 사이징, 리밸런싱
 backtest/     # 이벤트 기반 백테스트 엔진, 비용 모델, 성과 지표, 리포트
-pipeline/     # CLI 진입점 (run_screening.py)
+pipeline/     # CLI 진입점 (run_screening.py, weekly_brief.py)
+history/      # 주차별 스크리닝 결과 CSV 보관 (주간 브리핑의 "지난주 대비" 비교 대상)
 tests/        # 룩어헤드/생존편향 검증 테스트 포함
 scripts/      # cron/CI용 실행 스크립트
 ```
@@ -105,6 +106,31 @@ CAGR +37.5%, 기대값 +1.07R, 커트라인 바로 위(70~74점) 구간이 가�
 보여 커트라인 자체는 대체로 타당하나 "턱걸이 통과"는 신뢰도가 낮다는 정황을 확인했다. 위
 근사들 때문에 정밀한 숫자보다는 방향성 참고용으로 볼 것.
 
+## 주간 브리핑
+
+```bash
+bash scripts/weekly_screening.sh     # 스크리닝 CSV + 브리핑(.md)을 out/에 만들고 CSV를 history/에 보관
+```
+
+`pipeline/weekly_brief.py`는 이번 주 CSV를 `history/`의 직전 CSV와 비교해 편입/탈락/유지와
+점수 변화를 계산하고, 그 표를 근거로 Claude(`claude-opus-5`)에게 한글 해설을 받아 마크다운
+브리핑을 쓴다. 계산(`diff_screenings`)과 해설(`generate_brief`)이 분리되어 있어 비교 로직은
+API 없이 테스트된다 (`tests/test_weekly_brief.py`).
+
+- 비교 대상은 날짜를 계산하지 않고 `history/screening_YYYY-MM-DD.csv` 중 이번 주보다 앞선
+  **가장 최근 파일**을 쓴다 — 한 주를 걸러도 동작해야 하기 때문
+- 종목코드는 반드시 문자열로 읽는다(`dtype={"종목코드": str}`). `005930`이 `5930`이 되면
+  다음 주 비교에서 다른 종목으로 잡힌다
+- **해설 실패는 파이프라인을 죽이지 않는다**: `ANTHROPIC_API_KEY`가 없거나 API 호출이
+  실패하면 해설 없이 계산된 비교표만 담은 브리핑을 쓰고 정상 종료한다. DART 공백을 "그
+  종목만 0점"으로 처리하는 것과 같은 원칙 — 해설 생성 실패가 CSV 메일 발송까지 막으면 안 된다
+- 시스템 프롬프트에 "주어진 숫자만 근거로 쓸 것", "퀄리티/밸류 0점은 DART 데이터 공백일
+  가능성을 함께 언급할 것", "커트라인 +4점 이내는 백테스트상 가장 약한 구간이라 명시할 것"을
+  못박아 두었다. 점수표나 백테스트 결론이 바뀌면 `SYSTEM_PROMPT`도 같이 고칠 것
+- `run()`이 팩터별 기여 배점(`<factor>_points`)을 결과에 붙이고 `format_report()`가 이를
+  CSV 컬럼(모멘텀/추세/퀄리티/변동성/밸류 배점)으로 내보낸다 — 총점만으로는 "왜 통과했는지"를
+  설명할 수 없어서 브리핑이 이 분해를 근거로 쓴다
+
 ## 원칙 (위반하면 안 되는 것)
 
 1. **룩어헤드 금지**: 재무데이터는 `report_date + financial_data_lag_days <= as_of`인 것만 사용
@@ -141,7 +167,10 @@ CAGR +37.5%, 기대값 +1.07R, 커트라인 바로 위(70~74점) 구간이 가�
    커트라인 70점의 유효성을 확인함 (위 "백테스트" 섹션 참고). **단, 완전한 시점별 유니버스가
    아니라 "오늘 유니버스 고정" 근사** — 이 환경에서 pykrx의 시가총액/펀더멘털 스냅샷
    엔드포인트가 깨져 있어 진짜 생존편향 없는 유니버스 재구성은 아직 미구현
-6. 실행 결과가 안정적이면 `.github/workflows/quant-screening.yml`로 주말 자동화
+6. ~~실행 결과가 안정적이면 `.github/workflows/quant-screening.yml`로 주말 자동화~~ 완료 —
+   매주 토요일 07시(KST) 스크리닝 후 결과 CSV와 주간 브리핑을 메일로 발송하고, 이번 주 CSV를
+   `history/`에 커밋한다(다음 주 비교 대상). `ANTHROPIC_API_KEY` 시크릿이 없으면 해설 없이
+   비교표만 담긴 브리핑이 나간다
 7. 가이드 문서가 확보되면 `score_table.yaml`의 임시 배점(quality 20/volatility 15/value 10)과
    `quality_subscore`/`value_subscore`/`volatility_subscore`의 정규화 방식(선형 스케일링,
    구간 중앙 피크 등)을 그 기준으로 재검토

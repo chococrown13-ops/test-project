@@ -271,3 +271,50 @@ def test_format_report_renders_korean_headers_and_eok_units() -> None:
 
 def test_format_report_handles_empty_result() -> None:
     assert format_report(pd.DataFrame()).empty
+
+
+def test_run_attaches_per_factor_points(loose_config_dir) -> None:
+    """총점만으로는 "왜 통과했는지"를 알 수 없어 주간 브리핑이 팩터별 배점을 근거로 쓴다."""
+    pool = [
+        {"code": "GOOD", "name": "good corp", "price": 150.0, "change_rate": 1.0, "volume": 1000.0, "market_cap_eok": 1000.0},
+    ]
+    kis_source = StubKisSource(pool, {"GOOD": _uptrend_bars()})
+    dart_source = StubDartSource({}, configured=False)
+
+    result = run(date.today(), kis_source=kis_source, dart_source=dart_source)
+
+    point_columns = ["rs_score_points", "trend_score_points", "quality_score_points",
+                     "volatility_score_points", "value_score_points"]
+    assert all(column in result.columns for column in point_columns)
+    # DART 미설정이면 quality/value는 0점, 배점 합계는 총점과 같아야 한다
+    assert result.loc["GOOD", "quality_score_points"] == 0.0
+    assert result.loc["GOOD", "value_score_points"] == 0.0
+    assert sum(result.loc["GOOD", column] for column in point_columns) == pytest.approx(
+        result.loc["GOOD", "total_score"]
+    )
+
+
+def test_format_report_renders_point_breakdown_when_present() -> None:
+    df = pd.DataFrame(
+        {
+            "name": ["삼성전자"],
+            "price": [71234.0],
+            "change_rate": [1.234],
+            "market_cap_eok": [1100.0],
+            "avg_trading_value_20d": [50000000000.0],
+            "rs_percentile": [95.678],
+            "total_score": [82.345],
+            "rs_score_points": [28.71],
+            "trend_score_points": [25.0],
+            "quality_score_points": [0.0],
+            "volatility_score_points": [13.24],
+            "value_score_points": [0.0],
+        },
+        index=["005930"],
+    )
+
+    report = format_report(df)
+
+    assert list(report.columns)[-5:] == ["모멘텀배점", "추세배점", "퀄리티배점", "변동성배점", "밸류배점"]
+    assert report.loc["005930", "모멘텀배점"] == pytest.approx(28.7)
+    assert report.loc["005930", "퀄리티배점"] == 0.0
