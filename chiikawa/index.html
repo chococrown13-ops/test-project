@@ -1,0 +1,891 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#f8e2e8" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<title>치이카와 키우기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=DotGothic16&display=swap" />
+<style>
+:root{
+  --shell:#f8e2e8; --shell-2:#edc4d1; --shell-hi:#fffafc; --shell-edge:#d99fb2;
+  --bezel:#463743; --bezel-deep:#2b2029;
+  --lcd:#c6d4a0; --lcd-dim:#b2c289;
+  --ink:#2a3222; --ink-2:#5c6844; --ink-3:#87946a;
+  --berry:#e0708d; --berry-deep:#bc5273;
+  --gold:#eab445; --sky:#7fb6d9; --cream:#fff4e6;
+  --pad: clamp(10px, 3vw, 18px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  margin:0; background:
+    radial-gradient(120% 80% at 50% 0%, #fff3f7 0%, #fbe6ee 45%, #f2d6e2 100%);
+  color:var(--ink);
+  font-family:'Jua', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  min-height:100dvh;
+  overflow:hidden;
+}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+
+/* ---------- room / toy shell ---------- */
+.room{
+  min-height:100dvh; display:flex; align-items:center; justify-content:center;
+  padding:max(10px, env(safe-area-inset-top)) 14px max(10px, env(safe-area-inset-bottom));
+}
+.toy{
+  width:min(400px, 100%);
+  height:min(94dvh, 760px);
+  display:flex; flex-direction:column;
+  padding:var(--pad) var(--pad) calc(var(--pad) + 2px);
+  gap:clamp(8px,2vw,14px);
+  border-radius:46px / 52px;
+  background:
+    linear-gradient(160deg, var(--shell-hi) 0%, var(--shell) 30%, var(--shell-2) 100%);
+  box-shadow:
+    inset 0 3px 0 rgba(255,255,255,.95),
+    inset 0 -10px 18px rgba(190,120,145,.35),
+    inset 0 0 0 2px rgba(255,255,255,.5),
+    0 22px 40px -14px rgba(120,60,85,.45),
+    0 2px 0 var(--shell-edge);
+  position:relative;
+}
+.toy::after{ /* plastic sheen */
+  content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background:linear-gradient(112deg, rgba(255,255,255,.55) 0 18%, transparent 34% 100%);
+  opacity:.55;
+}
+
+/* ---------- name plate ---------- */
+.plate{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 6px}
+.plate .mark{display:flex; flex-direction:column; line-height:1}
+.plate .mark b{font-size:17px; letter-spacing:.5px; color:var(--berry-deep)}
+.plate .mark span{font-family:'DotGothic16',monospace; font-size:9.5px; letter-spacing:2.4px; color:#b58098; margin-top:3px}
+.chip{
+  font-family:'DotGothic16',monospace; font-size:11px; letter-spacing:1px;
+  padding:5px 9px; border-radius:999px; color:#a4657f;
+  background:rgba(255,255,255,.6); box-shadow:inset 0 0 0 1.5px rgba(212,150,175,.5);
+}
+.chip[aria-pressed="false"]{opacity:.45}
+
+/* ---------- screen block ---------- */
+.screen-frame{
+  flex:0 1 auto; min-height:0; display:flex; flex-direction:column; gap:6px;
+  padding:10px 10px 8px; border-radius:30px;
+  background:linear-gradient(180deg, var(--bezel) 0%, var(--bezel-deep) 100%);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.16), 0 6px 0 rgba(160,95,120,.35), 0 12px 20px -8px rgba(60,25,40,.5);
+}
+.iconrow{display:grid; grid-template-columns:repeat(4,1fr); gap:5px}
+.icon{
+  display:flex; flex-direction:column; align-items:center; gap:2px;
+  padding:4px 2px 3px; border-radius:10px; color:#e8dde3;
+  transition:background .12s, color .12s, transform .12s;
+}
+.icon svg{width:17px;height:17px;display:block}
+.icon small{font-size:9.5px; letter-spacing:.3px; opacity:.8}
+.icon[data-sel="1"]{background:var(--cream); color:var(--bezel-deep); transform:translateY(-1px)}
+.icon[data-sel="1"] small{opacity:1}
+.icon[data-alert="1"] svg{animation:blinkIcon .7s steps(1,end) infinite}
+@keyframes blinkIcon{50%{opacity:.15}}
+
+/* ---------- lcd ---------- */
+.lcd{
+  position:relative; flex:0 1 auto; width:100%; aspect-ratio:1/1.1; max-height:52dvh; overflow:hidden;
+  border-radius:14px;
+  background:linear-gradient(175deg, var(--lcd) 0%, var(--lcd-dim) 100%);
+  box-shadow: inset 0 0 0 2px #3a3b2a, inset 0 6px 14px rgba(60,70,40,.35);
+}
+.lcd .dots{
+  position:absolute; inset:0; pointer-events:none; z-index:6; mix-blend-mode:multiply; opacity:.5;
+  background-image:radial-gradient(rgba(40,50,25,.55) .6px, transparent .7px);
+  background-size:3px 3px;
+}
+.lcd .glare{
+  position:absolute; inset:0; pointer-events:none; z-index:7;
+  background:linear-gradient(118deg, rgba(255,255,255,.28) 0 24%, transparent 40%);
+}
+.lcd.off{filter:brightness(.42) saturate(.5)}
+.lcd.off .glare{opacity:.35}
+.lcd.flash{animation:flash .18s 2}
+@keyframes flash{50%{filter:invert(1)}}
+
+/* hud */
+.hud{
+  position:absolute; inset:6px 7px auto 7px; z-index:4;
+  display:flex; align-items:flex-start; justify-content:space-between; gap:6px;
+  font-family:'DotGothic16',monospace; font-size:10px; color:var(--ink); letter-spacing:.5px;
+}
+.gauges{display:flex; flex-direction:column; gap:3px}
+.gauge{display:flex; align-items:center; gap:4px}
+.gauge svg{width:11px;height:11px}
+.pips{display:flex; gap:2px}
+.pip{width:7px;height:8px; background:transparent; box-shadow:inset 0 0 0 1.5px var(--ink); border-radius:1px}
+.pip.on{background:var(--ink)}
+.pip.warn{animation:blinkIcon .6s steps(1,end) infinite}
+.meta{text-align:right; line-height:1.5; font-size:10px}
+.meta b{font-weight:400; color:var(--ink)}
+
+/* stage */
+.scene{position:absolute; inset:0; z-index:2}
+.ground{position:absolute; left:0; right:0; bottom:15%; height:1px; background:repeating-linear-gradient(90deg, var(--ink-3) 0 3px, transparent 3px 7px); opacity:.6}
+.pet-wrap{
+  position:absolute; bottom:15%; left:50%; width:44%; max-width:150px; aspect-ratio:1/1;
+  transform:translateX(calc(-50% + var(--x, 0px)));
+  transition:transform 2.4s linear;
+  z-index:3;
+}
+.pet{width:100%; height:100%; transform:scaleX(var(--dir,1)) scale(var(--sc,1)); transform-origin:50% 100%}
+.pet svg{width:100%;height:100%; overflow:visible; animation:bob 1.9s ease-in-out infinite}
+.pet .sh{fill:#fdfdf6; stroke:var(--ink); stroke-width:3.2; stroke-linejoin:round}
+.pet .ln{fill:none; stroke:var(--ink); stroke-width:3.2; stroke-linecap:round; stroke-linejoin:round}
+.pet .solid{fill:var(--ink)}
+.pet .blush{fill:#eb8aa4; opacity:.75}
+.pet .hair{fill:var(--sky)}
+.pet .inner{fill:#f0b6c4}
+.pet .band{fill:var(--berry)}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4%)}}
+
+/* moods: which parts show */
+.pet .eye-happy,.pet .eye-shut,.pet .eye-dizzy,.pet .m-smile,.pet .m-open,.pet .m-sad,.pet .tears,.pet .sweat,.pet .gear{display:none}
+.pet[data-blink="1"] .eye-open{display:none}
+.pet[data-blink="1"] .eye-shut{display:block}
+[data-mood="happy"] .eye-open{display:none}
+[data-mood="happy"] .eye-happy{display:block}
+[data-mood="happy"] .m-idle{display:none}
+[data-mood="happy"] .m-smile{display:block}
+[data-mood="happy"] svg{animation:hop .46s ease-in-out infinite}
+@keyframes hop{0%,100%{transform:translateY(0) scaleY(1)}30%{transform:translateY(-14%) scaleY(1.04)}60%{transform:translateY(0) scaleY(.94)}}
+[data-mood="eat"] .m-idle{display:none}
+[data-mood="eat"] .m-open{display:block}
+[data-mood="eat"] svg{animation:munch .28s ease-in-out infinite}
+@keyframes munch{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-2%) scale(1.05,.96)}}
+[data-mood="sad"] .eye-open,[data-mood="hungry"] .eye-open{display:block}
+[data-mood="sad"] .m-idle,[data-mood="hungry"] .m-idle{display:none}
+[data-mood="sad"] .m-sad,[data-mood="hungry"] .m-sad{display:block}
+[data-mood="sad"] .tears{display:block}
+[data-mood="sad"] svg,[data-mood="hungry"] svg{animation:sob 1.2s ease-in-out infinite}
+@keyframes sob{0%,100%{transform:translateY(0) rotate(0)}25%{transform:translateY(1%) rotate(-2deg)}75%{transform:translateY(1%) rotate(2deg)}}
+[data-mood="sleep"] .eye-open{display:none}
+[data-mood="sleep"] .eye-shut{display:block}
+[data-mood="sleep"] svg{animation:breathe 3.2s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(2%) scale(1.03,.97)}}
+[data-mood="sick"] .eye-open{display:none}
+[data-mood="sick"] .eye-dizzy{display:block}
+[data-mood="sick"] .m-idle{display:none}
+[data-mood="sick"] .m-sad{display:block}
+[data-mood="sick"] .sweat{display:block}
+[data-mood="sick"] .sh{fill:#e6ecd2}
+[data-mood="sick"] svg{animation:shiver .22s steps(2,end) infinite}
+@keyframes shiver{0%{transform:translateX(-1.2%)}100%{transform:translateX(1.2%)}}
+[data-stage="3"] .gear{display:block}
+
+/* egg */
+.egg{position:absolute; inset:0; display:grid; place-items:center; z-index:3}
+.egg svg{width:34%; animation:wobble 1.4s ease-in-out infinite; transform-origin:50% 90%}
+@keyframes wobble{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+
+/* poops + fx */
+.poop{position:absolute; bottom:14%; width:13%; max-width:36px; z-index:2; animation:pop .3s ease-out}
+@keyframes pop{from{transform:scale(0) translateY(6px)}to{transform:scale(1)}}
+.zzz{position:absolute; z-index:4; font-family:'DotGothic16',monospace; color:var(--ink); font-size:13px; animation:rise 2.2s ease-out infinite}
+@keyframes rise{0%{opacity:0;transform:translate(0,0) scale(.7)}20%{opacity:1}100%{opacity:0;transform:translate(14px,-34px) scale(1.2)}}
+.fx{position:absolute; inset:0; z-index:5; pointer-events:none}
+.particle{position:absolute; font-family:'DotGothic16',monospace; font-size:14px; color:var(--berry-deep); animation:float 1s ease-out forwards}
+@keyframes float{0%{opacity:1;transform:translateY(0) scale(.6)}100%{opacity:0;transform:translateY(-40px) scale(1.25)}}
+.bubble{
+  position:absolute; z-index:5; left:50%; bottom:48%; transform:translateX(calc(-50% + var(--x,0px))); transition:transform 2.4s linear;
+  background:#fdfdf6; color:var(--ink); border:2.5px solid var(--ink); border-radius:9px;
+  padding:4px 9px; font-size:12px; white-space:nowrap; animation:pop .22s ease-out;
+}
+.bubble::after{content:""; position:absolute; left:50%; bottom:-7px; width:8px; height:8px; background:#fdfdf6; border-right:2.5px solid var(--ink); border-bottom:2.5px solid var(--ink); transform:translateX(-50%) rotate(45deg)}
+.bubble[hidden]{display:none}
+
+/* panel (menus, games, status) */
+.panel{
+  position:absolute; inset:0; z-index:5; display:flex; flex-direction:column;
+  background:linear-gradient(175deg, var(--lcd) 0%, var(--lcd-dim) 100%);
+  padding:9px 10px 10px;
+}
+.panel[hidden]{display:none}
+.panel h2{
+  margin:0 0 7px; font-size:13px; letter-spacing:.5px; color:#fdfdf6;
+  background:var(--ink); border-radius:4px; padding:3px 8px; text-align:center;
+}
+.list{flex:1; min-height:0; overflow:auto; display:flex; flex-direction:column; gap:4px; scrollbar-width:none}
+.list::-webkit-scrollbar{display:none}
+.row{
+  display:flex; align-items:center; gap:7px; padding:6px 7px; border-radius:6px;
+  font-size:12.5px; line-height:1.25; text-align:left; width:100%;
+  box-shadow:inset 0 0 0 2px rgba(42,50,34,.28);
+}
+.row .cur{width:9px; font-family:'DotGothic16',monospace; opacity:0}
+.row[data-sel="1"]{background:var(--ink); color:var(--lcd)}
+.row[data-sel="1"] .cur{opacity:1}
+.row .nm{flex:1}
+.row .tag{font-family:'DotGothic16',monospace; font-size:11px; opacity:.85}
+.row:disabled{opacity:.4}
+.note{font-size:11px; text-align:center; color:var(--ink-2); margin-top:6px; line-height:1.4}
+
+/* status */
+.stat-grid{display:flex; flex-direction:column; gap:6px; font-size:12px}
+.bar-row{display:flex; align-items:center; gap:6px}
+.bar-row .lb{width:46px; font-size:11px}
+.bar{flex:1; height:9px; border-radius:2px; box-shadow:inset 0 0 0 2px var(--ink); overflow:hidden}
+.bar i{display:block; height:100%; background:var(--ink)}
+.facts{display:grid; grid-template-columns:1fr 1fr; gap:4px 8px; font-family:'DotGothic16',monospace; font-size:11px; color:var(--ink-2); margin-top:2px}
+.facts b{color:var(--ink); font-weight:400}
+.danger{color:var(--berry-deep); font-family:'Jua',sans-serif; font-size:11px; text-decoration:underline}
+
+/* minigame */
+.game{position:relative; flex:1; min-height:0; border-radius:8px; box-shadow:inset 0 0 0 2px rgba(42,50,34,.3); overflow:hidden}
+.timer{height:6px; margin-top:7px; border-radius:2px; box-shadow:inset 0 0 0 2px var(--ink); overflow:hidden}
+.timer i{display:block; height:100%; background:var(--ink); transition:width .25s linear}
+.mob{position:absolute; width:26%; max-width:62px; animation:pop .14s ease-out; cursor:pointer}
+.mob.hit{animation:boom .25s ease-out forwards}
+@keyframes boom{to{transform:scale(1.5); opacity:0}}
+.score{position:absolute; top:6px; left:8px; font-family:'DotGothic16',monospace; font-size:12px; z-index:2}
+.guess{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px}
+.gbtn{padding:9px 0; border-radius:8px; background:var(--ink); color:var(--lcd); font-size:13px}
+.gbtn:active{transform:translateY(1px)}
+.big{position:absolute; inset:0; display:grid; place-items:center; font-size:15px; text-align:center; line-height:1.5; padding:10px}
+
+/* toast */
+.toast{
+  position:absolute; left:8px; right:8px; bottom:8px; z-index:9;
+  background:var(--ink); color:var(--lcd); border-radius:7px; padding:7px 9px;
+  font-size:12px; line-height:1.35; text-align:center; animation:pop .2s ease-out;
+}
+.toast[hidden]{display:none}
+
+/* ---------- buttons ---------- */
+.pad{margin-top:auto; display:grid; grid-template-columns:repeat(3,1fr); gap:clamp(10px,5vw,26px); padding:2px clamp(6px,4vw,22px) 0; position:relative; z-index:1}
+.pbtn{
+  position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+  aspect-ratio:1/1; max-height:62px; margin:0 auto; width:100%; max-width:62px; border-radius:50%;
+  background:radial-gradient(circle at 34% 28%, #ffa9bf 0%, var(--berry) 46%, var(--berry-deep) 100%);
+  color:#fff6f9; font-size:14px; line-height:1;
+  box-shadow:0 5px 0 #9c3f5d, 0 9px 12px -4px rgba(120,40,65,.55), inset 0 2px 3px rgba(255,255,255,.5);
+  transition:transform .06s, box-shadow .06s;
+}
+.pbtn span{font-family:'DotGothic16',monospace; font-size:8.5px; letter-spacing:.5px; opacity:.9}
+.pbtn:active{transform:translateY(4px); box-shadow:0 1px 0 #9c3f5d, inset 0 2px 3px rgba(255,255,255,.4)}
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.001s !important; animation-iteration-count:1 !important; transition-duration:.001s !important}
+}
+@media (max-height:640px){
+  .plate .mark b{font-size:15px}
+  .pbtn{max-height:52px; max-width:52px}
+}
+</style>
+</head>
+<body>
+<div class="room">
+  <div class="toy">
+    <div class="plate">
+      <div class="mark">
+        <b>치이카와 키우기</b>
+        <span>CHIIKAWATCH v1</span>
+      </div>
+      <button class="chip" id="btnSound" aria-pressed="true">♪ SOUND</button>
+    </div>
+
+    <div class="screen-frame">
+      <div class="iconrow" id="rowTop"></div>
+
+      <div class="lcd" id="lcd">
+        <div class="scene" id="scene">
+          <div class="hud" id="hud"></div>
+          <div class="ground"></div>
+          <div id="poops"></div>
+          <div class="pet-wrap" id="petWrap"><div class="pet" id="pet"></div></div>
+          <div class="bubble" id="bubble" hidden></div>
+          <div class="fx" id="fx"></div>
+        </div>
+        <div class="panel" id="panel" hidden></div>
+        <div class="toast" id="toast" hidden></div>
+        <div class="dots"></div>
+        <div class="glare"></div>
+      </div>
+
+      <div class="iconrow" id="rowBottom"></div>
+    </div>
+
+    <div class="pad">
+      <button class="pbtn" id="btnA">A<span>이동</span></button>
+      <button class="pbtn" id="btnB">B<span>결정</span></button>
+      <button class="pbtn" id="btnC">C<span>취소</span></button>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+'use strict';
+const $ = (s, r=document) => r.querySelector(s);
+const clamp = (v,a=0,b=100) => Math.max(a, Math.min(b, v));
+const rand = (a,b) => a + Math.random()*(b-a);
+const pick1 = a => a[Math.floor(Math.random()*a.length)];
+
+/* ================= 아이콘 ================= */
+const I = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const ICONS = {
+  food : I('<path d="M3 11h18c0 5-4 8-9 8s-9-3-9-8Z"/><path d="M2 21h20"/><path d="M8 8c0-2 1.6-3.5 4-3.5S16 6 16 8"/>'),
+  play : I('<circle cx="12" cy="12" r="8"/><path d="M4.2 9c5 3 10.6 3 15.6 0M4.2 15c5-3 10.6-3 15.6 0"/><path d="M12 4v16"/>'),
+  hunt : I('<path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/>'),
+  clean: I('<path d="M12 3v8"/><path d="M6.5 11h11L19 20H5Z"/><path d="M10 14v3M14 14v3"/>'),
+  light: I('<path d="M9.5 18h5"/><path d="M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3Z"/>'),
+  med  : I('<rect x="3" y="8" width="18" height="8" rx="4"/><path d="M12 8v8"/>'),
+  stat : I('<path d="M12 20s-7-4.3-7-9a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 4.7-7 9-7 9Z"/>'),
+  shop : I('<path d="M4.5 9h15l-1 11h-13Z"/><path d="M8.5 9V6.5a3.5 3.5 0 0 1 7 0V9"/>'),
+};
+const MENU = [
+  {k:'food', label:'밥'},   {k:'play', label:'놀기'}, {k:'hunt', label:'토벌'}, {k:'clean',label:'청소'},
+  {k:'light',label:'불'},   {k:'med',  label:'약'},   {k:'stat', label:'상태'}, {k:'shop', label:'가게'},
+];
+
+/* ================= 캐릭터 스프라이트 ================= */
+const TYPES = {
+  chiikawa : {name:'치이카와', cry:['와아…','우와앙','히에…']},
+  hachiware: {name:'하치와레', cry:['이야~!','오늘도 화이팅!','에헤헤']},
+  usagi    : {name:'우사기',   cry:['우라!','하아?!','푸르르']},
+};
+function petSVG(type){
+  const body = 'M50 13C35 13 26 24 26 37c0 7 3 12 6 15-7 4-10 12-10 20 0 12 12 19 28 19s28-7 28-19c0-8-3-16-10-20 3-3 6-8 6-15 0-13-9-24-24-24Z';
+  let ears, hair = '';
+  if (type === 'usagi') {
+    ears = '<g><ellipse class="sh" cx="36" cy="2" rx="6.5" ry="17" transform="rotate(-9 36 2)"/><ellipse class="inner" cx="36" cy="2" rx="2.4" ry="10" transform="rotate(-9 36 2)"/>'
+         + '<ellipse class="sh" cx="64" cy="2" rx="6.5" ry="17" transform="rotate(9 64 2)"/><ellipse class="inner" cx="64" cy="2" rx="2.4" ry="10" transform="rotate(9 64 2)"/></g>';
+  } else if (type === 'hachiware') {
+    ears = '<g><path class="sh" d="M32 24 29 7l15 9Z"/><path class="sh" d="M68 24 71 7l-15 9Z"/></g>';
+    hair = '<path class="hair" d="M50 14c-13 1-22 11-23 24 0-1 0-2 .2-3C29 25 38 17 50 16Zm0 0c5 0 9 1 13 3l3-6c-5-2-10-3-16-3Z"/>';
+  } else {
+    ears = '<g><ellipse class="sh" cx="33" cy="17" rx="8.5" ry="9"/><ellipse class="sh" cx="67" cy="17" rx="8.5" ry="9"/></g>';
+  }
+  return `<svg viewBox="-8 -22 116 124" role="img" aria-label="${TYPES[type].name}">
+    ${ears}
+    <ellipse class="sh" cx="20" cy="66" rx="8" ry="6"/><ellipse class="sh" cx="80" cy="66" rx="8" ry="6"/>
+    <ellipse class="sh" cx="39" cy="89" rx="9" ry="5.5"/><ellipse class="sh" cx="61" cy="89" rx="9" ry="5.5"/>
+    <path class="sh" d="${body}"/>
+    ${hair}
+    <g class="gear"><path class="band" d="M28 29q22-13 44 0l-2 6q-20-11-40 0Z"/><path class="band" d="M70 32l9-4 2 7-9 1Z"/></g>
+    <g class="eye-open"><ellipse class="solid" cx="41" cy="36" rx="3.4" ry="4.5"/><ellipse class="solid" cx="59" cy="36" rx="3.4" ry="4.5"/></g>
+    <g class="eye-shut"><path class="ln" d="M37 37q4-4 8 0"/><path class="ln" d="M55 37q4-4 8 0"/></g>
+    <g class="eye-happy"><path class="ln" d="M37 38q4-7 8 0"/><path class="ln" d="M55 38q4-7 8 0"/></g>
+    <g class="eye-dizzy"><path class="ln" d="M38 33l6 6m0-6l-6 6"/><path class="ln" d="M56 33l6 6m0-6l-6 6"/></g>
+    <ellipse class="blush" cx="30" cy="46" rx="5.4" ry="3.4"/><ellipse class="blush" cx="70" cy="46" rx="5.4" ry="3.4"/>
+    <path class="m-idle ln" d="M45 46q2.5 3.6 5 0 2.5 3.6 5 0"/>
+    <path class="m-smile ln" d="M43 45q7 9 14 0"/>
+    <ellipse class="m-open solid" cx="50" cy="49" rx="4.6" ry="5.2"/>
+    <path class="m-sad ln" d="M44 50q6-6 12 0"/>
+    <g class="tears"><ellipse cx="34" cy="46" rx="2.6" ry="4.2" fill="#7fb6d9"/><ellipse cx="66" cy="46" rx="2.6" ry="4.2" fill="#7fb6d9"/></g>
+    <g class="sweat"><path class="ln" d="M78 22c3.5 5 3.5 8 0 8s-3.5-3 0-8Z"/></g>
+  </svg>`;
+}
+const EGG_SVG = `<svg viewBox="0 0 60 78"><path d="M30 3C14 3 4 27 4 45c0 18 12 30 26 30s26-12 26-30C56 27 46 3 30 3Z" fill="#fdfdf6" stroke="#2a3222" stroke-width="3.4"/>
+  <circle cx="20" cy="36" r="4.5" fill="#f0b6c4"/><circle cx="38" cy="26" r="3.5" fill="#f0b6c4"/><circle cx="40" cy="50" r="5" fill="#f0b6c4"/><circle cx="22" cy="58" r="3" fill="#f0b6c4"/></svg>`;
+const POOP_SVG = `<svg viewBox="0 0 40 34"><path fill="#2a3222" d="M9 33q-6 0-6-4.5T10 23q-4-1-4-4.5T13 14q-3-1-3-3.5T17 7q3-6 8.5-2.5T29 11q6 1 6 4.5T31 20q6 1 6 4.5T31 33Z"/></svg>`;
+const MOB_SVG = `<svg viewBox="0 0 60 60"><path d="M30 2l8 12 14-5-4 15 10 8-11 6 3 14-13-6-10 11-6-14-14-2 8-12L2 19l15-2Z" fill="#2a3222"/>
+  <circle cx="24" cy="29" r="4.2" fill="#e6ecd2"/><circle cx="38" cy="29" r="4.2" fill="#e6ecd2"/><path d="M24 40q6 4 12 0" stroke="#e6ecd2" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>`;
+
+/* ================= 상태 ================= */
+const KEY = 'chiikawatch.v1';
+const MIN = 60000, DAY_MIN = 4, OFFLINE_CAP = 180;
+const SHOP = [
+  {k:'castella', name:'카스테라', price:30,  desc:'배고픔 +25'},
+  {k:'ramen',    name:'라멘',     price:80,  desc:'배고픔 +55 · 행복 +15'},
+  {k:'cake',     name:'케이크',   price:60,  desc:'행복 +32 · 무게 +2'},
+  {k:'medicine', name:'약',       price:50,  desc:'아플 때 먹여요'},
+  {k:'doll',     name:'인형',     price:150, desc:'행복이 천천히 줄어요'},
+];
+const FOODS = {
+  grass   : {name:'풀 (공짜)',  hunger:12, happy:-3, weight:0, line:'풀…이라도 먹자'},
+  castella: {name:'카스테라',   hunger:25, happy:8,  weight:1, line:'달다아…'},
+  ramen   : {name:'라멘',       hunger:55, happy:15, weight:2, line:'라멘이다아!!'},
+  cake    : {name:'케이크',     hunger:14, happy:32, weight:2, line:'케에익!'},
+};
+const fresh = () => ({
+  v:1, born:Date.now(), last:Date.now(), stage:0, type:'chiikawa', taps:0,
+  hunger:70, happy:70, energy:80, bond:0, weight:5, gold:20, ageMin:0,
+  poops:[], poopTimer:3, sick:false, asleep:false, lightOff:false, neglect:0,
+  careGood:0, careBad:0, playCount:0, huntCount:0,
+  inv:{castella:0, ramen:1, cake:0, medicine:0}, doll:false, sound:true,
+});
+let S = fresh();
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} };
+function load(){
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    if (!d || d.v !== 1) return false;
+    S = Object.assign(fresh(), d);
+    S.inv = Object.assign({castella:0,ramen:0,cake:0,medicine:0}, d.inv||{});
+    return true;
+  } catch(e){ return false; }
+}
+
+/* ================= 소리 ================= */
+let ac = null;
+function beep(freq, dur=0.07, type='square', vol=0.05){
+  if (!S.sound) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === 'suspended') ac.resume();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+    o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime + dur);
+  } catch(e){}
+}
+const melody = (notes) => notes.forEach((n,i) => setTimeout(() => beep(n, .09), i*95));
+
+/* ================= 시간 경과 ================= */
+function applyElapsed(ms){
+  let m = ms / MIN;
+  if (!(m > 0)) return 0;
+  const away = m;
+  m = Math.min(m, OFFLINE_CAP);
+  if (S.stage === 0) return away;
+  S.ageMin += m;
+  const sickMul = S.sick ? 1.6 : 1;
+  if (S.asleep) {
+    S.energy = clamp(S.energy + 26*m);
+    S.hunger = clamp(S.hunger - 2*m);
+    S.happy  = clamp(S.happy  - 0.6*m);
+    if (S.energy >= 100 && !S.lightOff) S.asleep = false;
+  } else {
+    S.hunger = clamp(S.hunger - 5*m*sickMul);
+    S.happy  = clamp(S.happy  - (S.doll ? 3.2 : 4.4)*m*sickMul);
+    S.energy = clamp(S.energy - 3*m);
+    S.poopTimer -= m;
+    while (S.poopTimer <= 0 && S.poops.length < 4) {
+      S.poops.push(Math.round(rand(12, 76)));
+      S.poopTimer += rand(2.5, 5);
+    }
+    if (S.poops.length >= 2 && !S.sick && Math.random() < 0.05*m*S.poops.length) S.sick = true;
+  }
+  if (S.hunger <= 0 || S.happy <= 0) S.neglect += m; else S.neglect = Math.max(0, S.neglect - m*0.6);
+  while (S.neglect >= 2) {
+    S.neglect -= 2; S.careBad++; S.bond = clamp(S.bond - 6);
+    if (Math.random() < 0.45) S.sick = true;
+  }
+  checkEvolve();
+  return away;
+}
+function checkEvolve(){
+  const day = S.ageMin / DAY_MIN;
+  if (S.stage === 1 && day >= 1) {
+    S.stage = 2;
+    if (S.huntCount >= S.playCount + 2) S.type = 'usagi';
+    else if (S.playCount >= S.huntCount + 2) S.type = 'hachiware';
+    else S.type = 'chiikawa';
+    evolveFx(`${TYPES[S.type].name}(으)로 자랐어!`);
+  } else if (S.stage === 2 && day >= 3) {
+    S.stage = 3;
+    evolveFx(`${title()} ${TYPES[S.type].name}! 어른이 됐어`);
+  }
+}
+function evolveFx(msg){
+  drawPet();
+  lcd.classList.add('flash');
+  setTimeout(() => lcd.classList.remove('flash'), 500);
+  melody([660, 880, 1046, 1318]);
+  toast('★ ' + msg);
+}
+const title = () => S.careBad <= 1 ? '늠름한' : (S.careBad <= 4 ? '평범한' : '시무룩한');
+
+/* ================= DOM ================= */
+const lcd=$('#lcd'), scene=$('#scene'), petEl=$('#pet'), petWrap=$('#petWrap'), hud=$('#hud'),
+      poopBox=$('#poops'), bubble=$('#bubble'), fx=$('#fx'), panel=$('#panel'), toastEl=$('#toast'),
+      rowTop=$('#rowTop'), rowBottom=$('#rowBottom');
+const ui = {mode:'idle', sel:0, cursor:0, items:[], cleanup:null, forced:null, forcedUntil:0};
+let bubbleTimer, toastTimer, drawnType = null;
+
+/* ================= 표시 ================= */
+function buildIcons(){
+  const cell = (m,i) => `<button class="icon" data-i="${i}" data-k="${m.k}">${ICONS[m.k]}<small>${m.label}</small></button>`;
+  rowTop.innerHTML    = MENU.slice(0,4).map((m,i) => cell(m,i)).join('');
+  rowBottom.innerHTML = MENU.slice(4).map((m,i) => cell(m,i+4)).join('');
+  [...document.querySelectorAll('.icon')].forEach(b => b.onclick = () => {
+    ui.sel = +b.dataset.i; beep(1200,.04); renderIcons(); runIcon(b.dataset.k);
+  });
+}
+function alerts(){
+  return {
+    food : S.stage>0 && S.hunger < 35,
+    play : S.stage>0 && S.happy  < 35,
+    clean: S.poops.length > 0,
+    med  : S.sick,
+    light: S.stage>0 && S.energy < 25 && !S.lightOff,
+    hunt : false, stat:false, shop:false,
+  };
+}
+function renderIcons(){
+  const al = alerts();
+  [...document.querySelectorAll('.icon')].forEach(b => {
+    b.dataset.sel   = (+b.dataset.i === ui.sel && ui.mode === 'idle') ? 1 : 0;
+    b.dataset.alert = al[b.dataset.k] ? 1 : 0;
+  });
+}
+function pips(v){
+  let h = '';
+  for (let i=0;i<4;i++) h += `<span class="pip ${v > i*25 ? 'on' : ''} ${v<=25&&i===0?'warn':''}"></span>`;
+  return `<span class="pips">${h}</span>`;
+}
+const HEART = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-8-4.9-8-10.4A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8 3.6C20 16.1 12 21 12 21Z"/></svg>';
+const BOWL  = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 10h20c0 6-4.5 10-10 10S2 16 2 10Z"/><path d="M1 21h22v2.4H1z"/></svg>';
+function renderHUD(){
+  if (S.stage === 0) { hud.innerHTML = '<div class="gauges"></div><div class="meta">알</div>'; return; }
+  const day = Math.floor(S.ageMin/DAY_MIN) + 1;
+  const flag = S.sick ? '아픔' : (S.asleep ? '수면' : (S.energy<25 ? '졸림' : ''));
+  hud.innerHTML =
+    `<div class="gauges">
+       <div class="gauge">${BOWL}${pips(S.hunger)}</div>
+       <div class="gauge">${HEART}${pips(S.happy)}</div>
+     </div>
+     <div class="meta"><b>${day}일차</b><br>G ${Math.floor(S.gold)}${flag?`<br>${flag}`:''}</div>`;
+}
+function drawPet(){
+  if (S.stage === 0) { petWrap.style.display='none'; if(!$('#egg')) scene.insertAdjacentHTML('beforeend', `<div class="egg" id="egg">${EGG_SVG}</div>`); return; }
+  const egg = $('#egg'); if (egg) egg.remove();
+  petWrap.style.display = '';
+  if (drawnType !== S.type) { petEl.innerHTML = petSVG(S.type); drawnType = S.type; }
+  petEl.dataset.stage = S.stage;
+  petEl.style.setProperty('--sc', S.stage===1 ? .68 : S.stage===2 ? .85 : 1);
+}
+function renderPoops(){
+  poopBox.innerHTML = S.poops.map(x => `<div class="poop" style="left:${x}%">${POOP_SVG}</div>`).join('');
+}
+function currentMood(){
+  if (S.stage === 0) return 'egg';
+  if (ui.forced && Date.now() < ui.forcedUntil) return ui.forced;
+  if (S.asleep) return 'sleep';
+  if (S.sick) return 'sick';
+  if (S.hunger < 25) return 'hungry';
+  if (S.happy  < 25) return 'sad';
+  return 'idle';
+}
+function renderMood(){
+  const m = currentMood();
+  petEl.dataset.mood = m;
+  lcd.classList.toggle('off', S.lightOff);
+  const z = $('#zzz');
+  if (m === 'sleep' && !z) scene.insertAdjacentHTML('beforeend', '<div class="zzz" id="zzz" style="left:62%;bottom:44%">z z</div>');
+  if (m !== 'sleep' && z) z.remove();
+}
+function render(){ renderIcons(); renderHUD(); renderPoops(); drawPet(); renderMood(); }
+
+function say(text, ms=1800){
+  bubble.textContent = text; bubble.hidden = false;
+  clearTimeout(bubbleTimer); bubbleTimer = setTimeout(() => bubble.hidden = true, ms);
+}
+function toast(text, ms=2600){
+  toastEl.textContent = text; toastEl.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.hidden = true, ms);
+}
+function burst(ch='♥', n=3){
+  for (let i=0;i<n;i++){
+    const el = document.createElement('div');
+    el.className = 'particle'; el.textContent = ch;
+    el.style.left = rand(30,66)+'%'; el.style.top = rand(34,52)+'%';
+    el.style.animationDelay = (i*0.09)+'s';
+    fx.appendChild(el); setTimeout(() => el.remove(), 1200);
+  }
+}
+function feel(mood, ms=1600){ ui.forced = mood; ui.forcedUntil = Date.now()+ms; renderMood(); setTimeout(renderMood, ms+30); }
+
+/* 걸어다니기 */
+setInterval(() => {
+  if (ui.mode !== 'idle' || S.stage === 0 || S.asleep || S.sick) return;
+  if (Math.random() < 0.45) {
+    const x = Math.round(rand(-52, 52));
+    const prev = parseFloat(scene.style.getPropertyValue('--x')) || 0;
+    scene.style.setProperty('--x', x+'px');
+    petEl.style.setProperty('--dir', x < prev ? -1 : 1);
+  }
+}, 2600);
+/* 눈 깜빡임 */
+setInterval(() => {
+  if (S.stage === 0 || S.asleep) return;
+  petEl.dataset.blink = 1; setTimeout(() => petEl.dataset.blink = 0, 130);
+}, 4200);
+
+/* ================= 패널 ================= */
+function openList(title, items, note){
+  ui.mode = 'panel'; ui.items = items; ui.cursor = 0;
+  panel.hidden = false;
+  panel.innerHTML = `<h2>${title}</h2><div class="list" id="plist"></div>${note ? `<div class="note">${note}</div>` : ''}`;
+  renderList(); renderIcons();
+}
+function renderList(){
+  const list = $('#plist', panel); if (!list) return;
+  list.innerHTML = ui.items.map((it,i) =>
+    `<button class="row" data-i="${i}" data-sel="${i===ui.cursor?1:0}" ${it.off?'disabled':''}>
+       <span class="cur">&#9658;</span><span class="nm">${it.name}</span><span class="tag">${it.tag||''}</span>
+     </button>`).join('');
+  [...list.querySelectorAll('.row')].forEach(b => b.onclick = () => { ui.cursor = +b.dataset.i; renderList(); choose(); });
+}
+function choose(){
+  const it = ui.items[ui.cursor];
+  if (!it || it.off) { beep(220,.12); return; }
+  beep(1180,.05); it.run();
+}
+function closePanel(){
+  if (ui.cleanup) { ui.cleanup(); ui.cleanup = null; }
+  panel.hidden = true; panel.innerHTML = '';
+  ui.mode = 'idle'; ui.items = [];
+  render();
+}
+
+/* ================= 행동 ================= */
+function runIcon(k){
+  if (ui.mode !== 'idle') { closePanel(); }
+  if (S.stage === 0) { say('아직 알이야!'); return; }
+  if (S.asleep && k !== 'light' && k !== 'stat') { say('쿨쿨…'); return; }
+  ({food:openFood, play:playGame, hunt:huntGame, clean:doClean, light:toggleLight, med:useMed, stat:openStatus, shop:openShop})[k]();
+}
+function openFood(){
+  const items = [{name:FOODS.grass.name, tag:'0G', run:() => eat('grass')}];
+  ['castella','ramen','cake'].forEach(k => items.push({
+    name:FOODS[k].name, tag:'x'+S.inv[k], off:S.inv[k] <= 0, run:() => { S.inv[k]--; eat(k); }
+  }));
+  openList('밥 주기', items, '가게에서 산 음식은 여기에 쌓여요');
+}
+function eat(k){
+  const f = FOODS[k];
+  if (S.hunger > 96) { toast('배가 너무 불러…'); return; }
+  closePanel();
+  S.hunger = clamp(S.hunger + f.hunger);
+  S.happy  = clamp(S.happy + f.happy);
+  S.weight += f.weight; S.bond = clamp(S.bond + 2); S.careGood++;
+  S.poopTimer = Math.min(S.poopTimer, 1.6);
+  feel('eat', 1700); burst('♪', 2); melody([740, 880]);
+  say(f.line);
+  save();
+}
+function doClean(){
+  if (!S.poops.length) { say('이미 깨끗해!'); return; }
+  S.poops = []; S.bond = clamp(S.bond + 1); S.careGood++;
+  burst('✧', 4); beep(1500,.06); melody([880, 1174]);
+  say('반짝반짝!'); save(); render();
+}
+function toggleLight(){
+  S.lightOff = !S.lightOff;
+  beep(S.lightOff ? 420 : 900, .09);
+  if (S.lightOff) {
+    if (S.energy < 45) { S.asleep = true; say('쿨…쿨…', 2400); }
+    else { say('아직 안 졸린데…'); }
+  } else {
+    if (S.asleep) {
+      if (S.energy < 85) { S.careBad++; S.bond = clamp(S.bond - 3); say('으앙! 아직 졸린데…'); }
+      else say('잘 잤다!');
+      S.asleep = false;
+    }
+  }
+  save(); render();
+}
+function useMed(){
+  if (!S.sick) { say('안 아픈데?'); return; }
+  if (S.inv.medicine <= 0) { toast('약이 없어요. 가게에서 살 수 있어요'); return; }
+  S.inv.medicine--; S.sick = false; S.happy = clamp(S.happy + 6); S.careGood++;
+  melody([1046, 784, 1046]); burst('+', 3); say('살았다…'); save(); render();
+}
+function openShop(){
+  const items = SHOP.map(it => ({
+    name: it.name, tag: it.price + 'G',
+    off: S.gold < it.price || (it.k === 'doll' && S.doll),
+    run: () => {
+      S.gold -= it.price;
+      if (it.k === 'doll') { S.doll = true; S.happy = clamp(S.happy + 10); }
+      else S.inv[it.k]++;
+      melody([980, 1320]); toast(`${it.name} 구입! (남은 돈 ${Math.floor(S.gold)}G)`);
+      save(); openShop();
+    }
+  }));
+  openList(`가게 · ${Math.floor(S.gold)}G`, items, '토벌로 돈을 벌 수 있어요');
+}
+function openStatus(){
+  ui.mode = 'panel'; ui.items = []; panel.hidden = false;
+  const day = Math.floor(S.ageMin/DAY_MIN) + 1;
+  const stageName = ['알','아기','어린이','어른'][S.stage];
+  const bar = (lb,v) => `<div class="bar-row"><span class="lb">${lb}</span><span class="bar"><i style="width:${clamp(v)}%"></i></span></div>`;
+  panel.innerHTML = `<h2>상태</h2>
+    <div class="list">
+      <div class="stat-grid">
+        <div style="font-size:13px">${S.stage>=3?title()+' ':''}${TYPES[S.type].name} · ${stageName}</div>
+        ${bar('배고픔', S.hunger)}${bar('행복', S.happy)}${bar('체력', S.energy)}${bar('친밀도', S.bond)}
+        <div class="facts">
+          <span>나이 <b>${day}일</b></span><span>무게 <b>${S.weight}kg</b></span>
+          <span>소지금 <b>${Math.floor(S.gold)}G</b></span><span>똥 <b>${S.poops.length}개</b></span>
+          <span>토벌 <b>${S.huntCount}회</b></span><span>놀이 <b>${S.playCount}회</b></span>
+          <span>돌봄 실수 <b>${S.careBad}회</b></span><span>인형 <b>${S.doll?'있음':'없음'}</b></span>
+        </div>
+        <button class="danger" id="resetBtn">처음부터 다시 키우기</button>
+      </div>
+    </div>
+    <div class="note">4분마다 하루가 지나요 · 1일차에 어린이, 3일차에 어른이 돼요</div>`;
+  $('#resetBtn', panel).onclick = () => {
+    if (!confirm('지금까지 키운 아이가 사라져요. 정말 처음부터 시작할까요?')) return;
+    S = fresh(); save(); drawnType = null; closePanel(); toast('새로운 알이 도착했어요!');
+  };
+  renderIcons();
+}
+
+/* ================= 놀아주기 (방향 맞히기) ================= */
+function playGame(){
+  if (S.sick) { say('아파서 못 놀겠어…'); return; }
+  if (S.energy < 12) { toast('너무 피곤해요. 불을 꺼서 재워주세요'); return; }
+  let round = 0, win = 0;
+  ui.mode = 'game'; panel.hidden = false;
+  panel.innerHTML = `<h2>놀아주기</h2>
+    <div class="game"><div class="score" id="sc">1 / 3</div><div class="big" id="show">어느 쪽으로<br>고개를 돌릴까?</div></div>
+    <div class="guess"><button class="gbtn" data-d="-1">← 왼쪽</button><button class="gbtn" data-d="1">오른쪽 →</button></div>`;
+  const show = $('#show', panel), sc = $('#sc', panel);
+  [...panel.querySelectorAll('.gbtn')].forEach(b => b.onclick = () => {
+    if (round >= 3) return;
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const ok = (+b.dataset.d === dir);
+    if (ok) win++;
+    round++;
+    beep(ok ? 1320 : 300, .1);
+    show.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <div style="width:76px" class="pet" data-mood="${ok?'happy':'sad'}" data-stage="${S.stage}"><div style="transform:scaleX(${dir})">${petSVG(S.type)}</div></div>
+      <div style="font-family:DotGothic16,monospace">${ok ? '○ 맞혔다!' : '✕ 빗나감'}</div></div>`;
+    sc.textContent = Math.min(round+1, 3) + ' / 3';
+    if (round >= 3) setTimeout(() => finishPlay(win), 900);
+  });
+  renderIcons();
+}
+function finishPlay(win){
+  S.playCount++; S.energy = clamp(S.energy - 10); S.hunger = clamp(S.hunger - 4);
+  if (win >= 2) { S.happy = clamp(S.happy + 26); S.bond = clamp(S.bond + 5); S.gold += 10; S.careGood++; }
+  else S.happy = clamp(S.happy + 8);
+  closePanel();
+  feel(win >= 2 ? 'happy' : 'sad', 1800);
+  burst(win >= 2 ? '♥' : '·', 3);
+  if (win >= 2) { melody([880,1046,1318]); say(pick1(TYPES[S.type].cry)); toast(`${win}승! 행복 +26, 10G`); }
+  else { beep(330,.16); toast(`${win}승… 다음엔 이기자`); }
+  save(); render();
+}
+
+/* ================= 토벌 (요괴 잡기) ================= */
+function huntGame(){
+  if (S.sick) { say('아파서 토벌은 무리야…'); return; }
+  if (S.energy < 20) { toast('체력이 부족해요. 불을 꺼서 재워주세요'); return; }
+  if (S.hunger < 15) { toast('배가 고파서 힘이 안 나요'); return; }
+  let gold = 0, hits = 0, combo = 0, left = 15;
+  ui.mode = 'game'; panel.hidden = false;
+  panel.innerHTML = `<h2>토벌</h2>
+    <div class="game" id="arena"><div class="score" id="sc">0G</div></div>
+    <div class="timer"><i id="tbar" style="width:100%"></i></div>
+    <div class="note">튀어나오는 요괴를 탭! · 15초</div>`;
+  const arena = $('#arena', panel), sc = $('#sc', panel), tbar = $('#tbar', panel);
+  let spawnT, tickT;
+  const spawn = () => {
+    const el = document.createElement('div');
+    el.className = 'mob'; el.innerHTML = MOB_SVG;
+    el.style.left = rand(6, 68) + '%'; el.style.top = rand(10, 62) + '%';
+    el.onclick = () => {
+      if (el.classList.contains('hit')) return;
+      el.classList.add('hit');
+      combo++; hits++;
+      const g = 8 + Math.min(combo, 6) * 2;
+      gold += g; sc.textContent = gold + 'G' + (combo > 1 ? ` (${combo}연속)` : '');
+      beep(900 + combo*70, .05);
+      setTimeout(() => el.remove(), 250);
+    };
+    arena.appendChild(el);
+    setTimeout(() => { if (el.isConnected && !el.classList.contains('hit')) { combo = 0; el.remove(); } }, 900);
+    spawnT = setTimeout(spawn, rand(420, 900));
+  };
+  tickT = setInterval(() => {
+    left -= 0.25; tbar.style.width = Math.max(0, left/15*100) + '%';
+    if (left <= 0) finishHunt(gold, hits);
+  }, 250);
+  ui.cleanup = () => { clearTimeout(spawnT); clearInterval(tickT); };
+  spawn(); renderIcons();
+}
+function finishHunt(gold, hits){
+  if (ui.cleanup) { ui.cleanup(); ui.cleanup = null; }
+  S.huntCount++; S.gold += gold;
+  S.energy = clamp(S.energy - 16); S.hunger = clamp(S.hunger - 9);
+  S.happy = clamp(S.happy + (hits ? 12 : -4));
+  closePanel();
+  if (hits) { feel('happy', 1700); melody([784, 988, 1318]); say(pick1(TYPES[S.type].cry)); }
+  else { feel('sad', 1700); beep(300, .18); }
+  toast(`요괴 ${hits}마리 토벌! ${gold}G 획득 (총 ${Math.floor(S.gold)}G)`);
+  save(); render();
+}
+
+/* ================= 입력 ================= */
+$('#btnA').onclick = () => {
+  beep(1000, .04);
+  if (ui.mode === 'panel' && ui.items.length) { ui.cursor = (ui.cursor + 1) % ui.items.length; renderList(); }
+  else if (ui.mode === 'idle') { ui.sel = (ui.sel + 1) % MENU.length; renderIcons(); }
+};
+$('#btnB').onclick = () => {
+  if (ui.mode === 'panel' && ui.items.length) { choose(); return; }
+  if (ui.mode === 'idle') { beep(1300, .05); runIcon(MENU[ui.sel].k); }
+};
+$('#btnC').onclick = () => {
+  beep(560, .06);
+  if (ui.mode !== 'idle') closePanel();
+  else { ui.sel = (ui.sel + MENU.length - 1) % MENU.length; renderIcons(); }
+};
+scene.onclick = () => {
+  if (ui.mode !== 'idle') return;
+  if (S.stage === 0) {
+    S.taps++; beep(700 + S.taps*120, .06);
+    if (S.taps >= 3) { S.stage = 1; S.born = Date.now(); melody([660,880,1046,1318]); toast('삐약! 아이가 태어났어요'); say('안녕…!'); }
+    else say('톡… 톡…');
+    save(); render(); return;
+  }
+  if (S.asleep) { say('쿨쿨…'); return; }
+  S.happy = clamp(S.happy + 4); S.bond = clamp(S.bond + 1);
+  burst('♥', 2); beep(1100, .05); feel('happy', 1100);
+  if (Math.random() < 0.5) say(pick1(TYPES[S.type].cry), 1200);
+  save(); renderHUD();
+};
+$('#btnSound').onclick = e => {
+  S.sound = !S.sound;
+  e.currentTarget.setAttribute('aria-pressed', S.sound);
+  e.currentTarget.textContent = S.sound ? '♪ SOUND' : '♪ MUTE';
+  if (S.sound) beep(1200, .06);
+  save();
+};
+
+/* ================= 루프 ================= */
+function sync(){
+  const now = Date.now();
+  const away = applyElapsed(now - (S.last || now));
+  S.last = now;
+  return away;
+}
+setInterval(() => { sync(); render(); save(); }, 1000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') { S.last = Date.now(); save(); return; }
+  const away = sync(); render();
+  if (away > 2) toast(`${away >= 60 ? Math.floor(away/60)+'시간' : Math.round(away)+'분'} 만이야! 보고 싶었어`);
+});
+
+/* ================= 시작 ================= */
+buildIcons();
+const had = load();
+$('#btnSound').setAttribute('aria-pressed', S.sound);
+$('#btnSound').textContent = S.sound ? '♪ SOUND' : '♪ MUTE';
+if (had) {
+  const away = sync();
+  render();
+  if (away > 2) setTimeout(() => toast(`${away >= 60 ? Math.floor(away/60)+'시간' : Math.round(away)+'분'} 만이야! 보고 싶었어`), 400);
+  else if (S.stage > 0) setTimeout(() => say(pick1(TYPES[S.type].cry)), 500);
+} else {
+  render();
+  setTimeout(() => toast('알을 세 번 톡톡 두드려 보세요'), 500);
+}
+save();
+})();
+</script>
+</body>
+</html>

@@ -36,6 +36,10 @@ jobs:
       - name: Build
         run: npm run build
 
+      # 빌드 도구가 없는 단일 파일 게임이라 dist 안으로 그대로 복사한다.
+      - name: Copy standalone games
+        run: cp -r chiikawa dist/chiikawa
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
