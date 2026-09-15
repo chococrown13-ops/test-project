@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="자격·경력·학력·교육 점수로 건설기술인 등급과 다음 등급까지 남은 점수를 계산합니다.">
+<title>건설기술인 역량지수 계산기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap">
+<style>
+:root{
+  --ground:#F6F5F2; --surface:#FFFFFF; --surface-2:#EFEEEA;
+  --ink:#191C1F; --ink-2:#4A5158; --ink-3:#7C848C;
+  --line:#DEDCD6; --line-2:#C9C6BE;
+  --accent:#2B5F8A; --accent-soft:#E4EDF4;
+  --g0:#8A8F98; --g1:#7E848D; --g2:#2B5F8A; --g3:#1E7A5E; --g4:#9E5F18;
+  --warn:#A8501B; --warn-bg:#F7EDE3;
+  --mono:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#14171A; --surface:#1B1F23; --surface-2:#23282D;
+    --ink:#E9EBED; --ink-2:#AAB2BA; --ink-3:#7B848C;
+    --line:#2C3238; --line-2:#3B434A;
+    --accent:#6FA6D2; --accent-soft:#1E2B37;
+    --g0:#818A93; --g1:#8F98A1; --g2:#6FA6D2; --g3:#4FA987; --g4:#C99154;
+    --warn:#D68C55; --warn-bg:#2A2119;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#14171A; --surface:#1B1F23; --surface-2:#23282D;
+  --ink:#E9EBED; --ink-2:#AAB2BA; --ink-3:#7B848C;
+  --line:#2C3238; --line-2:#3B434A;
+  --accent:#6FA6D2; --accent-soft:#1E2B37;
+  --g0:#818A93; --g1:#8F98A1; --g2:#6FA6D2; --g3:#4FA987; --g4:#C99154;
+  --warn:#D68C55; --warn-bg:#2A2119;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--ground); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1060px; margin:0 auto; padding-block:32px 64px; padding-left:20px; padding-right:20px}
+
+/* ---- header ---- */
+header{border-bottom:2px solid var(--ink); padding-bottom:16px; margin-bottom:28px}
+.eyebrow{
+  font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--ink-3); margin:0 0 6px;
+}
+h1{font-size:28px; font-weight:600; letter-spacing:-.02em; margin:0; text-wrap:balance}
+.sub{color:var(--ink-2); font-size:14px; margin:6px 0 0; max-width:62ch}
+
+/* ---- layout ---- */
+.cols{display:grid; grid-template-columns:1fr 1fr; gap:28px; align-items:start}
+@media (max-width:860px){ .cols{grid-template-columns:1fr; gap:24px} }
+
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:22px}
+.panel + .panel{margin-top:20px}
+.panel h2{
+  font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--ink-3); font-weight:500; margin:0 0 16px; padding-bottom:10px; border-bottom:1px solid var(--line);
+}
+
+/* ---- form ---- */
+.field{display:flex; flex-direction:column; gap:6px; margin-bottom:18px}
+.field:last-child{margin-bottom:0}
+label{font-size:13px; font-weight:500; color:var(--ink-2)}
+.hint{font-size:12px; color:var(--ink-3); line-height:1.5}
+select,input[type=number]{
+  font-family:var(--sans); font-size:15px; color:var(--ink);
+  background:var(--ground); border:1px solid var(--line-2); border-radius:3px;
+  padding:9px 10px; width:100%;
+}
+input[type=number]{font-family:var(--mono); font-variant-numeric:tabular-nums}
+select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.seg{display:flex; border:1px solid var(--line-2); border-radius:3px; overflow:hidden}
+.seg button{
+  flex:1; font-family:var(--sans); font-size:13px; padding:9px 6px; border:0; cursor:pointer;
+  background:var(--ground); color:var(--ink-2);
+}
+.seg button[aria-pressed=true]{background:var(--accent); color:#fff; font-weight:500}
+.row2{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+
+/* ---- result ---- */
+.result-top{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap}
+.grade{
+  font-size:34px; font-weight:700; letter-spacing:-.02em; line-height:1.1;
+}
+.icec{font-family:var(--mono); font-size:15px; color:var(--ink-2); font-variant-numeric:tabular-nums}
+.icec b{font-size:24px; color:var(--ink); font-weight:600}
+
+.gap{margin-top:20px}
+.gap-label{display:flex; justify-content:space-between; font-size:12px; color:var(--ink-2); margin-bottom:6px}
+.gap-label span:last-child{font-family:var(--mono); font-variant-numeric:tabular-nums}
+.track{height:8px; background:var(--surface-2); border-radius:99px; overflow:hidden}
+.track i{display:block; height:100%; background:var(--accent); border-radius:99px; transition:width .35s ease}
+
+/* ---- breakdown ---- */
+.bd{display:flex; flex-direction:column; gap:12px}
+.bd-row{display:grid; grid-template-columns:60px 1fr 74px; align-items:center; gap:12px}
+.bd-name{font-size:13px; color:var(--ink-2)}
+.bd-track{height:6px; background:var(--surface-2); border-radius:99px; overflow:hidden}
+.bd-track i{display:block; height:100%; border-radius:99px; background:var(--accent); transition:width .35s ease}
+.bd-val{font-family:var(--mono); font-size:13px; text-align:right; font-variant-numeric:tabular-nums; color:var(--ink)}
+.bd-val small{color:var(--ink-3)}
+
+/* ---- levers ---- */
+.lever{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:11px 0; border-bottom:1px dashed var(--line)}
+.lever:last-child{border-bottom:0; padding-bottom:0}
+.lever-t{font-size:13px; color:var(--ink)}
+.lever-t em{display:block; font-style:normal; font-size:12px; color:var(--ink-3); margin-top:2px}
+.lever-d{font-family:var(--mono); font-size:13px; font-weight:500; white-space:nowrap; font-variant-numeric:tabular-nums}
+.up{color:var(--g3)}
+
+/* ---- ladder ---- */
+table{width:100%; border-collapse:collapse; font-size:13px}
+th,td{text-align:left; padding:7px 8px; border-bottom:1px solid var(--line)}
+th{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:500}
+td.n{font-family:var(--mono); text-align:right; font-variant-numeric:tabular-nums}
+tr.here td{background:var(--accent-soft); font-weight:600}
+.tw{overflow-x:auto}
+
+/* ---- notice ---- */
+.notice{
+  background:var(--warn-bg); border-left:3px solid var(--warn); border-radius:0 3px 3px 0;
+  padding:14px 16px; font-size:13px; color:var(--ink-2); line-height:1.6;
+}
+.notice b{color:var(--warn); display:block; font-size:12px; letter-spacing:.04em; margin-bottom:5px}
+footer{margin-top:28px; font-size:12px; color:var(--ink-3); line-height:1.7}
+footer a{color:var(--accent)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<style>
+:root{color-scheme:light dark;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+img{max-width:100%}[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="eyebrow">건설기술 진흥법 시행규칙 별표 3</p>
+  <h1>건설기술인 역량지수 계산기</h1>
+  <p class="sub">자격·경력·학력·교육 점수를 합산해 현재 등급과 다음 등급까지 남은 점수를 계산합니다. 감리 등 건설사업관리 업무는 등급 기준선이 별도로 적용됩니다.</p>
+</header>
+
+<div class="cols">
+  <!-- INPUT -->
+  <div>
+    <div class="panel">
+      <h2>업무 분야</h2>
+      <div class="field">
+        <div class="seg" role="group" aria-label="업무 분야">
+          <button type="button" id="fieldGen" aria-pressed="false">설계·시공 등 일반</button>
+          <button type="button" id="fieldCm" aria-pressed="true">건설사업관리(감리)</button>
+        </div>
+        <p class="hint">감리·건설사업관리는 일반 분야보다 등급 기준선이 5점씩 높습니다.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>입력</h2>
+
+      <div class="field">
+        <label for="qual">보유 자격 <span class="hint">(가장 높은 것 하나)</span></label>
+        <select id="qual">
+          <option value="40">기술사 · 건축사</option>
+          <option value="30" selected>기사 · 기능장</option>
+          <option value="20">산업기사</option>
+          <option value="15">기능사</option>
+          <option value="0">해당 없음</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="edu">최종 학력</label>
+        <select id="edu">
+          <option value="20">박사</option>
+          <option value="18">석사</option>
+          <option value="16" selected>학사</option>
+          <option value="14">전문학사 (3년)</option>
+          <option value="12">전문학사 (2년)</option>
+          <option value="10">고등학교 졸업</option>
+        </select>
+        <p class="hint">관련 학과 기준입니다. 비관련 학과는 배점이 낮아집니다.</p>
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label for="yrs">인정 경력 (년)</label>
+          <input type="number" id="yrs" value="2" min="0" max="45" step="0.5">
+        </div>
+        <div class="field">
+          <label for="hrs">교육 이수 (시간)</label>
+          <input type="number" id="hrs" value="0" min="0" max="200" step="1">
+        </div>
+      </div>
+      <p class="hint">경력은 보정계수가 반영된 인정 경력입니다. 교육은 35시간당 1점, 최대 3점이며 이수 후 3년간 유효합니다.</p>
+    </div>
+
+    <div class="panel">
+      <h2>등급 기준선</h2>
+      <div class="tw"><table>
+        <thead><tr><th>등급</th><th style="text-align:right">기준 역량지수</th><th style="text-align:right">내 점수와의 차</th></tr></thead>
+        <tbody id="ladder"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div>
+    <div class="panel">
+      <h2>결과</h2>
+      <div class="result-top">
+        <span class="grade" id="gradeOut">중급</span>
+        <span class="icec">역량지수 <b id="icecOut">0.0</b> / 103</span>
+      </div>
+      <div class="gap">
+        <div class="gap-label"><span id="gapText">다음 등급까지</span><span id="gapNum">—</span></div>
+        <div class="track"><i id="gapBar" style="width:0%"></i></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>점수 구성</h2>
+      <div class="bd" id="bd"></div>
+    </div>
+
+    <div class="panel">
+      <h2>등급을 올리는 수단</h2>
+      <div id="levers"></div>
+    </div>
+
+    <div class="notice">
+      <b>배점표 검증 필요</b>
+      자격·학력 배점은 공개 자료를 근거로 넣은 값입니다. 실제 등급 산정은 직무분야·전문분야·학과 관련성에 따라 달라지므로, <strong>건설기술 진흥법 시행규칙 별표 3 원문과 대조해 확정</strong>한 뒤 공개하세요. 계산식(로그 경력지수)과 등급 기준선은 확인된 값입니다.
+    </div>
+  </div>
+</div>
+
+<footer>
+  참고용 계산기입니다. 공식 등급은 한국건설기술인협회 경력증명서 기준으로 확인하세요.<br>
+  근거: 건설기술 진흥법 시행령 별표 1, 같은 법 시행규칙 별표 3
+</footer>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// 검증 필요: 자격·학력 배점은 별표 3 원문 대조 후 확정할 것
+// 확인된 값: 경력지수 공식, 교육지수(35h=1점/최대3점), 등급 기준선
+// ─────────────────────────────────────────────
+var CUT = {
+  general: { 초급:35, 중급:55, 고급:65, 특급:75 },
+  cm:      { 초급:40, 중급:60, 고급:70, 특급:80 }
+};
+var ORDER = ["초급","중급","고급","특급"];
+var GC = { "등급 미달":"var(--g0)", "초급":"var(--g1)", "중급":"var(--g2)", "고급":"var(--g3)", "특급":"var(--g4)" };
+
+var isCm = true;
+var $ = function(id){ return document.getElementById(id); };
+
+function careerScore(y){
+  if(!(y > 1)) return 0;                       // 1년 이하는 0점 (log 1 = 0)
+  return Math.min(40, (Math.log(y)/Math.log(40))*100*0.4);
+}
+function eduScore(h){ return Math.min(3, Math.floor((h||0)/35)); }
+
+function gradeOf(s, cuts){
+  for(var i=ORDER.length-1;i>=0;i--){ if(s >= cuts[ORDER[i]]) return ORDER[i]; }
+  return "등급 미달";
+}
+
+function calc(){
+  var q = +$("qual").value, e = +$("edu").value;
+  var y = Math.max(0, +$("yrs").value || 0), h = Math.max(0, +$("hrs").value || 0);
+  var c = careerScore(y), ed = eduScore(h);
+  return { q:q, e:e, c:c, ed:ed, y:y, h:h, total:q + e + c + ed };
+}
+
+function render(){
+  var r = calc();
+  var cuts = isCm ? CUT.cm : CUT.general;
+  var g = gradeOf(r.total, cuts);
+
+  $("gradeOut").textContent = g;
+  $("gradeOut").style.color = GC[g];
+  $("icecOut").textContent = r.total.toFixed(1);
+
+  // 다음 등급까지
+  var next = null;
+  for(var i=0;i<ORDER.length;i++){ if(r.total < cuts[ORDER[i]]){ next = ORDER[i]; break; } }
+  if(next){
+    var prevCut = (g === "등급 미달") ? 0 : cuts[g];
+    var span = cuts[next] - prevCut;
+    var pct = Math.max(0, Math.min(100, ((r.total - prevCut) / span) * 100));
+    $("gapText").textContent = next + "까지";
+    $("gapNum").textContent = "+" + (cuts[next] - r.total).toFixed(1) + "점";
+    $("gapBar").style.width = pct + "%";
+  } else {
+    $("gapText").textContent = "최고 등급입니다";
+    $("gapNum").textContent = "—";
+    $("gapBar").style.width = "100%";
+  }
+
+  // 점수 구성
+  var parts = [
+    ["자격", r.q, 40], ["경력", r.c, 40], ["학력", r.e, 20], ["교육", r.ed, 3]
+  ];
+  $("bd").innerHTML = parts.map(function(p){
+    return '<div class="bd-row">' +
+      '<span class="bd-name">' + p[0] + '</span>' +
+      '<span class="bd-track"><i style="width:' + (p[1]/p[2]*100) + '%"></i></span>' +
+      '<span class="bd-val">' + p[1].toFixed(1) + ' <small>/ ' + p[2] + '</small></span>' +
+    '</div>';
+  }).join("");
+
+  // 올리는 수단
+  var L = [];
+  var d1 = careerScore(r.y + 1) - r.c;
+  L.push(["경력 1년 추가", "지금 " + r.y + "년 → " + (r.y+1) + "년", d1]);
+  var d3 = careerScore(r.y + 3) - r.c;
+  L.push(["경력 3년 추가", "지금 " + r.y + "년 → " + (r.y+3) + "년", d3]);
+  var nextEduH = (eduScore(r.h) + 1) * 35;
+  if(r.ed < 3) L.push(["교육 " + (nextEduH - r.h) + "시간 더 이수", "누적 " + nextEduH + "시간 도달 시", 1]);
+  if(r.q < 40) L.push(["기술사 · 건축사 취득", "자격 " + r.q + "점 → 40점", 40 - r.q]);
+  else if(r.q < 30) L.push(["기사 취득", "자격 " + r.q + "점 → 30점", 30 - r.q]);
+  if(r.e < 18) L.push(["석사 학위 취득", "학력 " + r.e + "점 → 18점", 18 - r.e]);
+
+  $("levers").innerHTML = L.map(function(l){
+    return '<div class="lever"><span class="lever-t">' + l[0] + '<em>' + l[1] + '</em></span>' +
+      '<span class="lever-d up">+' + l[2].toFixed(1) + '점</span></div>';
+  }).join("");
+
+  // 등급 기준선 표
+  $("ladder").innerHTML = ORDER.map(function(name){
+    var cut = cuts[name];
+    var diff = r.total - cut;
+    var txt = diff >= 0 ? "충족 (+" + diff.toFixed(1) + ")" : (diff).toFixed(1);
+    return '<tr' + (name === g ? ' class="here"' : '') + '><td>' + name + '</td>' +
+      '<td class="n">' + cut + '</td><td class="n">' + txt + '</td></tr>';
+  }).join("");
+}
+
+$("fieldGen").addEventListener("click", function(){
+  isCm = false; this.setAttribute("aria-pressed","true"); $("fieldCm").setAttribute("aria-pressed","false"); render();
+});
+$("fieldCm").addEventListener("click", function(){
+  isCm = true; this.setAttribute("aria-pressed","true"); $("fieldGen").setAttribute("aria-pressed","false"); render();
+});
+["qual","edu","yrs","hrs"].forEach(function(id){
+  $(id).addEventListener("input", render);
+  $(id).addEventListener("change", render);
+});
+render();
+</script>
+</body>
+</html>
