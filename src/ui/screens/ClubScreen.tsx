@@ -28,7 +28,7 @@ export function ClubScreen({ state }: { state: GameState }) {
   const squadValue = club.players.reduce((sum, p) => sum + p.value, 0);
 
   return (
-    <>
+    <div className="cols">
       <Card title="구단 정보" padded>
         <div className="kv">
           <span className="kv__key">감독</span>
@@ -167,6 +167,6 @@ export function ClubScreen({ state }: { state: GameState }) {
           진행 상황은 이 기기의 브라우저에 자동 저장됩니다.
         </p>
       </Card>
-    </>
+    </div>
   );
 }
