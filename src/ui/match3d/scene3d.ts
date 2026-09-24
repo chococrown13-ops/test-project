@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   GOAL_HALF,
   MARGIN,
@@ -71,6 +72,10 @@ interface Rig {
   yaw: number;
   kickT: number;
   seed: number;
+  speed: number;
+  /** Dribble: 0-1 through the current touch, and a small kick when it wraps. */
+  touch: number;
+  touchKickT: number;
 }
 
 export class Match3D {
@@ -103,6 +108,9 @@ export class Match3D {
   private time = 0;
   private ballSpin = 0;
   private lastBall = { x: PITCH_W / 2, y: PITCH_H / 2 };
+  private ballShown = new THREE.Vector3();
+  private wasReplay = false;
+  private replayCam = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -179,8 +187,22 @@ export class Match3D {
     });
   }
 
-  render(view: SceneView, dt: number): void {
+  /**
+   * Draw one frame. `replay` switches to the low replay camera; switching in
+   * or out is treated as a cut, so nothing sprints or swings across the gap.
+   */
+  render(view: SceneView, dt: number, replay = false): void {
     this.time += dt;
+    const cut = replay !== this.wasReplay;
+    this.wasReplay = replay;
+    this.replayCam = replay;
+    if (cut) {
+      view.actors.forEach((a) => {
+        const rig = this.rigs.get(a.id);
+        if (rig) rig.prev = { x: a.pos.x, y: a.pos.y };
+      });
+      this.prevOwner = view.ownerId;
+    }
     if (view.kits.home.fill !== this.fasciaColor) {
       this.fasciaColor = view.kits.home.fill;
       this.fascia.color.set(this.fasciaColor);
@@ -190,9 +212,9 @@ export class Match3D {
     this.crowdTextures.forEach((tex, i) => (tex.offset.y = bounce * (i % 2 ? 1 : 0.7)));
 
     this.syncPlayers(view, dt);
-    this.poseBall(view);
+    this.poseBall(view, dt);
     this.poseCards(view);
-    this.moveCamera(view, dt);
+    this.moveCamera(view, dt, cut);
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -556,9 +578,11 @@ export class Match3D {
     parts.trim.push(collar);
     const armL = arm(-1);
     const armR = arm(1);
-    add(body, g.neck, skin, [0, 1.74, 0]);
-    add(body, g.head, skin, [0, 1.87, 0]);
-    add(body, g.nose, skin, [0, 1.86, 0.12]);
+    // Head, neck, ears and nose are one mesh; eyes, brows and mouth another.
+    add(body, g.headSkin, skin, [0, 0, 0]);
+    add(body, g.face, this.material('#1b1411', 0.5), [0, 0, 0]);
+    add(body, g.brows, hair, [0, 0, 0]);
+    if (hash % 6 === 0) add(body, g.beard, hair, [0, 0, 0]);
 
     switch (hash % 5) {
       case 0:
@@ -616,6 +640,9 @@ export class Match3D {
       yaw: 0,
       kickT: 0,
       seed: (hash % 1000) / 100,
+      speed: 0,
+      touch: 0,
+      touchKickT: 0,
     };
   }
 
@@ -704,7 +731,7 @@ export class Match3D {
       rig.badge.position.set(x, 2.25 * PLAYER_SCALE + 0.5, z);
       const badgeSize = this.mode === 'tactical' ? 4.2 : 1.15;
       rig.badge.scale.set(badgeSize, badgeSize, 1);
-      rig.badge.visible = !actor.leaving;
+      rig.badge.visible = !actor.leaving && !this.replayCam;
     });
 
     this.rigs.forEach((rig, id) => {
@@ -716,7 +743,7 @@ export class Match3D {
 
     // Name tag over whoever has the ball.
     const owner = view.ownerId ? view.actors.find((a) => a.id === view.ownerId) : undefined;
-    if (owner && this.mode === 'broadcast') {
+    if (owner && this.mode === 'broadcast' && !this.replayCam) {
       const key = `${owner.number} ${owner.label}`;
       if (key !== this.ownerLabelKey) {
         this.ownerLabelKey = key;
@@ -747,6 +774,7 @@ export class Match3D {
     const vy = dt > 0 ? (actor.pos.y - rig.prev.y) / dt : 0;
     rig.prev = { x: actor.pos.x, y: actor.pos.y };
     const speed = Math.hypot(vx, vy);
+    rig.speed = speed;
 
     rig.phase += dt * (2 + speed * 1.3);
     const stride = Math.min(0.9, speed * 0.12);
@@ -784,6 +812,22 @@ export class Match3D {
       rig.body.rotation.x = -0.1 * arc;
     }
 
+    // Dribbling: a light tap with the right foot on each touch.
+    if (rig.touchKickT > 0) {
+      rig.touchKickT = Math.max(0, rig.touchKickT - dt);
+      const tap = Math.sin((1 - rig.touchKickT / 0.18) * Math.PI);
+      rig.legR.hip.rotation.x = -0.75 * tap;
+      rig.legR.knee.rotation.x = 0.35 * tap;
+    }
+
+    const dive = view.dives.find((d) => d.actorId === actor.id);
+    if (dive) {
+      this.poseDive(rig, actor, dive);
+      return;
+    }
+    rig.body.rotation.z = 0;
+    rig.body.position.x = 0;
+
     if (view.celebrating === actor.side && !actor.isKeeper) {
       const t = this.time * 7 + rig.seed;
       rig.armL.shoulder.rotation.x = -2.7;
@@ -803,14 +847,75 @@ export class Match3D {
     rig.root.rotation.y = rig.yaw;
   }
 
-  private poseBall(view: SceneView): void {
-    const { x, y, h } = view.ball;
-    const moved = Math.hypot(x - this.lastBall.x, y - this.lastBall.y);
-    this.lastBall = { x, y };
+  /** Keeper launches sideways off his feet, arms stretched, then lands. */
+  private poseDive(
+    rig: Rig,
+    actor: SceneView['actors'][number],
+    dive: SceneView['dives'][number],
+  ): void {
+    // Which way is the ball, in the keeper's own left/right?
+    const dx = dive.toward.x - actor.pos.x;
+    const dz = dive.toward.y - actor.pos.y;
+    const localX = dx * Math.cos(rig.yaw) - dz * Math.sin(rig.yaw);
+    const side = localX >= 0 ? 1 : -1;
+    const t = dive.t;
+
+    let roll: number;
+    let lift: number;
+    if (t < 0.12) {
+      // Set: a quick crouch.
+      roll = 0;
+      lift = -0.12 * (t / 0.12);
+    } else if (t < 0.5) {
+      const k = (t - 0.12) / 0.38;
+      roll = 1.35 * Math.sin((k * Math.PI) / 2);
+      lift = 0.45 * Math.sin(k * Math.PI);
+    } else {
+      roll = 1.5;
+      lift = 0.12;
+    }
+    rig.body.rotation.x = 0;
+    rig.body.rotation.z = -side * roll;
+    rig.body.position.set(side * Math.min(1, t / 0.5) * 0.5, lift, 0);
+    rig.armL.shoulder.rotation.set(-2.9, 0, -0.25);
+    rig.armR.shoulder.rotation.set(-2.9, 0, 0.25);
+    rig.armL.elbow.rotation.x = -0.1;
+    rig.armR.elbow.rotation.x = -0.1;
+    rig.legL.hip.rotation.x = 0.15;
+    rig.legR.hip.rotation.x = -0.2;
+    rig.legL.knee.rotation.x = 0.5;
+    rig.legR.knee.rotation.x = 0.3;
+  }
+
+  private poseBall(view: SceneView, dt: number): void {
+    const { h } = view.ball;
+    let x = view.ball.x;
+    let y = view.ball.y;
+
+    // A running ball carrier pushes the ball ahead and catches it up again.
+    const owner = view.ownerId ? view.actors.find((a) => a.id === view.ownerId) : undefined;
+    const rig = owner ? this.rigs.get(owner.id) : undefined;
+    if (owner && rig && h === 0 && rig.speed > 1.2) {
+      rig.touch += dt * (0.9 + rig.speed * 0.18);
+      if (rig.touch >= 1) {
+        rig.touch -= 1;
+        rig.touchKickT = 0.18;
+      }
+      const ease = 1 - (1 - rig.touch) * (1 - rig.touch);
+      const ahead = 0.55 + 1.3 * ease;
+      x = owner.pos.x + Math.sin(rig.yaw) * ahead;
+      y = owner.pos.y + Math.cos(rig.yaw) * ahead;
+    }
+
+    const target = new THREE.Vector3(wx(x), BALL_R + h, wz(y));
+    if (this.ballShown.lengthSq() === 0) this.ballShown.copy(target);
+    this.ballShown.lerp(target, 1 - Math.exp(-dt * 22));
+    const moved = Math.hypot(this.ballShown.x - this.lastBall.x, this.ballShown.z - this.lastBall.y);
+    this.lastBall = { x: this.ballShown.x, y: this.ballShown.z };
     this.ballSpin += moved / BALL_R;
-    this.ball.position.set(wx(x), BALL_R + h, wz(y));
+    this.ball.position.copy(this.ballShown);
     this.ball.rotation.set(this.ballSpin, this.ballSpin * 0.3, 0);
-    this.ballBlob.position.set(wx(x) + h * 0.15, 0.03, wz(y) + h * 0.2);
+    this.ballBlob.position.set(this.ballShown.x + h * 0.15, 0.03, this.ballShown.z + h * 0.2);
     this.ballBlob.scale.setScalar(0.55 * Math.max(0.5, 1 - h * 0.08));
   }
 
@@ -838,8 +943,8 @@ export class Match3D {
 
   /* ----------------------------------------------------------------- camera */
 
-  private moveCamera(view: SceneView, dt: number): void {
-    const k = 1 - Math.exp(-dt * 2.4);
+  private moveCamera(view: SceneView, dt: number, cut: boolean): void {
+    const k = cut ? 1 : 1 - Math.exp(-dt * (this.replayCam ? 4 : 2.4));
     // Move in on key moments, pull back for open play.
     this.zoom += ((view.highlight ? 1 : 0) - this.zoom) * (1 - Math.exp(-dt * 1.2));
 
@@ -849,7 +954,13 @@ export class Match3D {
     const pos = new THREE.Vector3();
     let shadowSpan = 38;
 
-    if (this.mode === 'tactical') {
+    if (this.replayCam) {
+      // Replays: low and close, pitch-side, tracking the ball.
+      const fx = THREE.MathUtils.clamp(bx, -PITCH_W / 2 + 6, PITCH_W / 2 - 6);
+      target.set(fx, 1, bz);
+      pos.set(fx * 0.92, 9, bz + 21);
+      shadowSpan = 30;
+    } else if (this.mode === 'tactical') {
       // Whole pitch in view, from high over the near touchline.
       const halfFov = THREE.MathUtils.degToRad(this.camera.fov / 2);
       const hFov = Math.atan(Math.tan(halfFov) * this.aspect);
@@ -904,8 +1015,7 @@ function buildGeometries() {
     torso,
     collar: new THREE.TorusGeometry(0.075, 0.022, 6, 16),
     neck: new THREE.CylinderGeometry(0.055, 0.06, 0.1, 10),
-    head,
-    nose: new THREE.SphereGeometry(0.022, 6, 6),
+    ...faceGeometries(head),
     hairShort: new THREE.SphereGeometry(0.135, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2.05),
     hairAfro: new THREE.SphereGeometry(0.165, 14, 10),
     bun: new THREE.SphereGeometry(0.055, 8, 8),
@@ -916,6 +1026,41 @@ function buildGeometries() {
     decal: new THREE.PlaneGeometry(0.24, 0.24),
     blob: new THREE.CircleGeometry(0.55, 20).rotateX(-Math.PI / 2),
   };
+}
+
+/** Head parts pre-merged by material, so a detailed face costs three draw calls. */
+function faceGeometries(head: THREE.BufferGeometry) {
+  const at = (geo: THREE.BufferGeometry, x: number, y: number, z: number) => geo.translate(x, y, z);
+  const ear = (side: number) => {
+    const geo = new THREE.SphereGeometry(0.032, 8, 6);
+    geo.scale(0.5, 1, 0.8);
+    return at(geo, side * 0.12, 1.87, -0.005);
+  };
+  const headSkin = mergeGeometries([
+    at(head.clone(), 0, 1.87, 0),
+    at(new THREE.CylinderGeometry(0.055, 0.06, 0.1, 10, 1, true), 0, 1.74, 0),
+    at(new THREE.SphereGeometry(0.022, 6, 6), 0, 1.86, 0.122),
+    ear(-1),
+    ear(1),
+  ])!;
+
+  const eye = (side: number) => at(new THREE.SphereGeometry(0.016, 8, 6), side * 0.043, 1.895, 0.108);
+  const mouth = at(new THREE.BoxGeometry(0.045, 0.009, 0.01), 0, 1.822, 0.117);
+  const face = mergeGeometries([eye(-1), eye(1), mouth])!;
+
+  const brow = (side: number) => {
+    const geo = new THREE.BoxGeometry(0.05, 0.012, 0.014);
+    geo.rotateZ(side * -0.12);
+    return at(geo, side * 0.045, 1.924, 0.112);
+  };
+  const brows = mergeGeometries([brow(-1), brow(1)])!;
+
+  // Lower half of a slightly larger head: reads as a beard at match distance.
+  const beard = new THREE.SphereGeometry(0.131, 14, 8, 0, Math.PI * 2, Math.PI / 1.75, Math.PI / 3);
+  beard.scale(0.95, 1.08, 1);
+  beard.translate(0, 1.87, 0.004);
+
+  return { headSkin, face, brows, beard };
 }
 
 function clampByte(v: number): number {

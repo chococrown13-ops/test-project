@@ -18,6 +18,8 @@ export const PITCH_H = 68;
 /** Grass drawn around the touchlines, in metres. */
 export const MARGIN = 4;
 export const GOAL_HALF = 3.66;
+/** Length of a goal replay, in director seconds. */
+const REPLAY_TIME = 6;
 const CENTER = { x: PITCH_W / 2, y: PITCH_H / 2 };
 
 export type SideKey = 'home' | 'away';
@@ -79,7 +81,9 @@ type Step =
   | { kind: 'carry'; to: Vec; dur: number; ambient?: boolean }
   | { kind: 'shoot'; target: Vec; peak: number; speed: number }
   | { kind: 'wait'; dur: number; ambient?: boolean }
-  | { kind: 'call'; fn: () => void };
+  | { kind: 'call'; fn: () => void }
+  /** Holds until any goal replay has finished playing. */
+  | { kind: 'replay' };
 
 interface Banner {
   text: string;
@@ -114,6 +118,12 @@ export interface SceneView {
   highlight: boolean;
   /** Side celebrating a goal right now, if any. */
   celebrating: SideKey | null;
+  /** Keepers mid-dive: who, toward which pitch point, and how far in (seconds). */
+  dives: readonly { actorId: string; toward: Readonly<Vec>; t: number }[];
+  /** Set while a goal replay should be shown instead of the live picture. */
+  replay: { t: number; dur: number } | null;
+  /** Director clock in seconds, for recording and replaying frames. */
+  time: number;
   banner: { text: string; sub?: string; color: string; alpha: number; big: boolean } | null;
   markers: readonly { actorId: string; kind: 'yellow' | 'red' | 'injury' }[];
   kits: Record<SideKey, Kit>;
@@ -167,6 +177,10 @@ export class MatchDirector {
   private timeScale = 1;
   private lastBusy = false;
   private celebrating: SideKey | null = null;
+  private dives: { actorId: string; toward: Vec; t: number }[] = [];
+  private replay: { t: number; dur: number } | null = null;
+  /** Only a renderer that records frames can show a replay; others skip it. */
+  private replaysEnabled = false;
 
   constructor(
     kits: Record<SideKey, Kit>,
@@ -194,6 +208,15 @@ export class MatchDirector {
 
   setKits(kits: Record<SideKey, Kit>): void {
     this.kits = kits;
+  }
+
+  setReplaysEnabled(enabled: boolean): void {
+    this.replaysEnabled = enabled;
+  }
+
+  /** Cut a running replay short. */
+  skipReplay(): void {
+    if (this.replay) this.replay.t = this.replay.dur;
   }
 
   setTimeScale(scale: number): void {
@@ -304,6 +327,8 @@ export class MatchDirector {
     this.stepStarted = false;
     this.banner = null;
     this.markers = [];
+    this.dives = [];
+    this.replay = null;
     this.clearOverrides();
     this.ended = events.some((e) => e.kind === 'fulltime');
     this.kickoff('home', true);
@@ -320,6 +345,8 @@ export class MatchDirector {
       if (this.banner.t >= this.banner.dur) this.banner = null;
     }
     this.markers = this.markers.filter((m) => (m.t += dt) < m.dur);
+    this.dives = this.dives.filter((d) => (d.t += dt) < 1.6);
+    if (this.replay) this.replay.t = Math.min(this.replay.dur, this.replay.t + dt);
 
     this.runSteps(dt);
     this.moveActors(dt);
@@ -341,6 +368,9 @@ export class MatchDirector {
       ownerId: this.owner?.id ?? null,
       highlight: this.current !== null,
       celebrating: this.celebrating,
+      dives: this.dives,
+      replay: this.replay ? { t: this.replay.t, dur: this.replay.dur } : null,
+      time: this.time,
       banner,
       markers: this.markers,
       kits: this.kits,
@@ -441,6 +471,8 @@ export class MatchDirector {
         return this.stepT >= step.dur;
       case 'call':
         return true;
+      case 'replay':
+        return !this.replay || this.replay.t >= this.replay.dur;
     }
   }
 
@@ -707,6 +739,9 @@ export class MatchDirector {
         x: goalLineX + dir * 1.4,
         y: CENTER.y + rand(-GOAL_HALF + 0.5, GOAL_HALF - 0.5),
       };
+      if (keeper) {
+        steps.push({ kind: 'call', fn: () => this.dive(keeper, target) });
+      }
       steps.push({ kind: 'shoot', target, peak: rand(0.2, 1.6), speed: 30 });
       steps.push({
         kind: 'call',
@@ -729,6 +764,14 @@ export class MatchDirector {
       steps.push({
         kind: 'call',
         fn: () => {
+          if (this.replaysEnabled) this.replay = { t: 0, dur: REPLAY_TIME };
+        },
+      });
+      steps.push({ kind: 'replay' });
+      steps.push({
+        kind: 'call',
+        fn: () => {
+          this.replay = null;
           this.clearOverrides();
           this.kickoff(def, true);
         },
@@ -743,6 +786,7 @@ export class MatchDirector {
         kind: 'call',
         fn: () => {
           keeper.override = { ...saveAt };
+          this.dive(keeper, saveAt);
         },
       });
       steps.push({ kind: 'shoot', target: saveAt, peak: rand(0.2, 1.4), speed: 26 });
@@ -908,6 +952,10 @@ export class MatchDirector {
     big: boolean,
   ): void {
     this.banner = { text, sub, color, dur, big, t: 0 };
+  }
+
+  private dive(keeper: Actor, toward: Vec): void {
+    this.dives.push({ actorId: keeper.id, toward: { ...toward }, t: 0 });
   }
 
   private mark(actorId: string, kind: Marker['kind'], dur: number): void {
