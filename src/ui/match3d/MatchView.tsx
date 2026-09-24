@@ -8,6 +8,7 @@ type ViewMode = '3d' | '2d';
 
 const VIEW_KEY = 'gaffer.matchView';
 const CAMERA_KEY = 'gaffer.matchCamera';
+const QUALITY_KEY = 'gaffer.quality';
 
 function readPref<T extends string>(key: string, allowed: T[], fallback: T): T {
   try {
@@ -153,9 +154,26 @@ function Stadium3D({
 
         let last = performance.now();
         let lastBanner = '';
+        // Watch the frame rate; a phone that can't keep up drops to low
+        // quality (no shadow maps, 1x pixels) rather than stuttering.
+        let frames = 0;
+        let slowTime = 0;
+        // `gaffer.quality = high` in localStorage pins high quality (testing, fast devices).
+        let downgraded = readPref(QUALITY_KEY, ['high', 'auto'], 'auto') === 'high';
         const loop = (now: number) => {
-          const dt = Math.min(0.05, (now - last) / 1000);
+          const raw = (now - last) / 1000;
+          const dt = Math.min(0.05, raw);
           last = now;
+          frames += 1;
+          if (!downgraded && frames > 60) {
+            slowTime += raw;
+            if (frames === 180) {
+              if (slowTime / 120 > 1 / 32) {
+                downgraded = true;
+                scene!.setQuality('low');
+              }
+            }
+          }
           director.update(dt);
           const view = director.view();
           scene!.render(view, dt);

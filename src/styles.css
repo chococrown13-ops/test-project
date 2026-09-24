@@ -1549,6 +1549,7 @@ button {
 
 .matchview__banner {
   position: absolute;
+  z-index: 2;
   left: 50%;
   top: 16%;
   transform: translateX(-50%);
@@ -1601,4 +1602,13 @@ button {
   .stadium3d {
     aspect-ratio: 16 / 9;
   }
+}
+
+/* A touch of broadcast vignette over the 3D picture. */
+.stadium3d::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 62%, rgba(0, 0, 0, 0.35) 100%);
 }

@@ -112,6 +112,8 @@ export interface SceneView {
   ownerId: string | null;
   /** True while an event is being played out, so a camera can move in. */
   highlight: boolean;
+  /** Side celebrating a goal right now, if any. */
+  celebrating: SideKey | null;
   banner: { text: string; sub?: string; color: string; alpha: number; big: boolean } | null;
   markers: readonly { actorId: string; kind: 'yellow' | 'red' | 'injury' }[];
   kits: Record<SideKey, Kit>;
@@ -164,6 +166,7 @@ export class MatchDirector {
   private time = 0;
   private timeScale = 1;
   private lastBusy = false;
+  private celebrating: SideKey | null = null;
 
   constructor(
     kits: Record<SideKey, Kit>,
@@ -337,6 +340,7 @@ export class MatchDirector {
       ball: { x: this.ball.pos.x, y: this.ball.pos.y, h: this.ball.h },
       ownerId: this.owner?.id ?? null,
       highlight: this.current !== null,
+      celebrating: this.celebrating,
       banner,
       markers: this.markers,
       kits: this.kits,
@@ -709,6 +713,7 @@ export class MatchDirector {
         fn: () => {
           reveal();
           const team = atk === 'home' ? this.kits.home : this.kits.away;
+          this.celebrating = atk;
           this.showBanner('GOAL!', this.actorName(event.playerId), team.fill, 2.6, true);
           // The scorer wheels away to the corner, team-mates chase him.
           const corner = { x: goalX - dir * 5, y: shooter.pos.y < CENTER.y ? 5 : PITCH_H - 5 };
@@ -856,6 +861,7 @@ export class MatchDirector {
   /* --------------------------------------------------------- set positions */
 
   private kickoff(side: SideKey, snap: boolean): void {
+    this.celebrating = null;
     this.flight = null;
     this.ball.pos = { ...CENTER };
     this.ball.h = 0;
