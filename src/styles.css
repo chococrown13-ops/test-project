@@ -1612,3 +1612,53 @@ button {
   pointer-events: none;
   background: radial-gradient(ellipse at center, transparent 62%, rgba(0, 0, 0, 0.35) 100%);
 }
+
+.replay-tag {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  background: #dc2626;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  padding: 4px 12px;
+  border-radius: 4px;
+  animation: replay-pulse 1.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes replay-pulse {
+  50% { opacity: 0.55; }
+}
+
+.replay-skip {
+  position: absolute;
+  z-index: 3;
+  right: 8px;
+  bottom: 8px;
+  background: rgba(8, 12, 22, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* Replays get cinema bars. */
+.stadium3d:has(.replay-tag)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  box-shadow: inset 0 26px 0 #000, inset 0 -26px 0 #000;
+}
+
+.matchview:has(.replay-tag) .scorebug,
+.matchview:has(.replay-tag) .matchview__tools {
+  display: none;
+}
