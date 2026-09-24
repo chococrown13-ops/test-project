@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { FORMATIONS, ROLE_LABEL } from '../../game/formations';
 import { buildTable, positionOf, recentForm, totalRounds } from '../../game/league';
 import { MATCH_LENGTH } from '../../game/matchEngine';
@@ -7,6 +7,8 @@ import type { GameState, LiveMatch, MatchStats, Mentality, Team } from '../../ga
 import { useGame } from '../../store/useGame';
 import { Card, Field, Modal, Segmented, gaugeColor } from '../components/common';
 import { PlayerRow } from '../components/PlayerRow';
+import { MatchDirector, type RosterInput } from '../match2d/director';
+import { MatchPitch, matchKits } from '../match2d/MatchPitch';
 
 /** Milliseconds per simulated minute. */
 const SPEEDS = [
@@ -16,9 +18,12 @@ const SPEEDS = [
   { label: '4x', value: 120 },
 ] as const;
 
+/** Animation speed of the 2D view for each clock speed. */
+const TIME_SCALE: Record<number, number> = { 0: 0, 700: 1, 320: 1.8, 120: 3.2 };
+
 export function MatchScreen({ state }: { state: GameState }) {
   if (state.seasonOver) return <SeasonOver state={state} />;
-  if (state.live) return <LiveView state={state} live={state.live} />;
+  if (state.live) return <LiveView key={state.live.fixtureId} state={state} live={state.live} />;
   return <PreMatch state={state} />;
 }
 
@@ -162,65 +167,80 @@ function LiveView({ state, live }: { state: GameState; live: LiveMatch }) {
   const club = state.teams[state.clubId];
   const isHome = state.clubId === live.homeId;
 
-  // Drive the clock. The interval is re-created whenever the speed changes.
+  // The 2D view re-renders us whenever it reveals an event or goes idle.
+  const [, bump] = useReducer((x: number) => x + 1, 0);
+  const [director] = useState(() => new MatchDirector(matchKits(home, away), () => bump()));
+  const startedRef = useRef(false);
+  useLayoutEffect(() => {
+    director.setKits(matchKits(home, away));
+    director.syncRoster('home', rosterInput(home, live.homeOnPitch, live.homeParticipants, live.sentOff));
+    director.syncRoster('away', rosterInput(away, live.awayOnPitch, live.awayParticipants, live.sentOff));
+    if (!startedRef.current) {
+      startedRef.current = true;
+      director.start(live.events, live.minute);
+    }
+    director.setPossession(live.homeStats.possession / 100);
+    director.feed(live.events);
+  });
+
+  useEffect(() => {
+    director.setTimeScale(TIME_SCALE[speed] ?? 1);
+  }, [director, speed]);
+
+  // Drive the clock, but hold it while a highlight is playing out so the
+  // engine never runs ahead of what is on screen.
   const tickRef = useRef(tickMatch);
   tickRef.current = tickMatch;
   useEffect(() => {
     if (speed === 0 || live.finished) return;
-    const id = window.setInterval(() => tickRef.current(), speed);
+    const id = window.setInterval(() => {
+      if (!director.busy) tickRef.current();
+    }, speed);
     return () => window.clearInterval(id);
-  }, [speed, live.finished]);
-
-  // Pause automatically at the whistle so the result isn't skipped past.
-  useEffect(() => {
-    if (live.finished) setSpeed(0);
-  }, [live.finished]);
+  }, [director, speed, live.finished]);
 
   const skipToEnd = () => {
-    setSpeed(0);
     // Run the remaining minutes synchronously rather than waiting on timers.
     const remaining = MATCH_LENGTH - live.minute;
     for (let i = 0; i < remaining; i++) tickRef.current();
+    // The engine mutates this log in place, so it already holds every event.
+    director.skipAll(live.events);
   };
 
-  // Newest first. Deliberately not memoised: the engine pushes into this same
-  // array in place, so its identity never changes and a memo would go stale.
-  const feed = live.events.slice().reverse();
+  const shown = director.shownScore;
+  const revealed = director.revealed;
+  const ended = live.finished && !director.busy && revealed >= live.events.length;
+
+  // Newest first, and only what has been shown on the pitch — the log itself
+  // runs a highlight ahead. Deliberately not memoised: the engine pushes into
+  // this same array in place, so its identity never changes.
+  const feed = live.events.slice(0, revealed).reverse();
 
   return (
-    <>
-      <div className="scoreboard">
-        <div className="scoreboard__row">
-          <TeamBadge team={home} />
-          <div style={{ textAlign: 'center' }}>
-            <div className="scoreboard__score">
-              {live.homeGoals} - {live.awayGoals}
+    <div className="match-layout">
+      <div className="match-layout__main">
+        <div className="scoreboard">
+          <div className="scoreboard__row">
+            <TeamBadge team={home} />
+            <div style={{ textAlign: 'center' }}>
+              <div className="scoreboard__score">
+                {shown.home} - {shown.away}
+              </div>
             </div>
+            <TeamBadge team={away} />
           </div>
-          <TeamBadge team={away} />
+          <div className="scoreboard__clock">{ended ? '경기 종료' : `${live.minute}'`}</div>
+          <div className="clock-bar">
+            <div
+              className="clock-bar__fill"
+              style={{ width: `${Math.min(100, (live.minute / MATCH_LENGTH) * 100)}%` }}
+            />
+          </div>
         </div>
-        <div className="scoreboard__clock">
-          {live.finished ? '경기 종료' : `${live.minute}'`}
-        </div>
-        <div className="clock-bar">
-          <div
-            className="clock-bar__fill"
-            style={{ width: `${Math.min(100, (live.minute / MATCH_LENGTH) * 100)}%` }}
-          />
-        </div>
-      </div>
 
-      <Card title="경기 기록" padded>
-        <StatRow label="점유율" home={live.homeStats.possession} away={live.awayStats.possession} suffix="%" homeColor={home.color} awayColor={away.color} />
-        <StatRow label="슈팅" home={live.homeStats.shots} away={live.awayStats.shots} homeColor={home.color} awayColor={away.color} />
-        <StatRow label="유효 슈팅" home={live.homeStats.onTarget} away={live.awayStats.onTarget} homeColor={home.color} awayColor={away.color} />
-        <StatRow label="코너킥" home={live.homeStats.corners} away={live.awayStats.corners} homeColor={home.color} awayColor={away.color} />
-        <StatRow label="파울" home={live.homeStats.fouls} away={live.awayStats.fouls} homeColor={home.color} awayColor={away.color} />
-      </Card>
+        <MatchPitch director={director} />
 
-      {live.finished ? (
-        <>
-          {/* Above the ratings list so it stays in reach without scrolling. */}
+        {ended ? (
           <button
             type="button"
             className="btn btn--primary btn--block"
@@ -229,6 +249,72 @@ function LiveView({ state, live }: { state: GameState; live: LiveMatch }) {
           >
             계속하기
           </button>
+        ) : (
+          <>
+            <div className="controls">
+              <div className="seg" style={{ flex: 1 }}>
+                {SPEEDS.map((option) => (
+                  <button
+                    key={option.label}
+                    type="button"
+                    className={`seg__item${speed === option.value ? ' seg__item--active' : ''}`}
+                    onClick={() => setSpeed(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="btn"
+                style={{ padding: '10px 12px' }}
+                title="경기 끝까지 건너뛰기"
+                onClick={skipToEnd}
+              >
+                ⏭
+              </button>
+            </div>
+
+            {!live.finished && (
+              <div className="row" style={{ gap: 8, marginBottom: 12 }}>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ flex: 1 }}
+                  onClick={() => {
+                    setSpeed(0);
+                    setShowSubs(true);
+                  }}
+                >
+                  교체 ({isHome ? live.homeSubsLeft : live.awaySubsLeft})
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ flex: 1 }}
+                  onClick={() => {
+                    setSpeed(0);
+                    setShowTactics(true);
+                  }}
+                >
+                  전술 변경
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="match-layout__side">
+        <Card title="경기 기록" padded>
+          <StatRow label="점유율" home={live.homeStats.possession} away={live.awayStats.possession} suffix="%" homeColor={home.color} awayColor={away.color} />
+          <StatRow label="슈팅" home={live.homeStats.shots} away={live.awayStats.shots} homeColor={home.color} awayColor={away.color} />
+          <StatRow label="유효 슈팅" home={live.homeStats.onTarget} away={live.awayStats.onTarget} homeColor={home.color} awayColor={away.color} />
+          <StatRow label="코너킥" home={live.homeStats.corners} away={live.awayStats.corners} homeColor={home.color} awayColor={away.color} />
+          <StatRow label="파울" home={live.homeStats.fouls} away={live.awayStats.fouls} homeColor={home.color} awayColor={away.color} />
+        </Card>
+
+        {ended && (
           <Card title="선수 평점">
             {(isHome ? live.homeParticipants : live.awayParticipants).map((id) => {
               const player = club.players.find((p) => p.id === id);
@@ -243,70 +329,50 @@ function LiveView({ state, live }: { state: GameState; live: LiveMatch }) {
               );
             })}
           </Card>
-        </>
-      ) : (
-        <div className="controls">
-          <div className="seg" style={{ flex: 1 }}>
-            {SPEEDS.map((option) => (
-              <button
-                key={option.label}
-                type="button"
-                className={`seg__item${speed === option.value ? ' seg__item--active' : ''}`}
-                onClick={() => setSpeed(option.value)}
-              >
-                {option.label}
-              </button>
+        )}
+
+        <Card title="중계">
+          <div className="commentary">
+            {feed.length === 0 && <div className="empty">킥오프를 기다리는 중…</div>}
+            {feed.map((event, index) => (
+              <div key={`${event.minute}-${index}`} className={`comm comm--${event.kind}`}>
+                <span className="comm__min">{event.minute}'</span>
+                <span className="comm__text">{event.text}</span>
+              </div>
             ))}
           </div>
-          <button type="button" className="btn" style={{ padding: '10px 12px' }} onClick={skipToEnd}>
-            ⏭
-          </button>
-        </div>
-      )}
-
-      {!live.finished && (
-        <div className="row" style={{ gap: 8, marginBottom: 12 }}>
-          <button
-            type="button"
-            className="btn"
-            style={{ flex: 1 }}
-            onClick={() => {
-              setSpeed(0);
-              setShowSubs(true);
-            }}
-          >
-            교체 ({isHome ? live.homeSubsLeft : live.awaySubsLeft})
-          </button>
-          <button
-            type="button"
-            className="btn"
-            style={{ flex: 1 }}
-            onClick={() => {
-              setSpeed(0);
-              setShowTactics(true);
-            }}
-          >
-            전술 변경
-          </button>
-        </div>
-      )}
-
-      <Card title="중계">
-        <div className="commentary">
-          {feed.length === 0 && <div className="empty">킥오프를 기다리는 중…</div>}
-          {feed.map((event, index) => (
-            <div key={`${event.minute}-${index}`} className={`comm comm--${event.kind}`}>
-              <span className="comm__min">{event.minute}'</span>
-              <span className="comm__text">{event.text}</span>
-            </div>
-          ))}
-        </div>
-      </Card>
+        </Card>
+      </div>
 
       {showSubs && <SubModal state={state} live={live} onClose={() => setShowSubs(false)} />}
       {showTactics && <InMatchTactics state={state} onClose={() => setShowTactics(false)} />}
-    </>
+    </div>
   );
+}
+
+/** Shirt numbers: starters 1-11 in slot order (so the keeper wears 1), bench from 12. */
+function rosterInput(team: Team, onPitch: string[], participants: string[], sentOff: string[]): RosterInput {
+  const starters = participants.slice(0, 11);
+  const layout = FORMATIONS[team.formation].layout;
+  return {
+    layout,
+    sentOff,
+    entries: onPitch.flatMap((id) => {
+      const player = team.players.find((p) => p.id === id);
+      if (!player) return [];
+      const slot = starters.indexOf(id);
+      const bench = team.bench.indexOf(id);
+      return [
+        {
+          id,
+          name: player.name,
+          number: slot >= 0 ? slot + 1 : 12 + Math.max(0, bench),
+          isKeeper: slot === 0 || (slot < 0 && player.role === 'GK'),
+          slotHint: slot >= 0 ? slot : undefined,
+        },
+      ];
+    }),
+  };
 }
 
 function StatRow({

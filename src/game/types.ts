@@ -148,6 +148,10 @@ export interface MatchEvent {
   /** Which side the event belongs to. 'neutral' for clock events. */
   side: 'home' | 'away' | 'neutral';
   text: string;
+  /** Main player involved: shooter, offender, injured player. */
+  playerId?: string;
+  /** Provider of the final pass, for chances and goals. */
+  assistId?: string;
   /** Score after this event, for the timeline. */
   homeGoals: number;
   awayGoals: number;

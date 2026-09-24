@@ -23,7 +23,7 @@ import {
 } from '../game/transfer';
 import type { FormationId, GameState, MatchEvent, Tactics } from '../game/types';
 
-export type Screen = 'squad' | 'tactics' | 'match' | 'transfer' | 'league' | 'club';
+export type Screen = 'home' | 'squad' | 'tactics' | 'match' | 'transfer' | 'league' | 'club';
 
 interface GameStore {
   state: GameState | null;
@@ -81,6 +81,10 @@ const commit = (
   set({ state: { ...state }, ...extra });
 };
 
+/** The PC layout opens on the dashboard; phones go straight to the squad. */
+const homeScreen = (): Screen =>
+  typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches ? 'home' : 'squad';
+
 /** A fresh RNG per action, seeded off the save so results stay varied. */
 const rngFor = (state: GameState): Rng =>
   new Rng((state.seed + state.round * 7919 + state.season * 104729 + Date.now()) >>> 0);
@@ -92,7 +96,7 @@ export const useGame = create<GameStore>((set, get) => ({
 
   newGame: (options) => {
     const state = createNewGame(options);
-    commit(set, state, { screen: 'squad', lastEvents: [] });
+    commit(set, state, { screen: homeScreen(), lastEvents: [] });
   },
 
   setLeagueName: (name) => {
@@ -190,7 +194,7 @@ export const useGame = create<GameStore>((set, get) => ({
   continueGame: () => {
     const loaded = loadGame();
     if (!loaded) return false;
-    set({ state: loaded, screen: 'squad', lastEvents: [] });
+    set({ state: loaded, screen: homeScreen(), lastEvents: [] });
     return true;
   },
 

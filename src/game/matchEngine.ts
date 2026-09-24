@@ -109,12 +109,14 @@ function pushEvent(
   kind: MatchEvent['kind'],
   side: MatchEvent['side'],
   text: string,
+  who: Pick<MatchEvent, 'playerId' | 'assistId'> = {},
 ): MatchEvent {
   const event: MatchEvent = {
     minute: live.minute,
     kind,
     side,
     text,
+    ...who,
     homeGoals: live.homeGoals,
     awayGoals: live.awayGoals,
   };
@@ -219,6 +221,10 @@ function resolveChance(live: LiveMatch, attack: SideContext, defence: SideContex
   };
 
   attack.stats.shots += 1;
+  const who = {
+    playerId: shooter.id,
+    assistId: ctx.assist && creator ? creator.id : undefined,
+  };
 
   // Did the chance even become a shot on target?
   const finishing = effectiveAbility(shooter) * 0.6 + shooter.attributes.shooting * 0.4;
@@ -228,7 +234,7 @@ function resolveChance(live: LiveMatch, attack: SideContext, defence: SideContex
     if (rng.bool(0.4)) {
       attack.stats.corners += 1;
     }
-    pushEvent(live, 'chance', side, commentary.block(rng, ctx));
+    pushEvent(live, 'chance', side, commentary.block(rng, ctx), who);
     bumpRating(live, shooter.id, 0.02);
     return;
   }
@@ -257,7 +263,7 @@ function resolveChance(live: LiveMatch, attack: SideContext, defence: SideContex
     // The whole back line carries a goal conceded.
     defence.onPitch.forEach((id) => bumpRating(live, id, -0.1));
 
-    pushEvent(live, 'goal', side, commentary.goal(rng, ctx));
+    pushEvent(live, 'goal', side, commentary.goal(rng, ctx), who);
     return;
   }
 
@@ -265,10 +271,10 @@ function resolveChance(live: LiveMatch, attack: SideContext, defence: SideContex
   if (rng.bool(0.6)) {
     bumpRating(live, keeper.id, 0.28);
     bumpRating(live, shooter.id, 0.05);
-    pushEvent(live, 'save', side, commentary.save(rng, ctx));
+    pushEvent(live, 'save', side, commentary.save(rng, ctx), who);
   } else {
     bumpRating(live, shooter.id, -0.18);
-    pushEvent(live, 'miss', side, commentary.miss(rng, ctx));
+    pushEvent(live, 'miss', side, commentary.miss(rng, ctx), who);
   }
 }
 
@@ -303,18 +309,18 @@ function resolveFoul(live: LiveMatch, side: SideContext, rng: Rng): void {
       live.sentOff.push(offender.id);
       removeFromPitch(live, side, offender.id);
       bumpRating(live, offender.id, -1.5);
-      pushEvent(live, 'red', eventSide, commentary.red(rng, ctx));
+      pushEvent(live, 'red', eventSide, commentary.red(rng, ctx), { playerId: offender.id });
       return;
     }
     side.stats.yellows += 1;
     offender.season.yellowCards += 1;
     offender.career.yellowCards += 1;
     bumpRating(live, offender.id, -0.25);
-    pushEvent(live, 'yellow', eventSide, commentary.yellow(rng, ctx));
+    pushEvent(live, 'yellow', eventSide, commentary.yellow(rng, ctx), { playerId: offender.id });
     return;
   }
 
-  pushEvent(live, 'foul', eventSide, commentary.foul(rng, ctx));
+  pushEvent(live, 'foul', eventSide, commentary.foul(rng, ctx), { playerId: offender.id });
 }
 
 function resolveInjury(live: LiveMatch, side: SideContext, rng: Rng): void {
@@ -338,6 +344,7 @@ function resolveInjury(live: LiveMatch, side: SideContext, rng: Rng): void {
       team: side.team.shortName,
       opponent: '',
     }),
+    { playerId: victim.id },
   );
 }
 
