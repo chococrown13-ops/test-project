@@ -8,7 +8,8 @@ import { useGame } from '../../store/useGame';
 import { Card, Field, Modal, Segmented, gaugeColor } from '../components/common';
 import { PlayerRow } from '../components/PlayerRow';
 import { MatchDirector, type RosterInput } from '../match2d/director';
-import { MatchPitch, matchKits } from '../match2d/MatchPitch';
+import { matchKits } from '../match2d/MatchPitch';
+import { MatchView } from '../match3d/MatchView';
 
 /** Milliseconds per simulated minute. */
 const SPEEDS = [
@@ -238,7 +239,13 @@ function LiveView({ state, live }: { state: GameState; live: LiveMatch }) {
           </div>
         </div>
 
-        <MatchPitch director={director} />
+        <MatchView
+          director={director}
+          home={home}
+          away={away}
+          score={shown}
+          clock={ended ? '종료' : `${live.minute}'`}
+        />
 
         {ended ? (
           <button

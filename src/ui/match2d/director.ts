@@ -16,8 +16,8 @@ import type { MatchEvent } from '../../game/types';
 export const PITCH_W = 105;
 export const PITCH_H = 68;
 /** Grass drawn around the touchlines, in metres. */
-const MARGIN = 4;
-const GOAL_HALF = 3.66;
+export const MARGIN = 4;
+export const GOAL_HALF = 3.66;
 const CENTER = { x: PITCH_W / 2, y: PITCH_H / 2 };
 
 export type SideKey = 'home' | 'away';
@@ -95,6 +95,26 @@ interface Marker {
   kind: 'yellow' | 'red' | 'injury';
   t: number;
   dur: number;
+}
+
+/** Read-only snapshot of the scene, for renderers other than the built-in 2D one. */
+export interface SceneView {
+  actors: readonly {
+    id: string;
+    side: SideKey;
+    number: number;
+    label: string;
+    isKeeper: boolean;
+    leaving: boolean;
+    pos: Readonly<Vec>;
+  }[];
+  ball: { x: number; y: number; h: number };
+  ownerId: string | null;
+  /** True while an event is being played out, so a camera can move in. */
+  highlight: boolean;
+  banner: { text: string; sub?: string; color: string; alpha: number; big: boolean } | null;
+  markers: readonly { actorId: string; kind: 'yellow' | 'red' | 'injury' }[];
+  kits: Record<SideKey, Kit>;
 }
 
 const rand = (min: number, max: number) => min + Math.random() * (max - min);
@@ -302,6 +322,25 @@ export class MatchDirector {
     this.moveActors(dt);
     this.moveBall(dt);
     this.notifyIfChanged();
+  }
+
+  view(): SceneView {
+    const b = this.banner;
+    let banner: SceneView['banner'] = null;
+    if (b) {
+      const fadeIn = Math.min(1, b.t / 0.18);
+      const fadeOut = Math.min(1, (b.dur - b.t) / 0.25);
+      banner = { text: b.text, sub: b.sub, color: b.color, big: b.big, alpha: Math.max(0, Math.min(fadeIn, fadeOut)) };
+    }
+    return {
+      actors: this.actors,
+      ball: { x: this.ball.pos.x, y: this.ball.pos.y, h: this.ball.h },
+      ownerId: this.owner?.id ?? null,
+      highlight: this.current !== null,
+      banner,
+      markers: this.markers,
+      kits: this.kits,
+    };
   }
 
   /* ------------------------------------------------------------ scheduling */
@@ -1262,7 +1301,7 @@ export function colorDistance(a: string, b: string): number {
   );
 }
 
-function drawPitch(
+export function drawPitch(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
