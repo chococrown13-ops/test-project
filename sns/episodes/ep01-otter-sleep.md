@@ -71,9 +71,14 @@ calm blue dusk light matching the previous scene, vertical 9:16, no text.
 
 **S5 — 손잡기는 드물다**
 ```
-A wide view of a group of plain sea otters resting in a raft on the water, most of them
-wrapped in kelp, only two of them holding paws, the same sea otter mascot peeking from the side
-with a thoughtful expression, soft 3D render, soft overcast light, vertical 9:16, no text.
+A group of five plain gray-brown sea otters sleeping peacefully on their backs in a raft
+on calm cool water, three of them wrapped in kelp, and in the center exactly two otters
+clearly holding paws with their paws visibly clasped between them. Calm peaceful sleeping
+faces, no tears. Every otter has one head and one normal body clearly visible.
+The same sea otter mascot with dark chocolate-brown fur and a light sky-blue scarf floats
+at the lower edge of the frame, awake, looking at the paw-holding pair with a curious,
+thoughtful expression, holding its tiny yellow notebook. Soft 3D render, soft overcast
+light, vertical 9:16, no text.
 ```
 카메라: 넓게 보여준 뒤 손잡은 두 마리로 천천히 줌인
 

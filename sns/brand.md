@@ -79,6 +79,16 @@
 - 프롬프트에 `cold-water kelp forest, rocky sea floor, no coral` 를 넣는다
 - 털색이 밝아지면 `dark chocolate-brown fur exactly as in the reference image` 를 넣는다
 
+### 여러 마리가 나오는 장면
+- 5마리 이하로 제한 (많을수록 몸이 겹치거나 머리만 떠 있는 오류가 늘어남)
+- `Every otter has one head and one normal body clearly visible` 를 넣는다
+- 원하지 않는 표정이 나오면 `calm peaceful faces, no tears` 처럼 표정을 명시한다
+- 궁금해달은 화면 가장자리에 두고 스카프와 짙은 털색으로 구별되게 한다
+
+### 조명 규칙
+- **브랜드 장면**(인트로, 수첩 장면, 아웃트로): 항상 금빛 노을 + 청록 바다
+- **이야기 장면**: 내용에 맞게 자유롭게 (예: 잠자는 장면은 푸른 저녁)
+
 ### 고정 장면 (인트로·아웃트로)
 매 영상 같은 인트로·아웃트로는 채널 브랜딩으로 인정되므로 반복 콘텐츠로 보지 않습니다.
 - **인트로 (1초)**: 물 위에 누운 궁금해달이 배 위의 수첩을 펼침 + "오늘의 궁금증!"
