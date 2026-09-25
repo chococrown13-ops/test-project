@@ -77,6 +77,7 @@
 - 물속 장면에 **산호초·열대어를 넣지 않는다.** 바닥은 회색 바위와 켈프 숲
 - 수면은 스타일상 청록빛도 괜찮지만, 물속이 보이는 장면은 차가운 청록·청회색으로
 - 프롬프트에 `cold-water kelp forest, rocky sea floor, no coral` 를 넣는다
+- 해달은 공기로 숨을 쉬므로 **잠자거나 쉬는 장면은 항상 수면 위**. 물속과 해초를 함께 보여주려면 수면 위아래를 반씩 담는 `split-level over-under shot` 을 쓴다
 - 털색이 밝아지면 `dark chocolate-brown fur exactly as in the reference image` 를 넣는다
 
 ### 여러 마리가 나오는 장면

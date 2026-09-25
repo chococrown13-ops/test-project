@@ -61,13 +61,16 @@ soft 3D render, calm blue dusk light, vertical 9:16, no text.
 
 **S4 — 해초 감기 (핵심 장면)**
 ```
-The same sea otter mascot with dark chocolate-brown fur exactly as in the reference image,
-sleeping on its back, wrapped snugly in long golden-brown kelp fronds like a blanket,
-the kelp stretching down through cool blue-green water to a gray rocky sea floor in a
-cold-water kelp forest, no coral, no tropical fish, cozy expression, soft 3D render,
-calm blue dusk light matching the previous scene, vertical 9:16, no text.
+Split-level over-under shot, half above and half below the water surface.
+Above the waterline: the same sea otter mascot with dark chocolate-brown fur exactly as in
+the reference image, floating on its back AT THE SURFACE, head and chest above the water,
+sleeping, wrapped snugly in golden-brown kelp fronds like a blanket, light sky-blue scarf.
+Below the waterline: the kelp stalks stretch straight down through cool blue-green water
+to a gray rocky sea floor with purple sea urchins, a cold-water kelp forest, no coral.
+The otter is never underwater. Cozy expression, soft 3D render, calm blue dusk light,
+vertical 9:16, no text.
 ```
-카메라: 위에서 아래로 틸트 — 해달 → 물속 해초 줄기 → 바닥
+카메라: 위에서 아래로 틸트 — 수면 위 해달 → 물속 해초 줄기 → 바닥
 
 **S5 — 손잡기는 드물다**
 ```
