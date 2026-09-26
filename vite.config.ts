@@ -8,4 +8,14 @@ export default defineConfig({
     host: true,
     port: 5173,
   },
+  build: {
+    rollupOptions: {
+      // Each game is its own page: Gaffer at the root, the fruit merge
+      // puzzle at games/merge/.
+      input: {
+        main: 'index.html',
+        merge: 'games/merge/index.html',
+      },
+    },
+  },
 });
