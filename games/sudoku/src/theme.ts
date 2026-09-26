@@ -1,6 +1,5 @@
 // Two looks for the same game. The theme id lives on <html data-theme>, and
-// everything visual keys off CSS variables under it; the few words that change
-// with the theme (rank names, seal) come from here.
+// everything visual keys off CSS variables under it.
 
 export type ThemeId = 'ink' | 'bloom';
 
@@ -8,14 +7,12 @@ export interface ThemeInfo {
   id: ThemeId;
   name: string;
   desc: string;
-  /** Rank names for 중 / 상 / 최상 / 극상. */
-  ranks: [string, string, string, string];
   themeColor: string;
 }
 
 export const THEMES: Record<ThemeId, ThemeInfo> = {
-  ink: { id: 'ink', name: '먹', desc: '고요하고 어두운', ranks: ['초단', '이단', '삼단', '사단'], themeColor: '#0f0e0c' },
-  bloom: { id: 'bloom', name: '봄', desc: '말랑하고 밝은', ranks: ['새싹', '꽃봉오리', '활짝', '열매'], themeColor: '#fff4e8' },
+  ink: { id: 'ink', name: '먹', desc: '고요하고 어두운', themeColor: '#0f0e0c' },
+  bloom: { id: 'bloom', name: '봄', desc: '말랑하고 밝은', themeColor: '#fff4e8' },
 };
 
 const KEY = 'sudoku:theme';
@@ -42,8 +39,4 @@ export function setTheme(t: ThemeId): void {
     /* ignore */
   }
   applyTheme(t);
-}
-
-export function rankName(tier: number): string {
-  return THEMES[getTheme()].ranks[tier - 1] ?? '';
 }

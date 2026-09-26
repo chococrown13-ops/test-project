@@ -6,7 +6,7 @@ import { ICONS } from './icons.ts';
 import { sealSvg, tiltFor } from './seal.ts';
 import { LEVELS, LEVEL_BY_ID, PUZZLES, getClears, lastGame, lessonSolved, loadGame, type LevelId } from './store.ts';
 import { TECH_BY_ID, type TechId } from './techniques.ts';
-import { THEMES, applyTheme, getTheme, rankName, setTheme, type ThemeId } from './theme.ts';
+import { THEMES, applyTheme, getTheme, setTheme, type ThemeId } from './theme.ts';
 import { esc, fmtTime } from './ui.ts';
 
 applyTheme(getTheme());
@@ -47,7 +47,7 @@ function home(): () => void {
           last
             ? `<a class="continue" href="#/play/${last.level}/${last.idx}">
                 <span class="label">이어서 두기</span>
-                <span class="what">${rankName(LEVEL_BY_ID[last.level].tier)} ${last.idx + 1}</span>
+                <span class="what">${LEVEL_BY_ID[last.level].name} ${last.idx + 1}</span>
                 <span class="time">${fmtTime(last.elapsed)}</span>
                 ${ICONS.arrow}
               </a>`
@@ -61,7 +61,7 @@ function home(): () => void {
             return `<li><a class="rank-row" href="#/stages/${lv.id}">
               <span class="rank-no">${lv.tier}</span>
               <span class="rank-body">
-                <span class="rank-name">${rankName(lv.tier)}<small>${lv.name}</small></span>
+                <span class="rank-name">${lv.name}</span>
                 <span class="rank-desc">${esc(lv.desc)}</span>
               </span>
               <span class="rank-count">${cleared ? sealSvg(theme, { className: 'mini' }) : ''}<b>${cleared}</b>/${total}</span>
@@ -97,11 +97,11 @@ function stages(level: LevelId): () => void {
   const count = Object.keys(clears).length;
   app.innerHTML = `
     <div class="screen stages">
-      <header class="topbar"><a class="back" href="#/" aria-label="홈으로">${ICONS.back}</a><div class="title">${rankName(lv.tier)}<small>${lv.name}</small></div></header>
+      <header class="topbar"><a class="back" href="#/" aria-label="홈으로">${ICONS.back}</a><div class="title">${lv.name}</div></header>
       <div class="scroll">
         <div class="stamp-card">
           <div class="stamp-head">
-            <div><b>${rankName(lv.tier)} 도장판</b><span>${esc(lv.desc)}</span></div>
+            <div><b>${lv.name} 도장판</b><span>${esc(lv.desc)}</span></div>
             <div class="stamp-count"><b>${count}</b> / ${list.length}</div>
           </div>
           <div class="stage-grid">
