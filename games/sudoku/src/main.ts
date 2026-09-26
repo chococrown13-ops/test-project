@@ -6,7 +6,7 @@ import { ICONS } from './icons.ts';
 import { sealSvg, tiltFor } from './seal.ts';
 import { LEVELS, LEVEL_BY_ID, PUZZLES, getClears, lastGame, lessonSolved, loadGame, type LevelId } from './store.ts';
 import { TECH_BY_ID, type TechId } from './techniques.ts';
-import { THEMES, applyTheme, getTheme, rankName, setTheme, type ThemeId } from './theme.ts';
+import { THEMES, applyTheme, getTheme, levelSub, rankName, setTheme, type ThemeId } from './theme.ts';
 import { esc, fmtTime } from './ui.ts';
 
 applyTheme(getTheme());
@@ -61,7 +61,7 @@ function home(): () => void {
             return `<li><a class="rank-row" href="#/stages/${lv.id}">
               <span class="rank-no">${lv.tier}</span>
               <span class="rank-body">
-                <span class="rank-name">${rankName(lv.tier)}<small>${lv.name}</small></span>
+                <span class="rank-name">${rankName(lv.tier)}<small>${levelSub(lv.tier, lv.name)}</small></span>
                 <span class="rank-desc">${esc(lv.desc)}</span>
               </span>
               <span class="rank-count">${cleared ? sealSvg(theme, { className: 'mini' }) : ''}<b>${cleared}</b>/${total}</span>
@@ -97,7 +97,7 @@ function stages(level: LevelId): () => void {
   const count = Object.keys(clears).length;
   app.innerHTML = `
     <div class="screen stages">
-      <header class="topbar"><a class="back" href="#/" aria-label="홈으로">${ICONS.back}</a><div class="title">${rankName(lv.tier)}<small>${lv.name}</small></div></header>
+      <header class="topbar"><a class="back" href="#/" aria-label="홈으로">${ICONS.back}</a><div class="title">${rankName(lv.tier)}<small>${levelSub(lv.tier, lv.name)}</small></div></header>
       <div class="scroll">
         <div class="stamp-card">
           <div class="stamp-head">

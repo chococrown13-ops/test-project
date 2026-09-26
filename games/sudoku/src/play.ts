@@ -8,7 +8,7 @@ import { TECH_BY_ID, type State, type Step } from './techniques.ts';
 import { ICONS } from './icons.ts';
 import { sealSvg } from './seal.ts';
 import { sfxClear, sfxNote, sfxPlace, sfxStamp, sfxUnit, sfxWrong, unlockAudio } from './sfx.ts';
-import { THEMES, getTheme, rankName, setTheme, type ThemeId } from './theme.ts';
+import { THEMES, getTheme, levelSub, rankName, setTheme, type ThemeId } from './theme.ts';
 import {
   LEVEL_BY_ID,
   PUZZLES,
@@ -48,7 +48,7 @@ export function mountPlay(root: HTMLElement, level: LevelId, idx: number): () =>
     <div class="screen play">
       <header class="topbar">
         <a class="back" href="#/stages/${level}" aria-label="목록으로">${ICONS.back}</a>
-        <div class="title"><span class="rank">${rankName(lv.tier)}</span> <span class="no">${idx + 1}</span><small>${lv.name}</small></div>
+        <div class="title"><span class="rank">${rankName(lv.tier)}</span> <span class="no">${idx + 1}</span><small class="lv">${levelSub(lv.tier, lv.name)}</small></div>
         <div class="timer" id="timer">0:00</div>
         <button class="icon" id="menu" aria-label="메뉴">${ICONS.menu}</button>
       </header>
@@ -386,6 +386,7 @@ export function mountPlay(root: HTMLElement, level: LevelId, idx: number): () =>
       setTheme(b.dataset.themePick as ThemeId);
       // Rank names and the seal change with the theme; re-render the title.
       root.querySelector('.topbar .rank')!.textContent = rankName(lv.tier);
+      root.querySelector('.topbar .lv')!.textContent = levelSub(lv.tier, lv.name);
       for (const x of root.querySelectorAll('[data-theme-pick]')) x.classList.toggle('on', x === b);
     });
   }

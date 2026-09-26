@@ -14,7 +14,7 @@ export interface ThemeInfo {
 }
 
 export const THEMES: Record<ThemeId, ThemeInfo> = {
-  ink: { id: 'ink', name: '먹', desc: '고요하고 어두운', ranks: ['초단', '이단', '삼단', '사단'], themeColor: '#0f0e0c' },
+  ink: { id: 'ink', name: '먹', desc: '고요하고 어두운', ranks: ['중', '상', '최상', '극상'], themeColor: '#0f0e0c' },
   bloom: { id: 'bloom', name: '봄', desc: '말랑하고 밝은', ranks: ['새싹', '꽃봉오리', '활짝', '열매'], themeColor: '#fff4e8' },
 };
 
@@ -46,4 +46,9 @@ export function setTheme(t: ThemeId): void {
 
 export function rankName(tier: number): string {
   return THEMES[getTheme()].ranks[tier - 1] ?? '';
+}
+
+/** The plain difficulty name, shown next to the rank only when the theme renames it. */
+export function levelSub(tier: number, levelName: string): string {
+  return rankName(tier) === levelName ? '' : levelName;
 }
