@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0f0e0c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect x='6' y='6' width='88' height='88' rx='6' fill='%23c8352b'/><rect x='16' y='16' width='68' height='68' fill='%23f3ead8'/><text x='50' y='72' font-size='56' font-weight='900' text-anchor='middle' fill='%23c8352b' font-family='serif'>解</text></svg>" />
+    <title>스도쿠 도장</title>
+    <script>
+      // Pick the theme before first paint so there's no flash of the other one.
+      try {
+        var t = localStorage.getItem('sudoku:theme');
+        if (t !== 'ink' && t !== 'bloom') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'ink' : 'bloom';
+        document.documentElement.dataset.theme = t;
+      } catch (e) {
+        document.documentElement.dataset.theme = 'ink';
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Loaded without blocking: the game must start even if the font CDN is slow or blocked. -->
+    <link
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Fredoka:wght@500;600;700&family=Gowun+Dodum&family=IBM+Plex+Sans+KR:wght@400;500;600&family=Jua&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@900&display=swap"
+    />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
