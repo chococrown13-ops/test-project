@@ -8,7 +8,7 @@ import { TECH_BY_ID, type State, type Step } from './techniques.ts';
 import { ICONS } from './icons.ts';
 import { sealSvg } from './seal.ts';
 import { sfxClear, sfxNote, sfxPlace, sfxStamp, sfxUnit, sfxWrong, unlockAudio } from './sfx.ts';
-import { THEMES, getTheme, levelSub, rankName, setTheme, type ThemeId } from './theme.ts';
+import { THEMES, getTheme, setTheme, type ThemeId } from './theme.ts';
 import {
   LEVEL_BY_ID,
   PUZZLES,
@@ -48,7 +48,7 @@ export function mountPlay(root: HTMLElement, level: LevelId, idx: number): () =>
     <div class="screen play">
       <header class="topbar">
         <a class="back" href="#/stages/${level}" aria-label="목록으로">${ICONS.back}</a>
-        <div class="title"><span class="rank">${rankName(lv.tier)}</span> <span class="no">${idx + 1}</span><small class="lv">${levelSub(lv.tier, lv.name)}</small></div>
+        <div class="title"><span class="rank">${lv.name}</span> <span class="no">${idx + 1}</span></div>
         <div class="timer" id="timer">0:00</div>
         <button class="icon" id="menu" aria-label="메뉴">${ICONS.menu}</button>
       </header>
@@ -255,7 +255,7 @@ export function mountPlay(root: HTMLElement, level: LevelId, idx: number): () =>
     $('done').innerHTML = `
       <div class="clear-seal">${sealSvg(getTheme(), { rotate: -9 })}</div>
       <div class="card clear-card">
-        <div class="clear-title"><span>${rankName(lv.tier)} ${idx + 1}</span> 완료</div>
+        <div class="clear-title"><span>${lv.name} ${idx + 1}</span> 완료</div>
         <div class="result">
           <div><span>시간</span><b>${fmtTime(elapsed)}</b>${best ? '<em>최고 기록</em>' : ''}</div>
           <div><span>실수</span><b>${mistakes}</b></div>
@@ -384,9 +384,6 @@ export function mountPlay(root: HTMLElement, level: LevelId, idx: number): () =>
   for (const b of root.querySelectorAll<HTMLButtonElement>('[data-theme-pick]')) {
     b.addEventListener('click', () => {
       setTheme(b.dataset.themePick as ThemeId);
-      // Rank names and the seal change with the theme; re-render the title.
-      root.querySelector('.topbar .rank')!.textContent = rankName(lv.tier);
-      root.querySelector('.topbar .lv')!.textContent = levelSub(lv.tier, lv.name);
       for (const x of root.querySelectorAll('[data-theme-pick]')) x.classList.toggle('on', x === b);
     });
   }
