@@ -1,10 +1,14 @@
 // The play screen: one stage puzzle with notes, undo, hints and a timer.
 
 import { Board, type BoardView } from './board.ts';
-import { PEERS, bit, computeCandidates, has, parseGrid } from './core.ts';
+import { PEERS, UNITS, UNITS_OF, bit, computeCandidates, has, parseGrid } from './core.ts';
 import { solve } from './brute.ts';
 import { applyStep, cloneState, nextStep } from './solver.ts';
-import { TECH_BY_ID, TIER_NAMES, type State, type Step } from './techniques.ts';
+import { TECH_BY_ID, type State, type Step } from './techniques.ts';
+import { ICONS } from './icons.ts';
+import { sealSvg } from './seal.ts';
+import { sfxClear, sfxNote, sfxPlace, sfxStamp, sfxUnit, sfxWrong, unlockAudio } from './sfx.ts';
+import { THEMES, getTheme, rankName, setTheme, type ThemeId } from './theme.ts';
 import {
   LEVEL_BY_ID,
   PUZZLES,
@@ -16,7 +20,7 @@ import {
   setSettings,
   type LevelId,
 } from './store.ts';
-import { esc, fmtTime } from './ui.ts';
+import { esc, fmtTime, tierMark } from './ui.ts';
 
 type Hint = { kind: 'wrong'; cells: number[] } | { kind: 'step'; step: Step; state: State };
 
@@ -43,13 +47,17 @@ export function mountPlay(root: HTMLElement, level: LevelId, idx: number): () =>
   root.innerHTML = `
     <div class="screen play">
       <header class="topbar">
-        <a class="back" href="#/stages/${level}" aria-label="목록으로">‹</a>
-        <div class="title">${lv.name} · 스테이지 ${idx + 1}</div>
+        <a class="back" href="#/stages/${level}" aria-label="목록으로">${ICONS.back}</a>
+        <div class="title"><span class="rank">${rankName(lv.tier)}</span> <span class="no">${idx + 1}</span><small>${lv.name}</small></div>
         <div class="timer" id="timer">0:00</div>
-        <button class="icon" id="menu" aria-label="메뉴">⋯</button>
+        <button class="icon" id="menu" aria-label="메뉴">${ICONS.menu}</button>
       </header>
       <div class="menu hidden" id="menu-pop">
-        <label><input type="checkbox" id="opt-mistakes" /> 틀린 숫자 바로 표시</label>
+        <label class="toggle"><input type="checkbox" id="opt-mistakes" /><span>틀린 숫자 바로 표시</span></label>
+        <label class="toggle"><input type="checkbox" id="opt-sound" /><span>소리와 진동</span></label>
+        <div class="menu-themes">${(Object.keys(THEMES) as ThemeId[])
+          .map((t) => `<button data-theme-pick="${t}" class="${t === getTheme() ? 'on' : ''}">${THEMES[t].name}</button>`)
+          .join('')}</div>
         <button id="restart">처음부터 다시</button>
       </div>
       <div class="play-body">
@@ -58,11 +66,11 @@ export function mountPlay(root: HTMLElement, level: LevelId, idx: number): () =>
           <div class="stats" id="stats"></div>
           <div class="hint-panel hidden" id="hint"></div>
           <div class="tools">
-            <button id="t-undo"><span class="ic">↶</span>되돌리기</button>
-            <button id="t-erase"><span class="ic">⌫</span>지우기</button>
-            <button id="t-note"><span class="ic">✎</span>메모 <b id="note-state">OFF</b></button>
-            <button id="t-auto"><span class="ic">⋮⋮</span>자동 메모</button>
-            <button id="t-hint"><span class="ic">💡</span>힌트</button>
+            <button id="t-undo">${ICONS.undo}<span>되돌리기</span></button>
+            <button id="t-erase">${ICONS.erase}<span>지우기</span></button>
+            <button id="t-note">${ICONS.pencil}<span>메모 <b id="note-state">끔</b></span></button>
+            <button id="t-auto">${ICONS.auto}<span>자동 메모</span></button>
+            <button id="t-hint">${ICONS.hint}<span>힌트</span></button>
           </div>
           <div class="pad" id="pad"></div>
         </div>
@@ -98,10 +106,12 @@ export function mountPlay(root: HTMLElement, level: LevelId, idx: number): () =>
     if (done || selected === null || givens[selected]) return;
     closeHint();
     const c = selected;
+    unlockAudio();
     if (noteMode) {
       if (values[c]) return;
       snapshot();
       notes[c] ^= bit(d);
+      sfxNote();
     } else {
       snapshot();
       if (values[c] === d) {
@@ -109,10 +119,25 @@ export function mountPlay(root: HTMLElement, level: LevelId, idx: number): () =>
       } else {
         values[c] = d;
         for (const p of PEERS[c]) notes[p] &= ~bit(d);
-        if (d !== solution[c]) mistakes++;
+        if (d !== solution[c]) {
+          mistakes++;
+          if (settings.showMistakes) sfxWrong();
+          else sfxPlace();
+        } else {
+          sfxPlace();
+          celebrateUnits(c);
+        }
       }
     }
     changed();
+  }
+
+  /** Ripple across any row, column or box this placement just finished. */
+  function celebrateUnits(c: number): void {
+    const full = UNITS_OF[c].filter((u) => UNITS[u].every((x) => values[x] === solution[x]));
+    if (!full.length || values.every((v, i) => v === solution[i])) return;
+    board.flash([...new Set(full.flatMap((u) => UNITS[u]))], c);
+    sfxUnit(full.length);
   }
 
   function erase(): void {
@@ -220,15 +245,17 @@ export function mountPlay(root: HTMLElement, level: LevelId, idx: number): () =>
 
   function finish(): void {
     done = true;
+    const last = selected ?? 40;
     selected = null;
     dropGame(level, idx);
     const best = recordClear(level, idx, { time: elapsed, mistakes, hints });
     const hasNext = idx + 1 < PUZZLES[level].length;
     const techs = entry.used.filter((t) => TECH_BY_ID[t].tier > 0);
+    board.flash([...Array(81).keys()], last);
     $('done').innerHTML = `
-      <div class="card">
-        <div class="big">🎉</div>
-        <h2>클리어!</h2>
+      <div class="clear-seal">${sealSvg(getTheme(), { rotate: -9 })}</div>
+      <div class="card clear-card">
+        <div class="clear-title"><span>${rankName(lv.tier)} ${idx + 1}</span> 완료</div>
         <div class="result">
           <div><span>시간</span><b>${fmtTime(elapsed)}</b>${best ? '<em>최고 기록</em>' : ''}</div>
           <div><span>실수</span><b>${mistakes}</b></div>
@@ -236,15 +263,20 @@ export function mountPlay(root: HTMLElement, level: LevelId, idx: number): () =>
         </div>
         ${
           techs.length
-            ? `<p class="muted">이 퍼즐에 쓰인 기법</p><div class="chips">${techs
-                .map((t) => `<a class="chip tier${TECH_BY_ID[t].tier}" href="#/lesson/${t}">${esc(TECH_BY_ID[t].name)}</a>`)
-                .join('')}</div>`
+            ? `<p class="used">이 판에 쓰인 기법 — ${techs
+                .map((t) => `<a href="#/lesson/${t}">${esc(TECH_BY_ID[t].name)}</a>`)
+                .join(' · ')}</p>`
             : ''
         }
         ${hasNext ? `<a class="btn primary" href="#/play/${level}/${idx + 1}">다음 스테이지</a>` : ''}
         <a class="btn ${hasNext ? '' : 'primary'}" href="#/stages/${level}">스테이지 목록</a>
       </div>`;
-    $('done').classList.remove('hidden');
+    // Let the board wave finish, then bring the seal down.
+    window.setTimeout(() => {
+      $('done').classList.remove('hidden');
+      window.setTimeout(sfxStamp, 330);
+      sfxClear();
+    }, 650);
   }
 
   // --------------------------------------------------------------- render
@@ -258,13 +290,13 @@ export function mountPlay(root: HTMLElement, level: LevelId, idx: number): () =>
     el.classList.remove('hidden');
     if (hint.kind === 'wrong') {
       el.innerHTML = `
-        <div class="hint-head"><span class="badge warn">확인</span><b>틀린 숫자가 ${hint.cells.length}개 있어요</b></div>
+        <div class="hint-head"><b>틀린 숫자가 ${hint.cells.length}개 있어요</b></div>
         <p>빨간 칸의 숫자가 정답과 다릅니다. 먼저 지우고 다시 힌트를 받아 보세요.</p>
         <div class="hint-actions"><button class="btn primary" data-a="apply">틀린 숫자 지우기</button><button class="btn" data-a="close">닫기</button></div>`;
     } else {
       const t = TECH_BY_ID[hint.step.tech];
       el.innerHTML = `
-        <div class="hint-head"><span class="badge tier${t.tier}">${TIER_NAMES[t.tier]}</span><b>${esc(t.name)}</b><span class="en">${t.en}</span></div>
+        <div class="hint-head">${tierMark(t.tier)}<b>${esc(t.name)}</b><span class="en">${t.en}</span></div>
         <p>${esc(hint.step.text)}</p>
         <div class="hint-actions">
           <button class="btn primary" data-a="apply">${hint.step.place ? '숫자 넣기' : '후보 지우기'}</button>
@@ -318,9 +350,9 @@ export function mountPlay(root: HTMLElement, level: LevelId, idx: number): () =>
       b.classList.toggle('complete', left <= 0);
       b.classList.toggle('focus', d === sv);
     }
-    $('note-state').textContent = noteMode ? 'ON' : 'OFF';
+    $('note-state').textContent = noteMode ? '켬' : '끔';
     $('t-note').classList.toggle('on', noteMode);
-    $('stats').innerHTML = `<span>실수 <b>${mistakes}</b></span><span>힌트 <b>${hints}</b></span><span class="muted">${lv.desc}</span>`;
+    $('stats').innerHTML = `<span>실수 <b>${mistakes}</b></span><span>힌트 <b>${hints}</b></span><span class="desc">${lv.desc}</span>`;
   }
 
   // ---------------------------------------------------------------- wiring
@@ -343,6 +375,20 @@ export function mountPlay(root: HTMLElement, level: LevelId, idx: number): () =>
     setSettings(settings);
     render();
   });
+  const optSound = $('opt-sound') as HTMLInputElement;
+  optSound.checked = settings.sound;
+  optSound.addEventListener('change', () => {
+    settings = { ...settings, sound: optSound.checked };
+    setSettings(settings);
+  });
+  for (const b of root.querySelectorAll<HTMLButtonElement>('[data-theme-pick]')) {
+    b.addEventListener('click', () => {
+      setTheme(b.dataset.themePick as ThemeId);
+      // Rank names and the seal change with the theme; re-render the title.
+      root.querySelector('.topbar .rank')!.textContent = rankName(lv.tier);
+      for (const x of root.querySelectorAll('[data-theme-pick]')) x.classList.toggle('on', x === b);
+    });
+  }
   $('restart').addEventListener('click', () => {
     if (!confirm('처음부터 다시 풀까요? 입력한 내용이 모두 지워집니다.')) return;
     snapshot();

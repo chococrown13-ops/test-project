@@ -31,6 +31,7 @@ export class Board {
   private vals: HTMLDivElement[] = [];
   private notes: HTMLSpanElement[][] = [];
   private svg: SVGSVGElement;
+  private prev: number[] | null = null;
 
   constructor(onTap: (cell: number, digit: number | null) => void) {
     this.el = document.createElement('div');
@@ -93,6 +94,12 @@ export class Board {
       cls.toggle('unit', unitCells.has(c));
       cls.toggle('placed', v.place?.cell === c);
       this.vals[c].textContent = value ? String(value) : v.place?.cell === c ? String(v.place.digit) : '';
+      if (this.prev && value && this.prev[c] !== value) {
+        // Restart the little "set down" animation on a newly placed digit.
+        cls.remove('pop');
+        void cell.offsetWidth;
+        cls.add('pop');
+      }
 
       const showNotes = !value && !(v.place?.cell === c);
       for (let d = 1; d <= 9; d++) {
@@ -108,7 +115,21 @@ export class Board {
         sc.toggle('mark', on && marked.has(k));
       }
     }
+    this.prev = v.values.slice();
     this.drawLinks(v.links ?? []);
+  }
+
+  /** A wave across finished cells, rippling out from `origin`. */
+  flash(cells: number[], origin: number): void {
+    for (const c of cells) {
+      const el = this.cells[c];
+      const dist = Math.abs(rowOf(c) - rowOf(origin)) + Math.abs(colOf(c) - colOf(origin));
+      el.style.setProperty('--d', `${dist * 40}ms`);
+      el.classList.remove('sweep');
+      void el.offsetWidth;
+      el.classList.add('sweep');
+    }
+    window.setTimeout(() => cells.forEach((c) => this.cells[c].classList.remove('sweep')), 1400);
   }
 
   private drawLinks(links: Link[]): void {

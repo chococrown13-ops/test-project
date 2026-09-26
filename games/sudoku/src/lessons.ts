@@ -18,34 +18,34 @@ export interface Chapter {
 
 export const CHAPTERS: Chapter[] = [
   {
-    title: '1장 · 기초 — 숫자 넣기',
+    title: '숫자 넣기',
     tier: 0,
     intro:
       '모든 스도쿠는 결국 "이 칸에는 이 숫자뿐" 또는 "이 숫자는 이 칸뿐"을 찾아 채우는 게임입니다. 어려운 기법들도 전부 이 두 가지가 보이도록 후보를 지워 주는 도구일 뿐이에요.',
     techs: ['fullHouse', 'hiddenSingle', 'nakedSingle'],
   },
   {
-    title: '2장 · 중급 — 후보 지우기의 시작',
+    title: '후보 지우기의 시작',
     tier: 1,
     intro:
       '싱글만으로 막히면 이제 메모(후보 숫자)가 필요합니다. 각 빈칸에 들어갈 수 있는 숫자를 적어 두고, 패턴을 찾아 후보를 지워 나갑니다. 중 난이도 퍼즐은 이 장의 기법이면 모두 풀립니다.',
     techs: ['pointing', 'claiming', 'nakedPair', 'hiddenPair'],
   },
   {
-    title: '3장 · 상급 — 세 칸과 두 줄',
+    title: '세 칸과 두 줄',
     tier: 2,
     intro: '페어를 세 개로 넓히고, 처음으로 행·열 여러 줄을 한꺼번에 보는 패턴(X-윙)과 두 칸짜리 후보를 연결하는 패턴(XY-윙)을 배웁니다.',
     techs: ['nakedTriple', 'hiddenTriple', 'xWing', 'xyWing'],
   },
   {
-    title: '4장 · 최상급 — 한 숫자의 연결',
+    title: '한 숫자의 연결',
     tier: 3,
     intro:
       '"강한 연결"이라는 개념이 등장합니다. 어떤 행·열·박스에서 숫자 d가 딱 두 곳에만 올 수 있으면, 둘 중 하나는 반드시 d예요. 이 연결 두 개를 이어 붙이는 것만으로 강력한 패턴들이 만들어집니다.',
     techs: ['skyscraper', 'twoStringKite', 'turbotFish', 'swordfish', 'xyzWing', 'wWing', 'uniqueRect', 'nakedQuad', 'hiddenQuad'],
   },
   {
-    title: '5장 · 극상 — 체인',
+    title: '체인',
     tier: 4,
     intro:
       '4장의 패턴을 길게 늘인 것이 체인입니다. "이게 아니면 저게 맞다"를 여러 번 이어 가서, 양 끝 중 하나는 반드시 참이라는 결론을 얻습니다. 극상 퍼즐은 이 장의 기법이 한 번 이상 꼭 필요합니다.',

@@ -15,10 +15,10 @@ export interface LevelInfo {
 }
 
 export const LEVELS: LevelInfo[] = [
-  { id: 'mid', name: '중', tier: 1, desc: '포인팅·클레이밍, 페어' },
-  { id: 'hard', name: '상', tier: 2, desc: '트리플, X-윙, XY-윙' },
-  { id: 'expert', name: '최상', tier: 3, desc: '스카이스크래퍼, 소드피시, W-윙 등' },
-  { id: 'extreme', name: '극상', tier: 4, desc: 'X-체인, XY-체인' },
+  { id: 'mid', name: '중', tier: 1, desc: '포인팅 · 클레이밍 · 페어' },
+  { id: 'hard', name: '상', tier: 2, desc: '트리플 · X-윙 · XY-윙' },
+  { id: 'expert', name: '최상', tier: 3, desc: '스카이스크래퍼 · 소드피시 · W-윙' },
+  { id: 'extreme', name: '극상', tier: 4, desc: 'X-체인 · XY-체인' },
 ];
 
 export const LEVEL_BY_ID = Object.fromEntries(LEVELS.map((l) => [l.id, l])) as Record<LevelId, LevelInfo>;
@@ -126,10 +126,11 @@ export function markLessonSolved(tech: TechId, i: number): void {
 
 export interface Settings {
   showMistakes: boolean;
+  sound: boolean;
 }
 const SETTINGS_KEY = 'sudoku:settings';
 export function getSettings(): Settings {
-  return { showMistakes: true, ...read<Partial<Settings>>(SETTINGS_KEY, {}) };
+  return { showMistakes: true, sound: true, ...read<Partial<Settings>>(SETTINGS_KEY, {}) };
 }
 export function setSettings(s: Settings): void {
   write(SETTINGS_KEY, s);

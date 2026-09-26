@@ -4,9 +4,10 @@
 import { Board, type BoardView } from './board.ts';
 import { cellName, parseGrid } from './core.ts';
 import { CHAPTERS, LESSONS } from './lessons.ts';
-import { TECH_BY_ID, TIER_NAMES, sameElim, type Cand, type State, type Step, type TechId } from './techniques.ts';
+import { TECH_BY_ID, sameElim, type Cand, type State, type Step, type TechId } from './techniques.ts';
 import { PRACTICE, lessonSolved, markLessonSolved } from './store.ts';
-import { esc } from './ui.ts';
+import { esc, tierMark } from './ui.ts';
+import { ICONS } from './icons.ts';
 
 const decodeCand = (s: string) => Array.from({ length: 81 }, (_, i) => parseInt(s.slice(i * 2, i * 2 + 2), 36));
 
@@ -21,13 +22,14 @@ export const practiceCount = (tech: TechId) => Math.max(0, PRACTICE[tech].length
 export function mountLearnList(root: HTMLElement): () => void {
   root.innerHTML = `
     <div class="screen learn">
-      <header class="topbar"><a class="back" href="#/" aria-label="홈으로">‹</a><div class="title">학습 채널</div></header>
+      <header class="topbar"><a class="back" href="#/" aria-label="홈으로">${ICONS.back}</a><div class="title">교본</div></header>
       <div class="scroll">
         <p class="lead">스도쿠의 풀이 기법을 쉬운 것부터 차례로 배웁니다. 각 기법마다 설명과 예시, 실제 퍼즐에서 뽑은 연습 문제가 있어요.</p>
         ${CHAPTERS.map(
-          (ch) => `
+          (ch, n) => `
           <section class="chapter">
-            <h2><span class="badge tier${ch.tier}">${TIER_NAMES[ch.tier]}</span>${esc(ch.title)}</h2>
+            <div class="ch-no">제${n + 1}장 ${tierMark(ch.tier)}</div>
+            <h2>${esc(ch.title)}</h2>
             <p class="muted">${esc(ch.intro)}</p>
             <div class="tech-list">
               ${ch.techs
@@ -38,7 +40,7 @@ export function mountLearnList(root: HTMLElement): () => void {
                   const dots = Array.from({ length: total }, (_, i) => `<i class="${i < solved ? 'on' : ''}"></i>`).join('');
                   return `<a class="tech-row ${solved >= total ? 'cleared' : ''}" href="#/lesson/${id}">
                     <div><b>${esc(t.name)}</b><span class="en">${t.en}</span><div class="muted small">${esc(LESSONS[id].summary)}</div></div>
-                    <div class="dots">${dots}</div>
+                    <div class="dots">${dots}</div>${ICONS.arrow}
                   </a>`;
                 })
                 .join('')}
@@ -60,12 +62,12 @@ export function mountLesson(root: HTMLElement, tech: TechId): () => void {
 
   root.innerHTML = `
     <div class="screen lesson">
-      <header class="topbar"><a class="back" href="#/learn" aria-label="학습 채널로">‹</a><div class="title">${esc(t.name)}</div></header>
+      <header class="topbar"><a class="back" href="#/learn" aria-label="교본으로">${ICONS.back}</a><div class="title">${esc(t.name)}</div></header>
       <div class="scroll">
         <div class="lesson-head">
-          <span class="badge tier${t.tier}">${TIER_NAMES[t.tier]}</span>
-          <h1>${esc(t.name)} <span class="en">${t.en}</span></h1>
-          <p class="muted small">${esc(chapter.title)}</p>
+          <div class="ch-no">제${CHAPTERS.indexOf(chapter) + 1}장 · ${esc(chapter.title)} ${tierMark(t.tier)}</div>
+          <h1>${esc(t.name)}</h1>
+          <div class="en-title">${t.en}</div>
         </div>
         <p class="summary">${esc(lesson.summary)}</p>
         ${lesson.body.map((p) => `<p>${esc(p)}</p>`).join('')}
