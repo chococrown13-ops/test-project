@@ -20,5 +20,6 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["vite/client"]
   },
-  "include": ["src", "games", "vite.config.ts"]
+  "include": ["src", "games", "vite.config.ts"],
+  "exclude": ["games/*/scripts"]
 }

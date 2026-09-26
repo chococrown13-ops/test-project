@@ -10,11 +10,11 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      // Each game is its own page: Gaffer at the root, the fruit merge
-      // puzzle at games/merge/.
+      // Each game is its own page: Gaffer at the root, the others under games/.
       input: {
         main: 'index.html',
         merge: 'games/merge/index.html',
+        sudoku: 'games/sudoku/index.html',
       },
     },
   },

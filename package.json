@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:merge": "vite --open /games/merge/",
+    "dev:sudoku": "vite --open /games/sudoku/",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit false --emitDeclarationOnly false"
