@@ -1,0 +1,164 @@
+{
+  "title": "EP01. 해달은 정말 손잡고 잘까?",
+  "voice": "ko-KR-Neural2-A",
+  "speaking_rate": 1.08,
+  "scenes": [
+    {
+      "image": "images/s1.jpg",
+      "duration": 2.2,
+      "narration": [
+        "해달이 손잡고 잔다고요? 반은 틀렸어요!"
+      ],
+      "captions": false,
+      "title": "해달이 손잡고 잔다?\n**반은 틀렸어요**",
+      "title_y": 0.05,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "y": 0.45
+        },
+        "to": {
+          "zoom": 1.18,
+          "y": 0.45
+        },
+        "ease": "out"
+      }
+    },
+    {
+      "image": "images/s2.jpg",
+      "duration": 1.8,
+      "narration": [
+        "오늘의 궁금증!"
+      ],
+      "captions": false,
+      "title": "**오늘의 궁금증**",
+      "title_y": 0.12,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.55,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.07,
+          "x": 0.55,
+          "y": 0.52
+        }
+      }
+    },
+    {
+      "image": "images/s3.jpg",
+      "duration": 6.0,
+      "narration": [
+        "해달은 물 위에 누워서 자요.",
+        "그런데 자다가 파도에 떠내려가면",
+        "큰일이겠죠?"
+      ],
+      "title": "물 위에서 자는 해달\n떠내려가면?",
+      "title_y": 0.07,
+      "caption_y": 0.25,
+      "camera": {
+        "from": {
+          "zoom": 1.12,
+          "x": 0.42,
+          "y": 0.55
+        },
+        "to": {
+          "zoom": 1.12,
+          "x": 0.58,
+          "y": 0.55
+        },
+        "ease": "linear"
+      }
+    },
+    {
+      "image": "images/s4.jpg",
+      "duration": 10.0,
+      "narration": [
+        "그래서 실제로 더 자주 쓰는 방법이 있어요.",
+        "바다 밑바닥에 붙어 자라는",
+        "긴 해초를 몸에 돌돌 감는 거예요.",
+        "해초가 닻처럼 몸을 붙잡아 주거든요."
+      ],
+      "title": "진짜 비법:\n**해초를 몸에 감기**",
+      "title_y": 0.56,
+      "caption_y": 0.69,
+      "camera": {
+        "from": {
+          "zoom": 1.3,
+          "y": 0.3
+        },
+        "to": {
+          "zoom": 1.3,
+          "y": 0.72
+        }
+      }
+    },
+    {
+      "image": "images/s5.jpg",
+      "duration": 8.0,
+      "narration": [
+        "손을 잡고 자는 모습도 있긴 해요.",
+        "다만 SNS에서 본 것만큼",
+        "흔하지는 않대요."
+      ],
+      "title": "손잡기도 있지만\n**생각보다 드물어요**",
+      "title_y": 0.03,
+      "caption_y": 0.16,
+      "fit": 0.8,
+      "fit_top": 0.08,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.45,
+          "y": 0.42
+        }
+      }
+    },
+    {
+      "image": "images/s6.jpg",
+      "duration": 6.0,
+      "narration": [
+        "그래서 제 수첩엔 이렇게 고쳐 적었어요.",
+        "해달은 해초 이불 덮고 잔다!"
+      ],
+      "captions": false,
+      "title": "~~손잡고 잔다~~\n**해초 이불** 덮고 잔다",
+      "title_y": 0.04,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.12,
+          "y": 0.55
+        }
+      }
+    },
+    {
+      "image": "images/s7.jpg",
+      "duration": 6.0,
+      "narration": [
+        "여러분이 알던 동물 상식 중에",
+        "수상한 거, 댓글로 알려주세요.",
+        "궁금해달이 확인해 올게요!"
+      ],
+      "captions": false,
+      "title": "수상한 동물 상식\n**댓글로 제보해주세요**",
+      "title_y": 0.05,
+      "camera": {
+        "from": {
+          "zoom": 1.0
+        },
+        "to": {
+          "zoom": 1.04
+        }
+      }
+    }
+  ],
+  "caption_size": 54
+}

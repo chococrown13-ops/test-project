@@ -7,6 +7,7 @@
 - [`prompts.md`](prompts.md): Claude에 그대로 붙여 쓰는 프롬프트 템플릿
 - [`content-calendar.md`](content-calendar.md): 첫 4주 게시 계획과 주제 아이디어 목록
 - [`topics.md`](topics.md): 사실 확인을 마친 주제 목록과 출처
+- [`tools/`](tools/README.md): 이미지 + 대본으로 영상을 자동으로 만드는 편집기
 - [`brand.md`](brand.md): 계정 A 「궁금해달」(@otter.curious) 프로필 문구와 캐릭터 설정
 
 ---
