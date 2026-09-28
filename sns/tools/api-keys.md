@@ -82,17 +82,33 @@ Text-to-Speech는 무료 사용량 안에서 써도 결제 계정이 연결돼 �
 
 ## 3부. Claude 환경에 키 넣기
 
-1. Claude Code 화면에서 **세션 제목 줄의 클라우드 환경 메뉴 → 편집**
-2. **환경 변수**에 두 줄 추가
+### 방법 A (추천, 현재 사용 중): API credentials
+키를 Claude도 볼 수 없게 보관하고, 요청이 나갈 때만 프록시가 붙여 줍니다. 이미 열려 있는 세션에도 바로 적용됩니다.
+1. [claude.ai/code](https://claude.ai/code) 에서 **메시지 입력창 바로 위의 구름 아이콘**(현재 환경 이름이 적힌 버튼) 클릭
+2. 쓰고 있는 환경에 마우스를 올리고 오른쪽 **톱니바퀴(설정)** 클릭
+3. **API credentials → Add credential**
+   - 음성: Allowed websites `texttospeech.googleapis.com`, 헤더 Name `X-Goog-Api-Key`, Prefix 비움, Value에 키
+   - Gemini: Allowed websites `generativelanguage.googleapis.com`, 헤더 Name `x-goog-api-key`, Prefix 비움, Value에 키
+4. 편집기는 `--tts` 옵션으로 실행합니다. (키 없이 요청하면 프록시가 붙임)
+
+### 방법 B: 환경 변수 (API credentials 항목이 없을 때)
+1. 같은 설정 창의 **Environment variables** 칸에 한 줄씩 적고 저장
    ```
    GOOGLE_TTS_API_KEY=(1부에서 복사한 키)
    GEMINI_API_KEY=(2부에서 만든 키)
    ```
-3. 저장 → **새 세션**을 열어야 적용됩니다
-4. 새 세션에서 이렇게 요청하면 됩니다
-   > sns 폴더를 보고 ep01을 음성 넣어서 다시 렌더링해줘
+> 그 환경을 쓰는 사람은 누구나 값을 읽을 수 있습니다. **본인만 쓰는 개인 환경**에 넣고,
+> 조직 공유 환경이라면 **Add cloud environment**로 개인 환경을 새로 만들어 쓰세요.
+> Google 콘솔의 **키 제한**도 꼭 걸어 두세요.
 
-모든 작업 파일은 저장소에 있어서, 새 세션에서도 이어서 할 수 있습니다.
+### 새 세션 열기
+환경 설정은 **새로 시작하는 세션부터** 적용됩니다.
+1. claude.ai/code 왼쪽 사이드바에서 **새 세션** 시작 (휴대폰 Claude 앱은 **Code** 탭에서 새로 시작)
+2. 저장소 `test-project`, 입력창 위 구름 아이콘에서 **키를 넣은 환경**이 선택돼 있는지 확인
+3. 첫 메시지로 이렇게 보냅니다
+   > `claude/sns-account-strategy-h9eu1q` 브랜치로 체크아웃해서 `sns/tools/README.md`를 보고, ep01을 음성 넣어서 다시 렌더링해줘
+
+작업 파일은 아직 `main`이 아니라 위 브랜치에만 있으므로 **브랜치 이름을 꼭 알려줘야** 합니다.
 
 ---
 

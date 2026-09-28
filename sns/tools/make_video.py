@@ -7,8 +7,10 @@
 - 카메라 움직임: 확대, 좌우 이동, 위아래 이동 (켄 번스)
 - 자막: 장면 제목(위쪽, 큰 글씨) + 내레이션 자막(선택)
   `**강조**` 는 노란색, `~~취소~~` 는 취소선
-- 음성: 환경 변수 GOOGLE_TTS_API_KEY 가 있으면 Google Cloud TTS 로 내레이션을 만들고
+- 음성: 환경 변수 GOOGLE_TTS_API_KEY 가 있거나 --tts 를 주면 Google Cloud TTS 로 내레이션을 만들고
   음성 길이에 맞춰 장면 길이를 정한다. 없으면 JSON 의 duration 으로 무음 영상을 만든다.
+  (Claude Code 클라우드 환경의 "API credentials" 에 키를 넣으면 프록시가 헤더를 붙여 주므로
+  키 없이 --tts 만 주면 된다.)
 - 배경음악: --bgm 파일을 주면 내레이션 아래에 작게 깐다.
 - AI 영상 클립: 장면에 "video" 가 있고 그 파일이 있으면 이미지 대신 클립을 쓴다.
   클립이 장면보다 짧으면 앞으로 재생 후 거꾸로 재생(pingpong)해서 길이를 채운다.
@@ -39,7 +41,7 @@ BLACK = (0, 0, 0)
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_FONT = os.path.join(HERE, "fonts", "Pretendard-ExtraBold.otf")
 
-TTS_URL = "https://texttospeech.googleapis.com/v1/text:synthesize?key={key}"
+TTS_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
 TTS_RATE = 24000
 GAP_BETWEEN_LINES = 0.12  # 내레이션 문장 사이 쉼(초)
 SCENE_TAIL = 0.25  # 장면 끝 여유(초)
@@ -54,8 +56,10 @@ def synthesize(text, key, voice, rate):
         "audioConfig": {"audioEncoding": "LINEAR16", "sampleRateHertz": TTS_RATE,
                         "speakingRate": rate},
     }
-    req = urllib.request.Request(TTS_URL.format(key=key), data=json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json"})
+    headers = {"Content-Type": "application/json"}
+    if key:  # 키가 없으면 클라우드 환경의 API credential 이 프록시에서 붙는다
+        headers["X-Goog-Api-Key"] = key
+    req = urllib.request.Request(TTS_URL, data=json.dumps(body).encode(), headers=headers)
     with urllib.request.urlopen(req, timeout=60) as r:
         wav_bytes = base64.b64decode(json.load(r)["audioContent"])
     with wave.open(io.BytesIO(wav_bytes)) as w:
@@ -66,13 +70,13 @@ def silence(seconds):
     return b"\x00\x00" * int(TTS_RATE * seconds)
 
 
-def build_timeline(scenes, key, voice, rate):
+def build_timeline(scenes, tts, key, voice, rate):
     """장면마다 (길이, [(문장, 시작, 끝)]) 을 정하고, 음성이 있으면 PCM 도 이어 붙인다."""
     pcm = bytearray()
     for sc in scenes:
         lines = sc.get("narration", [])
         timed, t = [], 0.0
-        if key:
+        if tts:
             chunk = bytearray()
             for line in lines:
                 audio = synthesize(line, key, voice, rate)
@@ -91,7 +95,7 @@ def build_timeline(scenes, key, voice, rate):
                 timed.append((line, t, t + dur))
                 t += dur
         sc["_duration"], sc["_lines"] = total, timed
-    return bytes(pcm) if key else None
+    return bytes(pcm) if tts else None
 
 
 # ---------------------------------------------------------------- 자막
@@ -278,6 +282,8 @@ def main():
     ap.add_argument("--bgm-volume", type=float, default=0.12)
     ap.add_argument("--font", default=DEFAULT_FONT)
     ap.add_argument("--voice", default=None, help="Google TTS 목소리 (기본: 에피소드 JSON 의 voice)")
+    ap.add_argument("--tts", action="store_true",
+                    help="환경 변수에 키가 없어도 음성 만들기 (클라우드 환경의 API credential 사용)")
     ap.add_argument("--silent", action="store_true", help="API 키가 있어도 음성 없이 만들기")
     ap.add_argument("--preview", action="store_true", help="장면마다 가운데 프레임만 PNG 로 저장")
     args = ap.parse_args()
@@ -286,11 +292,12 @@ def main():
         ep = json.load(f)
     base_dir = os.path.dirname(os.path.abspath(args.episode))
     scenes = ep["scenes"]
-    key = None if args.silent else os.environ.get("GOOGLE_TTS_API_KEY")
+    key = os.environ.get("GOOGLE_TTS_API_KEY")
+    tts = not args.silent and (args.tts or bool(key))
     voice = args.voice or ep.get("voice", "ko-KR-Neural2-A")
 
-    print("음성: " + (f"Google TTS ({voice})" if key else "없음 (무음 영상)"))
-    pcm = build_timeline(scenes, key, voice, ep.get("speaking_rate", 1.08))
+    print("음성: " + (f"Google TTS ({voice})" if tts else "없음 (무음 영상)"))
+    pcm = build_timeline(scenes, tts, key, voice, ep.get("speaking_rate", 1.08))
     fonts = {"title": ImageFont.truetype(args.font, ep.get("title_size", 78)),
              "caption": ImageFont.truetype(args.font, ep.get("caption_size", 50))}
     tmp = tempfile.mkdtemp()
