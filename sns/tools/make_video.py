@@ -274,6 +274,30 @@ def draw_frame(sc, t_local, clip_frame=None):
     return frame.convert("RGB")
 
 
+# ---------------------------------------------------------------- 썸네일
+
+def save_cover(ep, base_dir, font_path, out, tmpdir):
+    """영상 앞부분 장면으로 커버 이미지를 만든다.
+
+    인스타 프로필 격자는 세로 영상의 가운데 3:4 만 보여 주므로 글자는 위아래 12.5% 안쪽에 둔다.
+    cover 설정: scene, title, title_size, title_y, fit, fit_top, badge, badge_size, badge_y
+    """
+    cv = ep.get("cover", {})
+    src = ep["scenes"][cv.get("scene", 1) - 1]
+    sc = {k: v for k, v in src.items() if not k.startswith("_") and k != "video"}
+    sc.update({k: cv[k] for k in ("fit", "fit_top") if k in cv})
+    sc.update({"title": cv.get("title", src.get("title", "")), "title_y": cv.get("title_y", 0.15),
+               "captions": False, "_duration": 1.0, "_lines": []})
+    fonts = {"title": ImageFont.truetype(font_path, cv.get("title_size", 112))}
+    prepare_scene(sc, base_dir, fonts, tmpdir)
+    frame = draw_frame(sc, 0).convert("RGBA")
+    if cv.get("badge"):
+        badge = render_text(cv["badge"], ImageFont.truetype(font_path, cv.get("badge_size", 46)), box=True)
+        frame.alpha_composite(badge, ((W - badge.width) // 2, round(H * cv.get("badge_y", 0.135) - badge.height)))
+    frame.convert("RGB").save(out, quality=92)
+    print(f"썸네일 저장: {out}")
+
+
 # ---------------------------------------------------------------- 출력
 
 def main():
@@ -288,6 +312,8 @@ def main():
                     help="환경 변수에 키가 없어도 음성 만들기 (클라우드 환경의 API credential 사용)")
     ap.add_argument("--silent", action="store_true", help="API 키가 있어도 음성 없이 만들기")
     ap.add_argument("--preview", action="store_true", help="장면마다 가운데 프레임만 PNG 로 저장")
+    ap.add_argument("--audio", help="직접 만든 음성/음악 파일을 그대로 소리로 쓰기 (TTS 대신)")
+    ap.add_argument("--cover", help="썸네일(커버) 이미지 저장 경로 (.jpg). 에피소드 JSON 의 cover 설정 사용")
     args = ap.parse_args()
 
     with open(args.episode, encoding="utf-8") as f:
@@ -295,16 +321,20 @@ def main():
     base_dir = os.path.dirname(os.path.abspath(args.episode))
     scenes = ep["scenes"]
     key = os.environ.get("GOOGLE_TTS_API_KEY")
-    tts = not args.silent and (args.tts or bool(key))
+    tts = not args.silent and not args.audio and (args.tts or bool(key))
     voice = args.voice or ep.get("voice", "ko-KR-Neural2-A")
 
-    print("음성: " + (f"Google TTS ({voice})" if tts else "없음 (무음 영상)"))
+    print("음성: " + (f"직접 넣은 소리 ({args.audio})" if args.audio else
+                      f"Google TTS ({voice})" if tts else "없음 (무음 영상)"))
     pcm = build_timeline(scenes, tts, key, voice, ep.get("speaking_rate", 1.08), ep.get("pitch", 0.0))
     fonts = {"title": ImageFont.truetype(args.font, ep.get("title_size", 78)),
              "caption": ImageFont.truetype(args.font, ep.get("caption_size", 50))}
     tmp = tempfile.mkdtemp()
     for sc in scenes:
         prepare_scene(sc, base_dir, fonts, tmp)
+
+    if args.cover:
+        save_cover(ep, base_dir, args.font, args.cover, tmp)
 
     if args.preview:
         stem = os.path.splitext(args.output)[0]
@@ -331,7 +361,7 @@ def main():
     ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
     cmd = [ffmpeg, "-y", "-loglevel", "error",
            "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
-           "-i", audio]
+           "-i", args.audio or audio]
     if args.bgm:
         cmd += ["-stream_loop", "-1", "-i", args.bgm,
                 "-filter_complex",
