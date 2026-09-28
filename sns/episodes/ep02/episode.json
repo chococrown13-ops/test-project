@@ -1,0 +1,224 @@
+{
+  "title": "EP02. 해달 겨드랑이 속 '평생 쓰는 돌'?",
+  "voice": "ko-KR-Chirp3-HD-Leda",
+  "speaking_rate": 1.05,
+  "pitch": 0,
+  "caption_size": 54,
+  "scenes": [
+    {
+      "image": "images/s1.jpg",
+      "duration": 2.8,
+      "narration": [
+        "해달한테 평생 쓰는 돌이 있다고요? 반은 틀렸어요!"
+      ],
+      "captions": false,
+      "title": "해달의 평생 돌?\n**반은 틀렸어요**",
+      "title_y": 0.05,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.5,
+          "y": 0.45
+        },
+        "to": {
+          "zoom": 1.18,
+          "x": 0.5,
+          "y": 0.45
+        },
+        "ease": "out"
+      },
+      "video": "clips/s1.mp4",
+      "motion": "The otter turns the stone slowly in its paws and blinks in amazement. The red question mark bounces softly. Gentle waves."
+    },
+    {
+      "image": "../ep01/images/s2.jpg",
+      "duration": 1.8,
+      "narration": [
+        "오늘의 궁금증!"
+      ],
+      "captions": false,
+      "title": "**오늘의 궁금증**",
+      "title_y": 0.12,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.55,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.07,
+          "x": 0.55,
+          "y": 0.52
+        }
+      },
+      "video": "../ep01/clips/s2.mp4",
+      "motion": "The otter bobs gently on the water, looks at the viewer with a curious smile and taps its notebook with the pencil. Sunlight glitters on the waves, the kelp in the corner sways softly."
+    },
+    {
+      "image": "images/s3.jpg",
+      "duration": 7.0,
+      "narration": [
+        "먼저 맞는 것부터요.",
+        "해달 앞다리 아래엔 늘어진 피부 주머니가 있어요.",
+        "바다 밑에서 주운 조개랑 돌을 여기 넣고 올라와요."
+      ],
+      "captions": false,
+      "title": "진짜예요:\n**앞다리 아래 주머니**",
+      "title_y": 0.06,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.5,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.2,
+          "x": 0.5,
+          "y": 0.5
+        }
+      },
+      "video": "clips/s3.mp4",
+      "motion": "The otter lifts its front leg a little higher to show the pocket, the stone inside wiggles slightly, then it looks at the viewer proudly. Gentle waves."
+    },
+    {
+      "image": "images/s4.jpg",
+      "duration": 7.0,
+      "narration": [
+        "물 위에 누워 배에 돌을 올리고,",
+        "조개를 탕탕 내리쳐서 깨 먹어요.",
+        "마음에 드는 돌은 한동안 들고 다니기도 하고요."
+      ],
+      "captions": false,
+      "title": "배 위에서 **탕탕!**\n돌로 조개 깨기",
+      "title_y": 0.06,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.5,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.2,
+          "x": 0.5,
+          "y": 0.55
+        }
+      },
+      "video": "clips/s4.mp4",
+      "motion": "The otter taps the clam on the stone on its belly three times, small splashes rise, a piece of shell falls off. It bobs gently on the water."
+    },
+    {
+      "image": "images/s5.jpg",
+      "duration": 9.0,
+      "narration": [
+        "그런데 평생 한 개만 쓴다는 건 과장이에요.",
+        "돌을 거의 안 쓰는 해달도 있거든요.",
+        "해달마다 도구 쓰는 정도가 아주 다르대요."
+      ],
+      "captions": false,
+      "title": "평생 한 돌?\n**과장이에요**",
+      "title_y": 0.03,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.5,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.3,
+          "x": 0.62,
+          "y": 0.45
+        }
+      },
+      "video": "clips/s5.mp4",
+      "motion": "The left otter taps a clam on its stone, the right otter nibbles the sea urchin, the small otter with the blue scarf tilts its head and writes in its notebook. Kelp sways slowly."
+    },
+    {
+      "image": "images/s6.jpg",
+      "duration": 6.0,
+      "narration": [
+        "대신 이건 밝혀졌어요.",
+        "도구를 자주 쓰는 해달은 이빨이 덜 상했대요."
+      ],
+      "captions": false,
+      "title": "도구 쓰면\n**이빨이 덜 상해요**",
+      "title_y": 0.05,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.5,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.12,
+          "x": 0.5,
+          "y": 0.45
+        }
+      },
+      "video": "clips/s6.mp4",
+      "motion": "The otter smiles wider, a small sparkle flashes on its teeth, and it holds the stone up proudly. Gentle waves."
+    },
+    {
+      "image": "../ep01/images/s6.jpg",
+      "duration": 5.0,
+      "narration": [
+        "그래서 수첩엔 이렇게 고쳐 적었어요.",
+        "평생 돌 말고, 잘 맞는 돌!"
+      ],
+      "captions": false,
+      "title": "~~평생 쓰는 돌~~\n**잘 맞는 돌**",
+      "title_y": 0.04,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.5,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.12,
+          "x": 0.5,
+          "y": 0.55
+        }
+      },
+      "video": "../ep01/clips/s6.mp4",
+      "motion": "The otter draws a line across the notebook with its pencil, writes a new line underneath, then looks up with a proud smile. Gentle waves."
+    },
+    {
+      "image": "../ep01/images/s7.jpg",
+      "duration": 5.0,
+      "narration": [
+        "다음엔 뭐가 궁금하세요?",
+        "댓글로 알려주세요!"
+      ],
+      "captions": false,
+      "title": "다음 궁금증\n**댓글로 알려주세요**",
+      "title_y": 0.05,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.5,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.04,
+          "x": 0.5,
+          "y": 0.5
+        }
+      },
+      "video": "../ep01/clips/s7.mp4",
+      "motion": "The otter waves its paw at the viewer twice and smiles, bobbing softly on the water. Sunlight sparkles on the waves."
+    }
+  ],
+  "motion_suffix": "Static camera, no zoom, no cuts. Gentle, natural, slow motion. Keep the character's appearance, light sky-blue scarf and tiny yellow notebook exactly the same as the first frame. No text, no new characters, no new objects. Vertical 9:16.",
+  "motion_negative": "text, subtitles, extra limbs, extra otters, morphing face, camera shake, zoom",
+  "cover": {
+    "scene": 1,
+    "title": "해달의 평생 돌?\n**반은 틀렸어요**",
+    "title_size": 104,
+    "title_y": 0.125,
+    "fit": 0.84,
+    "fit_top": 0.29,
+    "badge": "궁금해달 · 반은 맞고 반은 틀려요",
+    "badge_size": 44,
+    "badge_y": 0.318
+  }
+}
