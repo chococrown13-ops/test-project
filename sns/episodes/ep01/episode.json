@@ -23,7 +23,8 @@
         },
         "ease": "out"
       },
-      "video": "clips/s1.mp4"
+      "video": "clips/s1.mp4",
+      "motion": "The two otters blink in surprise and bob gently on small waves. The red question mark bounces softly. Sunlight shimmers on the water."
     },
     {
       "image": "images/s2.jpg",
@@ -46,7 +47,8 @@
           "y": 0.52
         }
       },
-      "video": "clips/s2.mp4"
+      "video": "clips/s2.mp4",
+      "motion": "The otter bobs gently on the water, looks at the viewer with a curious smile and taps its notebook with the pencil. Sunlight glitters on the waves, the kelp in the corner sways softly."
     },
     {
       "image": "images/s3.jpg",
@@ -72,7 +74,8 @@
         },
         "ease": "linear"
       },
-      "video": "clips/s3.mp4"
+      "video": "clips/s3.mp4",
+      "motion": "The otter sleeps peacefully, its chest slowly rising and falling. It drifts very slowly to the right on long rolling waves. Water droplets glisten on its fur."
     },
     {
       "image": "images/s4.jpg",
@@ -96,7 +99,8 @@
           "y": 0.72
         }
       },
-      "video": "clips/s4.mp4"
+      "video": "clips/s4.mp4",
+      "motion": "The sleeping otter rocks gently at the water surface, wrapped in kelp. Below the surface the kelp fronds sway slowly in the current, tiny bubbles rise and light rays flicker. The otter always stays above the water."
     },
     {
       "image": "images/s5.jpg",
@@ -121,7 +125,8 @@
           "y": 0.42
         }
       },
-      "video": "clips/s5.mp4"
+      "video": "clips/s5.mp4",
+      "motion": "All the otters sleep and breathe slowly, bobbing together on calm water. The two otters in the center keep holding paws the whole time. The small otter with the blue scarf at the bottom tilts its head thoughtfully."
     },
     {
       "image": "images/s6.jpg",
@@ -143,7 +148,8 @@
           "y": 0.55
         }
       },
-      "video": "clips/s6.mp4"
+      "video": "clips/s6.mp4",
+      "motion": "The otter draws a line across the notebook with its pencil, writes a new line underneath, then looks up with a proud smile. Gentle waves."
     },
     {
       "image": "images/s7.jpg",
@@ -164,8 +170,11 @@
           "zoom": 1.04
         }
       },
-      "video": "clips/s7.mp4"
+      "video": "clips/s7.mp4",
+      "motion": "The otter waves its paw at the viewer twice and smiles, bobbing softly on the water. Sunlight sparkles on the waves."
     }
   ],
-  "caption_size": 54
+  "caption_size": 54,
+  "motion_suffix": "Static camera, no zoom, no cuts. Gentle, natural, slow motion. Keep the character's appearance, light sky-blue scarf and tiny yellow notebook exactly the same as the first frame. No text, no new characters, no new objects. Vertical 9:16.",
+  "motion_negative": "text, subtitles, extra limbs, extra otters, morphing face, camera shake, zoom"
 }
