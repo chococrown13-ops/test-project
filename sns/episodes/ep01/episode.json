@@ -1,7 +1,7 @@
 {
   "title": "EP01. 해달은 정말 손잡고 잘까?",
-  "voice": "ko-KR-Neural2-A",
-  "speaking_rate": 1.08,
+  "voice": "ko-KR-Chirp3-HD-Leda",
+  "speaking_rate": 1.05,
   "scenes": [
     {
       "image": "images/s1.jpg",
@@ -176,5 +176,6 @@
   ],
   "caption_size": 54,
   "motion_suffix": "Static camera, no zoom, no cuts. Gentle, natural, slow motion. Keep the character's appearance, light sky-blue scarf and tiny yellow notebook exactly the same as the first frame. No text, no new characters, no new objects. Vertical 9:16.",
-  "motion_negative": "text, subtitles, extra limbs, extra otters, morphing face, camera shake, zoom"
+  "motion_negative": "text, subtitles, extra limbs, extra otters, morphing face, camera shake, zoom",
+  "pitch": 0
 }

@@ -49,12 +49,14 @@ SCENE_TAIL = 0.25  # 장면 끝 여유(초)
 
 # ---------------------------------------------------------------- 음성
 
-def synthesize(text, key, voice, rate):
+def synthesize(text, key, voice, rate, pitch=0.0):
+    config = {"audioEncoding": "LINEAR16", "sampleRateHertz": TTS_RATE, "speakingRate": rate}
+    if pitch:  # 반음 단위, -20 ~ +20 (Chirp3-HD 목소리는 지원하지 않음)
+        config["pitch"] = pitch
     body = {
         "input": {"text": text},
         "voice": {"languageCode": "ko-KR", "name": voice},
-        "audioConfig": {"audioEncoding": "LINEAR16", "sampleRateHertz": TTS_RATE,
-                        "speakingRate": rate},
+        "audioConfig": config,
     }
     headers = {"Content-Type": "application/json"}
     if key:  # 키가 없으면 클라우드 환경의 API credential 이 프록시에서 붙는다
@@ -70,7 +72,7 @@ def silence(seconds):
     return b"\x00\x00" * int(TTS_RATE * seconds)
 
 
-def build_timeline(scenes, tts, key, voice, rate):
+def build_timeline(scenes, tts, key, voice, rate, pitch=0.0):
     """장면마다 (길이, [(문장, 시작, 끝)]) 을 정하고, 음성이 있으면 PCM 도 이어 붙인다."""
     pcm = bytearray()
     for sc in scenes:
@@ -79,7 +81,7 @@ def build_timeline(scenes, tts, key, voice, rate):
         if tts:
             chunk = bytearray()
             for line in lines:
-                audio = synthesize(line, key, voice, rate)
+                audio = synthesize(line, key, voice, rate, pitch)
                 dur = len(audio) / 2 / TTS_RATE
                 timed.append((line, t, t + dur))
                 chunk += audio + silence(GAP_BETWEEN_LINES)
@@ -297,7 +299,7 @@ def main():
     voice = args.voice or ep.get("voice", "ko-KR-Neural2-A")
 
     print("음성: " + (f"Google TTS ({voice})" if tts else "없음 (무음 영상)"))
-    pcm = build_timeline(scenes, tts, key, voice, ep.get("speaking_rate", 1.08))
+    pcm = build_timeline(scenes, tts, key, voice, ep.get("speaking_rate", 1.08), ep.get("pitch", 0.0))
     fonts = {"title": ImageFont.truetype(args.font, ep.get("title_size", 78)),
              "caption": ImageFont.truetype(args.font, ep.get("caption_size", 50))}
     tmp = tempfile.mkdtemp()
