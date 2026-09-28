@@ -22,7 +22,8 @@
           "y": 0.45
         },
         "ease": "out"
-      }
+      },
+      "video": "clips/s1.mp4"
     },
     {
       "image": "images/s2.jpg",
@@ -44,7 +45,8 @@
           "x": 0.55,
           "y": 0.52
         }
-      }
+      },
+      "video": "clips/s2.mp4"
     },
     {
       "image": "images/s3.jpg",
@@ -69,7 +71,8 @@
           "y": 0.55
         },
         "ease": "linear"
-      }
+      },
+      "video": "clips/s3.mp4"
     },
     {
       "image": "images/s4.jpg",
@@ -92,7 +95,8 @@
           "zoom": 1.3,
           "y": 0.72
         }
-      }
+      },
+      "video": "clips/s4.mp4"
     },
     {
       "image": "images/s5.jpg",
@@ -116,7 +120,8 @@
           "zoom": 1.45,
           "y": 0.42
         }
-      }
+      },
+      "video": "clips/s5.mp4"
     },
     {
       "image": "images/s6.jpg",
@@ -137,7 +142,8 @@
           "zoom": 1.12,
           "y": 0.55
         }
-      }
+      },
+      "video": "clips/s6.mp4"
     },
     {
       "image": "images/s7.jpg",
@@ -157,7 +163,8 @@
         "to": {
           "zoom": 1.04
         }
-      }
+      },
+      "video": "clips/s7.mp4"
     }
   ],
   "caption_size": 54

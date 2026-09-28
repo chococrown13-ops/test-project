@@ -10,6 +10,8 @@
 - 음성: 환경 변수 GOOGLE_TTS_API_KEY 가 있으면 Google Cloud TTS 로 내레이션을 만들고
   음성 길이에 맞춰 장면 길이를 정한다. 없으면 JSON 의 duration 으로 무음 영상을 만든다.
 - 배경음악: --bgm 파일을 주면 내레이션 아래에 작게 깐다.
+- AI 영상 클립: 장면에 "video" 가 있고 그 파일이 있으면 이미지 대신 클립을 쓴다.
+  클립이 장면보다 짧으면 앞으로 재생 후 거꾸로 재생(pingpong)해서 길이를 채운다.
 
 사용법:
     pip install pillow imageio-ffmpeg
@@ -194,12 +196,46 @@ def camera_frame(src, cam, t, out_w, out_h):
     return src.resize((out_w, out_h), Image.BILINEAR, box=(x0, y0, x0 + cw, y0 + ch))
 
 
-def prepare_scene(sc, base_dir, fonts):
+def conform_clip(path, dur, size, mode, tmpdir):
+    """AI 영상 클립을 30fps, 화면 크기, 장면 길이에 맞춘 임시 mp4 로 바꾼다."""
+    import imageio_ffmpeg
+    _, secs = imageio_ffmpeg.count_frames_and_secs(path)
+    w, h = size
+    fit = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1"
+    if mode == "pingpong" and secs < dur:
+        graph = (f"[0:v]fps={FPS},split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0,"
+                 f"{fit},tpad=stop_mode=clone:stop_duration={dur}[v]")
+        loop = []
+    else:
+        graph = f"[0:v]fps={FPS},{fit},tpad=stop_mode=clone:stop_duration={dur}[v]"
+        loop = ["-stream_loop", "-1"] if mode == "loop" else []
+    out = os.path.join(tmpdir, os.path.basename(path) + ".conformed.mp4")
+    subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", *loop, "-i", path,
+                    "-filter_complex", graph, "-map", "[v]", "-t", f"{dur:.3f}", "-an",
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "14", out], check=True)
+    return out
+
+
+def clip_frames(sc):
+    """맞춰 둔 클립의 프레임을 PIL 이미지로 하나씩 돌려준다."""
+    import imageio_ffmpeg
+    reader = imageio_ffmpeg.read_frames(sc["_clip"])
+    next(reader)  # 메타데이터
+    for data in reader:
+        yield Image.frombytes("RGB", sc["_fg_size"], data)
+
+
+def prepare_scene(sc, base_dir, fonts, tmpdir):
     img = Image.open(os.path.join(base_dir, sc["image"])).convert("RGB")
     fit = sc.get("fit", 1.0)
     fg_w, fg_h = round(W * fit), round(H * fit)
     sc["_src"] = cover(img, fg_w * 2, fg_h * 2)  # 2배로 미리 키워 움직일 때 선명하게
     sc["_fg_size"] = (fg_w, fg_h)
+    clip = os.path.join(base_dir, sc["video"]) if sc.get("video") else None
+    if clip and os.path.exists(clip):
+        sc["_clip"] = conform_clip(clip, sc["_duration"], sc["_fg_size"],
+                                   sc.get("video_mode", "pingpong"), tmpdir)
+        print(f"  영상 클립 사용: {sc['video']}")
     if fit < 1.0:
         sc["_bg"] = cover(img, W, H).filter(ImageFilter.GaussianBlur(40))
         sc["_fg_pos"] = ((W - fg_w) // 2, round(H * sc.get("fit_top", 0.02)))
@@ -210,10 +246,13 @@ def prepare_scene(sc, base_dir, fonts):
                        for line, s, e in sc["_lines"]]
 
 
-def draw_frame(sc, t_local):
-    dur = sc["_duration"]
-    p = min(t_local / dur, 1.0)
-    fg = camera_frame(sc["_src"], sc.get("camera", {}), p, *sc["_fg_size"])
+def draw_frame(sc, t_local, clip_frame=None):
+    """clip_frame 이 있으면 AI 영상 프레임을, 없으면 이미지에 카메라 움직임을 준 프레임을 쓴다."""
+    if clip_frame is not None:
+        fg = clip_frame
+    else:
+        p = min(t_local / sc["_duration"], 1.0)
+        fg = camera_frame(sc["_src"], sc.get("camera", {}), p, *sc["_fg_size"])
     if "_bg" in sc:
         frame = sc["_bg"].copy()
         frame.paste(fg, sc["_fg_pos"])
@@ -254,19 +293,24 @@ def main():
     pcm = build_timeline(scenes, key, voice, ep.get("speaking_rate", 1.08))
     fonts = {"title": ImageFont.truetype(args.font, ep.get("title_size", 78)),
              "caption": ImageFont.truetype(args.font, ep.get("caption_size", 50))}
+    tmp = tempfile.mkdtemp()
     for sc in scenes:
-        prepare_scene(sc, base_dir, fonts)
+        prepare_scene(sc, base_dir, fonts, tmp)
 
     if args.preview:
         stem = os.path.splitext(args.output)[0]
         for i, sc in enumerate(scenes, 1):
             mid = sc["_lines"][len(sc["_lines"]) // 2][1] + 0.05 if sc.get("_caps") else sc["_duration"] / 2
-            draw_frame(sc, mid).save(f"{stem}_s{i}.png")
+            frame = None
+            if "_clip" in sc:
+                for n, frame in enumerate(clip_frames(sc)):
+                    if n >= int(mid * FPS):
+                        break
+            draw_frame(sc, mid, frame).save(f"{stem}_s{i}.png")
         print(f"미리보기 저장: {stem}_s1.png ...")
         return
 
     total = sum(sc["_duration"] for sc in scenes)
-    tmp = tempfile.mkdtemp()
     audio = os.path.join(tmp, "voice.wav")
     with wave.open(audio, "wb") as w:
         w.setnchannels(1)
@@ -292,8 +336,14 @@ def main():
     n = 0
     for sc in scenes:
         frames = round(sc["_duration"] * FPS)
+        clip = clip_frames(sc) if "_clip" in sc else None
+        last = None
         for f in range(frames):
-            proc.stdin.write(draw_frame(sc, f / FPS).tobytes())
+            if clip is not None:
+                last = next(clip, last)  # 클립이 한두 프레임 짧으면 마지막 프레임 유지
+            proc.stdin.write(draw_frame(sc, f / FPS, last).tobytes())
+        if clip is not None:
+            clip.close()
         n += frames
         print(f"  장면 {scenes.index(sc) + 1}/{len(scenes)} 완료 ({sc['_duration']:.1f}초)")
     proc.stdin.close()

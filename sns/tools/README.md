@@ -18,9 +18,21 @@ CapCut 없이 **이미지 + 에피소드 JSON**만으로 쇼츠/릴스용 세로
 | AI 음성(TTS) | Google Cloud TTS (API 키가 있을 때) |
 | 배경음악 | `--bgm 음악.mp3` (내레이션보다 작게, 끝에 페이드아웃) |
 | 흐린 배경으로 이미지 줄이기 | `fit: 0.8` (+ `fit_top`) |
+| AI 영상 클립 끼워 넣기 | `video: "clips/s4.mp4"` (파일이 있을 때만 사용, 없으면 이미지) |
 
 효과음은 아직 넣지 않습니다.
 배경음악은 업로드할 때 각 앱의 음악 라이브러리에서 고르는 쪽이 저작권 걱정도 없고 도달에도 유리합니다.
+
+## 해달과 배경을 움직이게 하기 (AI 영상 클립)
+확대·이동 효과는 사진 전체를 움직일 뿐, 해달이 숨 쉬거나 해초가 흔들리지는 않습니다.
+이렇게 움직이려면 **이미지 → 영상** AI로 장면 클립을 만들어 끼워 넣습니다.
+
+1. Veo(Gemini 앱·Flow), Higgsfield(Seedance·Kling) 등에서 장면 이미지를 첫 프레임으로 넣고 5~8초 영상 생성
+   (에피소드 문서의 "움직이는 영상 프롬프트" 사용)
+2. 클립을 `episodes/epNN/clips/sN.mp4` 로 저장하거나 Claude에게 올리기
+3. 다시 렌더링하면 클립이 있는 장면은 자동으로 영상을 씁니다
+
+클립은 30fps, 1080x1920 에 맞춰지고, 클립의 소리는 쓰지 않습니다.
 
 ## 음성 켜기 (Google Cloud TTS)
 1. Google Cloud 콘솔에서 **Cloud Text-to-Speech API**를 켜고 API 키를 만듭니다.
@@ -72,6 +84,8 @@ python sns/tools/make_video.py sns/episodes/ep01/episode.json -o ep01.mp4 --bgm 
 | `camera.from/to` | `zoom`(1=원본), `x`, `y`(0~1, 화면 중심 위치) |
 | `camera.ease` | `smooth`(기본), `out`(빠르게 시작), `linear` |
 | `fit`, `fit_top` | 이미지를 줄이고 빈 곳을 흐린 배경으로 채움 |
+| `video` | AI 영상 클립 경로. 파일이 있으면 이미지 대신 사용하고 `camera` 는 무시 |
+| `video_mode` | 클립이 장면보다 짧을 때: `pingpong`(기본, 앞→뒤 재생), `loop`(반복), `freeze`(마지막 장면 정지) |
 
 화면 아래 약 20%는 앱의 캡션·채널 이름이 가리므로 `title_y`, `caption_y`는 0.78보다 위에 둡니다.
 

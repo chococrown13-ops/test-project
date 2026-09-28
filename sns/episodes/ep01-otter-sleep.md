@@ -106,6 +106,45 @@ warm light, vertical 9:16, no text.
 
 ---
 
+## 2-1. 움직이는 영상 프롬프트 (이미지 → 영상)
+
+완성된 장면 이미지를 **첫 프레임(시작 이미지)** 으로 넣고, 아래 문구로 5~8초 영상을 만듭니다.
+만든 클립은 `sns/episodes/ep01/clips/s1.mp4` ~ `s7.mp4` 로 저장하면(또는 Claude에게 올리면) 편집기가 자동으로 이미지 대신 씁니다.
+클립이 장면보다 짧으면 앞으로 재생 → 거꾸로 재생해서 길이를 채우므로, **느리고 반복적인 움직임**일수록 자연스럽습니다.
+
+### 모든 장면 공통 (문구 끝에 붙이기)
+```
+Static camera, no zoom, no cuts. Gentle, natural, slow motion. Keep the character's appearance,
+light sky-blue scarf and tiny yellow notebook exactly the same as the first frame.
+No text, no new characters, no new objects. Vertical 9:16.
+```
+- **카메라는 고정**: 자막 위치를 미리 정해뒀기 때문에 화면이 움직이면 자막이 해달을 가릴 수 있습니다.
+- **소리는 끄거나 무시**: 내레이션과 배경음악은 편집기에서 넣습니다.
+
+### 장면별 움직임
+
+| 장면 | 움직임 문구 |
+|---|---|
+| S1 | `The two otters blink in surprise and bob gently on small waves. The red question mark bounces softly. Sunlight shimmers on the water.` |
+| S2 | `The otter bobs gently on the water, looks at the viewer with a curious smile and taps its notebook with the pencil. Sunlight glitters on the waves, the kelp in the corner sways softly.` |
+| S3 | `The otter sleeps peacefully, its chest slowly rising and falling. It drifts very slowly to the right on long rolling waves. Water droplets glisten on its fur.` |
+| S4 | `The sleeping otter rocks gently at the water surface, wrapped in kelp. Below the surface the kelp fronds sway slowly in the current, tiny bubbles rise and light rays flicker. The otter always stays above the water.` |
+| S5 | `All the otters sleep and breathe slowly, bobbing together on calm water. The two otters in the center keep holding paws the whole time. The small otter with the blue scarf at the bottom tilts its head thoughtfully.` |
+| S6 | `The otter draws a line across the notebook with its pencil, writes a new line underneath, then looks up with a proud smile. Gentle waves.` |
+| S7 | `The otter waves its paw at the viewer twice and smiles, bobbing softly on the water. Sunlight sparkles on the waves.` |
+
+### 받은 클립 확인하기
+AI 영상은 이미지보다 오류가 잦습니다. 올리기 전에 이것만 봅니다.
+- 해달 얼굴·털색·스카프가 중간에 바뀌지 않는지
+- 발·앞발 개수가 늘거나 녹아 붙지 않는지
+- S4: 해달이 물속으로 가라앉지 않는지 (사실 오류)
+- S5: 가운데 두 마리가 끝까지 손을 잡고 있는지
+- 이상한 글자가 생기지 않는지
+
+### 비용 아끼기
+7장면을 모두 움직일 필요는 없습니다. **S3, S4, S5** 처럼 해달이 떠 있는 장면만 움직여도 영상 전체가 살아 보입니다.
+나머지는 지금처럼 이미지 + 확대·이동으로 두면 됩니다. (클립 파일이 없는 장면은 자동으로 이미지를 씁니다.)
+
 ## 3. 편집 메모
 
 | 항목 | 설정 |
