@@ -35,6 +35,8 @@ CapCut 없이 **이미지 + 에피소드 JSON**만으로 쇼츠/릴스용 세로
 클립은 30fps, 1080x1920 에 맞춰지고, 클립의 소리는 쓰지 않습니다.
 
 ## 음성 켜기 (Google Cloud TTS)
+> 키 발급을 처음부터 따라 하려면 [`api-keys.md`](api-keys.md)를 보세요.
+
 1. Google Cloud 콘솔에서 **Cloud Text-to-Speech API**를 켜고 API 키를 만듭니다.
    - 무료 사용량이 있어서 쇼츠 몇십 편 정도는 보통 무료 범위입니다. (최신 요금은 Google Cloud 요금 페이지 확인)
    - API 키는 Text-to-Speech API만 쓰도록 제한해 두세요.
