@@ -49,8 +49,8 @@
 - 사실: 해달은 지방층 대신 아주 빽빽한 털로 체온을 지킨다.
 - 출처: [Monterey Bay Aquarium](https://www.montereybayaquarium.org/animals-the-ocean/animals-a-to-z/sea-otter)
 
-### 4. 웜뱃은 정육면체 똥을 싼다
-- 상태: ✅
+### 4. 웜뱃은 정육면체 똥을 싼다 → 📝 EP03 결재 대기 ([기획안](episodes/ep03-wombat-cube.md))
+- 상태: ✅ 네모 똥·장 속 형성은 사실 / ❌ "항문이 네모", "탑처럼 쌓아 영역 표시" / ⚠️ "하룻밤 80~100개"는 확인 부족
 - 사실: 장의 마지막 약 17% 구간에서 모서리가 만들어진다. 장벽에 두껍고 단단한 부분과 부드러운 부분이 번갈아 있어서, 수축할 때 모서리가 생긴다. (2021년 학술지 *Soft Matter*, 조지아공대·태즈메이니아대 연구)
 - 훅: "주사위 모양 똥, 어떻게 가능할까요?"
 - 출처: [Soft Matter 논문](https://pubs.rsc.org/en/content/articlelanding/2021/sm/d0sm01230k), [Smithsonian](https://www.smithsonianmag.com/smart-news/scientists-have-solved-mystery-how-wombats-poop-cubes-180976898/), [Science](https://www.science.org/content/article/how-do-wombats-poop-cubes-scientists-get-bottom-mystery)
