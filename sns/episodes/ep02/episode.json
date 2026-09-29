@@ -119,7 +119,7 @@
       ],
       "captions": false,
       "title": "평생 한 돌?\n**과장이에요**",
-      "title_y": 0.03,
+      "title_y": 0.02,
       "camera": {
         "from": {
           "zoom": 1.0,
@@ -127,14 +127,16 @@
           "y": 0.5
         },
         "to": {
-          "zoom": 1.3,
-          "x": 0.62,
-          "y": 0.45
+          "zoom": 1.25,
+          "x": 0.6,
+          "y": 0.35
         }
       },
       "video": "clips/s5.mp4",
       "motion": "The left otter taps a clam on its stone, the right otter nibbles the sea urchin, the small otter with the blue scarf tilts its head and writes in its notebook. Kelp sways slowly.",
-      "image_prompt": "Three sea otters float on their backs at the surface of a cold North Pacific kelp forest. Left: a plain gray-brown sea otter with no scarf cracking a clam on a stone on its belly. Right: another plain gray-brown sea otter with no scarf eating a purple sea urchin with its paws, using no tool. At the lower edge of the frame: the mascot (the only one with the blue scarf) holding its tiny yellow notebook, looking at them thoughtfully. Every otter has one head and one normal body. Soft overcast light."
+      "image_prompt": "Three sea otters float on their backs at the surface of a cold North Pacific kelp forest. Left: a plain gray-brown sea otter with no scarf cracking a clam on a stone on its belly. Right: another plain gray-brown sea otter with no scarf eating a purple sea urchin with its paws, using no tool. At the lower edge of the frame: the mascot (the only one with the blue scarf) holding its tiny yellow notebook, looking at them thoughtfully. Every otter has one head and one normal body. Soft overcast light.",
+      "fit": 0.86,
+      "fit_top": 0.03
     },
     {
       "image": "images/s6.jpg",
