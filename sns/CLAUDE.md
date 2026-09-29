@@ -9,6 +9,7 @@ AI 직원들이 쇼츠 채널 「궁금해달」(@otter.curious)을 운영하는
 - 브랜드 규칙: `brand.md` / 주제·사실 확인: `topics.md` / 일정: `content-calendar.md`
 - 도구: `tools/make_image.py`(이미지), `tools/make_clip.py`(Veo 영상), `tools/make_video.py`(편집·썸네일)
 - API 키는 클라우드 환경의 API credentials로 들어옵니다. 키를 파일이나 채팅에 쓰지 않습니다.
+- 픽셀 사무실(godseng AI company 템플릿): 비공개 저장소 `chococrown13-ops/otter-studio-ai-office`. 한 편의 상태가 바뀌면 그 저장소의 `studio.episodes.ts` 현황판도 같이 고칩니다.
 
 ## 규칙
 - 업로드하지 않습니다. CapCut은 건드리지 않습니다.
