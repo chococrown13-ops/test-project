@@ -1,0 +1,26 @@
+{
+  "_설명": "궁금해달 스튜디오 설정. 숫자만 바꿔 쓰세요. 비용 단가는 추정치이므로 Google AI Studio 요금표로 가끔 맞춰 주세요.",
+  "studio_name": "궁금해달 스튜디오",
+  "ceo": "대표",
+  "approval": "script",
+  "_approval_옵션": "script = 대본 확정 후 대표 결재를 받고 이미지·영상 제작 / none = 결재 없이 끝까지",
+  "budget_usd": 2.0,
+  "image_model": "gemini-3.1-flash-image",
+  "video_model": "veo-3.1-lite-generate-preview",
+  "max_clips": 2,
+  "clip_seconds": 8,
+  "risky_scene_takes": 2,
+  "voice": "ceo",
+  "_voice_옵션": "ceo = 대표가 직접 녹음(무음 영상 전달) / tts = Google 음성 합성",
+  "tts_voice": "ko-KR-Chirp3-HD-Leda",
+  "estimated_cost_usd": {
+    "image": 0.07,
+    "video_per_second": 0.03
+  },
+  "reference_image": "sns/brand/reference.png",
+  "reuse_scenes": {
+    "intro": "sns/episodes/ep01/images/s2.jpg",
+    "notebook": "sns/episodes/ep01/images/s6.jpg",
+    "outro": "sns/episodes/ep01/images/s7.jpg"
+  }
+}
