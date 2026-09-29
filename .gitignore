@@ -16,3 +16,4 @@ quant/.env
 sns/**/*.mp4
 sns/**/*_s[0-9].png
 sns/**/__pycache__/
+!sns/episodes/*/clips/*.mp4
