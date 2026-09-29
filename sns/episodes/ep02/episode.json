@@ -28,7 +28,8 @@
         "ease": "out"
       },
       "video": "clips/s1.mp4",
-      "motion": "The otter turns the stone slowly in its paws and blinks in amazement. The red question mark bounces softly. Gentle waves."
+      "motion": "The otter turns the stone slowly in its paws and blinks in amazement. The red question mark bounces softly. Gentle waves.",
+      "image_prompt": "The mascot floats on its back at the water surface, holding up a smooth round gray stone with both paws and staring at it in amazement, a big glossy red question mark floating above the stone. Calm cool blue-green North Pacific water, warm golden morning light."
     },
     {
       "image": "../ep01/images/s2.jpg",
@@ -78,7 +79,8 @@
         }
       },
       "video": "clips/s3.mp4",
-      "motion": "The otter lifts its front leg a little higher to show the pocket, the stone inside wiggles slightly, then it looks at the viewer proudly. Gentle waves."
+      "motion": "The otter lifts its front leg a little higher to show the pocket, the stone inside wiggles slightly, then it looks at the viewer proudly. Gentle waves.",
+      "image_prompt": "Close-up: the mascot floats on its back at the water surface and lifts one front leg to show a loose fold of furry skin under its forearm, like a small pocket in its armpit (not on the belly). A smooth gray stone and a small clam peek out of that armpit fold. Proud, curious expression. Cool blue-green water, soft overcast light."
     },
     {
       "image": "images/s4.jpg",
@@ -104,7 +106,8 @@
         }
       },
       "video": "clips/s4.mp4",
-      "motion": "The otter taps the clam on the stone on its belly three times, small splashes rise, a piece of shell falls off. It bobs gently on the water."
+      "motion": "The otter taps the clam on the stone on its belly three times, small splashes rise, a piece of shell falls off. It bobs gently on the water.",
+      "image_prompt": "The mascot floats on its back at the water surface with a flat gray stone resting on its belly, holding a clam in both paws and tapping it on the stone. Small water splashes and tiny cracked shell pieces. Floating golden-brown kelp nearby, a rocky cold-water coastline far in the background, no coral. Cool morning light."
     },
     {
       "image": "images/s5.jpg",
@@ -130,7 +133,8 @@
         }
       },
       "video": "clips/s5.mp4",
-      "motion": "The left otter taps a clam on its stone, the right otter nibbles the sea urchin, the small otter with the blue scarf tilts its head and writes in its notebook. Kelp sways slowly."
+      "motion": "The left otter taps a clam on its stone, the right otter nibbles the sea urchin, the small otter with the blue scarf tilts its head and writes in its notebook. Kelp sways slowly.",
+      "image_prompt": "Three sea otters float on their backs at the surface of a cold North Pacific kelp forest. Left: a plain gray-brown sea otter with no scarf cracking a clam on a stone on its belly. Right: another plain gray-brown sea otter with no scarf eating a purple sea urchin with its paws, using no tool. At the lower edge of the frame: the mascot (the only one with the blue scarf) holding its tiny yellow notebook, looking at them thoughtfully. Every otter has one head and one normal body. Soft overcast light."
     },
     {
       "image": "images/s6.jpg",
@@ -155,7 +159,8 @@
         }
       },
       "video": "clips/s6.mp4",
-      "motion": "The otter smiles wider, a small sparkle flashes on its teeth, and it holds the stone up proudly. Gentle waves."
+      "motion": "The otter smiles wider, a small sparkle flashes on its teeth, and it holds the stone up proudly. Gentle waves.",
+      "image_prompt": "Close-up: the mascot floats at the water surface and gives a big happy smile that shows small healthy white teeth with a tiny sparkle, holding a smooth gray stone next to its cheek like a proud trophy. Cool blue-green water, warm light."
     },
     {
       "image": "../ep01/images/s6.jpg",
@@ -220,5 +225,6 @@
     "badge": "궁금해달 · 반은 맞고 반은 틀려요",
     "badge_size": 44,
     "badge_y": 0.318
-  }
+  },
+  "image_prompt_prefix": "Use the attached character sheet as the exact reference for the main character: a small chubby sea otter mascot with dark chocolate-brown fur, cream face, round black eyes, blush cheeks, a light sky-blue knitted scarf with a white wavy pattern, and a tiny yellow spiral notebook. Keep the same face, colors and proportions. Soft 3D render. Vertical 9:16. No text, no letters."
 }
