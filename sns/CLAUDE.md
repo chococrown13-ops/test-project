@@ -11,7 +11,13 @@ AI 직원들이 쇼츠 채널 「궁금해달」(@otter.curious)을 운영하는
 - API 키는 클라우드 환경의 API credentials로 들어옵니다. 키를 파일이나 채팅에 쓰지 않습니다.
 - 픽셀 사무실(godseng AI company 템플릿): 비공개 저장소 `chococrown13-ops/otter-studio-ai-office`. 한 편의 상태가 바뀌면 그 저장소의 `studio.episodes.ts` 현황판도 같이 고칩니다.
 
-## 규칙
+## 📁 자료실 (영상·이미지 주고받기)
+사무실 아티팩트 https://claude.ai/artifact/W4ym2MMMzq5snKeKZxRpSi 의 "자료실"에서 대표님이 파일을 올리고 받습니다.
+- 목록: `ArtifactData` list, collection `files`. 문서 = {name, episode, kind, parts[asset id], sizeBytes, contentType, from, note, createdAt}. 문서 id = 첫 조각 id.
+- 대표님 파일 받기: `Artifact` read, `path`=조각 asset id (하나씩) → 받은 조각을 `parts` 순서대로 이어 붙이면 원본(.mov 도 mp4 로 저장됨).
+- 완성본 올리기: 한 조각 15MB 이하로 나눠(조각 첫 바이트가 `<` 이면 경계를 당김) `Artifact` publish `asset: true` → `files` 에 문서 추가(from "Claude").
+- 지우기는 대표님이 요청할 때만.
+
 - 업로드하지 않습니다. CapCut은 건드리지 않습니다.
 - 사실 확인 판정표에 없는 내용은 대본·캡션에 넣지 않습니다.
 - 예산(`budget_usd`)을 넘기지 않습니다. API 오류는 우회하지 말고 보고합니다.

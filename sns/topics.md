@@ -37,7 +37,7 @@
 - 해달 연결: 궁금해달이 자기 이야기를 직접 바로잡는 채널 소개 편
 - 출처: [Monterey Bay Aquarium](https://www.montereybayaquarium.org/animals-the-ocean/animals-a-to-z/sea-otter), [Discover Magazine](https://www.discovermagazine.com/sea-otters-hold-hands-while-sleeping-and-they-even-cuddle-46115), [ScienceInsights](https://scienceinsights.org/how-otters-sleep-on-water-and-why-they-hold-hands/)
 
-### 2. 해달 겨드랑이에는 주머니가 있다 → 🎬 EP02 제작 중 ([제작안](episodes/ep02-otter-rock.md))
+### 2. 해달 겨드랑이에는 주머니가 있다 → ✅ EP02 업로드 완료 ([제작안](episodes/ep02-otter-rock.md))
 - 상태: ✅ 주머니·돌 사용은 사실 / ⚠️ "평생 같은 돌"은 과장
 - 사실: 앞다리 아래 늘어진 피부가 주머니 역할을 해서 먹이를 모아 두고, 조개를 깨는 데 쓰는 마음에 드는 돌을 **한동안** 넣어 다니기도 한다. ("몇 달~몇 년"은 대중 자료 위주라 쓰지 않음)
 - 추가 사실: 해달마다 도구 사용 비율이 0~98%로 크게 다르다 (USGS, 캘리포니아 211마리). 도구를 자주 쓰는 암컷은 이빨 손상이 적었다 (2024년 연구, 196마리).
