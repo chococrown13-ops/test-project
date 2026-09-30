@@ -7,7 +7,7 @@
   "scenes": [
     {
       "image": "images/s1.jpg",
-      "duration": 4.2,
+      "duration": 4.4,
       "narration": [
         "해달한테 평생 쓰는 돌이 있다고요? 반은 틀렸어요!"
       ],
@@ -33,7 +33,7 @@
     },
     {
       "image": "../ep01/images/s2.jpg",
-      "duration": 1.7,
+      "duration": 1.6,
       "narration": [
         "오늘의 궁금증!"
       ],
@@ -57,7 +57,7 @@
     },
     {
       "image": "images/s3.jpg",
-      "duration": 10.0,
+      "duration": 9.95,
       "narration": [
         "먼저 맞는 것부터요.",
         "해달 앞다리 아래엔 늘어진 피부 주머니가 있어요.",
@@ -84,7 +84,7 @@
     },
     {
       "image": "images/s4.jpg",
-      "duration": 9.1,
+      "duration": 8.9,
       "narration": [
         "물 위에 누워 배에 돌을 올리고,",
         "조개를 탕탕 내리쳐서 깨 먹어요.",
@@ -112,7 +112,7 @@
     },
     {
       "image": "images/s5.jpg",
-      "duration": 9.8,
+      "duration": 10.1,
       "narration": [
         "그런데 평생 한 개만 쓴다는 건 과장이에요.",
         "돌을 거의 안 쓰는 해달도 있거든요.",
@@ -141,7 +141,7 @@
     },
     {
       "image": "images/s6.jpg",
-      "duration": 5.75,
+      "duration": 5.95,
       "narration": [
         "대신 이건 밝혀졌어요.",
         "도구를 자주 쓰는 해달은 이빨이 덜 상했대요."
@@ -167,7 +167,7 @@
     },
     {
       "image": "../ep01/images/s6.jpg",
-      "duration": 3.45,
+      "duration": 5.8,
       "narration": [
         "그래서 수첩엔 이렇게 고쳐 적었어요.",
         "평생 돌 말고, 잘 맞는 돌!"
@@ -192,7 +192,7 @@
     },
     {
       "image": "../ep01/images/s7.jpg",
-      "duration": 4.03,
+      "duration": 3.87,
       "narration": [
         "다음엔 뭐가 궁금하세요?",
         "댓글로 알려주세요!"
