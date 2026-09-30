@@ -18,6 +18,10 @@ AI 직원들이 쇼츠 채널 「궁금해달」(@otter.curious)을 운영하는
 - 완성본 올리기: 한 조각 15MB 이하로 나눠(조각 첫 바이트가 `<` 이면 경계를 당김) `Artifact` publish `asset: true` → `files` 에 문서 추가(from "Claude").
 - 지우기는 대표님이 요청할 때만.
 
+## ✍️ 결재함
+- 결재 대기 편은 office 저장소 `studio.episodes.ts` 의 `review`(사실 확인표·대본)를 채워 두면 사무실 결재함에 뜸.
+- 대표님 결정: `ArtifactData` get, collection `approvals`, doc_id `EP03` 등 → {decision: "승인"|"수정 요청", memo, decidedAt}. "승인"일 때만 돈이 드는 단계로 넘어감.
+
 - 업로드하지 않습니다. CapCut은 건드리지 않습니다.
 - 사실 확인 판정표에 없는 내용은 대본·캡션에 넣지 않습니다.
 - 예산(`budget_usd`)을 넘기지 않습니다. API 오류는 우회하지 말고 보고합니다.
