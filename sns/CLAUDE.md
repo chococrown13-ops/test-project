@@ -29,7 +29,7 @@ AI 직원들이 쇼츠 채널 「궁금해달」(@otter.curious)을 운영하는
 - 사용자는 개발자가 아닙니다. 보고는 쉬운 한국어로 짧게.
 
 ## 🤖 자동 진행 (사무실 버튼 → 이 세션)
-사무실 페이지 버튼은 루틴 `trig_01UZTKiduWXdSAZqYvFuRFLH`("궁금해달 스튜디오 버튼")를 불러 이 세션을 깨웁니다. 덧붙은 요청별로:
+사무실 페이지 버튼은 Claude Code Remote 커넥터의 `create_session` 으로 **이 브랜치가 체크아웃된 새 세션**을 열고 "요청: …" 을 넘깁니다 (office 저장소 `app/studioRuntime.ts`). 새 세션은 ToolSearch 로 ArtifactData 를 불러온 뒤 아래 표대로 처리합니다:
 
 | 요청 | 할 일 |
 |---|---|
@@ -41,4 +41,5 @@ AI 직원들이 쇼츠 채널 「궁금해달」(@otter.curious)을 운영하는
 - 단계마다 db `log` 에 {at: ISO, who: "Claude", text: 한 줄} 을 남깁니다 (대표님이 사무실에서 봄).
 - 대표님이 업로드했다고 하면 `episodes/<EP>` status "업로드 완료", ceoTodo "".
 - db 쓰기는 `ArtifactData` (url = 사무실 아티팩트). 페이지 다시 빌드 없이 현황판·결재함이 바뀝니다.
-- 이 세션이 끝나면 루틴을 새 세션에 다시 묶어야 합니다 (`update_trigger` 또는 새 루틴 + `app/studioRuntime.ts` 의 STUDIO_TRIGGER_ID 교체).
+- 여러 세션이 같은 브랜치에 푸시하므로 커밋 전 `git pull --rebase`.
+- 이미지·클립 파일은 저장소에 커밋하고, 대표님이 볼 결과물(미리보기·완성본·썸네일)은 자료실(`files`)에도 올립니다.
