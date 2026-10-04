@@ -93,3 +93,9 @@ python sns/tools/make_video.py sns/episodes/ep01/episode.json -o ep01.mp4 --bgm 
 
 ## 폰트
 [Pretendard](https://github.com/orioncactus/pretendard) ExtraBold (SIL Open Font License 1.1, `fonts/Pretendard-LICENSE.txt`)
+
+## Higgsfield (선택)
+- 설치: `npm i -g @higgsfield/cli` · 스킬: `.claude/skills/higgsfield-*` (저장소에 포함)
+- 로그인: `higgsfield auth login` → 대표님이 주소로 로그인 → 실패한 `http://localhost:8765/callback?...` 주소를 채팅에 붙여 주면 Claude가 그 주소를 열어 마무리. 로그인은 세션 컨테이너에만 남아서 새 세션마다 다시 해야 함.
+- 워크스페이스: `higgsfield workspace set <id>` (무료 플랜 10크레딧, Nano Banana 2 이미지 1장 1.5크레딧)
+- 네트워크 허용 필요: `higgsfield.ai`, `*.higgsfield.ai`, 결과 파일 `d8j0ntlcm91z4.cloudfront.net`, 업로드 `d2ol7oe51mr4n9.cloudfront.net`
