@@ -1,0 +1,214 @@
+{
+  "title": "EP03. 강아지 나이 × 7 = 사람 나이? (멍냥 팩트체크 #1)",
+  "voice": "ko-KR-Chirp3-HD-Leda",
+  "speaking_rate": 1.05,
+  "pitch": 0,
+  "caption_size": 54,
+  "scenes": [
+    {
+      "image": "images/s1.jpg",
+      "duration": 2.5,
+      "narration": [
+        "강아지 나이 곱하기 7? 반은 틀렸어요!"
+      ],
+      "captions": false,
+      "title": "멍냥 팩트체크 #1\n×7? **반은 틀렸어요**",
+      "title_y": 0.05,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.5,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.15,
+          "x": 0.5,
+          "y": 0.5
+        },
+        "ease": "out"
+      },
+      "image_prompt": "The mascot stands on the living-room rug holding a plain generic calculator with blank buttons and a blank screen (no symbols, no brand), tilting its head in confusion. Beside it sits a realistic Labrador Retriever with true Labrador body shape, calmly looking at the otter. A big glossy red question mark floats above the otter's head. Setting: the mascot's cozy home, a warm wooden-toned living room with a soft rug and a sofa, and a window showing a cold gray-blue sea outside. Warm soft indoor light. Dogs have no collars, no leashes, no clothes; only the otter wears a scarf. Real breed body proportions, healthy calm dogs, one head and one normal body each, four legs each. No text, letters, numbers or logos anywhere."
+    },
+    {
+      "image": "../ep01/images/s2.jpg",
+      "duration": 1.5,
+      "narration": [
+        "오늘의 궁금증!"
+      ],
+      "captions": false,
+      "title": "**오늘의 궁금증**",
+      "title_y": 0.05,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.55,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.07,
+          "x": 0.55,
+          "y": 0.5
+        }
+      },
+      "video": "../ep01/clips/s2.mp4"
+    },
+    {
+      "image": "images/s3.jpg",
+      "duration": 3.0,
+      "narration": [
+        "곱하기 7은 정확한 계산이 아니라 어림셈이래요."
+      ],
+      "captions": false,
+      "title": "×7은 **어림셈**\n정확한 계산이 아니에요",
+      "title_y": 0.05,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.5,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.12,
+          "x": 0.5,
+          "y": 0.5
+        }
+      },
+      "image_prompt": "The mascot sits on the living-room floor shrugging its shoulders with a casual careless look, loosely measuring an adult seated Labrador Retriever (realistic proportions) with a plain wavy tape measure that has no markings, no numbers and no pattern. A small question mark floats nearby. Setting: the mascot's cozy home, a warm wooden-toned living room with a soft rug and a sofa, and a window showing a cold gray-blue sea outside. Warm soft indoor light. Dogs have no collars, no leashes, no clothes; only the otter wears a scarf. Real breed body proportions, healthy calm dogs, one head and one normal body each, four legs each. No text, letters, numbers or logos anywhere."
+    },
+    {
+      "image": "images/s4.jpg",
+      "duration": 6.0,
+      "narration": [
+        "래브라도 104마리와 사람 320명의 DNA 변화를 비교했대요.",
+        "결과는 로그를 쓰는 공식이래요."
+      ],
+      "captions": false,
+      "title": "래브라도 104마리 + 사람 320명\n**16×ln(개 나이)+31**",
+      "title_y": 0.05,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.5,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.15,
+          "x": 0.5,
+          "y": 0.5
+        }
+      },
+      "image_prompt": "A Labrador Retriever lies on the rug and a single adult human, simple stylized 3D figure, not a real person, sits on the sofa. Between them a softly glowing DNA double helix floats, no letters. The mascot stands at the edge of the scene writing in its tiny yellow notebook, the notebook page showing no readable writing. Setting: the mascot's cozy home, a warm wooden-toned living room with a soft rug and a sofa, and a window showing a cold gray-blue sea outside. Warm soft indoor light. Dogs have no collars, no leashes, no clothes; only the otter wears a scarf. Real breed body proportions, healthy calm dogs, one head and one normal body each, four legs each. No text, letters, numbers or logos anywhere."
+    },
+    {
+      "image": "images/s5.jpg",
+      "duration": 5.0,
+      "narration": [
+        "1살이면 사람 30살 안팎이래요.",
+        "어릴 땐 훨씬 빨리, 나이 들수록 느려져요."
+      ],
+      "captions": false,
+      "title": "1살 ≈ 사람 **30살 안팎**\n어릴 땐 **빨리** → 나중엔 **천천히**",
+      "title_y": 0.05,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.5,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.12,
+          "x": 0.5,
+          "y": 0.5
+        }
+      },
+      "image_prompt": "A young Labrador puppy sits on the living-room floor wearing a small plain party hat without patterns, looking comfortable and happy. Two or three plain balloons float beside it with no numbers or letters. No food, no candles. On the wall behind hangs a large sheet of paper with one smooth curve that rises steeply at first and then gradually flattens, with no axis marks, numbers or text. The mascot stands beside it pointing at the curve with one paw. Setting: the mascot's cozy home, a warm wooden-toned living room with a soft rug and a sofa, and a window showing a cold gray-blue sea outside. Warm soft indoor light. Dogs have no collars, no leashes, no clothes; only the otter wears a scarf. Real breed body proportions, healthy calm dogs, one head and one normal body each, four legs each. No text, letters, numbers or logos anywhere."
+    },
+    {
+      "image": "images/s6.jpg",
+      "duration": 7.5,
+      "narration": [
+        "연구에 쓴 개는 래브라도뿐이라, 다른 품종도 똑같을지는 이 연구만으론 알 수 없어요.",
+        "큰 개일수록 더 빨리 늙는 경향도 있대요."
+      ],
+      "captions": false,
+      "title": "연구 대상은 **래브라도뿐**\n큰 개일수록 **더 빨리 늙는 경향**",
+      "title_y": 0.05,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.5,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.1,
+          "x": 0.5,
+          "y": 0.5
+        }
+      },
+      "image_prompt": "On the living-room rug three dogs sit side by side: a tiny Chihuahua, a Labrador Retriever, and a huge Great Dane, each with true breed body shape and clearly very different sizes, all healthy and calm. A soft warm glow highlights only the Labrador's spot; small question marks float above the Chihuahua and the Great Dane. The mascot sits on a chair at the edge of the frame holding its tiny yellow notebook. Exactly three dogs plus the otter. Setting: the mascot's cozy home, a warm wooden-toned living room with a soft rug and a sofa, and a window showing a cold gray-blue sea outside. Warm soft indoor light. Dogs have no collars, no leashes, no clothes; only the otter wears a scarf. Real breed body proportions, healthy calm dogs, one head and one normal body each, four legs each. No text, letters, numbers or logos anywhere."
+    },
+    {
+      "image": "../ep01/images/s6.jpg",
+      "duration": 6.5,
+      "narration": [
+        "그래서 수첩엔 이렇게 고쳐 적었어요.",
+        "곱하기 7 말고, 어릴 땐 빨리, 큰 개는 더 빨리 늙는 경향!"
+      ],
+      "captions": false,
+      "title": "~~× 7~~ 말고 어릴 땐 **빨리**\n큰 개는 **더 빨리 늙는 경향**",
+      "title_y": 0.05,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.5,
+          "y": 0.55
+        },
+        "to": {
+          "zoom": 1.12,
+          "x": 0.5,
+          "y": 0.55
+        }
+      },
+      "video": "../ep01/clips/s6.mp4"
+    },
+    {
+      "image": "../ep01/images/s7.jpg",
+      "duration": 6.0,
+      "narration": [
+        "우리 아이 나이에 맞는 관리가 궁금하면 동물병원에 물어보세요.",
+        "우리 강아지는 몇 살이에요?",
+        "곱하기 7일까요?"
+      ],
+      "captions": false,
+      "title": "우리 강아지는 **몇 살**?\n댓글로 알려주세요",
+      "title_y": 0.05,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.5,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.04,
+          "x": 0.5,
+          "y": 0.5
+        }
+      },
+      "video": "../ep01/clips/s7.mp4"
+    }
+  ],
+  "motion_suffix": "Static camera, no zoom, no cuts. Gentle, natural, slow motion. Keep the character's appearance, light sky-blue scarf and tiny yellow notebook exactly the same as the first frame. No text, no new characters, no new objects. Vertical 9:16.",
+  "motion_negative": "text, subtitles, extra limbs, extra otters, morphing face, camera shake, zoom",
+  "cover": {
+    "scene": 1,
+    "title": "강아지 나이 × 7?\n**반은 틀렸어요**",
+    "title_size": 104,
+    "title_y": 0.125,
+    "fit": 0.84,
+    "fit_top": 0.29,
+    "badge": "궁금해달 · 멍냥 팩트체크 #1",
+    "badge_size": 44,
+    "badge_y": 0.318
+  },
+  "image_prompt_prefix": "Use the attached character sheet as the exact reference for the main character: a small chubby sea otter mascot with dark chocolate-brown fur, cream face, round black eyes, blush cheeks, a light sky-blue knitted scarf with a white wavy pattern, and a tiny yellow spiral notebook. Keep the same face, colors and proportions. Soft 3D render. Vertical 9:16. No text, no letters."
+}
