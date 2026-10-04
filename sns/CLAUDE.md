@@ -29,7 +29,7 @@ AI 직원들이 쇼츠 채널 「궁금해달」(@otter.curious)을 운영하는
 - 사용자는 개발자가 아닙니다. 보고는 쉬운 한국어로 짧게.
 
 ## 🤖 자동 진행 (사무실 버튼 → 이 세션)
-사무실 페이지 버튼은 Claude Code Remote 커넥터의 `create_session` 으로 **이 브랜치가 체크아웃된 새 세션**을 열고 "요청: …" 을 넘깁니다 (office 저장소 `app/studioRuntime.ts`). 새 세션은 ToolSearch 로 ArtifactData 를 불러온 뒤 아래 표대로 처리합니다:
+사무실 페이지 버튼은 Claude Code Remote 커넥터의 `fire_trigger` 로 루틴 `trig_01V1UN3VjYKU3XzBeFrN7R38`("궁금해달 스튜디오 작업", 실행마다 새 세션)을 부르고 "요청: …" 을 넘깁니다. 새 세션은 이 브랜치를 clone 하고 ToolSearch 로 ArtifactData 를 불러와 아래 표대로 처리합니다. **루틴 세션은 git push 권한이 없어서(403)** 작업 파일을 자료실 asset 으로 올리고 db `handoff/<EP>` 에 {"저장소 경로": asset id} 를 남깁니다. 채팅 세션은 handoff 를 받아 저장소에 커밋합니다.
 
 | 요청 | 할 일 |
 |---|---|
