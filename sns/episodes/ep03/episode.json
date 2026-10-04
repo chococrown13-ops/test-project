@@ -27,7 +27,9 @@
         },
         "ease": "out"
       },
-      "image_prompt": "The mascot stands on the living-room rug holding a plain generic calculator with blank buttons and a blank screen (no symbols, no brand), tilting its head in confusion. Beside it sits a realistic Labrador Retriever with true Labrador body shape, calmly looking at the otter. A big glossy red question mark floats above the otter's head. Setting: the mascot's cozy home, a warm wooden-toned living room with a soft rug and a sofa, and a window showing a cold gray-blue sea outside. Warm soft indoor light. Dogs have no collars, no leashes, no clothes; only the otter wears a scarf. Real breed body proportions, healthy calm dogs, one head and one normal body each, four legs each. No text, letters, numbers or logos anywhere."
+      "image_prompt": "The mascot stands on the living-room rug holding a plain generic calculator with blank buttons and a blank screen (no symbols, no brand), tilting its head in confusion. Beside it sits a realistic Labrador Retriever with true Labrador body shape, calmly looking at the otter. A big glossy red question mark floats above the otter's head. Setting: the mascot's cozy home, a warm wooden-toned living room with a soft rug and a sofa, and a window showing a cold gray-blue sea outside. Warm soft indoor light. Dogs have no collars, no leashes, no clothes; only the otter wears a scarf. Real breed body proportions, healthy calm dogs, one head and one normal body each, four legs each. No text, letters, numbers or logos anywhere.",
+      "motion": "The otter slowly tilts its head a little to the side in puzzlement and blinks, holding the calculator still. The Labrador sits calmly, gently turning its head slightly toward the otter, ears and tail tip moving softly. The red question mark floats with a very slight bob. The dog does not bark, stand or jump.",
+      "video": "clips/s1.mp4"
     },
     {
       "image": "../ep01/images/s2.jpg",
@@ -83,7 +85,7 @@
         "결과는 로그를 쓰는 공식이래요."
       ],
       "captions": false,
-      "title": "래브라도 104마리 + 사람 320명\n**16×ln(개 나이)+31**",
+      "title": "개 104마리 · 사람 320명\n**16×ln(개 나이)+31**",
       "title_y": 0.05,
       "camera": {
         "from": {
@@ -97,7 +99,9 @@
           "y": 0.5
         }
       },
-      "image_prompt": "A Labrador Retriever lies on the rug and a single adult human, simple stylized 3D figure, not a real person, sits on the sofa. Between them a softly glowing DNA double helix floats, no letters. The mascot stands at the edge of the scene writing in its tiny yellow notebook, the notebook page showing no readable writing. Setting: the mascot's cozy home, a warm wooden-toned living room with a soft rug and a sofa, and a window showing a cold gray-blue sea outside. Warm soft indoor light. Dogs have no collars, no leashes, no clothes; only the otter wears a scarf. Real breed body proportions, healthy calm dogs, one head and one normal body each, four legs each. No text, letters, numbers or logos anywhere."
+      "image_prompt": "A Labrador Retriever lies on the rug and a single adult human, simple stylized 3D figure, not a real person, sits on the sofa. Between them a softly glowing DNA double helix floats, no letters. The mascot stands at the edge of the scene writing in its tiny yellow notebook, the notebook page showing no readable writing. Setting: the mascot's cozy home, a warm wooden-toned living room with a soft rug and a sofa, and a window showing a cold gray-blue sea outside. Warm soft indoor light. Dogs have no collars, no leashes, no clothes; only the otter wears a scarf. Real breed body proportions, healthy calm dogs, one head and one normal body each, four legs each. No text, letters, numbers or logos anywhere.",
+      "motion": "The glowing DNA helix rotates very slowly and gently pulses with soft light. The Labrador lying on the rug softly wags its tail tip and turns its ears slightly, staying lying down. The person on the sofa sits almost still, blinking gently. The otter in front moves its pencil slightly as if writing, and blinks with a small smile. No new people or animals.",
+      "video": "clips/s4.mp4"
     },
     {
       "image": "images/s5.jpg",
