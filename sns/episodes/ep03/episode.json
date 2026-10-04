@@ -85,7 +85,7 @@
         "결과는 로그를 쓰는 공식이래요."
       ],
       "captions": false,
-      "title": "개 104마리 · 사람 320명\n**16×ln(개 나이)+31**",
+      "title": "래브라도 104마리\n사람 320명\n**16×ln(개 나이)+31**",
       "title_y": 0.05,
       "camera": {
         "from": {
@@ -101,7 +101,8 @@
       },
       "image_prompt": "A Labrador Retriever lies on the rug and a single adult human, simple stylized 3D figure, not a real person, sits on the sofa. Between them a softly glowing DNA double helix floats, no letters. The mascot stands at the edge of the scene writing in its tiny yellow notebook, the notebook page showing no readable writing. Setting: the mascot's cozy home, a warm wooden-toned living room with a soft rug and a sofa, and a window showing a cold gray-blue sea outside. Warm soft indoor light. Dogs have no collars, no leashes, no clothes; only the otter wears a scarf. Real breed body proportions, healthy calm dogs, one head and one normal body each, four legs each. No text, letters, numbers or logos anywhere.",
       "motion": "The glowing DNA helix rotates very slowly and gently pulses with soft light. The Labrador lying on the rug softly wags its tail tip and turns its ears slightly, staying lying down. The person on the sofa sits almost still, blinking gently. The otter in front moves its pencil slightly as if writing, and blinks with a small smile. No new people or animals.",
-      "video": "clips/s4.mp4"
+      "video": "clips/s4.mp4",
+      "video_mode": "freeze"
     },
     {
       "image": "images/s5.jpg",
@@ -207,12 +208,12 @@
     "scene": 1,
     "title": "강아지 나이 × 7?\n**반은 틀렸어요**",
     "title_size": 104,
-    "title_y": 0.125,
-    "fit": 0.84,
-    "fit_top": 0.29,
+    "title_y": 0.07,
+    "fit": 0.7,
+    "fit_top": 0.31,
     "badge": "궁금해달 · 멍냥 팩트체크 #1",
     "badge_size": 44,
-    "badge_y": 0.318
+    "badge_y": 0.255
   },
   "image_prompt_prefix": "Use the attached character sheet as the exact reference for the main character: a small chubby sea otter mascot with dark chocolate-brown fur, cream face, round black eyes, blush cheeks, a light sky-blue knitted scarf with a white wavy pattern, and a tiny yellow spiral notebook. Keep the same face, colors and proportions. Soft 3D render. Vertical 9:16. No text, no letters."
 }

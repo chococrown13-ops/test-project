@@ -1,4 +1,4 @@
-# EP03. 강아지 나이 × 7 = 사람 나이? — 📝 결재 대기 (멍냥 팩트체크 #1)
+# EP03. 강아지 나이 × 7 = 사람 나이? — 🎙 목소리 대기 (멍냥 팩트체크 #1)
 
 | 항목 | 내용 |
 |---|---|
@@ -6,7 +6,9 @@
 | 길이 | 약 38초, 세로 9:16 |
 | 새로 만들 이미지 | 5장 (S1, S3, S4, S5, S6) — S2·S7·S8은 EP01 재사용 |
 | 예상 비용 | 약 $1 (이미지 5장 + 움직이는 장면 1~2개) |
-| 진행 | 리서치 ✅ → 대본 ✅ → 1차 검수 통과(2회차) → **대표 결재 대기** (사무실 결재함) |
+| 진행 | 리서치 ✅ → 대본 ✅ → 1차 검수 ✅ → 결재 ✅ → 이미지 5장·클립 2개 ✅ → 2차 검수 ✅(수정 반영) → **목소리 대기** |
+| 비용 | 약 $0.97 (이미지 7장 생성 + 8초 클립 2개) |
+| 녹음용 장면 시작 | S1 0:00 · S2 0:02.5 · S3 0:04 · S4 0:07 · S5 0:13 · S6 0:18 · S7 0:25.5 · S8 0:32 (끝 0:38) |
 
 ## 0. 사실 확인 (리서치팀)
 
@@ -23,6 +25,7 @@
 | 공식에 크기 보정 없음 | ⚠️ 확인 부족 | 쓰지 않음 |
 | 큰 개일수록 빨리 늙는 경향 | ✅ | "큰 개일수록 더 빨리 늙는 경향이 있대요" (숫자 없이) |
 | AAHA 2019: 시니어 = 예상 수명의 마지막 25% | ✅ | 설명란 보너스 (크기별 나이표 금지) |
+| AAHA: 예상 수명은 품종·크기마다 달라서 단계별 나이를 일괄로 정하지 않음 | ✅ (2차 검수팀 확인, AAHA 2019 지침) | "크기·품종마다 달라요" — 몇 살부터 시니어라는 숫자는 쓰지 않음 |
 
 출처: [Cell Systems](https://www.cell.com/fulltext/S2405-4712(20)30203-9) · [UCSD 논문 PDF](https://idekerlab.ucsd.edu/wp-content/uploads/2020/07/Wang_CellSystems2020.pdf) · [NIA](https://www.nia.nih.gov/news/epigenetics-study-updates-dog-human-age-formula-implications-cross-species-comparison-help) · [NHGRI](https://www.genome.gov/news/news-release/NHGRI-researchers-reframe-dog-to-human-aging-comparisons) · [Britannica](https://www.britannica.com/animal/dog-years-explained) · [ScienceAlert](https://www.sciencealert.com/no-a-dog-year-isn-t-equivalent-to-7-human-years) · [Kraus 등 2013](https://www.journals.uchicago.edu/doi/10.1086/668203) · [AAHA 2019 지침](https://www.aaha.org/resources/life-stage-canine-2019/canine-life-stage-definitions/)
 
@@ -87,6 +90,7 @@
 
 우리 강아지는 몇 살이에요? 댓글로 알려주세요 👇
 
+📚 출처: Wang 등 2020, Cell Systems (UC San Diego) · 미국 국립노화연구소(NIA) 해설 · AAHA 2019 지침
 이 콘텐츠는 AI로 제작되었습니다.
 
 #강아지 #강아지나이 #반려견 #댕댕이 #멍냥팩트체크 #동물상식 #잡학상식 #반려동물 #강아지상식 #궁금해달
@@ -119,4 +123,6 @@
 - [ ] 제목·캡션에 `멍냥 팩트체크 #1`
 - [ ] 유튜브 합성 콘텐츠 "예", 인스타·틱톡 AI 라벨 켜기
 - [ ] 고정 댓글 `[쿠팡파트너스 링크]` 두 곳에 실제 링크, 바로 위 표시 문구 유지
+- [ ] AAHA 줄이 판정표와 맞는지 ("마지막 4분의 1", "크기·품종마다 달라요"만, 나이 숫자 없음)
+- [ ] 인스타 프로필 링크에 출처(Wang 등 2020, NIA)가 있는지 — 없으면 캡션의 출처 줄로 충분
 - [ ] 재생목록 「멍냥 팩트체크」 새로 만들기 · 세 플랫폼 같은 날 업로드
