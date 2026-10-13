@@ -10,7 +10,8 @@ description: 땡그랑 스튜디오 점검실. 점검팀(시스템 inspect-syste
 
 ## 진행
 1. **재료 모으기** (`ttaeng/checks/_snapshot/`, 커밋하지 않음)
-   - `ArtifactData` list 로 `log`·`locks`·`strategy`·`episodes`·`reviews`·`approvals`·`files`·`checks` 를 `out_dir` 에 저장
+   - `ArtifactData` list 로 `locks`·`strategy`·`episodes`·`reviews`·`approvals`·`files`·`checks` 를 `out_dir` 에 저장
+   - `log` 는 `out_dir` 없이 list(query.limit 200) 해서 결과 그대로(문서마다 `updatedAt` = 실제 저장 시각이 붙어 있음) `log.txt` 로 저장 — `out_dir` 파일에는 `updatedAt` 이 빠져서 미래 시각 점검을 못 해요
    - `Artifact` list(scope "assets") 결과를 `assets.txt` 로 저장
    - `Artifact` read(url = 사무실) 로 받은 페이지 HTML 을 `office.html` 로 복사
    - `date -u +%FT%TZ` 를 `now.txt` 로
