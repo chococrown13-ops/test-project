@@ -37,6 +37,8 @@ AI 직원들이 쇼츠 채널 「궁금해달」(@otter.curious)을 운영하는
 | `다음 편 기획` | `content-calendar.md` 다음 순서 편으로 studio 스킬 0~3단계(리서치→대본→1차 검수). 결과를 db `reviews/<EP>`(Review 형식: estCostUsd, summary, facts[], script[], checks[])에 쓰고 `episodes/<EP>` 를 {title, corner, status:"결재 대기", facts, ceoTodo:"결재함에서 승인하기", link, costUsd:0} 로. 돈 드는 작업은 하지 않음 |
 | `EPxx 결재: 승인` | db `approvals/<EP>` 확인 후 4~6단계(이미지·클립·게시 문구·2차 검수, 예산 안). 무음 미리보기·이미지·게시 문구를 자료실(`files`)에 올리고 `episodes/<EP>` status "목소리 대기", ceoTodo "목소리 녹음 → 자료실에 올리고 🎬 편집 맡기기" |
 | `EPxx 결재: 수정 요청 — 메모` | 메모대로 대본 수정 → 1차 검수 → `reviews/<EP>` 갱신, `approvals/<EP>` 삭제(다시 결재 받게) |
+| `전략 회의: <안건>` | `.claude/skills/strategy-office/SKILL.md` 대로 여섯 부서 검토 → 결정 메모 `ttaeng/strategy/` + db `strategy/<회의id>` (사무실 🧠 전략 회의실) |
+| `전략 결정: <회의id> · A1=key, …` | 같은 스킬의 "결정이 나면" 절차 → `ttaeng/decisions.md`·`ttaeng/brand.md` 갱신, log |
 | `목소리 편집: EPxx · 자료실 파일 <id>` | 자료실 파일 조각을 받아 이어 붙이고 → 음성 타이밍에 맞춰 `episode_own_audio.json` → 렌더·썸네일 → 자료실에 완성본·썸네일(from "Claude") → status "업로드 대기", ceoTodo "업로드 (AI 라벨 켜기) + 고정 댓글에 쿠팡 링크" |
 
 - 단계마다 db `log` 에 {at: ISO, who: "Claude", text: 한 줄} 을 남깁니다 (대표님이 사무실에서 봄).
