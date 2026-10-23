@@ -464,11 +464,19 @@ function StatLine({ label, home, away, homeColor, awayColor, fmt = (v: number) =
   );
 }
 
+function luminance(hex: string): number {
+  const n = parseInt(hex.replace('#', '').padEnd(6, '0').slice(0, 6), 16);
+  return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+}
+
 function MatchStats({ live, home, away, poss }: { live: LiveMatch; home: Club; away: Club; poss: { home: number; away: number } }) {
   const h = live.home.stats;
   const a = live.away.stats;
-  const hc = home.primary;
-  const ac = away.primary === home.primary ? away.secondary : away.primary;
+  // Same shirts as on the pitch (the away side may be in its change kit), lifted if too dark to see.
+  const kits = matchKits(home, away);
+  const visible = (c: string, alt: string) => (luminance(c) < 0.18 ? (luminance(alt) >= 0.18 ? alt : '#94a3b8') : c);
+  const hc = visible(kits.home.fill, kits.home.trim);
+  const ac = visible(kits.away.fill, kits.away.trim);
   return (
     <Card padded>
       <StatLine label="점유율 %" home={poss.home} away={poss.away} homeColor={hc} awayColor={ac} />

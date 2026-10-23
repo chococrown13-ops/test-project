@@ -481,7 +481,7 @@ export function simulateMinute(live: LiveMatch, ctx: MatchContext, rng: Rng): Ma
   (['home', 'away'] as Side[]).forEach((side) => {
     const t = team(live, side);
     const mo = side === 'home' ? hm : am;
-    const foulProb = 0.115 * (1 + mo.tackling * 0.4) * (0.8 + mo.pressInt * 0.25);
+    const foulProb = 0.115 * (1 + mo.tackling * 0.22) * (0.88 + mo.pressInt * 0.12);
     if (rng.bool(foulProb)) resolveFoul(live, ctx, rng, side, side === 'home' ? am : hm);
     if (rng.bool(0.00013 * onPitch(t).length)) resolveInjury(live, ctx, rng, side);
     drain(t, ctx, mo);
@@ -794,7 +794,7 @@ function resolveFoul(live: LiveMatch, ctx: MatchContext, rng: Rng, foulingSide: 
   const c = { p: offender.name, team: t.short };
   const tacticMods = mods(tacticOf(t, ctx));
 
-  const cardBase = 0.15 * (1 + tacticMods.tackling * 0.35) * (0.7 + p.attrs[A.aggression] / 30) * (1.25 - p.hidden[H.temperament] / 40);
+  const cardBase = 0.15 * (1 + tacticMods.tackling * 0.2) * (0.7 + p.attrs[A.aggression] / 30) * (1.25 - p.hidden[H.temperament] / 40);
   if (rng.bool(0.0015)) {
     sendOff(live, t, offender, commentary.red(rng, c), foulingSide);
     return;
