@@ -1,117 +1,213 @@
-import type { FormationId, PositionGroup, Role } from './types';
+/**
+ * Positions and formations. FM26 lets a side use one formation with the ball
+ * (In Possession) and another without it (Out of Possession); the same eleven
+ * players fill both, so every IP slot is paired with an OOP slot.
+ */
 
-export interface Formation {
-  id: FormationId;
-  /** Slots in display order: GK first, then back to front. */
-  slots: Role[];
-  /** Normalised pitch coordinates for the tactics view. x: 0-100 (left-right), y: 0-100 (own goal -> opposition goal). */
-  layout: { x: number; y: number }[];
+export type Position =
+  | 'GK'
+  | 'DL'
+  | 'DC'
+  | 'DR'
+  | 'WBL'
+  | 'WBR'
+  | 'DM'
+  | 'ML'
+  | 'MC'
+  | 'MR'
+  | 'AML'
+  | 'AMC'
+  | 'AMR'
+  | 'ST';
+
+export const POSITIONS: Position[] = ['GK', 'DL', 'DC', 'DR', 'WBL', 'WBR', 'DM', 'ML', 'MC', 'MR', 'AML', 'AMC', 'AMR', 'ST'];
+
+export const POS_LABEL: Record<Position, string> = {
+  GK: 'GK',
+  DL: 'LB',
+  DC: 'CB',
+  DR: 'RB',
+  WBL: 'LWB',
+  WBR: 'RWB',
+  DM: 'DM',
+  ML: 'LM',
+  MC: 'CM',
+  MR: 'RM',
+  AML: 'LW',
+  AMC: 'AM',
+  AMR: 'RW',
+  ST: 'ST',
+};
+
+export type Line = 'GK' | 'DEF' | 'MID' | 'ATT';
+
+export const POS_LINE: Record<Position, Line> = {
+  GK: 'GK',
+  DL: 'DEF',
+  DC: 'DEF',
+  DR: 'DEF',
+  WBL: 'DEF',
+  WBR: 'DEF',
+  DM: 'MID',
+  ML: 'MID',
+  MC: 'MID',
+  MR: 'MID',
+  AML: 'ATT',
+  AMC: 'ATT',
+  AMR: 'ATT',
+  ST: 'ATT',
+};
+
+/** Where each position sits on the familiarity map: x 0-100 left to right, y 0-100 own goal upwards. */
+export const POS_POINT: Record<Position, { x: number; y: number }> = {
+  GK: { x: 50, y: 5 },
+  DL: { x: 12, y: 24 },
+  DC: { x: 50, y: 21 },
+  DR: { x: 88, y: 24 },
+  WBL: { x: 9, y: 40 },
+  WBR: { x: 91, y: 40 },
+  DM: { x: 50, y: 37 },
+  ML: { x: 12, y: 55 },
+  MC: { x: 50, y: 52 },
+  MR: { x: 88, y: 55 },
+  AML: { x: 14, y: 73 },
+  AMC: { x: 50, y: 69 },
+  AMR: { x: 86, y: 73 },
+  ST: { x: 50, y: 86 },
+};
+
+/** Neighbouring positions: a player natural in one picks up the others more easily. */
+export const POS_NEIGHBOURS: Record<Position, Position[]> = {
+  GK: [],
+  DL: ['WBL', 'DC', 'ML'],
+  DC: ['DL', 'DR', 'DM'],
+  DR: ['WBR', 'DC', 'MR'],
+  WBL: ['DL', 'ML'],
+  WBR: ['DR', 'MR'],
+  DM: ['MC', 'DC'],
+  ML: ['AML', 'WBL', 'MC'],
+  MC: ['DM', 'AMC', 'ML', 'MR'],
+  MR: ['AMR', 'WBR', 'MC'],
+  AML: ['ML', 'AMC', 'ST'],
+  AMC: ['MC', 'ST', 'AML', 'AMR'],
+  AMR: ['MR', 'AMC', 'ST'],
+  ST: ['AMC', 'AML', 'AMR'],
+};
+
+export interface Slot {
+  pos: Position;
+  x: number;
+  y: number;
 }
 
-export const FORMATIONS: Record<FormationId, Formation> = {
-  '4-4-2': {
-    id: '4-4-2',
-    slots: ['GK', 'DL', 'DC', 'DC', 'DR', 'ML', 'MC', 'MC', 'MR', 'ST', 'ST'],
-    layout: [
-      { x: 50, y: 6 },
-      { x: 16, y: 26 }, { x: 38, y: 22 }, { x: 62, y: 22 }, { x: 84, y: 26 },
-      { x: 16, y: 55 }, { x: 39, y: 52 }, { x: 61, y: 52 }, { x: 84, y: 55 },
-      { x: 38, y: 82 }, { x: 62, y: 82 },
-    ],
-  },
-  '4-3-3': {
-    id: '4-3-3',
-    slots: ['GK', 'DL', 'DC', 'DC', 'DR', 'DM', 'MC', 'MC', 'ML', 'ST', 'MR'],
-    layout: [
-      { x: 50, y: 6 },
-      { x: 16, y: 26 }, { x: 38, y: 22 }, { x: 62, y: 22 }, { x: 84, y: 26 },
-      { x: 50, y: 44 }, { x: 32, y: 58 }, { x: 68, y: 58 },
-      { x: 15, y: 80 }, { x: 50, y: 85 }, { x: 85, y: 80 },
-    ],
-  },
-  '4-2-3-1': {
-    id: '4-2-3-1',
-    slots: ['GK', 'DL', 'DC', 'DC', 'DR', 'DM', 'DM', 'ML', 'AM', 'MR', 'ST'],
-    layout: [
-      { x: 50, y: 6 },
-      { x: 16, y: 26 }, { x: 38, y: 22 }, { x: 62, y: 22 }, { x: 84, y: 26 },
-      { x: 37, y: 45 }, { x: 63, y: 45 },
-      { x: 15, y: 68 }, { x: 50, y: 66 }, { x: 85, y: 68 },
-      { x: 50, y: 87 },
-    ],
-  },
-  '3-5-2': {
-    id: '3-5-2',
-    slots: ['GK', 'DC', 'DC', 'DC', 'ML', 'MC', 'MC', 'MC', 'MR', 'ST', 'ST'],
-    layout: [
-      { x: 50, y: 6 },
-      { x: 28, y: 23 }, { x: 50, y: 20 }, { x: 72, y: 23 },
-      { x: 10, y: 54 }, { x: 31, y: 48 }, { x: 50, y: 58 }, { x: 69, y: 48 }, { x: 90, y: 54 },
-      { x: 38, y: 83 }, { x: 62, y: 83 },
-    ],
-  },
-  '5-3-2': {
-    id: '5-3-2',
-    slots: ['GK', 'DL', 'DC', 'DC', 'DC', 'DR', 'MC', 'MC', 'MC', 'ST', 'ST'],
-    layout: [
-      { x: 50, y: 6 },
-      { x: 9, y: 32 }, { x: 29.5, y: 20 }, { x: 50, y: 23 }, { x: 70.5, y: 20 }, { x: 91, y: 32 },
-      { x: 30, y: 55 }, { x: 50, y: 58 }, { x: 70, y: 55 },
-      { x: 38, y: 83 }, { x: 62, y: 83 },
-    ],
-  },
+export type FormationId =
+  | '4-4-2'
+  | '4-3-3'
+  | '4-2-3-1'
+  | '4-1-4-1'
+  | '4-4-1-1'
+  | '4-3-1-2'
+  | '3-4-3'
+  | '3-5-2'
+  | '3-4-2-1'
+  | '3-2-5'
+  | '5-3-2'
+  | '5-4-1';
+
+const s = (pos: Position, x: number, y: number): Slot => ({ pos, x, y });
+const GK = s('GK', 50, 5);
+const BACK4 = [s('DL', 14, 25), s('DC', 37, 20), s('DC', 63, 20), s('DR', 86, 25)];
+const BACK3 = [s('DC', 26, 22), s('DC', 50, 19), s('DC', 74, 22)];
+const BACK5 = [s('WBL', 9, 33), s('DC', 29, 20), s('DC', 50, 18), s('DC', 71, 20), s('WBR', 91, 33)];
+
+export const FORMATIONS: Record<FormationId, Slot[]> = {
+  '4-4-2': [GK, ...BACK4, s('ML', 13, 54), s('MC', 38, 49), s('MC', 62, 49), s('MR', 87, 54), s('ST', 38, 83), s('ST', 62, 83)],
+  '4-3-3': [GK, ...BACK4, s('DM', 50, 37), s('MC', 32, 53), s('MC', 68, 53), s('AML', 15, 76), s('ST', 50, 86), s('AMR', 85, 76)],
+  '4-2-3-1': [GK, ...BACK4, s('DM', 37, 39), s('DM', 63, 39), s('AML', 15, 70), s('AMC', 50, 67), s('AMR', 85, 70), s('ST', 50, 86)],
+  '4-1-4-1': [GK, ...BACK4, s('DM', 50, 36), s('ML', 13, 57), s('MC', 37, 54), s('MC', 63, 54), s('MR', 87, 57), s('ST', 50, 85)],
+  '4-4-1-1': [GK, ...BACK4, s('ML', 13, 53), s('MC', 38, 48), s('MC', 62, 48), s('MR', 87, 53), s('AMC', 50, 70), s('ST', 50, 86)],
+  '4-3-1-2': [GK, ...BACK4, s('DM', 50, 37), s('MC', 30, 51), s('MC', 70, 51), s('AMC', 50, 68), s('ST', 38, 84), s('ST', 62, 84)],
+  '3-4-3': [GK, ...BACK3, s('WBL', 10, 48), s('MC', 38, 47), s('MC', 62, 47), s('WBR', 90, 48), s('AML', 18, 76), s('ST', 50, 86), s('AMR', 82, 76)],
+  '3-5-2': [GK, ...BACK3, s('WBL', 9, 50), s('DM', 50, 37), s('MC', 33, 53), s('MC', 67, 53), s('WBR', 91, 50), s('ST', 38, 84), s('ST', 62, 84)],
+  '3-4-2-1': [GK, ...BACK3, s('WBL', 10, 47), s('MC', 38, 45), s('MC', 62, 45), s('WBR', 90, 47), s('AMC', 34, 71), s('AMC', 66, 71), s('ST', 50, 86)],
+  '3-2-5': [GK, ...BACK3, s('DM', 38, 41), s('DM', 62, 41), s('AML', 10, 74), s('AMC', 33, 72), s('ST', 50, 87), s('AMC', 67, 72), s('AMR', 90, 74)],
+  '5-3-2': [GK, ...BACK5, s('MC', 30, 51), s('MC', 50, 54), s('MC', 70, 51), s('ST', 38, 83), s('ST', 62, 83)],
+  '5-4-1': [GK, ...BACK5, s('ML', 14, 54), s('MC', 38, 50), s('MC', 62, 50), s('MR', 86, 54), s('ST', 50, 84)],
 };
 
 export const FORMATION_IDS = Object.keys(FORMATIONS) as FormationId[];
 
-export const ROLE_GROUP: Record<Role, PositionGroup> = {
-  GK: 'GK',
-  DC: 'DF',
-  DL: 'DF',
-  DR: 'DF',
-  DM: 'MF',
-  MC: 'MF',
-  ML: 'MF',
-  MR: 'MF',
-  AM: 'MF',
-  ST: 'FW',
-};
-
-export const ROLE_LABEL: Record<Role, string> = {
-  GK: 'GK',
-  DC: 'CB',
-  DL: 'LB',
-  DR: 'RB',
-  DM: 'DM',
-  MC: 'CM',
-  ML: 'LM',
-  MR: 'RM',
-  AM: 'AM',
-  ST: 'ST',
+/** Shapes FM players reach for with the ball vs without it. Shown as hints in the picker. */
+export const FORMATION_HINT: Partial<Record<FormationId, string>> = {
+  '3-2-5': '빌드업 전용 형태 — 풀백이 안으로 좁혀 들어오는 공격 형태',
+  '3-4-2-1': '공격 시 윙백을 높이 올리는 형태',
+  '4-4-2': '수비 시 가장 단단한 두 줄 블록',
+  '5-4-1': '낮은 블록 수비',
 };
 
 /**
- * How well a player copes in a slot he isn't built for. Full effectiveness at
- * his own role, a modest tax for adjacent ones, a heavy tax across the pitch.
+ * Pair every IP slot with an OOP slot so each player's two jobs are as close
+ * on the pitch as possible (Hungarian algorithm, 11 x 11). Slot 0 is always
+ * the keeper in both shapes.
+ * Returns oopOf[ipSlot] = oopSlot.
  */
-export function roleFamiliarity(playerRole: Role, slot: Role): number {
-  if (playerRole === slot) return 1;
-  // Keepers are keepers.
-  if (playerRole === 'GK' || slot === 'GK') return 0.35;
+export function pairSlots(ip: Slot[], oop: Slot[]): number[] {
+  const n = ip.length;
+  const cost: number[][] = ip.map((a) =>
+    oop.map((b) => {
+      if ((a.pos === 'GK') !== (b.pos === 'GK')) return 1e6;
+      return Math.hypot(a.x - b.x, (a.y - b.y) * 1.3);
+    }),
+  );
+  return hungarian(cost).slice(0, n);
+}
 
-  const adjacency: Partial<Record<Role, Role[]>> = {
-    DC: ['DL', 'DR', 'DM'],
-    DL: ['DC', 'ML', 'DR'],
-    DR: ['DC', 'MR', 'DL'],
-    DM: ['MC', 'DC'],
-    MC: ['DM', 'AM', 'ML', 'MR'],
-    ML: ['MR', 'MC', 'DL', 'AM'],
-    MR: ['ML', 'MC', 'DR', 'AM'],
-    AM: ['MC', 'ST', 'ML', 'MR'],
-    ST: ['AM', 'ML', 'MR'],
-  };
-
-  if (adjacency[playerRole]?.includes(slot)) return 0.88;
-  if (ROLE_GROUP[playerRole] === ROLE_GROUP[slot]) return 0.8;
-  return 0.62;
+/** Minimum-cost assignment for a square matrix. Returns assignment[row] = column. */
+export function hungarian(cost: number[][]): number[] {
+  const n = cost.length;
+  const u = new Array(n + 1).fill(0);
+  const v = new Array(n + 1).fill(0);
+  const p = new Array(n + 1).fill(0);
+  const way = new Array(n + 1).fill(0);
+  for (let i = 1; i <= n; i++) {
+    p[0] = i;
+    let j0 = 0;
+    const minv = new Array(n + 1).fill(Infinity);
+    const used = new Array(n + 1).fill(false);
+    do {
+      used[j0] = true;
+      const i0 = p[j0];
+      let delta = Infinity;
+      let j1 = 0;
+      for (let j = 1; j <= n; j++) {
+        if (used[j]) continue;
+        const cur = cost[i0 - 1][j - 1] - u[i0] - v[j];
+        if (cur < minv[j]) {
+          minv[j] = cur;
+          way[j] = j0;
+        }
+        if (minv[j] < delta) {
+          delta = minv[j];
+          j1 = j;
+        }
+      }
+      for (let j = 0; j <= n; j++) {
+        if (used[j]) {
+          u[p[j]] += delta;
+          v[j] -= delta;
+        } else {
+          minv[j] -= delta;
+        }
+      }
+      j0 = j1;
+    } while (p[j0] !== 0);
+    do {
+      const j1 = way[j0];
+      p[j0] = p[j1];
+      j0 = j1;
+    } while (j0);
+  }
+  const result = new Array(n).fill(0);
+  for (let j = 1; j <= n; j++) if (p[j] > 0) result[p[j] - 1] = j - 1;
+  return result;
 }

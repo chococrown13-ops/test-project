@@ -1,131 +1,432 @@
-export type PositionGroup = 'GK' | 'DF' | 'MF' | 'FW';
+import type { AttrGroup } from './attributes';
+import type { FormationId, Position } from './formations';
 
-/** Concrete slot on the pitch. Formations are expressed as lists of these. */
-export type Role =
-  | 'GK'
-  | 'DC'
-  | 'DL'
-  | 'DR'
-  | 'DM'
-  | 'MC'
-  | 'ML'
-  | 'MR'
-  | 'AM'
-  | 'ST';
+/** Money is stored in units of 10,000 KRW (만원). */
+export type Money = number;
 
-export interface Attributes {
-  /** Finishing, heading, composure in the box. */
-  shooting: number;
-  /** Vision, passing range, set pieces. */
-  passing: number;
-  /** Dribbling, first touch, flair. */
-  dribbling: number;
-  /** Tackling, marking, positioning. */
-  defending: number;
-  /** Pace, strength, stamina ceiling. */
-  physical: number;
-  /** Shot stopping, handling, command of area. GK only — outfielders get a token value. */
-  goalkeeping: number;
+export type SquadStatus = 'key' | 'first' | 'rotation' | 'backup' | 'prospect';
+
+export interface Contract {
+  /** Weekly wage. */
+  wage: Money;
+  /** Season in which the deal runs out (it ends on 30 June of season + 1). */
+  expires: number;
+  releaseClause?: Money;
+  status: SquadStatus;
 }
 
-export type AttributeKey = keyof Attributes;
+export interface Injury {
+  name: string;
+  days: number;
+}
+
+export interface PlayerSeason {
+  season: number;
+  clubId: string;
+  apps: number;
+  starts: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  ratingSum: number;
+  ratingCount: number;
+  yellow: number;
+  red: number;
+  mom: number;
+  cleanSheets: number;
+}
+
+export interface Loan {
+  fromClubId: string;
+  /** Day the loan ends. */
+  until: number;
+  /** Share of the wage the parent club still pays, 0-1. */
+  parentPays: number;
+}
 
 export interface Player {
   id: string;
   name: string;
+  /** Three-letter nation code. */
+  nation: string;
   age: number;
-  nationality: string;
-  role: Role;
-  group: PositionGroup;
-  attributes: Attributes;
-  /** Long-term ceiling, 40-99. Drives development. */
-  potential: number;
-  /** 0-100. Recovers between matches, drains during them. */
-  fitness: number;
-  /** 0-100. Recent performances move this. Multiplies effective ability. */
-  form: number;
-  /** 0-100. Playing time, results and squad status move this. */
+  /** Day of year the player turns a year older. */
+  birthday: number;
+  foot: 'L' | 'R' | 'B';
+  height: number;
+  /** Position familiarity 1-20 (20 = natural). */
+  positions: Partial<Record<Position, number>>;
+  attrs: number[];
+  hidden: number[];
+  /** Potential ability, 1-200. Current ability is derived from attributes. */
+  pa: number;
+  ca: number;
+  /** Fractional development waiting to turn into attribute points. */
+  growth: number;
+  /** 0-100 physical condition. */
+  condition: number;
+  /** 0-100 match sharpness. */
+  sharpness: number;
+  /** 0-100. */
   morale: number;
-  /** Remaining matches out. 0 = available. */
-  injuredFor: number;
-  /** Weekly wage in thousands. */
-  wage: number;
-  /** Estimated market value in thousands. */
-  value: number;
-  season: SeasonStats;
-  career: SeasonStats;
+  /** Last five match ratings, newest last. */
+  form: number[];
+  injury: Injury | null;
+  /** Matches still to sit out. */
+  suspension: number;
+  yellowAccum: number;
+  clubId: string | null;
+  contract: Contract | null;
+  loan: Loan | null;
+  value: Money;
+  /** 1-100 how well known the player is. */
+  reputation: number;
+  trainingFocus: AttrGroup | null;
+  listed: 'transfer' | 'loan' | null;
+  /** Minutes in the club's last few matches, newest last, for playing-time morale. */
+  recentMinutes: number[];
+  /** Set when the player wants a move. */
+  unhappy: string | null;
+  youth: boolean;
+  seasons: PlayerSeason[];
 }
 
-export interface SeasonStats {
-  appearances: number;
-  goals: number;
-  assists: number;
-  cleanSheets: number;
-  /** Sum of per-match ratings, for averaging. */
-  ratingSum: number;
-  yellowCards: number;
-  redCards: number;
+export type Mentality =
+  | 'veryDefensive'
+  | 'defensive'
+  | 'cautious'
+  | 'balanced'
+  | 'positive'
+  | 'attacking'
+  | 'veryAttacking';
+
+export interface IpInstructions {
+  tempo: 'slow' | 'normal' | 'fast';
+  passing: 'short' | 'mixed' | 'direct';
+  width: 'narrow' | 'normal' | 'wide';
+  finalThird: 'workIntoBox' | 'mixed' | 'shootOnSight';
+  transition: 'counter' | 'patient';
 }
 
-export interface Team {
+export interface OopInstructions {
+  engagement: 'low' | 'mid' | 'high';
+  line: 'deep' | 'normal' | 'high';
+  press: 'less' | 'normal' | 'more';
+  tackling: 'stayOnFeet' | 'normal' | 'aggressive';
+  transition: 'counterpress' | 'regroup';
+}
+
+export interface Tactic {
+  ipFormation: FormationId;
+  oopFormation: FormationId;
+  /** oopOf[ipSlot] = oopSlot. */
+  oopOf: number[];
+  /** Player per IP slot. */
+  lineup: (string | null)[];
+  /** Role per IP slot. */
+  ipRoles: string[];
+  /** Role per OOP slot. */
+  oopRoles: string[];
+  bench: string[];
+  mentality: Mentality;
+  ip: IpInstructions;
+  oop: OopInstructions;
+  captain: string | null;
+  penaltyTaker: string | null;
+  setPieceTaker: string | null;
+  /** 0-100: how well the squad knows this shape. Drops when formations change. */
+  familiarity: number;
+}
+
+export interface Club {
   id: string;
   name: string;
-  shortName: string;
-  /** Primary shirt colour, used across the UI. */
-  color: string;
-  /** Secondary/accent colour. */
-  accent: string;
-  players: Player[];
-  /** Selected XI, player ids in formation-slot order. */
-  lineup: string[];
-  /** Bench, player ids. */
-  bench: string[];
-  formation: FormationId;
-  tactics: Tactics;
-  /** Board expectation for the season, as a league position. */
-  expectation: number;
-  /** Transfer budget in thousands, spent on fees. */
-  budget: number;
-  /** Ceiling on the total weekly wage bill, in thousands. */
-  wageBudget: number;
-  /** Baseline club strength, used when generating squads. */
+  short: string;
+  city: string;
+  primary: string;
+  secondary: string;
+  /** 1-100. */
   reputation: number;
+  division: number;
+  stadium: string;
+  capacity: number;
+  balance: Money;
+  transferBudget: Money;
+  wageBudget: Money;
+  /** 1-20. */
+  trainingFacilities: number;
+  youthFacilities: number;
+  /** 1-20 staff level for AI clubs (and the user's when no staff is hired). */
+  staffLevel: number;
+  playerIds: string[];
+  youthIds: string[];
+  tactic: Tactic;
+  manager: string;
+  /** AI style preset index. */
+  style: number;
+  /** League position the board expects. */
+  expectation: number;
+  income: Money;
+  expenses: Money;
 }
 
-export type FormationId = '4-4-2' | '4-3-3' | '4-2-3-1' | '3-5-2' | '5-3-2';
+export type Competition = 'league' | 'cup' | 'playoff';
 
-export type Mentality = 'defensive' | 'cautious' | 'balanced' | 'positive' | 'attacking';
-export type Tempo = 'slow' | 'normal' | 'high';
-export type Pressing = 'low' | 'medium' | 'high';
-export type PassingStyle = 'short' | 'mixed' | 'direct';
-
-export interface Tactics {
-  mentality: Mentality;
-  tempo: Tempo;
-  pressing: Pressing;
-  passing: PassingStyle;
+export interface GoalRecord {
+  playerId: string;
+  minute: number;
+  side: 'home' | 'away';
+  penalty?: boolean;
 }
 
 export interface Fixture {
   id: string;
+  comp: Competition;
+  division: number;
   round: number;
+  day: number;
   homeId: string;
   awayId: string;
   played: boolean;
   homeGoals: number;
   awayGoals: number;
+  pens: { home: number; away: number } | null;
+  neutral: boolean;
+  goals: GoalRecord[];
+  homeXg?: number;
+  awayXg?: number;
+  attendance?: number;
 }
 
-export interface TableRow {
-  teamId: string;
-  played: number;
+export type MessageTone = 'neutral' | 'good' | 'bad' | 'action';
+
+export interface Message {
+  id: string;
+  day: number;
+  from: string;
+  subject: string;
+  body: string;
+  tone: MessageTone;
+  read: boolean;
+  link?: { type: 'player' | 'offer' | 'pitch' | 'negotiation' | 'fixture' | 'club'; id: string };
+}
+
+export type StaffRole = 'assistant' | 'coach' | 'gkCoach' | 'fitness' | 'scout' | 'physio' | 'youth' | 'analyst';
+
+export interface Staff {
+  id: string;
+  name: string;
+  role: StaffRole;
+  /** 1-20. */
+  ability: number;
+  wage: Money;
+  age: number;
+}
+
+export interface ScoutAssignment {
+  id: string;
+  staffId: string;
+  /** What to look at: a division, free agents, or a single player. */
+  target: { type: 'division'; division: number } | { type: 'free' } | { type: 'player'; playerId: string } | { type: 'requirement'; id: string };
+  daysLeft: number;
+}
+
+export interface Requirement {
+  id: string;
+  position: Position;
+  ipRole: string | null;
+  oopRole: string | null;
+  minAge: number;
+  maxAge: number;
+  maxFee: Money;
+  maxWage: Money;
+  deal: 'transfer' | 'loan' | 'any';
+  playingTime: SquadStatus;
+  created: number;
+  open: boolean;
+}
+
+/** A player put forward in answer to one of the user's Requirements. */
+export interface Pitch {
+  id: string;
+  requirementId: string;
+  playerId: string;
+  fromClubId: string | null;
+  /** Fee the selling side is asking. */
+  askingFee: Money;
+  deal: 'transfer' | 'loan' | 'free';
+  day: number;
+  note: string;
+  dismissed: boolean;
+}
+
+/** An AI club advertising what it needs (FM26's Pitch Opportunities). */
+export interface AiRequirement {
+  id: string;
+  clubId: string;
+  position: Position;
+  maxAge: number;
+  maxFee: Money;
+  deal: 'transfer' | 'loan';
+  until: number;
+}
+
+export interface IncomingOffer {
+  id: string;
+  playerId: string;
+  fromClubId: string;
+  fee: Money;
+  deal: 'transfer' | 'loan';
+  expires: number;
+  status: 'open' | 'accepted' | 'rejected' | 'countered' | 'completed' | 'collapsed';
+  counterFee?: Money;
+}
+
+export type NegotiationStage = 'fee' | 'contract' | 'done' | 'failed';
+
+export interface Negotiation {
+  id: string;
+  playerId: string;
+  /** null for free agents and for renewals of the user's own players. */
+  sellerId: string | null;
+  kind: 'transfer' | 'loan' | 'free' | 'renewal';
+  stage: NegotiationStage;
+  offeredFee: Money;
+  askingFee: Money;
+  /** Player's terms once the fee is agreed. */
+  demandWage: Money;
+  demandYears: number;
+  demandStatus: SquadStatus;
+  log: string[];
+  day: number;
+  loanParentPays?: number;
+}
+
+export interface TransferRecord {
+  day: number;
+  season: number;
+  playerId: string;
+  playerName: string;
+  fromId: string | null;
+  toId: string | null;
+  fee: Money;
+  loan: boolean;
+}
+
+export interface Objective {
+  id: string;
+  label: string;
+  kind: 'league' | 'cup' | 'finance' | 'youth';
+  /** For league: position target; for cup: round index; otherwise unused. */
+  target: number;
+  importance: 'essential' | 'important' | 'nice';
+}
+
+export interface SeasonRecord {
+  season: number;
+  clubId: string;
+  division: number;
+  position: number;
+  points: number;
   won: number;
   drawn: number;
   lost: number;
   goalsFor: number;
   goalsAgainst: number;
-  points: number;
+  cup: string;
+  outcome: string;
+  topScorer: string;
 }
+
+export type TrainingFocus = 'balanced' | 'tactical' | 'attacking' | 'defending' | 'physical' | 'setpieces' | 'recovery' | 'matchPrep';
+
+export interface GameSettings {
+  highlights: 'all' | 'dynamic' | 'key';
+}
+
+export interface GameState {
+  version: number;
+  seed: number;
+  managerName: string;
+  clubId: string;
+  nationName: string;
+  leagueNames: string[];
+  cupName: string;
+  season: number;
+  day: number;
+  clubs: Record<string, Club>;
+  players: Record<string, Player>;
+  fixtures: Fixture[];
+  inbox: Message[];
+  /** User's scouting knowledge of each player, 0-100. */
+  knowledge: Record<string, number>;
+  shortlist: string[];
+  staff: Staff[];
+  staffPool: Staff[];
+  assignments: ScoutAssignment[];
+  requirements: Requirement[];
+  pitches: Pitch[];
+  aiRequirements: AiRequirement[];
+  offers: IncomingOffer[];
+  negotiations: Negotiation[];
+  transfers: TransferRecord[];
+  objectives: Objective[];
+  confidence: number;
+  training: { focus: TrainingFocus; intensity: 'low' | 'normal' | 'high' };
+  history: SeasonRecord[];
+  sacked: boolean;
+  jobOffers: string[];
+  settings: GameSettings;
+  counter: number;
+  /** Set on match day for the user's fixture until it is played. */
+  matchPending: string | null;
+  /** Season's important dates. */
+  dates: SeasonDates;
+  /** Day of the last pre-match press conference, to avoid one every match. */
+  lastPress: number;
+  /** Shown once after the season rolls over. */
+  review: SeasonReview | null;
+  /** Shouts/team-talk state of the live match is kept on the live match. */
+}
+
+export interface SeasonReview {
+  season: number;
+  division: number;
+  position: number;
+  outcome: string;
+  champion: string;
+  cup: string;
+  cupWinner: string;
+  objectives: { label: string; met: boolean; detail: string }[];
+  prize: Money;
+  promoted: string[];
+  relegated: string[];
+  departures: string[];
+  retirements: string[];
+}
+
+export interface SeasonDates {
+  start: number;
+  windowSummerEnd: number;
+  windowWinterStart: number;
+  windowWinterEnd: number;
+  youthIntake: number;
+  end: number;
+}
+
+/* ------------------------------------------------------------- match events */
+
+export type ChanceType =
+  | 'through'
+  | 'cross'
+  | 'cutback'
+  | 'dribble'
+  | 'longshot'
+  | 'counter'
+  | 'longball'
+  | 'corner'
+  | 'freekick'
+  | 'penalty';
 
 export type MatchEventKind =
   | 'kickoff'
@@ -138,138 +439,23 @@ export type MatchEventKind =
   | 'red'
   | 'injury'
   | 'sub'
+  | 'offside'
+  | 'corner'
   | 'halftime'
   | 'fulltime'
+  | 'extratime'
+  | 'pens'
   | 'info';
 
 export interface MatchEvent {
   minute: number;
   kind: MatchEventKind;
-  /** Which side the event belongs to. 'neutral' for clock events. */
   side: 'home' | 'away' | 'neutral';
   text: string;
-  /** Main player involved: shooter, offender, injured player. */
   playerId?: string;
-  /** Provider of the final pass, for chances and goals. */
   assistId?: string;
-  /** Score after this event, for the timeline. */
+  chance?: ChanceType;
+  xg?: number;
   homeGoals: number;
   awayGoals: number;
-}
-
-export interface MatchStats {
-  shots: number;
-  onTarget: number;
-  possession: number;
-  corners: number;
-  fouls: number;
-  yellows: number;
-  reds: number;
-}
-
-/** Live state of a match in progress, owned by the store. */
-export interface LiveMatch {
-  fixtureId: string;
-  homeId: string;
-  awayId: string;
-  minute: number;
-  homeGoals: number;
-  awayGoals: number;
-  events: MatchEvent[];
-  homeStats: MatchStats;
-  awayStats: MatchStats;
-  /** Player id -> current match rating (0-10). */
-  ratings: Record<string, number>;
-  /** Player id -> goals this match, for the summary. */
-  scorers: Record<string, number>;
-  /** Ids on the pitch right now, per side. */
-  homeOnPitch: string[];
-  awayOnPitch: string[];
-  /**
-   * Everyone who took part, per side: the starting XI plus every substitute
-   * brought on. End-of-match stats settle over these, not `onPitch`, so a
-   * player who is taken off still gets his appearance and rating recorded.
-   */
-  homeParticipants: string[];
-  awayParticipants: string[];
-  /** Substitutions remaining. */
-  homeSubsLeft: number;
-  awaySubsLeft: number;
-  /** Player ids sent off. */
-  sentOff: string[];
-  /** Player ids injured during this match. */
-  injured: string[];
-  finished: boolean;
-  /** Set once the user has seen the result screen. */
-  acknowledged: boolean;
-}
-
-export interface InboxItem {
-  id: string;
-  week: number;
-  subject: string;
-  body: string;
-  read: boolean;
-  tone: 'neutral' | 'good' | 'bad';
-}
-
-/** A bid from an AI club for one of the user's players. */
-export interface TransferOffer {
-  id: string;
-  playerId: string;
-  /** Club making the bid. */
-  fromTeamId: string;
-  fee: number;
-  /** Round after which the offer lapses. */
-  expiresRound: number;
-}
-
-export interface TransferRecord {
-  season: number;
-  round: number;
-  playerName: string;
-  fromName: string;
-  toName: string;
-  fee: number;
-}
-
-export interface TransferState {
-  /** Player ids the user has put up for sale. */
-  listed: string[];
-  /** Live bids for the user's players. */
-  offers: TransferOffer[];
-  /** League-wide completed deals, newest first. */
-  log: TransferRecord[];
-}
-
-export interface GameState {
-  seed: number;
-  managerName: string;
-  /** Player-editable competition name. */
-  leagueName: string;
-  clubId: string;
-  season: number;
-  /** Index into the fixture rounds. */
-  round: number;
-  teams: Record<string, Team>;
-  fixtures: Fixture[];
-  inbox: InboxItem[];
-  transfer: TransferState;
-  live: LiveMatch | null;
-  /** Set when the season is complete and awaiting rollover. */
-  seasonOver: boolean;
-  history: SeasonRecord[];
-}
-
-export interface SeasonRecord {
-  season: number;
-  position: number;
-  points: number;
-  won: number;
-  drawn: number;
-  lost: number;
-  goalsFor: number;
-  goalsAgainst: number;
-  topScorer: string;
-  topScorerGoals: number;
 }

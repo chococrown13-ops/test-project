@@ -1,192 +1,266 @@
-import { autoPickLineup, buildFixtures, emptyStats, nextId, restockSquad } from './generate';
-import { buildTable, positionOf } from './league';
+import { bestPosition, caStars, marketValue, wageDemand } from './ability';
+import { applySeasonReview, evaluateSeason, setObjectives } from './board';
+import { planSeason } from './calendar';
+import { PROMOTED, RELEGATED, buildTable, cupProgress, positionOf, winnerOf } from './competition';
+import { payPrize, prizeMoney, seasonBudgets } from './finance';
+import { POS_LABEL, type Position } from './formations';
+import { createPlayer, cupFirstRound, emptySeason, leagueFixtures } from './generate';
+import { pushMessage } from './inbox';
 import { Rng, clamp } from './rng';
-import { overall } from './ratings';
-import type { GameState, InboxItem, Player, SeasonRecord, Team } from './types';
+import { autoSelect } from './tactics';
+import { endLoan, releasePlayer, expectedStatus } from './transfers';
+import type { Club, GameState, Player, SeasonReview } from './types';
 
-/** Recovery, morale drift and injury countdown between rounds. */
-export function advanceWeek(state: GameState, rng: Rng): void {
-  Object.values(state.teams).forEach((team) => {
-    team.players.forEach((player) => {
-      // Rest between rounds. A full 90 minutes costs roughly 35 fitness, so
-      // these rates let a starter almost recover while rotation fully does.
-      const recovery = player.age <= 24 ? 36 : player.age <= 30 ? 32 : 27;
-      player.fitness = clamp(player.fitness + recovery + rng.int(-3, 4), 0, 100);
+const YOUTH_POSITIONS: Position[] = ['GK', 'DC', 'DC', 'DL', 'DR', 'DM', 'MC', 'MC', 'ML', 'MR', 'AMC', 'AML', 'AMR', 'ST', 'ST'];
 
-      if (player.injuredFor > 0) {
-        player.injuredFor -= 1;
-        // Coming back from injury costs sharpness.
-        if (player.injuredFor === 0) {
-          player.fitness = clamp(player.fitness - 15, 30, 100);
-          player.form = clamp(player.form - 8, 20, 100);
-        }
-      }
-
-      // Form and morale drift back toward the middle so neither a hot streak
-      // nor a bad run runs away with itself over a season.
-      player.form = clamp(player.form + (58 - player.form) * 0.12 + rng.int(-4, 4), 10, 100);
-      player.morale = clamp(player.morale + (60 - player.morale) * 0.2, 10, 100);
-    });
+/** Mid-March: every club brings through a new crop of 15-16 year olds. */
+export function youthIntake(state: GameState, rng: Rng): void {
+  Object.values(state.clubs).forEach((club) => {
+    const count = rng.int(3, 6);
+    const created: Player[] = [];
+    // Facilities and reputation decide how good the crop can be.
+    const quality = club.youthFacilities * 4 + club.reputation * 0.8;
+    const youthCoach = club.id === state.clubId ? Math.max(5, ...state.staff.filter((s) => s.role === 'youth').map((s) => s.ability)) : club.staffLevel;
+    for (let i = 0; i < count; i++) {
+      const golden = rng.bool(0.04 + club.youthFacilities / 400);
+      const pa = clamp(Math.round(rng.normal(60 + quality * 0.55 + youthCoach * 1.2, 20) + (golden ? 40 : 0)), 50, 195);
+      const youth = createPlayer(rng, { position: rng.pick(YOUTH_POSITIONS), ca: clamp(Math.round(rng.normal(pa * 0.32, 6)), 20, 80), age: rng.int(15, 16), nation: 'KOR', pa }, state.season);
+      youth.youth = true;
+      youth.clubId = club.id;
+      youth.contract = { wage: 3, expires: state.season + 3, status: 'prospect' };
+      youth.seasons.push(emptySeason(state.season, club.id));
+      state.players[youth.id] = youth;
+      club.youthIds.push(youth.id);
+      created.push(youth);
+    }
+    if (club.id === state.clubId) {
+      const best = created.sort((a, b) => b.pa - a.pa);
+      const lines = best.map((p) => `${p.name} (${p.age}세, ${POS_LABEL[bestPosition(p)]}) 잠재력 ${caStars(p.pa).toFixed(1)}★`);
+      const star = best[0] && caStars(best[0].pa) >= 4;
+      pushMessage(
+        state,
+        '유스 감독',
+        '유스 인테이크',
+        `올해 유스팀에 ${created.length}명이 새로 들어왔습니다.${star ? ' 특히 한 명은 특별한 재능을 지녔습니다.' : ''}\n\n${lines.join('\n')}`,
+        star ? 'good' : 'neutral',
+        best[0] ? { type: 'player', id: best[0].id } : undefined,
+      );
+    }
   });
 }
 
-/** Apply a result's emotional fallout to a squad. */
-export function applyResultMorale(team: Team, scored: number, conceded: number, rng: Rng): void {
-  const swing = scored > conceded ? rng.int(3, 6) : scored === conceded ? rng.int(-1, 1) : -rng.int(3, 6);
-  team.players.forEach((player) => {
-    player.morale = clamp(player.morale + swing, 5, 100);
-  });
-}
-
-/** Move a player's form toward his match rating. */
-export function applyMatchForm(player: Player, rating: number): void {
-  const target = clamp((rating - 4) * 22, 10, 100);
-  player.form = clamp(player.form + (target - player.form) * 0.3, 10, 100);
-  if (rating >= 8) player.morale = clamp(player.morale + 5, 5, 100);
-  else if (rating < 5.5) player.morale = clamp(player.morale - 4, 5, 100);
-}
-
-export function pushInbox(
-  state: GameState,
-  subject: string,
-  body: string,
-  tone: InboxItem['tone'] = 'neutral',
-): void {
-  state.inbox.unshift({
-    id: nextId('m'),
-    week: state.round,
-    subject,
-    body,
-    read: false,
-    tone,
-  });
-  // Keep the mailbox from growing without bound across seasons.
-  if (state.inbox.length > 60) state.inbox.length = 60;
+function retireChance(p: Player): number {
+  if (p.age < 33) return 0;
+  return clamp((p.age - 32) * 0.2 + (p.ca < 70 ? 0.2 : 0) - (p.ca > 140 ? 0.15 : 0), 0, 0.95);
 }
 
 /**
- * End-of-season rollover: age the squad, develop or decline each player,
- * record the finishing position, then rebuild the fixture list.
+ * Season end: promotion and relegation, prize money, the board's verdict,
+ * contracts running out, retirements, then a fresh calendar and fixtures.
  */
-export function rolloverSeason(state: GameState, rng: Rng): SeasonRecord {
-  const teamIds = Object.keys(state.teams);
-  const table = buildTable(state.fixtures, teamIds);
-  const club = state.teams[state.clubId];
-  const row = table.find((r) => r.teamId === state.clubId)!;
-  const position = positionOf(table, state.clubId);
+export function endSeason(state: GameState, rng: Rng): SeasonReview {
+  const season = state.season;
+  const user = state.clubs[state.clubId];
+  const tables = [0, 1, 2].map((d) => buildTable(state, d));
+  const userTable = tables[user.division];
+  const position = positionOf(userTable, user.id);
+  const userRow = userTable.find((r) => r.clubId === user.id)!;
+  const playedDivision = user.division;
 
-  const topScorer = club.players.reduce<Player | null>(
-    (best, p) => (!best || p.season.goals > best.season.goals ? p : best),
-    null,
+  // Prize money.
+  let userPrize = 0;
+  tables.forEach((table, division) =>
+    table.forEach((row, i) => {
+      const amount = prizeMoney(division, i + 1);
+      payPrize(state.clubs[row.clubId], amount);
+      if (row.clubId === user.id) userPrize = amount;
+    }),
   );
 
-  const record: SeasonRecord = {
-    season: state.season,
-    position,
-    points: row.points,
-    won: row.won,
-    drawn: row.drawn,
-    lost: row.lost,
-    goalsFor: row.goalsFor,
-    goalsAgainst: row.goalsAgainst,
-    topScorer: topScorer?.name ?? '-',
-    topScorerGoals: topScorer?.season.goals ?? 0,
+  // Movement between divisions.
+  const playoffWinner = (division: number) => {
+    const final = state.fixtures.find((f) => f.comp === 'playoff' && f.division === division && f.round === 1 && f.played);
+    return final ? winnerOf(final) : null;
   };
+  const promoted: string[] = [];
+  const relegated: string[] = [];
+  const moves: [string, number][] = [];
+  for (let division = 1; division < 3; division++) {
+    const table = tables[division];
+    const up = table.slice(0, PROMOTED).map((r) => r.clubId);
+    const po = playoffWinner(division) ?? table[PROMOTED]?.clubId;
+    if (po) up.push(po);
+    const down = tables[division - 1].slice(-RELEGATED).map((r) => r.clubId);
+    up.forEach((id) => moves.push([id, division - 1]));
+    down.forEach((id) => moves.push([id, division]));
+    promoted.push(...up);
+    relegated.push(...down);
+  }
+  moves.forEach(([id, division]) => {
+    const club = state.clubs[id];
+    const goingUp = division < club.division;
+    club.division = division;
+    club.reputation = clamp(club.reputation + (goingUp ? 7 : -7), 5, 99);
+  });
+  // Champions and the top half gain standing; the bottom loses a little.
+  tables.forEach((table) =>
+    table.forEach((row, i) => {
+      const club = state.clubs[row.clubId];
+      club.reputation = clamp(club.reputation + (i === 0 ? 4 : i < 4 ? 1 : i >= table.length - 4 ? -1 : 0), 5, 99);
+    }),
+  );
 
-  const retirements: string[] = [];
+  const cupFinal = state.fixtures.find((f) => f.comp === 'cup' && f.round === 5 && f.played);
+  const cupWinner = cupFinal ? state.clubs[winnerOf(cupFinal)].name : '-';
 
-  Object.values(state.teams).forEach((team) => {
-    team.players.forEach((player) => developPlayer(player, rng));
+  // The board's verdict.
+  const results = evaluateSeason(state, position);
+  applySeasonReview(state, results, rng);
 
-    // Retire the oldest players who have run out of road, then bring the
-    // squad back up to a full complement through the academy.
-    team.players = team.players.filter((p) => {
-      const retiring = p.age > 35 && rng.bool(0.55);
-      if (retiring && team.id === state.clubId) retirements.push(`${p.name} (${p.age}세)`);
-      return !retiring;
-    });
-    team.players = restockSquad(team, rng);
+  const outcome = promoted.includes(user.id)
+    ? '승격'
+    : relegated.includes(user.id)
+      ? '강등'
+      : position === 1
+        ? '우승'
+        : `${position}위`;
+  const scorer = user.playerIds
+    .map((id) => state.players[id])
+    .filter((p): p is Player => !!p)
+    .map((p) => ({ p, goals: p.seasons.find((s) => s.season === season && s.clubId === user.id)?.goals ?? 0 }))
+    .sort((a, b) => b.goals - a.goals)[0];
 
-    team.players.forEach((p) => {
-      p.season = emptyStats();
-      p.fitness = rng.int(85, 100);
-      p.form = rng.int(45, 65);
-      p.morale = rng.int(55, 78);
-      p.injuredFor = 0;
-    });
-    const picked = autoPickLineup(team);
-    team.lineup = picked.lineup;
-    team.bench = picked.bench;
-
-    // Prize money: finishing higher funds a bigger rebuild next season.
-    const finish = positionOf(table, team.id);
-    const prize = Math.round((teamIds.length - finish + 1) * team.reputation * 6);
-    team.budget += prize;
-    team.wageBudget = Math.round(
-      Math.max(
-        team.wageBudget,
-        team.players.reduce((sum, p) => sum + p.wage, 0) * 1.2,
-      ),
-    );
+  state.history.unshift({
+    season,
+    clubId: user.id,
+    division: playedDivision,
+    position,
+    points: userRow.points,
+    won: userRow.won,
+    drawn: userRow.drawn,
+    lost: userRow.lost,
+    goalsFor: userRow.goalsFor,
+    goalsAgainst: userRow.goalsAgainst,
+    cup: cupProgress(state, user.id),
+    outcome,
+    topScorer: scorer ? `${scorer.p.name} (${scorer.goals}골)` : '-',
   });
 
-  // Windows reopen for pre-season with a clean slate.
-  state.transfer.listed = [];
-  state.transfer.offers = [];
+  // Loans end, contracts run out, veterans retire.
+  Object.values(state.players).forEach((p) => {
+    if (p.loan) endLoan(state, p);
+  });
+  const departures: string[] = [];
+  const retirements: string[] = [];
+  Object.values(state.players).forEach((p) => {
+    if (rng.bool(retireChance(p))) {
+      if (p.clubId === state.clubId) retirements.push(p.name);
+      releasePlayer(state, p, false);
+      delete state.players[p.id];
+      return;
+    }
+    if (!p.clubId) {
+      // Unsigned veterans drift out of the game.
+      if (p.age >= 31 && rng.bool(0.5)) delete state.players[p.id];
+      return;
+    }
+    if (!p.contract || p.contract.expires > season) return;
+    const club = state.clubs[p.clubId];
+    if (club.id === state.clubId) {
+      departures.push(p.name);
+      releasePlayer(state, p, false);
+      return;
+    }
+    const rank = club.playerIds.map((id) => state.players[id]?.ca ?? 0).filter((ca) => ca > p.ca).length;
+    if ((p.age <= 30 && rank < 18) || rank < 11) {
+      p.contract = { wage: wageDemand(p, club.reputation), expires: season + 1 + rng.int(1, 3), status: expectedStatus(state, p, club) };
+    } else {
+      releasePlayer(state, p, false);
+    }
+  });
 
-  state.history.push(record);
-  state.season += 1;
-  state.round = 0;
-  state.seasonOver = false;
-  state.live = null;
-  state.fixtures = buildFixtures(teamIds, rng);
+  // Youth graduates.
+  Object.values(state.clubs).forEach((club) => {
+    club.youthIds.slice().forEach((id) => {
+      const p = state.players[id];
+      if (!p || p.age < 18) return;
+      club.youthIds = club.youthIds.filter((x) => x !== id);
+      const worst = Math.min(...club.playerIds.map((pid) => state.players[pid]?.ca ?? 200));
+      if (club.id === state.clubId || p.ca >= worst - 10 || p.pa >= worst + 20) {
+        p.youth = false;
+        club.playerIds.push(id);
+        if (club.id === state.clubId) pushMessage(state, '유스 감독', `1군 승격 — ${p.name}`, `${p.name}이(가) 유스팀을 졸업해 1군에 합류합니다.`, 'neutral', { type: 'player', id });
+      } else {
+        releasePlayer(state, p, false);
+      }
+    });
+  });
 
-  // The board resets its demands based on where you actually finished.
-  club.expectation = clamp(position <= 3 ? position : position - 1, 1, teamIds.length);
+  // Keep the free-agent pool (and the save) a sensible size: the best 250 stay.
+  Object.values(state.players)
+    .filter((p) => !p.clubId)
+    .sort((a, b) => b.ca - a.ca)
+    .slice(250)
+    .forEach((p) => delete state.players[p.id]);
+  state.shortlist = state.shortlist.filter((id) => state.players[id]);
+  Object.keys(state.knowledge).forEach((id) => {
+    if (!state.players[id]) delete state.knowledge[id];
+  });
 
-  const met = position <= club.expectation;
-  pushInbox(
-    state,
-    `${state.season - 1}시즌 결산 — ${position}위`,
-    `${record.won}승 ${record.drawn}무 ${record.lost}패, 승점 ${record.points}점으로 시즌을 마쳤습니다.\n` +
-      `득점왕: ${record.topScorer} (${record.topScorerGoals}골)\n\n` +
-      (retirements.length > 0
-        ? `은퇴: ${retirements.join(', ')}\n유스 선수들이 빈자리를 채웠습니다.\n\n`
-        : '') +
-      (met
-        ? `이사회는 결과에 만족하고 있습니다. 다음 시즌 목표는 ${club.expectation}위입니다.`
-        : `이사회는 아쉬움을 표했습니다. 다음 시즌에는 ${club.expectation}위 안에 들어야 합니다.`),
-    met ? 'good' : 'bad',
-  );
+  // Every surviving player's market value catches up with the new season.
+  const next = season + 1;
+  Object.values(state.players).forEach((p) => {
+    p.value = marketValue(p, next);
+    p.yellowAccum = 0;
+    p.suspension = 0;
+    p.form = [];
+    if (p.clubId) p.seasons.push(emptySeason(next, p.clubId));
+    if (p.seasons.length > 12) p.seasons = p.seasons.slice(-12);
+  });
 
-  return record;
+  const review: SeasonReview = {
+    season,
+    division: playedDivision,
+    position,
+    outcome,
+    champion: state.clubs[tables[0][0].clubId].name,
+    cup: cupProgress(state, user.id),
+    cupWinner,
+    objectives: results.map((r) => ({ label: r.objective.label, met: r.met, detail: r.detail })),
+    prize: userPrize,
+    promoted: promoted.map((id) => state.clubs[id].name),
+    relegated: relegated.map((id) => state.clubs[id].name),
+    departures,
+    retirements,
+  };
+
+  startSeason(state, next, rng);
+  state.review = review;
+  return review;
 }
 
-/** Young players grow toward their potential; older ones fade. */
-function developPlayer(player: Player, rng: Rng): void {
-  player.age += 1;
-  const current = overall(player);
-  const keys = ['shooting', 'passing', 'dribbling', 'defending', 'physical', 'goalkeeping'] as const;
-
-  if (player.age <= 23) {
-    const room = player.potential - current;
-    const growth = room > 0 ? rng.int(1, Math.max(2, Math.min(6, room))) : 0;
-    for (let i = 0; i < growth; i++) {
-      const key = rng.pick(keys.filter((k) => (k === 'goalkeeping') === (player.role === 'GK')));
-      player.attributes[key] = clamp(player.attributes[key] + 1, 1, 99);
-    }
-  } else if (player.age >= 31) {
-    const decline = player.age >= 34 ? rng.int(2, 5) : rng.int(0, 3);
-    for (let i = 0; i < decline; i++) {
-      // Legs go first; technique lasts.
-      const key = rng.bool(0.6) ? 'physical' : rng.pick(keys);
-      player.attributes[key] = clamp(player.attributes[key] - 1, 1, 99);
-    }
-  }
-
-  const ovr = overall(player);
-  const ageFactor =
-    player.age <= 23 ? 1.35 : player.age <= 27 ? 1.15 : player.age <= 30 ? 0.85 : player.age <= 33 ? 0.5 : 0.25;
-  player.value = Math.round(Math.pow(ovr / 10, 3.1) * 9 * ageFactor);
-  player.wage = Math.max(2, Math.round(player.value / 130));
+export function startSeason(state: GameState, season: number, rng: Rng): void {
+  const plan = planSeason(season);
+  state.season = season;
+  state.dates = plan.dates;
+  state.day = plan.dates.start;
+  state.matchPending = null;
+  state.fixtures = [...leagueFixtures(state, season, rng), ...cupFirstRound(state, season, rng)];
+  state.offers = [];
+  state.negotiations = [];
+  state.aiRequirements = [];
+  state.pitches = state.pitches.filter((p) => !p.dismissed && state.requirements.some((r) => r.open && r.id === p.requirementId));
+  state.confidence = clamp(state.confidence * 0.6 + 26, 0, 100);
+  Object.values(state.clubs).forEach((club: Club) => {
+    seasonBudgets(state, club);
+    if (club.id !== state.clubId) autoSelect(club, state.players);
+  });
+  setObjectives(state);
+  pushMessage(
+    state,
+    '이사회',
+    `${season}시즌 시작`,
+    `새 시즌이 시작되었습니다. 이적시장이 열렸습니다.\n\n이사회 목표:\n${state.objectives.map((o) => `• ${o.label}`).join('\n')}\n\n이적 예산 ${Math.round(state.clubs[state.clubId].transferBudget / 10000)}억, 주급 예산은 구단 > 재정에서 확인하세요.`,
+    'neutral',
+  );
 }
