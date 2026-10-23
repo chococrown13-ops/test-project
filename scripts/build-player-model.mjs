@@ -1,5 +1,5 @@
 /**
- * Builds public/models/player.glb from Mixamo's X Bot (as shipped with the
+ * Builds public/models/player.json (glTF) from Mixamo's X Bot (as shipped with the
  * three.js examples): one mesh, ~3k vertices for 22 players on a phone,
  * idle/walk/run only, and a per-vertex body part so the game can dress it.
  *
@@ -8,12 +8,15 @@
  * _REGION: body part, 0 torso, 1 leg, 2 arm, 3 head (the mannequin head, which
  * the game hides and replaces with a face).
  */
-import { Document, NodeIO } from '@gltf-transform/core';
+import fs from 'node:fs';
+import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { dedup, meshopt, prune, resample, simplify, weld } from '@gltf-transform/functions';
 import { MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 
-const [src, out = 'public/models/player.glb', ratioArg = '0.11'] = process.argv.slice(2);
+// Written as glTF JSON with the buffer embedded: plain static hosts (and
+// artifact pages) serve .json where they may refuse .glb.
+const [src, out = 'public/models/player.json', ratioArg = '0.11'] = process.argv.slice(2);
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.encoder': MeshoptEncoder });
 const doc = await io.read(src);
 const root = doc.getRoot();
@@ -85,7 +88,13 @@ root.listScenes()[0].setExtras({
 
 await MeshoptEncoder.ready;
 await doc.transform(meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
-await io.write(out, doc);
+const { json, resources } = await io.writeJSON(doc);
+json.buffers.forEach((buffer) => {
+  // Meshopt's fallback buffer has no data and no uri; leave it alone.
+  if (!buffer.uri) return;
+  buffer.uri = `data:application/octet-stream;base64,${Buffer.from(resources[buffer.uri]).toString('base64')}`;
+});
+fs.writeFileSync(out, JSON.stringify(json));
 console.log('vertices', pos.getCount(), 'triangles', prim.getIndices().getCount() / 3, 'height', (maxY - minY).toFixed(3));
 
 function mergePrimitives(prims) {

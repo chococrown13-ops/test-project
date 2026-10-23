@@ -95,7 +95,7 @@ src/ui/              화면 (screens/), 공용 컴포넌트, 2D 연출(match2d/)
 - **선수 모델과 동작** — Mixamo(Adobe)의 X Bot 캐릭터와 대기·걷기·달리기 모션 캡처(three.js 예제에 포함된
   `Xbot.glb`). Mixamo 캐릭터와 애니메이션은 게임 등 프로젝트에 로열티 없이 쓸 수 있습니다(원본 파일 단독 재배포는 불가).
   `scripts/build-player-model.mjs`가 메시 두 개를 합치고 정점을 2만 8천 개에서 약 4천 개로 줄인 뒤, 손가락 동작을 빼고
-  meshopt로 압축해 `public/models/player.glb`(약 380KB)를 만듭니다. 유니폼 색은 정점마다 기록한 신체 부위와
+  meshopt로 압축해 `public/models/player.json`(glTF, 약 460KB · gzip 약 230KB)를 만듭니다. 유니폼 색은 정점마다 기록한 신체 부위와
   기본 자세의 높이로 셰이더가 칠하고, 얼굴·머리카락·등번호·이름은 게임이 뼈에 붙입니다.
   차기·터치·다이빙·세리머니는 모션 캡처 위에 뼈 회전을 더해 만듭니다. 모델을 못 불러오면 예전의 단순한 선수로 그립니다.
 
