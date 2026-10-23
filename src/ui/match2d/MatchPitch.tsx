@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { Team } from '../../game/types';
+import type { Club } from '../../game/types';
 import { MatchDirector, PITCH_ASPECT, colorDistance, type Kit, type SideKey } from './director';
 
 /** Canvas host for the 2D match view. The director is owned by the caller. */
@@ -61,26 +61,26 @@ const KEEPER_KITS = ['#facc15', '#a3e635', '#f472b6', '#22d3ee', '#fb923c', '#e5
  * Shirts for both sides. The away side changes into its accent colour (or
  * white) when the two first-choice kits would be hard to tell apart.
  */
-export function matchKits(home: Team, away: Team): Record<SideKey, Kit> {
-  let awayFill = away.color;
-  let awayTrim = away.accent;
-  if (colorDistance(home.color, away.color) < 110) {
-    if (colorDistance(home.color, away.accent) >= 110) {
-      awayFill = away.accent;
-      awayTrim = away.color;
+export function matchKits(home: Club, away: Club): Record<SideKey, Kit> {
+  let awayFill = away.primary;
+  let awayTrim = away.secondary;
+  if (colorDistance(home.primary, away.primary) < 110) {
+    if (colorDistance(home.primary, away.secondary) >= 110) {
+      awayFill = away.secondary;
+      awayTrim = away.primary;
     } else {
-      awayFill = colorDistance(home.color, '#f8fafc') >= 110 ? '#f8fafc' : '#111827';
-      awayTrim = away.color;
+      awayFill = colorDistance(home.primary, '#f8fafc') >= 110 ? '#f8fafc' : '#111827';
+      awayTrim = away.primary;
     }
   }
 
   const pickKeeper = (avoid: string[]) =>
     KEEPER_KITS.find((c) => avoid.every((x) => colorDistance(c, x) >= 80)) ?? '#e5e7eb';
-  const homeKeeper = pickKeeper([home.color, awayFill]);
-  const awayKeeper = pickKeeper([home.color, awayFill, homeKeeper]);
+  const homeKeeper = pickKeeper([home.primary, awayFill]);
+  const awayKeeper = pickKeeper([home.primary, awayFill, homeKeeper]);
 
   return {
-    home: { fill: home.color, trim: home.accent, keeper: homeKeeper },
+    home: { fill: home.primary, trim: home.secondary, keeper: homeKeeper },
     away: { fill: awayFill, trim: awayTrim, keeper: awayKeeper },
   };
 }

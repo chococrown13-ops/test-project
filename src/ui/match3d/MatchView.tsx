@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Team } from '../../game/types';
+import type { Club } from '../../game/types';
 import { MatchPitch } from '../match2d/MatchPitch';
 import { readableOn, type MatchDirector, type SceneView } from '../match2d/director';
 import type { CameraMode, Match3D } from './scene3d';
@@ -49,8 +49,8 @@ export function MatchView({
   clock,
 }: {
   director: MatchDirector;
-  home: Team;
-  away: Team;
+  home: Club;
+  away: Club;
   score: { home: number; away: number };
   clock: string;
 }) {
@@ -81,14 +81,14 @@ export function MatchView({
       )}
 
       <div className="scorebug" aria-live="polite">
-        <span className="scorebug__team" style={{ background: home.color, color: readableOn(home.color) }}>
-          {home.shortName}
+        <span className="scorebug__team" style={{ background: home.primary, color: readableOn(home.primary) }}>
+          {home.short}
         </span>
         <span className="scorebug__score">
           {score.home} - {score.away}
         </span>
-        <span className="scorebug__team" style={{ background: away.color, color: readableOn(away.color) }}>
-          {away.shortName}
+        <span className="scorebug__team" style={{ background: away.primary, color: readableOn(away.primary) }}>
+          {away.short}
         </span>
         <span className="scorebug__clock">{clock}</span>
       </div>

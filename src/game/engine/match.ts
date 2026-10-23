@@ -577,7 +577,7 @@ function runSequence(live: LiveMatch, ctx: MatchContext, rng: Rng, attSide: Side
     if (!ok) {
       defensiveAction('tackle', 'press');
       // Won high up: a short route to goal for the pressing side.
-      const counter = 0.18 * dm.engagement * dm.pressInt * dm.counter * (0.6 + d.outlet * 0.25);
+      const counter = 0.1 * dm.engagement * dm.pressInt * dm.counter * (0.6 + d.outlet * 0.25);
       if (rng.bool(counter)) chance(live, ctx, rng, other(attSide), 'counter', dm, am);
       return;
     }
@@ -589,15 +589,15 @@ function runSequence(live: LiveMatch, ctx: MatchContext, rng: Rng, attSide: Side
   credit('progress', progressed);
   if (!progressed) {
     defensiveAction('interception', 'screen');
-    const counterChance = 0.075 * dm.counter * (0.6 + d.outlet * 0.25) * (1 + am.mentality * 0.08) * (am.mentality > 0 && !am.counterpress ? 1.15 : 1) * (am.counterpress ? 0.7 : 1);
+    const counterChance = 0.05 * dm.counter * (0.6 + d.outlet * 0.25) * (1 + am.mentality * 0.08) * (am.mentality > 0 && !am.counterpress ? 1.15 : 1) * (am.counterpress ? 0.7 : 1);
     if (rng.bool(counterChance)) chance(live, ctx, rng, other(attSide), 'counter', dm, am);
     return;
   }
 
   // 3. Chance creation against the last line.
-  const homeBonus = !live.neutral && attSide === 'home' ? 0.025 : 0;
+  const homeBonus = !live.neutral && attSide === 'home' ? 0.045 : -0.01;
   const pCreate = clamp(
-    0.21 + homeBonus + (a.create - d.cover) * 0.028 + (a.threat - d.cover) * 0.012 + am.mentality * 0.022 + dm.line * 0.01 + (am.workIntoBox ? -0.03 : 0) + (am.shootOnSight ? 0.04 : 0) - (dm.mentality < -1 ? 0.03 : 0),
+    0.325 + homeBonus + (a.create - d.cover) * 0.028 + (a.threat - d.cover) * 0.012 + am.mentality * 0.022 + dm.line * 0.01 + (am.workIntoBox ? -0.03 : 0) + (am.shootOnSight ? 0.04 : 0) - (dm.mentality < -1 ? 0.03 : 0),
     0.1,
     0.55,
   );
@@ -699,7 +699,7 @@ function chance(live: LiveMatch, ctx: MatchContext, rng: Rng, attSide: Side, typ
   if (type !== 'penalty' && type !== 'freekick') xg *= Math.exp((a.threat - d.cover) * 0.045);
   if (am.workIntoBox && type !== 'longshot') xg *= 1.12;
   if (type === 'counter') xg *= 1 + Math.max(0, am.mentality) * -0.03 + Math.max(0, dm.mentality) * 0.05;
-  if (!live.neutral && attSide === 'home') xg *= 1.05;
+  if (!live.neutral && attSide === 'home') xg *= 1.07;
   xg = clamp(xg, 0.015, 0.85);
 
   att.stats.shots += 1;
@@ -818,9 +818,9 @@ function resolveFoul(live: LiveMatch, ctx: MatchContext, rng: Rng, foulingSide: 
   // Where was it? Close to goal it becomes a set piece.
   const victimSide = other(foulingSide);
   const roll = rng.next();
-  if (roll < 0.035) {
+  if (roll < 0.011) {
     penalty(live, ctx, rng, victimSide, victimMods, tacticMods);
-  } else if (roll < 0.16) {
+  } else if (roll < 0.13) {
     freeKick(live, ctx, rng, victimSide, victimMods, tacticMods);
   }
 }
