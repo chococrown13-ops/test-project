@@ -148,11 +148,13 @@ function Stadium3D({
     let replayShown = false;
 
     // three.js is only fetched once somebody actually watches a match.
-    import('./scene3d')
-      .then(({ Match3D }) => {
+    // The motion-captured player model loads alongside; without it the
+    // renderer falls back to its simple built-in players.
+    Promise.all([import('./scene3d'), import('./playerModel').then((m) => m.loadPlayerModel(new URL('models/player.glb', document.baseURI).href))])
+      .then(([{ Match3D }, model]) => {
         if (cancelled || !canvasRef.current || !wrapRef.current) return;
         const wrap = wrapRef.current;
-        scene = new Match3D(canvasRef.current);
+        scene = new Match3D(canvasRef.current, model);
         sceneRef.current = scene;
         scene.setCameraMode(cameraRef.current);
         const resize = () => scene?.setSize(wrap.clientWidth, wrap.clientHeight);

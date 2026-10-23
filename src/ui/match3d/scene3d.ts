@@ -6,6 +6,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { appearance } from '../../game/appearance';
+import { attachToBone, instantiate, type PlayerInstance, type PlayerModel } from './playerModel';
 import {
   GOAL_HALF,
   MARGIN,
@@ -83,7 +84,13 @@ interface Rig {
   /** Dribble: 0-1 through the current touch, and a small kick when it wraps. */
   touch: number;
   touchKickT: number;
+  /** Set when the rig is the motion-captured model rather than the simple one. */
+  skinned?: PlayerInstance;
 }
+
+/** Motion-capture clip speeds at our player scale, in world units per second. */
+const WALK_SPEED = 2.6;
+const RUN_SPEED = 6.2;
 
 export class Match3D {
   private renderer: THREE.WebGLRenderer;
@@ -129,13 +136,24 @@ export class Match3D {
   private wasReplay = false;
   private replayCam = false;
 
-  constructor(canvas: HTMLCanvasElement) {
+  private model: PlayerModel | null;
+  private skinGeo: { back: THREE.BufferGeometry; chest: THREE.BufferGeometry } | null = null;
+
+  constructor(canvas: HTMLCanvasElement, model: PlayerModel | null = null) {
+    this.model = model;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.scene.background = skyTexture();
+    // A photographed night sky (Poly Haven, CC0) replaces the gradient once it arrives.
+    new THREE.TextureLoader().load(new URL('models/night-sky.jpg', document.baseURI).href, (tex) => {
+      tex.mapping = THREE.EquirectangularReflectionMapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      this.scene.background = tex;
+      this.scene.backgroundIntensity = 0.75;
+    });
     this.scene.fog = new THREE.Fog('#16233c', 190, 360);
 
     // Image-based light for soft reflections on kits, posts and the roof.
@@ -348,6 +366,17 @@ export class Match3D {
       new THREE.PlaneGeometry(fullW, fullH).rotateX(-Math.PI / 2),
       new THREE.MeshStandardMaterial({ map: grassTex, color: '#cfdcc6', roughness: 0.9, metalness: 0, bumpMap: grassBump(), bumpScale: 0.9 }),
     );
+    // Real grass relief (Poly Haven, CC0) swaps in for the noise bump when loaded.
+    const pitchMat = pitch.material as THREE.MeshStandardMaterial;
+    new THREE.TextureLoader().load(new URL('models/grass-normal.jpg', document.baseURI).href, (tex) => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(90, 60);
+      tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+      pitchMat.normalMap = tex;
+      pitchMat.normalScale.set(0.55, 0.55);
+      pitchMat.bumpMap = null;
+      pitchMat.needsUpdate = true;
+    });
     pitch.receiveShadow = true;
     this.scene.add(pitch);
 
@@ -738,7 +767,111 @@ export class Match3D {
     return mat;
   }
 
+  /** A motion-captured player: the shared model, dressed and given a face. */
+  private buildSkinnedRig(id: string, x: number, y: number, model: PlayerModel): Rig {
+    const look = appearance(id);
+    const inst = instantiate(model);
+    const info = model.info;
+    inst.uniforms.uSkin.value.set(look.skin);
+    inst.uniforms.uHands.value.set(look.skin);
+    inst.uniforms.uBoots.value.set(look.boots);
+
+    // Face, ears and hair from the simple rig, pinned to the head bone over
+    // the hidden mannequin head.
+    const g = this.geo;
+    const skin = this.material(look.skin, 0.6);
+    const hair = this.material(look.hair, 0.9);
+    const head = new THREE.Group();
+    const part = (geo: THREE.BufferGeometry, mat: THREE.Material, pos: [number, number, number] = [0, 0, 0]) => {
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(pos[0], pos[1] - 1.87, pos[2]);
+      mesh.castShadow = true;
+      head.add(mesh);
+      return mesh;
+    };
+    part(g.headSkin, skin);
+    part(g.face, this.material('#1b1411', 0.5));
+    part(g.brows, hair);
+    if (look.beard) part(g.beard, hair);
+    if (look.style === 'short' || look.style === 'bun') part(g.hairShort, hair, [0, 1.885, -0.005]);
+    if (look.style === 'crop') part(g.hairShort, hair, [0, 1.87, -0.01]).scale.set(0.98, 0.8, 0.98);
+    if (look.style === 'afro') part(g.hairAfro, hair, [0, 1.93, -0.02]);
+    if (look.style === 'bun') part(g.bun, hair, [0, 1.96, -0.1]);
+    const headScale = info.head.size.y / 0.27;
+    attachToBone(inst.bones.head, head, info.head.center.clone().add(new THREE.Vector3(0, -0.01, 0.005)), headScale);
+
+    // Name and number on the back, crest and number on the chest.
+    if (!this.skinGeo) {
+      const t = info.torso;
+      const cz = (t.front + t.back) / 2;
+      const rz = (t.front - t.back) / 2;
+      const bent = (w: number, h: number) => {
+        const geo = new THREE.PlaneGeometry(w, h, 10, 4);
+        const pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const u = pos.getX(i) / (t.halfWidth * 1.05);
+          pos.setZ(i, rz * Math.sqrt(Math.max(0.05, 1 - u * u)) + 0.006);
+        }
+        geo.computeVertexNormals();
+        return geo;
+      };
+      const w = Math.min(0.3, t.halfWidth * 1.7);
+      this.skinGeo = { back: bent(w, w), chest: bent(w, w * 0.32) };
+      this.skinGeo.back.userData = { at: new THREE.Vector3(0, (t.y0 + t.y1) / 2, cz) };
+      this.skinGeo.chest.userData = { at: new THREE.Vector3(0, t.y1 - 0.07, cz) };
+    }
+    const decalMat = () => new THREE.MeshStandardMaterial({ transparent: true, roughness: 0.7, depthWrite: false });
+    const numberDecal = new THREE.Mesh(this.skinGeo.back, decalMat());
+    attachToBone(inst.bones.spine, numberDecal, this.skinGeo.back.userData.at, 1, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
+    const chestDecal = new THREE.Mesh(this.skinGeo.chest, decalMat());
+    attachToBone(inst.bones.spine, chestDecal, this.skinGeo.chest.userData.at, 1);
+
+    const root = new THREE.Group();
+    const body = new THREE.Group();
+    root.add(body);
+    body.add(inst.root);
+    inst.root.position.y = -info.floor;
+    root.scale.setScalar((2.0 * PLAYER_SCALE) / info.height);
+    this.scene.add(root);
+
+    const blob = new THREE.Mesh(this.geo.blob, this.blobMat);
+    blob.position.y = 0.02;
+    blob.visible = this.quality === 'low';
+    this.scene.add(blob);
+    const badge = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, transparent: true }));
+    badge.renderOrder = 5;
+    this.scene.add(badge);
+
+    const unused = () => ({ hip: new THREE.Group(), knee: new THREE.Group(), shoulder: new THREE.Group(), elbow: new THREE.Group() });
+    return {
+      root,
+      body,
+      legL: unused(),
+      legR: unused(),
+      armL: unused(),
+      armR: unused(),
+      blob,
+      badge,
+      badgeKey: '',
+      numberDecal,
+      chestDecal,
+      numberKey: '',
+      kitKey: '',
+      parts: { shirt: [], shorts: [], socks: [], trim: [], hands: [] },
+      prev: { x, y },
+      phase: Math.random() * 6,
+      yaw: 0,
+      kickT: 0,
+      seed: (look.hash % 1000) / 100,
+      speed: 0,
+      touch: 0,
+      touchKickT: 0,
+      skinned: inst,
+    };
+  }
+
   private buildRig(id: string, x: number, y: number): Rig {
+    if (this.model) return this.buildSkinnedRig(id, x, y, this.model);
     const look = appearance(id);
     const hash = look.hash;
     const skin = this.material(look.skin, 0.6);
@@ -874,6 +1007,8 @@ export class Match3D {
   }
 
   private removeRig(rig: Rig): void {
+    rig.skinned?.mixer.stopAllAction();
+    if (rig.skinned) (rig.skinned.mesh.material as THREE.Material).dispose();
     this.scene.remove(rig.root, rig.blob, rig.badge);
     [rig.numberDecal, rig.chestDecal].forEach((mesh) => {
       const decal = mesh.material as THREE.MeshStandardMaterial;
@@ -895,6 +1030,14 @@ export class Match3D {
     const key = `${shirt}|${shorts}|${socks}|${trim}|${gloves}`;
     if (rig.kitKey === key) return;
     rig.kitKey = key;
+    if (rig.skinned) {
+      const u = rig.skinned.uniforms;
+      u.uShirt.value.set(shirt);
+      u.uShorts.value.set(shorts);
+      u.uSocks.value.set(socks);
+      u.uHands.value.copy(gloves ? new THREE.Color(gloves) : u.uSkin.value);
+      return;
+    }
     const set = (list: THREE.Mesh[], mat: THREE.Material) => list.forEach((m) => (m.material = mat));
     set(rig.parts.shirt, this.cloth(shirt));
     set(rig.parts.shorts, this.material(shorts, 0.7));
@@ -1010,6 +1153,11 @@ export class Match3D {
     rig.prev = { x: actor.pos.x, y: actor.pos.y };
     const speed = Math.hypot(vx, vy);
     rig.speed = speed;
+    if (rig.skinned) {
+      this.poseSkinned(rig, actor, view, dt, speed);
+      this.face(rig, vx, vy, speed, ball, dt);
+      return;
+    }
 
     rig.phase += dt * (2 + speed * 1.3);
     const stride = Math.min(0.9, speed * 0.12);
@@ -1074,12 +1222,75 @@ export class Match3D {
       if (speed < 1) rig.body.position.y = Math.max(0, Math.sin(t)) * 0.14;
     }
 
-    const wantYaw =
-      speed > 0.6
-        ? Math.atan2(vx, vy)
-        : Math.atan2(ball.x - actor.pos.x, ball.y - actor.pos.y);
+    this.face(rig, vx, vy, speed, ball, dt);
+  }
+
+  /** Turn to face the way he's running, or the ball when standing. */
+  private face(rig: Rig, vx: number, vy: number, speed: number, ball: SceneView['ball'], dt: number): void {
+    const x = rig.prev.x;
+    const y = rig.prev.y;
+    const wantYaw = speed > 0.6 ? Math.atan2(vx, vy) : Math.atan2(ball.x - x, ball.y - y);
     rig.yaw = approachAngle(rig.yaw, wantYaw, Math.min(1, dt * 8));
     rig.root.rotation.y = rig.yaw;
+  }
+
+  /**
+   * Motion-captured locomotion blended by speed, with kicks, touches, dives
+   * and celebrations layered on top by turning bones after the mixer runs.
+   */
+  private poseSkinned(rig: Rig, actor: SceneView['actors'][number], view: SceneView, dt: number, speed: number): void {
+    const sk = rig.skinned!;
+    const clamp = THREE.MathUtils.clamp;
+    const wIdle = clamp(1 - speed / 1.4, 0, 1);
+    const wRun = clamp((speed - 2.6) / 2.2, 0, 1);
+    sk.actions.idle.setEffectiveWeight(wIdle);
+    sk.actions.run.setEffectiveWeight(wRun);
+    sk.actions.walk.setEffectiveWeight(Math.max(0, 1 - wIdle - wRun));
+    sk.actions.walk.timeScale = clamp(speed / WALK_SPEED, 0.6, 1.7);
+    sk.actions.run.timeScale = clamp(speed / RUN_SPEED, 0.8, 1.6);
+    sk.mixer.update(dt);
+
+    const b = sk.bones;
+    // Positive = forward (legs) or outward/up (arms).
+    const swing = (bone: THREE.Bone, angle: number) => bone.rotateOnAxis(sk.side.get(bone)!, -angle);
+    const bend = (bone: THREE.Bone, angle: number) => bone.rotateOnAxis(sk.side.get(bone)!, angle);
+    const raise = (bone: THREE.Bone, angle: number, left: boolean) => bone.rotateOnAxis(sk.forward.get(bone)!, left ? angle : -angle);
+
+    if (rig.kickT > 0) {
+      rig.kickT = Math.max(0, rig.kickT - dt);
+      const k = 1 - rig.kickT / KICK_TIME;
+      // Wind the leg back, then strike through the ball.
+      const hip = k < 0.35 ? -(k / 0.35) * 0.75 : -0.75 + ((k - 0.35) / 0.65) * 2.1;
+      const knee = k < 0.35 ? 1.3 * (k / 0.35) : 1.3 * (1 - (k - 0.35) / 0.65);
+      swing(b.rUpLeg, hip);
+      bend(b.rLeg, knee);
+      const arc = Math.sin(k * Math.PI);
+      raise(b.lArm, arc * 0.9, true);
+      raise(b.rArm, arc * 0.4, false);
+    }
+    if (rig.touchKickT > 0) {
+      rig.touchKickT = Math.max(0, rig.touchKickT - dt);
+      const tap = Math.sin((1 - rig.touchKickT / 0.18) * Math.PI);
+      swing(b.rUpLeg, 0.55 * tap);
+    }
+
+    const dive = view.dives.find((d) => d.actorId === actor.id);
+    if (dive) {
+      this.poseDive(rig, actor, dive);
+      raise(b.lArm, 2.5, true);
+      raise(b.rArm, 2.5, false);
+      bend(b.lLeg, 0.4);
+      return;
+    }
+    rig.body.rotation.z = 0;
+    rig.body.position.set(0, 0, 0);
+
+    if (view.celebrating === actor.side && !actor.isKeeper) {
+      const t = this.time * 7 + rig.seed;
+      raise(b.lArm, 2.3 + Math.sin(t) * 0.25, true);
+      raise(b.rArm, 2.3 + Math.sin(t) * 0.25, false);
+      if (speed < 1) rig.body.position.y = Math.max(0, Math.sin(t)) * 0.12;
+    }
   }
 
   /** Keeper launches sideways off his feet, arms stretched, then lands. */

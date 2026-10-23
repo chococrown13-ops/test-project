@@ -51,6 +51,7 @@ FM26 출시 때 가장 큰 비판이 "클릭이 많고 이전 화면으로 돌�
   골이면 슬로모션 리플레이(사이드·골대 뒤·반대편 세 가지 앵글). 공 소유에 따라 IP/OOP 형태로 움직입니다.
   2층 관중석과 지붕, 한 번의 드로우콜로 그리는 수천 명의 관중(골이 나면 점프), 스크롤되는 LED 광고판,
   조명 블룸, 공이 들어가면 출렁이는 골망, 슈팅 궤적, 등에 풀네임과 등번호가 박힌 유니폼.
+  선수는 모션 캡처 애니메이션이 들어간 사람 모델이고, 사진으로 찍은 밤하늘과 잔디 질감을 씁니다(아래 '3D 에셋과 라이선스').
   저사양 폰은 자동으로 화질을 낮추고(그림자·블룸 끄고 관중 줄임) 2D로도 볼 수 있습니다.
 - **선수 얼굴과 엠블럼** — 메뉴의 선수 얼굴은 3D 모델과 같은 피부·머리 모양으로 그려지고, 구단 엠블럼은
   구단 색과 줄무늬·반반·사선 같은 패턴의 방패로 만들어집니다. 선수 이름은 어디서나 풀네임으로 표시합니다.
@@ -88,6 +89,22 @@ src/game/            엔진 (React 의존성 없음)
 src/store.ts         zustand 스토어 (엔진 ↔ UI)
 src/ui/              화면 (screens/), 공용 컴포넌트, 2D 연출(match2d/), 3D 렌더러(match3d/)
 ```
+
+## 3D 에셋과 라이선스
+
+- **선수 모델과 동작** — Mixamo(Adobe)의 X Bot 캐릭터와 대기·걷기·달리기 모션 캡처(three.js 예제에 포함된
+  `Xbot.glb`). Mixamo 캐릭터와 애니메이션은 게임 등 프로젝트에 로열티 없이 쓸 수 있습니다(원본 파일 단독 재배포는 불가).
+  `scripts/build-player-model.mjs`가 메시 두 개를 합치고 정점을 2만 8천 개에서 약 4천 개로 줄인 뒤, 손가락 동작을 빼고
+  meshopt로 압축해 `public/models/player.glb`(약 380KB)를 만듭니다. 유니폼 색은 정점마다 기록한 신체 부위와
+  기본 자세의 높이로 셰이더가 칠하고, 얼굴·머리카락·등번호·이름은 게임이 뼈에 붙입니다.
+  차기·터치·다이빙·세리머니는 모션 캡처 위에 뼈 회전을 더해 만듭니다. 모델을 못 불러오면 예전의 단순한 선수로 그립니다.
+
+  ```bash
+  curl -O https://raw.githubusercontent.com/mrdoob/three.js/r180/examples/models/gltf/Xbot.glb
+  node scripts/build-player-model.mjs Xbot.glb
+  ```
+- **밤하늘** — Poly Haven의 Kloppenheim 02 (Pure Sky), CC0. 2048×1024 JPG로 줄여 `public/models/night-sky.jpg`.
+- **잔디 표면** — Poly Haven의 Leafy Grass 노멀 맵, CC0. 512px로 줄여 `public/models/grass-normal.jpg`.
 
 ## 밸런스
 
