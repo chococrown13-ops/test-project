@@ -13,6 +13,7 @@ import type { Negotiation, Player } from '../../game/types';
 import { useGame, useStore } from '../../store';
 import { AttrValue, Card, Kv, Meter, Seg, Sheet, Stars, ratingColor } from '../kit';
 import { KnownStars } from '../PlayerRow';
+import { Avatar } from '../art';
 
 type View = 'attrs' | 'roles' | 'stats' | 'actions';
 
@@ -28,8 +29,9 @@ export function PlayerScreen({ id }: { id: string }) {
 
   return (
     <>
-      <Card padded>
+      <div className="hero-card" style={{ ['--club' as string]: club?.primary ?? '#334155', ['--club2' as string]: club?.secondary ?? '#94a3b8' }}>
         <div className="row" style={{ alignItems: 'flex-start' }}>
+          <Avatar id={player.id} shirt={club?.primary ?? '#475569'} trim={club?.secondary ?? '#cbd5e1'} size={72} ring={club?.secondary ?? '#94a3b8'} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 20, fontWeight: 900 }}>{player.name}</div>
             <div className="small muted">
@@ -77,7 +79,7 @@ export function PlayerScreen({ id }: { id: string }) {
             <div className="small">성격 <b>{personality(player)}</b></div>
           </div>
         )}
-      </Card>
+      </div>
 
       <div style={{ marginBottom: 12 }}>
         <Seg<View>

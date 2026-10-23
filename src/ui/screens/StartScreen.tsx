@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { CLUB_SEEDS } from '../../game/names';
 import { useStore } from '../../store';
-import { Seg, Stars } from '../kit';
-import { readableOn } from '../match2d/director';
+import { Crest, Seg, Stars } from '../kit';
 
 const DIVISION_NAMES = ['1부 · 프리미어 디비전', '2부 · 챔피언십', '3부 · 내셔널 리그'];
 const DIVISION_HINT = [
@@ -24,6 +23,25 @@ export function StartScreen() {
     <div className="app">
       <div className="main" style={{ paddingBottom: 24 }}>
         <div className="start">
+          <div className="start__hero" aria-hidden="true">
+            <div className="start__glow" />
+            <svg className="start__pitch" viewBox="0 0 320 150">
+              <defs>
+                <linearGradient id="startGrass" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor="#1d7a3a" />
+                  <stop offset="1" stopColor="#0f4d24" />
+                </linearGradient>
+              </defs>
+              <path d="M40 150 L95 20 H225 L280 150 Z" fill="url(#startGrass)" />
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <path key={i} d={`M${40 + i * 40} 150 L${95 + i * 21.7} 20 H${105.8 + i * 21.7} L${60 + i * 40} 150 Z`} fill="#000" opacity="0.08" />
+              ))}
+              <path d="M40 150 L95 20 H225 L280 150 Z M160 20 V150 M66 88 H254" fill="none" stroke="#fff" strokeOpacity="0.55" strokeWidth="1.6" />
+              <ellipse cx="160" cy="88" rx="34" ry="13" fill="none" stroke="#fff" strokeOpacity="0.55" strokeWidth="1.6" />
+              <path d="M135 20 V32 H185 V20" fill="none" stroke="#fff" strokeOpacity="0.55" strokeWidth="1.4" />
+              <circle cx="160" cy="88" r="4" fill="#fff" />
+            </svg>
+          </div>
           <div className="start__logo">GAFFER 26</div>
           <h1 className="start__title">당신의 축구 클럽을 지휘하세요</h1>
           <p className="start__tag">
@@ -59,9 +77,7 @@ export function StartScreen() {
               const strength = 5 - (i / 15) * 3.5;
               return (
                 <button key={seed.short} type="button" className={`club-pick${pick === index ? ' club-pick--on' : ''}`} onClick={() => setPick(index)}>
-                  <span className="crest" style={{ width: 34, height: 34, background: seed.primary, color: readableOn(seed.primary), fontSize: 10, boxShadow: `inset 0 0 0 3px ${seed.secondary}` }}>
-                    {seed.short}
-                  </span>
+                  <Crest club={seed} size={34} />
                   <span className="list-row__main">
                     <span className="list-row__title" style={{ display: 'block' }}>
                       {seed.city} {seed.nick}

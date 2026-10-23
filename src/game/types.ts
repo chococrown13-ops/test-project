@@ -1,5 +1,5 @@
 import type { AttrGroup } from './attributes';
-import type { FormationId, Position } from './formations';
+import type { FormationId, Position, Slot } from './formations';
 
 /** Money is stored in units of 10,000 KRW (만원). */
 export type Money = number;
@@ -119,6 +119,13 @@ export interface OopInstructions {
 export interface Tactic {
   ipFormation: FormationId;
   oopFormation: FormationId;
+  /**
+   * The actual shapes in use: the base formation's slots, possibly with some
+   * players moved to other grid spots. Missing on saves from before custom
+   * shapes existed, in which case the base formation applies.
+   */
+  ipShape?: Slot[];
+  oopShape?: Slot[];
   /** oopOf[ipSlot] = oopSlot. */
   oopOf: number[];
   /** Player per IP slot. */

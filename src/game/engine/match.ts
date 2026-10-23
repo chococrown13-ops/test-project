@@ -1,9 +1,9 @@
 import { familiarityMult } from '../ability';
 import { A, H } from '../attributes';
-import { FORMATIONS, type Position } from '../formations';
+import type { Position } from '../formations';
 import { Rng, clamp } from '../rng';
 import { ROLE_BY_ID, type Role } from '../roles';
-import { mentalityValue } from '../tactics';
+import { ipSlotsOf, mentalityValue, oopSlotsOf } from '../tactics';
 import type { ChanceType, Club, Fixture, MatchEvent, Player, Tactic } from '../types';
 import { commentary } from './commentary';
 
@@ -173,8 +173,8 @@ export interface MatchContext {
 
 function buildTeam(club: Club, side: Side, ctx: MatchContext, rng: Rng, ai: boolean): TeamState {
   const tactic = club.tactic;
-  const ipSlots = FORMATIONS[tactic.ipFormation];
-  const oopSlots = FORMATIONS[tactic.oopFormation];
+  const ipSlots = ipSlotsOf(tactic);
+  const oopSlots = oopSlotsOf(tactic);
   const make = (id: string, slot: number): MatchPlayer => {
     const p = ctx.players[id];
     const consistency = p.hidden[H.consistency];
@@ -902,8 +902,8 @@ export function substitute(live: LiveMatch, ctx: MatchContext, side: Side, outId
 export function applyTacticChange(live: LiveMatch, ctx: MatchContext, side: Side): void {
   const t = team(live, side);
   const tactic = tacticOf(t, ctx);
-  const ipSlots = FORMATIONS[tactic.ipFormation];
-  const oopSlots = FORMATIONS[tactic.oopFormation];
+  const ipSlots = ipSlotsOf(tactic);
+  const oopSlots = oopSlotsOf(tactic);
   onPitch(t).forEach((mp) => {
     const slot = mp.slot;
     if (slot < 0 || slot >= ipSlots.length) return;

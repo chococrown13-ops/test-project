@@ -3,6 +3,7 @@ import { bestPosition, caStars } from '../game/ability';
 import { knowledgeOf } from '../game/generate';
 import type { GameState, Player } from '../game/types';
 import { NATION_LABEL } from '../game/names';
+import { Avatar } from './art';
 import { PosBadge, Stars } from './kit';
 
 /** Current/potential stars as the user knows them: hidden until scouted enough. */
@@ -31,7 +32,10 @@ export function PlayerRow({
   const club = player.clubId ? state.clubs[player.clubId] : null;
   return (
     <button type="button" className="list-row" onClick={onClick} disabled={!onClick}>
-      <PosBadge pos={bestPosition(player)} />
+      <span className="list-row__face">
+        <Avatar id={player.id} shirt={club?.primary ?? '#475569'} trim={club?.secondary ?? '#cbd5e1'} size={38} />
+        <PosBadge pos={bestPosition(player)} />
+      </span>
       <span className="list-row__main">
         <span className="list-row__title" style={{ display: 'block' }}>
           {player.name}

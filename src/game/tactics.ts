@@ -1,6 +1,6 @@
 import { familiarityMult } from './ability';
 import { A } from './attributes';
-import { FORMATIONS, hungarian, pairSlots, type FormationId, type Position } from './formations';
+import { FORMATIONS, hungarian, pairSlots, type FormationId, type Position, type Slot } from './formations';
 import { ROLE_BY_ID, defaultRole, roleScore, rolesFor } from './roles';
 import type { Club, IpInstructions, Mentality, OopInstructions, Player, Tactic } from './types';
 
@@ -134,6 +134,75 @@ export const PRESETS: TacticPreset[] = [
   },
 ];
 
+const copyShape = (slots: Slot[]): Slot[] => slots.map((s) => ({ ...s }));
+
+/** The IP shape actually in use: the base formation plus any players moved by hand. */
+export function ipSlotsOf(tactic: Tactic): Slot[] {
+  return tactic.ipShape ?? FORMATIONS[tactic.ipFormation];
+}
+
+export function oopSlotsOf(tactic: Tactic): Slot[] {
+  return tactic.oopShape ?? FORMATIONS[tactic.oopFormation];
+}
+
+/** True once a player has been moved off the base formation. */
+export function isCustomShape(tactic: Tactic, phase: 'ip' | 'oop'): boolean {
+  const shape = phase === 'ip' ? tactic.ipShape : tactic.oopShape;
+  if (!shape) return false;
+  const base = FORMATIONS[phase === 'ip' ? tactic.ipFormation : tactic.oopFormation];
+  const used = new Set<number>();
+  return !shape.every((s) => {
+    const k = base.findIndex((b, i) => !used.has(i) && b.pos === s.pos && Math.hypot(b.x - s.x, b.y - s.y) < 1);
+    if (k < 0) return false;
+    used.add(k);
+    return true;
+  });
+}
+
+const SAME_SPOT = 7;
+
+/**
+ * Drag a player to a spot on the grid. Dropping onto a team-mate swaps the
+ * two; dropping on an empty spot moves just that player, which is how
+ * asymmetric shapes are built. `slot` is always the IP slot (= the player).
+ */
+export function moveSlot(tactic: Tactic, phase: 'ip' | 'oop', slot: number, target: Slot): void {
+  if (target.pos === 'GK') return;
+  if (phase === 'ip') {
+    const shape = copyShape(ipSlotsOf(tactic));
+    if (shape[slot].pos === 'GK') return;
+    const other = shape.findIndex((s, i) => i !== slot && Math.hypot(s.x - target.x, s.y - target.y) < SAME_SPOT);
+    if (other >= 0) {
+      if (shape[other].pos === 'GK') return;
+      // Swap both jobs: the slot indices stay with the players.
+      [shape[slot], shape[other]] = [shape[other], shape[slot]];
+      [tactic.ipRoles[slot], tactic.ipRoles[other]] = [tactic.ipRoles[other], tactic.ipRoles[slot]];
+      [tactic.oopOf[slot], tactic.oopOf[other]] = [tactic.oopOf[other], tactic.oopOf[slot]];
+    } else {
+      shape[slot] = { pos: target.pos, x: target.x, y: target.y };
+      if (!ROLE_BY_ID[tactic.ipRoles[slot]]?.positions.includes(target.pos)) tactic.ipRoles[slot] = defaultRole(target.pos, 'ip');
+      tactic.familiarity = Math.max(0, tactic.familiarity - 2);
+    }
+    tactic.ipShape = shape;
+    return;
+  }
+  const shape = copyShape(oopSlotsOf(tactic));
+  const k = tactic.oopOf[slot];
+  if (shape[k].pos === 'GK') return;
+  const other = shape.findIndex((s, i) => i !== k && Math.hypot(s.x - target.x, s.y - target.y) < SAME_SPOT);
+  if (other >= 0) {
+    if (shape[other].pos === 'GK') return;
+    const j = tactic.oopOf.indexOf(other);
+    tactic.oopOf[slot] = other;
+    tactic.oopOf[j] = k;
+  } else {
+    shape[k] = { pos: target.pos, x: target.x, y: target.y };
+    if (!ROLE_BY_ID[tactic.oopRoles[k]]?.positions.includes(target.pos)) tactic.oopRoles[k] = defaultRole(target.pos, 'oop');
+    tactic.familiarity = Math.max(0, tactic.familiarity - 2);
+  }
+  tactic.oopShape = shape;
+}
+
 export function makeTactic(preset: TacticPreset): Tactic {
   const ipSlots = FORMATIONS[preset.ipFormation];
   const oopSlots = FORMATIONS[preset.oopFormation];
@@ -142,6 +211,8 @@ export function makeTactic(preset: TacticPreset): Tactic {
   return {
     ipFormation: preset.ipFormation,
     oopFormation: preset.oopFormation,
+    ipShape: copyShape(ipSlots),
+    oopShape: copyShape(oopSlots),
     oopOf: pairSlots(ipSlots, oopSlots),
     lineup: ipSlots.map(() => null),
     ipRoles,
@@ -163,10 +234,10 @@ function pickRole(pos: Position, phase: 'ip' | 'oop', overrides?: Partial<Record
   return defaultRole(pos, phase);
 }
 
-/** Swap the IP shape, keeping each player in the nearest new slot. */
+/** Swap the IP shape, keeping each player in the nearest new slot. Re-picking the current formation undoes hand-moved players. */
 export function changeIpFormation(tactic: Tactic, formation: FormationId): void {
-  if (tactic.ipFormation === formation) return;
-  const before = FORMATIONS[tactic.ipFormation];
+  if (tactic.ipFormation === formation && !isCustomShape(tactic, 'ip')) return;
+  const before = ipSlotsOf(tactic);
   const after = FORMATIONS[formation];
   const moved = pairSlots(before, after);
   const lineup: (string | null)[] = after.map(() => null);
@@ -177,15 +248,16 @@ export function changeIpFormation(tactic: Tactic, formation: FormationId): void 
     if (oldRole && oldRole.positions.includes(after[newSlot].pos)) roles[newSlot] = oldRole.id;
   });
   tactic.ipFormation = formation;
+  tactic.ipShape = copyShape(after);
   tactic.lineup = lineup;
   tactic.ipRoles = roles;
-  tactic.oopOf = pairSlots(after, FORMATIONS[tactic.oopFormation]);
+  tactic.oopOf = pairSlots(after, oopSlotsOf(tactic));
   tactic.familiarity = Math.min(tactic.familiarity, 55);
 }
 
 export function changeOopFormation(tactic: Tactic, formation: FormationId): void {
-  if (tactic.oopFormation === formation) return;
-  const before = FORMATIONS[tactic.oopFormation];
+  if (tactic.oopFormation === formation && !isCustomShape(tactic, 'oop')) return;
+  const before = oopSlotsOf(tactic);
   const after = FORMATIONS[formation];
   const roles = after.map((slot) => defaultRole(slot.pos, 'oop'));
   const moved = pairSlots(before, after);
@@ -194,8 +266,9 @@ export function changeOopFormation(tactic: Tactic, formation: FormationId): void
     if (oldRole && oldRole.positions.includes(after[newSlot].pos)) roles[newSlot] = oldRole.id;
   });
   tactic.oopFormation = formation;
+  tactic.oopShape = copyShape(after);
   tactic.oopRoles = roles;
-  tactic.oopOf = pairSlots(FORMATIONS[tactic.ipFormation], after);
+  tactic.oopOf = pairSlots(ipSlotsOf(tactic), after);
   tactic.familiarity = Math.min(tactic.familiarity, 60);
 }
 
@@ -208,8 +281,8 @@ export function available(player: Player): boolean {
  * slot's jobs, position familiarity in each, and his condition.
  */
 export function slotFit(player: Player, tactic: Tactic, slot: number): number {
-  const ipSlot = FORMATIONS[tactic.ipFormation][slot];
-  const oopSlot = FORMATIONS[tactic.oopFormation][tactic.oopOf[slot]];
+  const ipSlot = ipSlotsOf(tactic)[slot];
+  const oopSlot = oopSlotsOf(tactic)[tactic.oopOf[slot]];
   const ipRole = ROLE_BY_ID[tactic.ipRoles[slot]];
   const oopRole = ROLE_BY_ID[tactic.oopRoles[tactic.oopOf[slot]]];
   const ipScore = ipRole ? roleScore(player.attrs, ipRole) : 10;
@@ -226,7 +299,7 @@ export function slotFit(player: Player, tactic: Tactic, slot: number): number {
 export function autoSelect(club: Club, players: Record<string, Player>, opts: { rotate?: boolean } = {}): void {
   const tactic = club.tactic;
   const squad = club.playerIds.map((id) => players[id]).filter((p): p is Player => !!p && available(p));
-  const slots = FORMATIONS[tactic.ipFormation];
+  const slots = ipSlotsOf(tactic);
   const n = Math.max(squad.length, slots.length);
   const cost: number[][] = [];
   for (let i = 0; i < n; i++) {
@@ -285,7 +358,7 @@ export function autoSelect(club: Club, players: Record<string, Player>, opts: { 
 export function lineupIssues(club: Club, players: Record<string, Player>): string[] {
   const issues: string[] = [];
   const tactic = club.tactic;
-  const slots = FORMATIONS[tactic.ipFormation];
+  const slots = ipSlotsOf(tactic);
   tactic.lineup.forEach((id, i) => {
     if (!id) {
       issues.push(`${slots[i].pos} 자리가 비어 있습니다.`);

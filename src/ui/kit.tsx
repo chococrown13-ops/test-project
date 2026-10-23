@@ -1,8 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { attrTone } from '../game/attributes';
 import { POS_LABEL, POS_LINE, type Position } from '../game/formations';
-import type { Club } from '../game/types';
-import { readableOn } from './match2d/director';
+import { CrestArt, type CrestLike } from './art';
 
 export function Card({ title, action, onAction, children, padded }: { title?: ReactNode; action?: string; onAction?: () => void; children: ReactNode; padded?: boolean }) {
   return (
@@ -85,12 +84,8 @@ export function PosBadge({ pos }: { pos: Position }) {
   return <span className={`pos pos--${POS_LINE[pos]}`}>{POS_LABEL[pos]}</span>;
 }
 
-export function Crest({ club, size = 30 }: { club: Club; size?: number }) {
-  return (
-    <span className="crest" style={{ width: size, height: size, background: club.primary, color: readableOn(club.primary), fontSize: size * 0.3, boxShadow: `inset 0 0 0 ${Math.max(2, size / 14)}px ${club.secondary}` }}>
-      {club.short}
-    </span>
-  );
+export function Crest({ club, size = 30 }: { club: CrestLike; size?: number }) {
+  return <CrestArt club={club} size={size * 0.87} />;
 }
 
 export function tone(value: number): string {

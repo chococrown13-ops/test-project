@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { bestPosition, caStars } from '../../game/ability';
-import { FORMATIONS, FORMATION_HINT, FORMATION_IDS, POS_LABEL, type FormationId } from '../../game/formations';
+import { FORMATION_HINT, FORMATION_IDS, POS_LABEL, SPOTS, nearestSpot, type FormationId, type Spot } from '../../game/formations';
 import { ROLE_BY_ID, roleScore, roleStars, rolesFor, type Role } from '../../game/roles';
 import {
   MENTALITIES,
@@ -10,12 +10,17 @@ import {
   available,
   changeIpFormation,
   changeOopFormation,
+  ipSlotsOf,
+  isCustomShape,
   lineupIssues,
   makeTactic,
+  moveSlot,
+  oopSlotsOf,
   slotFit,
 } from '../../game/tactics';
 import type { IpInstructions, OopInstructions, Player, Tactic } from '../../game/types';
 import { useGame, useStore } from '../../store';
+import { Avatar } from '../art';
 import { Card, Meter, Seg, Sheet, Stars } from '../kit';
 import { readableOn } from '../match2d/director';
 
@@ -58,6 +63,7 @@ export function TacticsScreen({ compact }: { compact?: boolean }) {
           <ShapePitch tactic={tactic} phase={view} selected={slot} onSlot={setSlot} />
           <FormationPicker
             value={view === 'ip' ? tactic.ipFormation : tactic.oopFormation}
+            custom={isCustomShape(tactic, view)}
             onChange={(f) => mutate((s) => (view === 'ip' ? changeIpFormation(s.clubs[s.clubId].tactic, f) : changeOopFormation(s.clubs[s.clubId].tactic, f)))}
           />
         </>
@@ -118,23 +124,54 @@ export function TacticsScreen({ compact }: { compact?: boolean }) {
   );
 }
 
-function surname(name: string): string {
-  const parts = name.split(' ');
-  return parts.length > 1 ? parts[parts.length - 1] : name.length > 2 ? name.slice(1) : name;
+const toTop = (y: number) => 100 - y * 0.92 - 4;
+const fromTop = (top: number) => (100 - 4 - top) / 0.92;
+
+interface Drag {
+  slot: number;
+  startX: number;
+  startY: number;
+  x: number;
+  y: number;
+  moving: boolean;
 }
 
-/** The pitch for one phase: IP slots, or every player's paired OOP slot. */
+/**
+ * The pitch for one phase: IP slots, or every player's paired OOP slot.
+ * Tap a player to pick him; drag him to any spot on the grid to reshape the
+ * formation one player at a time (drop on a team-mate to swap the two).
+ */
 function ShapePitch({ tactic, phase, selected, onSlot }: { tactic: Tactic; phase: 'ip' | 'oop'; selected: number | null; onSlot: (i: number) => void }) {
   const state = useGame();
+  const mutate = useStore((s) => s.mutate);
   const club = state.clubs[state.clubId];
-  const ip = FORMATIONS[tactic.ipFormation];
-  const oop = FORMATIONS[tactic.oopFormation];
+  const ip = ipSlotsOf(tactic);
+  const oop = oopSlotsOf(tactic);
+  const pitchRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<Drag | null>(null);
+
+  const pitchPoint = (clientX: number, clientY: number) => {
+    const r = pitchRef.current!.getBoundingClientRect();
+    return { x: ((clientX - r.left) / r.width) * 100, y: fromTop(((clientY - r.top) / r.height) * 100) };
+  };
+  const target: Spot | null = drag?.moving ? nearestSpot(drag.x, drag.y) : null;
+
   return (
-    <div className="pitch">
+    <div className={`pitch${drag?.moving ? ' pitch--dragging' : ''}`} ref={pitchRef}>
       <div className="pitch__lines" />
       <div className="pitch__circle" />
       <div className="pitch__box pitch__box--top" />
       <div className="pitch__box pitch__box--bottom" />
+      {drag?.moving &&
+        SPOTS.map((sp) => (
+          <span
+            key={sp.id}
+            className={`spot${target?.id === sp.id ? ' spot--on' : ''}`}
+            style={{ left: `${sp.x}%`, top: `${toTop(sp.y)}%` }}
+          >
+            {target?.id === sp.id ? POS_LABEL[sp.pos] : ''}
+          </span>
+        ))}
       {ip.map((ipSlot, i) => {
         const point = phase === 'ip' ? ipSlot : oop[tactic.oopOf[i]];
         const id = tactic.lineup[i];
@@ -142,18 +179,48 @@ function ShapePitch({ tactic, phase, selected, onSlot }: { tactic: Tactic; phase
         const role = ROLE_BY_ID[phase === 'ip' ? tactic.ipRoles[i] : tactic.oopRoles[tactic.oopOf[i]]];
         const keeper = point.pos === 'GK';
         const fill = keeper ? '#f4cf57' : club.primary;
+        const dragging = drag?.slot === i && drag.moving;
+        const at = dragging ? { x: drag.x, y: drag.y } : point;
         return (
           <button
             key={i}
             type="button"
-            className={`slot${selected === i ? ' slot--selected' : ''}`}
-            style={{ left: `${point.x}%`, top: `${100 - point.y * 0.92 - 4}%` }}
-            onClick={() => onSlot(i)}
+            className={`slot${selected === i ? ' slot--selected' : ''}${dragging ? ' slot--dragging' : ''}${keeper ? '' : ' slot--movable'}`}
+            style={{ left: `${at.x}%`, top: `${toTop(at.y)}%` }}
+            onPointerDown={(e) => {
+              if (keeper) return;
+              e.currentTarget.setPointerCapture(e.pointerId);
+              const pt = pitchPoint(e.clientX, e.clientY);
+              setDrag({ slot: i, startX: e.clientX, startY: e.clientY, x: pt.x, y: pt.y, moving: false });
+            }}
+            onPointerMove={(e) => {
+              if (!drag || drag.slot !== i) return;
+              const moving = drag.moving || Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > 8;
+              const pt = pitchPoint(e.clientX, e.clientY);
+              setDrag({ ...drag, x: pt.x, y: pt.y, moving });
+            }}
+            onPointerUp={() => {
+              if (drag?.slot === i && drag.moving) {
+                const spot = nearestSpot(drag.x, drag.y);
+                mutate((s) => moveSlot(s.clubs[s.clubId].tactic, phase, i, spot));
+              } else {
+                onSlot(i);
+              }
+              setDrag(null);
+            }}
+            onPointerCancel={() => setDrag(null)}
           >
-            <span className={`slot__shirt${p ? '' : ' slot__shirt--empty'}`} style={{ background: fill, color: readableOn(fill) }}>
-              {POS_LABEL[point.pos]}
+            <span className="slot__token">
+              {p ? (
+                <Avatar id={p.id} shirt={fill} trim={club.secondary} size={38} ring={selected === i || dragging ? 'var(--accent)' : 'rgba(255,255,255,0.9)'} />
+              ) : (
+                <span className="slot__shirt slot__shirt--empty" />
+              )}
+              <span className="slot__pos" style={{ background: fill, color: readableOn(fill) }}>
+                {POS_LABEL[dragging && target ? target.pos : point.pos]}
+              </span>
             </span>
-            <span className="slot__name">{p ? surname(p.name) : '비어 있음'}</span>
+            <span className="slot__name">{p ? p.name : '비어 있음'}</span>
             <span className="slot__role">{role?.name ?? '-'}</span>
           </button>
         );
@@ -162,9 +229,23 @@ function ShapePitch({ tactic, phase, selected, onSlot }: { tactic: Tactic; phase
   );
 }
 
-function FormationPicker({ value, onChange }: { value: FormationId; onChange: (f: FormationId) => void }) {
+function FormationPicker({ value, custom, onChange }: { value: FormationId; custom: boolean; onChange: (f: FormationId) => void }) {
   return (
     <>
+      <div className="row" style={{ margin: '0 2px 6px' }}>
+        <span className="tiny muted">
+          기본 틀 <b>{value}</b>
+          {custom && <span className="accent-text"> · 개별 위치 수정됨</span>}
+        </span>
+        <span className="spacer" />
+        {custom ? (
+          <button type="button" className="btn btn--sm" onClick={() => onChange(value)}>
+            기본 위치로
+          </button>
+        ) : (
+          <span className="tiny faint">선수를 끌어서 위치 이동</span>
+        )}
+      </div>
       <div className="subtabs" style={{ marginBottom: 4 }}>
         {FORMATION_IDS.map((f) => (
           <button key={f} type="button" className={`chip chip--small${value === f ? ' chip--on' : ''}`} onClick={() => onChange(f)}>
@@ -212,7 +293,7 @@ function Bench({ tactic, selected, onDone }: { tactic: Tactic; selected: number 
                 onDone();
               }}
             >
-              {POS_LABEL[bestPosition(p)]} {surname(p.name)}
+              {POS_LABEL[bestPosition(p)]} {p.name}
               {!onBench && ' (명단 외)'}
               {p.injury && ' ✚'}
             </button>
@@ -232,9 +313,9 @@ function SlotSheet({ slot, phase, onClose }: { slot: number; phase: 'ip' | 'oop'
   const push = useStore((s) => s.push);
   const club = state.clubs[state.clubId];
   const tactic = club.tactic;
-  const ipSlot = FORMATIONS[tactic.ipFormation][slot];
+  const ipSlot = ipSlotsOf(tactic)[slot];
   const oopIndex = tactic.oopOf[slot];
-  const oopSlot = FORMATIONS[tactic.oopFormation][oopIndex];
+  const oopSlot = oopSlotsOf(tactic)[oopIndex];
   const current = tactic.lineup[slot] ? state.players[tactic.lineup[slot]!] : null;
   const [tab, setTab] = useState<'player' | 'ip' | 'oop'>(phase === 'oop' ? 'oop' : 'ip');
 
@@ -323,7 +404,7 @@ function SlotSheet({ slot, phase, onClose }: { slot: number; phase: 'ip' | 'oop'
                     {p.name} {p.injury ? '✚' : ''}
                   </span>
                   <span className="list-row__meta">
-                    <span>{inXI >= 0 ? `선발 (${POS_LABEL[FORMATIONS[tactic.ipFormation][inXI].pos]})` : tactic.bench.includes(p.id) ? '교체' : '명단 외'}</span>
+                    <span>{inXI >= 0 ? `선발 (${POS_LABEL[ipSlotsOf(tactic)[inXI].pos]})` : tactic.bench.includes(p.id) ? '교체' : '명단 외'}</span>
                     <span>체력 {Math.round(p.condition)}%</span>
                     <span>능력 {caStars(p.ca)}★</span>
                   </span>
@@ -428,8 +509,8 @@ function Visualiser({ tactic }: { tactic: Tactic }) {
   const club = state.clubs[state.clubId];
   const [phase, setPhase] = useState<'ip' | 'oop'>('ip');
   const [third, setThird] = useState<Third>('mid');
-  const ip = FORMATIONS[tactic.ipFormation];
-  const oop = FORMATIONS[tactic.oopFormation];
+  const ip = ipSlotsOf(tactic);
+  const oop = oopSlotsOf(tactic);
   const lineShift = { def: -16, mid: 0, att: 16 }[third];
   const engagement = { low: -8, mid: 0, high: 8 }[tactic.oop.engagement];
   const lineHeight = { deep: -5, normal: 0, high: 6 }[tactic.oop.line];
@@ -487,7 +568,7 @@ function Visualiser({ tactic }: { tactic: Tactic }) {
               <span className="slot__shirt" style={{ background: fill, color: readableOn(fill), width: 26, height: 26, fontSize: 10 }}>
                 {i + 1}
               </span>
-              <span className="slot__name">{p ? surname(p.name) : ''}</span>
+              <span className="slot__name">{p ? p.name : ''}</span>
             </div>
           );
         })}

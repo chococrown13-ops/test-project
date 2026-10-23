@@ -146,6 +146,58 @@ export const FORMATION_HINT: Partial<Record<FormationId, string>> = {
 };
 
 /**
+ * The grid a player can be dragged to, as on FM's tactics screen: five
+ * lanes across each line, plus wing-back spots. Moving one player to a
+ * different spot is how asymmetric shapes are made (say, only the left-back
+ * pushed up to wing-back).
+ */
+export interface Spot extends Slot {
+  id: string;
+}
+
+const spot = (id: string, pos: Position, x: number, y: number): Spot => ({ id, pos, x, y });
+
+export const SPOTS: Spot[] = [
+  spot('DL', 'DL', 12, 23),
+  spot('DCL', 'DC', 31, 21),
+  spot('DC', 'DC', 50, 20),
+  spot('DCR', 'DC', 69, 21),
+  spot('DR', 'DR', 88, 23),
+  spot('WBL', 'WBL', 9, 41),
+  spot('DML', 'DM', 31, 37),
+  spot('DM', 'DM', 50, 36),
+  spot('DMR', 'DM', 69, 37),
+  spot('WBR', 'WBR', 91, 41),
+  spot('ML', 'ML', 12, 55),
+  spot('MCL', 'MC', 31, 52),
+  spot('MC', 'MC', 50, 52),
+  spot('MCR', 'MC', 69, 52),
+  spot('MR', 'MR', 88, 55),
+  spot('AML', 'AML', 13, 73),
+  spot('AMCL', 'AMC', 31, 70),
+  spot('AMC', 'AMC', 50, 69),
+  spot('AMCR', 'AMC', 69, 70),
+  spot('AMR', 'AMR', 87, 73),
+  spot('STL', 'ST', 34, 85),
+  spot('ST', 'ST', 50, 87),
+  spot('STR', 'ST', 66, 85),
+];
+
+/** The grid spot closest to a point on the pitch. */
+export function nearestSpot(x: number, y: number): Spot {
+  let best = SPOTS[0];
+  let bestD = Infinity;
+  SPOTS.forEach((s) => {
+    const d = Math.hypot(s.x - x, (s.y - y) * 1.2);
+    if (d < bestD) {
+      bestD = d;
+      best = s;
+    }
+  });
+  return best;
+}
+
+/**
  * Pair every IP slot with an OOP slot so each player's two jobs are as close
  * on the pitch as possible (Hungarian algorithm, 11 x 11). Slot 0 is always
  * the keeper in both shapes.

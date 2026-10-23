@@ -30,7 +30,7 @@ import {
 } from '../../game/engine/match';
 import { FORMATIONS, FORMATION_IDS, pairSlots, type FormationId } from '../../game/formations';
 import { ROLE_BY_ID } from '../../game/roles';
-import { MENTALITIES, MENTALITY_LABEL, changeIpFormation, changeOopFormation, lineupIssues } from '../../game/tactics';
+import { MENTALITIES, MENTALITY_LABEL, changeIpFormation, changeOopFormation, ipSlotsOf, lineupIssues, oopSlotsOf } from '../../game/tactics';
 import type { Club, GameState, MatchEvent, Tactic } from '../../game/types';
 import { rngFor, useGame, useStore } from '../../store';
 import { Card, Crest, FormDots, Kv, Meter, Seg, Sheet, ratingColor } from '../kit';
@@ -209,8 +209,8 @@ const SPEEDS = [
 function rosterInput(state: GameState, team: TeamState): RosterInput {
   const club = state.clubs[team.clubId];
   const tactic = club.tactic;
-  const ip = FORMATIONS[tactic.ipFormation];
-  const oop = FORMATIONS[tactic.oopFormation];
+  const ip = ipSlotsOf(tactic);
+  const oop = oopSlotsOf(tactic);
   const benchOrder = team.players.filter((mp) => mp.cameOn !== 0).map((mp) => mp.id);
   return {
     layout: ip.map((s) => ({ x: s.x, y: s.y })),
@@ -584,7 +584,7 @@ function LiveTactics({ live, side, onClose }: { live: LiveMatch; side: Side; onC
       const t = s.clubs[s.clubId].tactic;
       if (phase === 'ip') {
         // Players keep the nearest slot in the new shape.
-        const moved = pairSlots(FORMATIONS[t.ipFormation], FORMATIONS[f]);
+        const moved = pairSlots(ipSlotsOf(t), FORMATIONS[f]);
         changeIpFormation(t, f);
         team.players.forEach((mp) => {
           if (mp.onPitch && mp.slot >= 0) mp.slot = moved[mp.slot];

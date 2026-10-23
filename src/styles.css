@@ -812,6 +812,47 @@ select:focus-visible {
   transition: left 0.6s cubic-bezier(0.3, 0.8, 0.3, 1), top 0.6s cubic-bezier(0.3, 0.8, 0.3, 1);
 }
 
+.slot--movable {
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.slot--dragging {
+  transition: none;
+  z-index: 5;
+  cursor: grabbing;
+}
+
+.slot--dragging .slot__shirt {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 3px var(--accent), 0 8px 18px rgba(0, 0, 0, 0.5);
+}
+
+.spot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 255, 255, 0.55);
+  background: rgba(0, 0, 0, 0.18);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 900;
+  color: #0a0f1c;
+  pointer-events: none;
+}
+
+.spot--on {
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--accent);
+  background: var(--accent);
+}
+
 .slot__shirt {
   width: 32px;
   height: 32px;
@@ -834,14 +875,15 @@ select:focus-visible {
 }
 
 .slot__name {
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 800;
+  line-height: 1.15;
   color: #fff;
+  text-align: center;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
-  max-width: 70px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  max-width: 80px;
+  /* Full names always: wrap onto a second line rather than cut. */
+  word-break: keep-all;
 }
 
 .slot__role {
@@ -1470,5 +1512,300 @@ select:focus-visible {
   }
   .sheet-backdrop {
     align-items: center;
+  }
+}
+
+.accent-text {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+/* ===================================================== game skin
+ * Glossy, layered surfaces in the style of mobile sports games: gradients
+ * with a top highlight, deeper shadows, glowing active states.
+ */
+
+body,
+.app {
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(59, 130, 246, 0.16), transparent 60%),
+    radial-gradient(90% 50% at 100% 100%, rgba(59, 227, 162, 0.08), transparent 60%),
+    var(--bg);
+}
+
+.top {
+  background: linear-gradient(180deg, #17233b 0%, #101a2d 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  position: relative;
+  z-index: 2;
+}
+
+.top__title {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+}
+
+.top__back {
+  background: linear-gradient(180deg, #2a3b5e, #1b2944);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.crest-svg {
+  flex: 0 0 auto;
+  display: block;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45));
+}
+
+.tabs {
+  background: linear-gradient(180deg, #121c30 0%, #0b1222 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 -8px 22px rgba(0, 0, 0, 0.4);
+  --icon-cut: #0b1222;
+}
+
+.tab {
+  transition: color 0.2s;
+}
+
+.tab__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 28px;
+  border-radius: 10px;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.tab--on .tab__icon {
+  background: linear-gradient(180deg, rgba(59, 227, 162, 0.28), rgba(59, 227, 162, 0.08));
+  box-shadow: 0 0 16px rgba(59, 227, 162, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+  --icon-cut: #123a33;
+}
+
+.tab--on {
+  font-weight: 800;
+}
+
+.fab {
+  background: linear-gradient(180deg, #6ff5c1 0%, #2fd393 55%, #1fb57c 100%);
+  box-shadow: 0 10px 26px rgba(16, 185, 129, 0.35), 0 4px 10px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.15);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.fab--match {
+  background: linear-gradient(180deg, #8cc6ff 0%, #4b9dff 55%, #2f7fe6 100%);
+  box-shadow: 0 10px 26px rgba(59, 130, 246, 0.4), 0 4px 10px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.15);
+  animation: fab-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes fab-pulse {
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+.card {
+  background: linear-gradient(180deg, #16223a 0%, #111a2c 60%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.card__head {
+  color: #b7c4dd;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  text-transform: uppercase;
+}
+
+.btn {
+  background: linear-gradient(180deg, #273859 0%, #1b2943 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: transform 0.08s;
+}
+
+.btn--primary {
+  background: linear-gradient(180deg, #6ff5c1 0%, #2fd393 55%, #1fb57c 100%);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -2px 0 rgba(0, 0, 0, 0.15), 0 6px 16px rgba(16, 185, 129, 0.3);
+}
+
+.btn--blue {
+  background: linear-gradient(180deg, #8cc6ff 0%, #4b9dff 55%, #2f7fe6 100%);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -2px 0 rgba(0, 0, 0, 0.15), 0 6px 16px rgba(59, 130, 246, 0.3);
+}
+
+.btn--danger {
+  background: transparent;
+  box-shadow: none;
+}
+
+.seg {
+  background: #0c1426;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.seg__item--on {
+  background: linear-gradient(180deg, #2b3e63, #1e2d4b);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 2px 6px rgba(0, 0, 0, 0.35);
+  color: #fff;
+}
+
+.chip--on {
+  box-shadow: 0 0 12px rgba(59, 227, 162, 0.35);
+}
+
+.pos {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.list-row__face {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.avatar {
+  flex: 0 0 auto;
+  display: block;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+/* Player page: a card washed in the club's colours. */
+.hero-card {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 12px;
+  padding: 14px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(115deg, color-mix(in srgb, var(--club) 55%, transparent) 0%, transparent 55%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.025) 0 10px, transparent 10px 20px),
+    linear-gradient(180deg, #18243d, #101a2c);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.hero-card::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  border: 18px solid color-mix(in srgb, var(--club2) 22%, transparent);
+  pointer-events: none;
+}
+
+.hero-card > * {
+  position: relative;
+}
+
+/* Tactics pitch: faces with a position tag, on real-looking grass. */
+.pitch {
+  background:
+    radial-gradient(80% 50% at 50% 50%, rgba(255, 255, 255, 0.08), transparent 70%),
+    repeating-linear-gradient(180deg, #23893f 0 9%, #1e7a37 9% 18%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.35), 0 8px 22px rgba(0, 0, 0, 0.35);
+}
+
+.slot__token {
+  position: relative;
+  display: block;
+  width: 38px;
+  height: 38px;
+}
+
+.slot__token .slot__shirt--empty {
+  width: 38px;
+  height: 38px;
+}
+
+.slot__pos {
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  transform: translateX(-50%);
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 13px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+
+.slot--dragging .slot__token {
+  transform: scale(1.15);
+}
+
+.slot__name {
+  margin-top: 4px;
+}
+
+/* Start screen hero. */
+.start__hero {
+  position: relative;
+  height: 150px;
+  margin: -8px -16px 4px;
+  overflow: hidden;
+}
+
+.start__glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(40% 60% at 15% 0%, rgba(255, 248, 220, 0.35), transparent 70%),
+    radial-gradient(40% 60% at 85% 0%, rgba(255, 248, 220, 0.35), transparent 70%);
+}
+
+.start__pitch {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 360px;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 -6px 30px rgba(59, 227, 162, 0.25));
+}
+
+.start__logo {
+  font-size: 15px;
+  background: linear-gradient(90deg, #6ff5c1, #8cc6ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.club-pick--on {
+  background: linear-gradient(90deg, rgba(59, 227, 162, 0.18), rgba(59, 227, 162, 0.02));
+}
+
+.main > * {
+  animation: rise-in 0.25s ease-out both;
+}
+
+/* Opacity only: a transform here would trap fixed-position sheets. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main > *,
+  .fab--match {
+    animation: none;
   }
 }

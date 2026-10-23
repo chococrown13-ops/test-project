@@ -143,11 +143,6 @@ const dirOf = (side: SideKey) => (side === 'home' ? 1 : -1);
 /** x of the goal this side attacks. */
 const targetGoalX = (side: SideKey) => (side === 'home' ? PITCH_W : 0);
 
-function surname(name: string): string {
-  const parts = name.split(' ');
-  return parts[parts.length - 1];
-}
-
 export class MatchDirector {
   private actors: Actor[] = [];
   private kits: Record<SideKey, Kit>;
@@ -281,7 +276,7 @@ export class MatchDirector {
       const existing = this.actors.find((a) => a.id === entry.id && !a.leaving);
       if (existing) {
         existing.number = entry.number;
-        existing.label = surname(entry.name);
+        existing.label = entry.name;
         return;
       }
       const slot =
@@ -292,7 +287,7 @@ export class MatchDirector {
         side,
         slot,
         number: entry.number,
-        label: surname(entry.name),
+        label: entry.name,
         isKeeper: entry.isKeeper || slot === 0,
         pos: { x: 0, y: 0 },
         override: null,

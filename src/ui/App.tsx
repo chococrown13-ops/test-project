@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { formatDate } from '../game/calendar';
 import { useGame, useStore, type Tab } from '../store';
+import { Icon } from './art';
 import { Crest } from './kit';
 import { ClubProfile } from './screens/ClubProfile';
 import { ClubScreen } from './screens/ClubScreen';
@@ -16,13 +17,13 @@ import { StartScreen } from './screens/StartScreen';
 import { TacticsScreen } from './screens/TacticsScreen';
 import { FixtureScreen } from './screens/FixtureScreen';
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'home', label: '홈', icon: '🏠' },
-  { id: 'squad', label: '선수단', icon: '👥' },
-  { id: 'tactics', label: '전술', icon: '📋' },
-  { id: 'recruit', label: '영입', icon: '🔍' },
-  { id: 'comps', label: '대회', icon: '🏆' },
-  { id: 'club', label: '구단', icon: '🏟' },
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'home', label: '홈' },
+  { id: 'squad', label: '선수단' },
+  { id: 'tactics', label: '전술' },
+  { id: 'recruit', label: '영입' },
+  { id: 'comps', label: '대회' },
+  { id: 'club', label: '구단' },
 ];
 
 const TAB_TITLE: Record<Tab, string> = {
@@ -135,7 +136,7 @@ function Shell() {
       <nav className="tabs">
         {TABS.map((t) => (
           <button key={t.id} type="button" className={`tab${tab === t.id && !route ? ' tab--on' : ''}`} onClick={() => setTab(t.id)}>
-            <span className="tab__icon">{t.icon}</span>
+            <span className="tab__icon"><Icon name={t.id} /></span>
             {t.label}
             {t.id === 'home' && unread > 0 && <span className="tab__dot">{unread > 99 ? '99+' : unread}</span>}
             {t.id === 'recruit' && offers > 0 && <span className="tab__dot">{offers}</span>}
