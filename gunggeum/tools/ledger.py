@@ -35,7 +35,7 @@ def episode_total(ep_dir):
 def month_total(month=None):
     month = month or dt.datetime.now(dt.timezone.utc).strftime("%Y-%m")
     total = 0.0
-    for path in glob.glob(os.path.join(EPISODES, "*", "cost.json")):
+    for path in glob.glob(os.path.join(EPISODES, "*", "cost.json")) + glob.glob(os.path.join(HERE, "..", "brand", "*", "cost.json")):
         with open(path, encoding="utf-8") as f:
             total += sum(i["usd"] for i in json.load(f)["items"] if i["at"].startswith(month))
     return round(total, 3)

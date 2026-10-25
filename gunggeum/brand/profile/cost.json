@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "at": "2026-10-25T11:50:17Z",
+      "kind": "image",
+      "usd": 0.045,
+      "note": "장면 1 a_turquoise.jpg (gemini-3.1-flash-image)"
+    },
+    {
+      "at": "2026-10-25T11:50:26Z",
+      "kind": "image",
+      "usd": 0.045,
+      "note": "장면 2 b_yellow.jpg (gemini-3.1-flash-image)"
+    },
+    {
+      "at": "2026-10-25T11:50:35Z",
+      "kind": "image",
+      "usd": 0.045,
+      "note": "장면 3 c_sea.jpg (gemini-3.1-flash-image)"
+    }
+  ]
+}

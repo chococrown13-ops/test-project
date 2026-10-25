@@ -27,6 +27,7 @@ BASE = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_MODEL = "gemini-3.1-flash-image"
 # 장당 대략 비용 (달러) — 결과 응답의 토큰 수로 다시 계산하지 않고 보수적으로 잡는다
 USD_PER_IMAGE = 0.045
+ASPECT = "9:16"  # --aspect 1:1 이면 정사각형 (프로필 사진 등)
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_REF = os.path.join(HERE, "..", "brand", "reference.png")
 
@@ -53,7 +54,7 @@ def inline(path):
 def generate(prompt, refs, model):
     body = {
         "contents": [{"parts": [inline(p) for p in refs] + [{"text": prompt}]}],
-        "generationConfig": {"responseModalities": ["IMAGE"], "imageConfig": {"aspectRatio": "9:16"}},
+        "generationConfig": {"responseModalities": ["IMAGE"], "imageConfig": {"aspectRatio": ASPECT}},
     }
     resp = post(f"{BASE}/models/{model}:generateContent", body)
     for cand in resp.get("candidates", []):
@@ -70,8 +71,11 @@ def main():
     ap.add_argument("--scene", type=int, nargs="+", required=True, help="장면 번호 (1부터)")
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--ref", nargs="+", default=[DEFAULT_REF], help="참조 이미지 (캐릭터 시트 등)")
+    ap.add_argument("--aspect", default="9:16", help="화면비 (기본 9:16, 프로필은 1:1)")
     ap.add_argument("--count", type=int, default=1, help="장면마다 몇 장 뽑을지 (2장 이상이면 _a, _b ... 로 저장)")
     args = ap.parse_args()
+    global ASPECT
+    ASPECT = args.aspect
 
     with open(args.episode, encoding="utf-8") as f:
         ep = json.load(f)
