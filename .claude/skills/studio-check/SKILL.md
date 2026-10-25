@@ -1,6 +1,6 @@
 ---
 name: studio-check
-description: 땡그랑 스튜디오 점검실. 점검팀(시스템 inspect-system · 코드 inspect-code)이 루틴·사무실 db·자료실·사무실 화면·도구 코드가 잘 돌아가는지 확인하고 점검 보고서를 사무실에 올립니다. "스튜디오 점검", "시스템 점검", "잘 작동하는지 확인", "코드 문제 없는지 봐줘" 같은 요청에 사용하세요.
+description: 궁금해달 스튜디오 점검실. 점검팀(시스템 inspect-system · 코드 inspect-code)이 루틴·사무실 db·자료실·사무실 화면·도구 코드가 잘 돌아가는지 확인하고 점검 보고서를 사무실에 올립니다. "스튜디오 점검", "시스템 점검", "잘 작동하는지 확인", "코드 문제 없는지 봐줘" 같은 요청에 사용하세요.
 ---
 
 # 🩺 스튜디오 점검
@@ -9,7 +9,7 @@ description: 땡그랑 스튜디오 점검실. 점검팀(시스템 inspect-syste
 사무실: https://claude.ai/artifact/W4ym2MMMzq5snKeKZxRpSi (db 는 `ArtifactData`, 자료실·페이지는 `Artifact` 도구)
 
 ## 진행
-1. **재료 모으기** (`ttaeng/checks/_snapshot/`, 커밋하지 않음)
+1. **재료 모으기** (`gunggeum/checks/_snapshot/`, 커밋하지 않음)
    - `ArtifactData` list 로 `requests`·`locks`·`strategy`·`episodes`·`reviews`·`approvals`·`files`·`checks` 를 `out_dir` 에 저장
    - `log` 는 `out_dir` 없이 list(query.limit 200) 해서 결과 그대로(문서마다 `updatedAt` = 실제 저장 시각이 붙어 있음) `log.txt` 로 저장 — `out_dir` 파일에는 `updatedAt` 이 빠져서 미래 시각 점검을 못 해요
    - `Artifact` list(scope "assets") 결과를 `assets.txt` 로 저장
@@ -22,7 +22,7 @@ description: 땡그랑 스튜디오 점검실. 점검팀(시스템 inspect-syste
    - 이 스킬이 전에 올린 `checks` 문서 중 최근 10개만 남기고 삭제
    그 밖의 수정(코드·설정·다른 사람이 쓴 기록)은 하지 않고 "고치는 법"으로 제안만 합니다.
 4. **보고서 쓰기**
-   - `ttaeng/checks/YYYY-MM-DD-HHMM.md` (표 그대로) → `git pull --rebase` 후 커밋·푸시
+   - `gunggeum/checks/YYYY-MM-DD-HHMM.md` (표 그대로) → `git pull --rebase` 후 커밋·푸시
    - db `checks/<YYYYMMDD-HHMM>` = `{at: 실제 UTC, status: "정상"|"주의"|"문제", summary: 한 줄, items: [{area, name, result: "✅"|"⚠️"|"❌", detail, fix}], fixed: [문자열], report: 파일 경로}`
      — items 는 ⚠️·❌ 를 먼저, ✅ 는 영역별로 묶어 최대 12줄
    - `log` 한 줄: "스튜디오 점검: 정상/주의 n건/문제 n건 — 🩺 점검실에서 보기"

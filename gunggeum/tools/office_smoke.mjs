@@ -1,5 +1,5 @@
 // 사무실 페이지(한 파일 HTML)를 가짜 claude 런타임으로 띄워 화면이 깨지지 않는지 본다. 0원, 실제 db·루틴은 건드리지 않음.
-//   node ttaeng/tools/office_smoke.mjs <사무실.html>
+//   node gunggeum/tools/office_smoke.mjs <사무실.html>
 // 결과: 한 줄씩 "✅|❌ 항목 — 설명", 마지막 줄 JSON {ok, fails}
 import fs from "node:fs";
 import path from "node:path";
@@ -13,7 +13,7 @@ try {
 
 const src = process.argv[2];
 if (!src || !fs.existsSync(src)) {
-  console.error("사용법: node ttaeng/tools/office_smoke.mjs <사무실.html>");
+  console.error("사용법: node gunggeum/tools/office_smoke.mjs <사무실.html>");
   process.exit(2);
 }
 const html = fs.readFileSync(src, "utf8");
@@ -80,8 +80,8 @@ try {
       check((await p.locator(`#${id}`).count()) > 0, `${vp.label} #${id} 보임`);
     }
     const text = await p.evaluate(() => document.body.innerText);
-    check(!/궁금해달|해달|쇼츠/.test(text), `${vp.label} 이전 채널 글자 없음`);
-    check(/땡그랑/.test(text), `${vp.label} 땡그랑 이름 보임`);
+    check(!/땡그랑|땡이/.test(text), `${vp.label} 이전 채널(땡그랑) 글자 없음`);
+    check(/궁금해달/.test(text), `${vp.label} 궁금해달 이름 보임`);
     const wide = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     check(wide <= 1, `${vp.label} 가로 스크롤 없음`, wide > 1 ? `${wide}px 넘침` : "");
     check(errors.length === 0, `${vp.label} 대시보드 오류 없음`, errors.join(" / "));

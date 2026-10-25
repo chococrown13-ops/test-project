@@ -13,6 +13,6 @@ quant/.pytest_cache/
 quant/.env
 
 # SNS 렌더링 결과물
-ttaeng/**/*.mp4
-ttaeng/**/*_s[0-9].png
-ttaeng/**/__pycache__/
+gunggeum/**/*.mp4
+gunggeum/**/*_s[0-9].png
+gunggeum/**/__pycache__/

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""카드·이미지 장면을 세로 영상으로 엮는 편집기 (땡그랑 — 나중에 카드뉴스를 넘기는 영상으로 만들 때 사용).
+"""궁금해달 쇼츠 편집기 — 이미지·AI 영상 장면을 세로 영상으로 엮는다.
 
 에피소드 JSON(장면별 이미지, 내레이션, 자막, 카메라 움직임)을 읽어
 1080x1920 세로 영상(mp4)을 만든다.
@@ -17,7 +17,7 @@
 
 사용법:
     pip install pillow imageio-ffmpeg
-    python ttaeng/tools/make_video.py ttaeng/cards/c01/episode.json -o c01.mp4
+    python gunggeum/tools/make_video.py gunggeum/episodes/s01/episode.json -o s01.mp4
 """
 
 import argparse

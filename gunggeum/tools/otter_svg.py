@@ -6,7 +6,7 @@
 face: normal · happy · wow · think · wink · sad
 arm : notebook(수첩 들기) · wave(손 흔들기) · point(가리키기) · pencil(연필로 턱 괴기) · cheer(두 손 번쩍)
 
-PNG 가 필요하면 ttaeng/tools/office_smoke.mjs 처럼 Playwright 로 찍거나 rsvg 로 변환한다.
+PNG 가 필요하면 gunggeum/tools/office_smoke.mjs 처럼 Playwright 로 찍거나 rsvg 로 변환한다.
 """
 
 import argparse
