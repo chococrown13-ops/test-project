@@ -39,7 +39,7 @@ description: 궁금해달 쇼츠 제작 라인. "다음 쇼츠 기획"이면 주
 6. **2차 검수** (`quality-guard`): 반려 사항은 해당 팀이 한 번 고침. 그래도 반려면 멈추고 보고.
 7. **자료실에 올리기**: `Artifact` 도구 publish(url=사무실, asset: true)로 `out/sNN.mp4`(15MB 넘으면 조각으로 나눠 첫 바이트가 `<` 아니게)와 `out/cover.jpg`, `publish.md` 를 올리고 db `files/<첫 조각 asset id>` = {name, episode:"S0n", kind, parts:[asset id…], sizeBytes, contentType, from:"Claude", note, createdAt}.
 8. 마무리:
-   - `publish.md` 저장, `cost.json`·`clips/`·`images/` 커밋·푸시 (`out/` 은 커밋 안 함)
+   - `publish.md` 저장(`_template/publish.md` 모양 그대로 — 유튜브·인스타·틱톡 복사 칸, AI 표기 켜는 곳, 고정 댓글, 체크리스트), `cost.json`·`clips/`·`images/` 커밋·푸시 (`out/` 은 커밋 안 함)
    - episodes/S0n = {status:"업로드 대기", costUsd: cost.json 합계, ceoTodo:"자료실에서 받아 올리기 (게시 문구는 publish.md)"}
    - log 한 줄(이번 편 비용·이번 달 누적), 요청 추적 "완료"(result: "S0n 완성본과 게시 문구가 자료실에 올라왔어요 · 비용 $x").
 
