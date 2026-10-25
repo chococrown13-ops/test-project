@@ -74,7 +74,88 @@ def silence(seconds):
     return b"\x00\x00" * int(TTS_RATE * seconds)
 
 
-def build_timeline(scenes, tts, key, voice, rate, pitch=0.0):
+CAPTION_CHARS = {"sentence": 40, "phrase": 12, "word": 6}  # 자막 한 조각 최대 글자 수(공백 빼고)
+
+
+GOOD_BREAK = tuple("은는이가을를에의와과도로며고서면데요다죠,.!?…")  # 이 글자로 끝나는 어절 뒤에서 끊으면 자연스러움
+NO_BREAK_AFTER = {"이", "그", "저", "몇", "한", "두", "세", "이런", "그런", "저런", "더", "안", "못", "잘", "꼭", "아주", "너무"}  # 뒤 말을 꾸미는 말 — 뒤에서 끊지 않기
+
+
+def _break_cost(word):
+    if word in NO_BREAK_AFTER:
+        return 60
+    return 0 if len(word) >= 2 and word.endswith(GOOD_BREAK) else 25
+
+
+def _split_words(words, max_chars):
+    """어절들을 비슷한 길이의 조각으로 — 조사·어미 뒤에서 끊는 쪽을 고른다."""
+    lens = [len(w) for w in words]
+    total = sum(lens)
+    if total <= max_chars + 3 or len(words) == 1:
+        return [words]
+    k = -(-total // max_chars)
+    best = None
+
+    def search(i, parts, acc):
+        nonlocal best
+        if len(parts) == k - 1:
+            rest = words[i:]
+            if not rest:
+                return
+            cand = parts + [rest]
+            cost = sum((sum(len(w) for w in c) - total / k) ** 2 for c in cand)
+            cost += sum(_break_cost(c[-1]) for c in cand[:-1])
+            cost += sum(400 for c in cand if len(c) > 1 and sum(len(w) for w in c) > max_chars + 4)
+            if best is None or cost < best[0]:
+                best = (cost, cand)
+            return
+        for j in range(i + 1, len(words)):
+            search(j, parts + [words[i:j]], acc)
+
+    search(0, [], None)
+    return best[1] if best else [words]
+
+
+def split_caption(line, max_chars):
+    """문장을 읽기 좋은 조각으로 나눈다 — 쉼표·마침표에서 먼저 끊고, 긴 구간은 비슷한 길이로 어절 단위로 나눈다."""
+    segments, cur = [], []
+    for w in line.split():
+        cur.append(w)
+        if w[-1] in ",.!?…" and sum(len(x) for x in cur) >= 3:
+            segments.append(cur)
+            cur = []
+    if cur:
+        if segments and sum(len(x) for x in cur) <= 2:
+            segments[-1] += cur
+        else:
+            segments.append(cur)
+    chunks = []
+    for seg in segments:
+        chunks += _split_words(seg, max_chars)
+    return [" ".join(c) for c in chunks]
+
+
+def caption_timeline(timed, total, max_chars):
+    """문장별 (시작, 끝) 을 조각별 (시작, 끝) 로 — 글자 수 비례, 문장 끝 쉼표·마침표는 조금 더 길게.
+    조각 사이 빈틈은 앞 조각을 이어 보여 줘서 자막이 깜빡이지 않게 한다."""
+    caps = []
+    for line, s, e in timed:
+        chunks = split_caption(line, max_chars)
+        weights = [len(c.replace(" ", "")) + (1.5 if c[-1] in ",.!?…" else 0) for c in chunks]
+        t = s
+        for c, wgt in zip(chunks, weights):
+            d = (e - s) * wgt / sum(weights)
+            caps.append([c.rstrip(",."), t, t + d])  # 자막 끝 쉼표·마침표는 빼야 깔끔
+            t += d
+    for a, b in zip(caps, caps[1:]):
+        if b[1] - a[2] < 0.6:  # 문장 사이 짧은 쉼은 앞 자막을 이어 보여 줌
+            a[2] = b[1]
+    if caps:
+        caps[-1][2] = max(caps[-1][2], min(total, caps[-1][2] + 0.35))
+    return [tuple(c) for c in caps]
+
+
+def build_timeline(scenes, tts, key, voice, rate, pitch=0.0, max_chars=CAPTION_CHARS["phrase"]):
     """장면마다 (길이, [(문장, 시작, 끝)]) 을 정하고, 음성이 있으면 PCM 도 이어 붙인다."""
     pcm = bytearray()
     for sc in scenes:
@@ -100,6 +181,7 @@ def build_timeline(scenes, tts, key, voice, rate, pitch=0.0):
                 timed.append((line, t, t + dur))
                 t += dur
         sc["_duration"], sc["_lines"] = total, timed
+        sc["_cap_lines"] = caption_timeline(timed, total, sc.get("caption_chars", max_chars))
     return bytes(pcm) if tts else None
 
 
@@ -155,7 +237,7 @@ def render_text(text, font, box=False, max_w=W - 120, stroke=None):
     img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     if box:
-        d.rounded_rectangle([0, 0, img_w - 1, img_h - 1], radius=26, fill=(0, 0, 0, 150))
+        d.rounded_rectangle([0, 0, img_w - 1, img_h - 1], radius=26, fill=(0, 0, 0, 170))
     for i, (row, rw) in enumerate(zip(rows, widths)):
         x = (img_w - rw) / 2
         y = pad + i * line_h
@@ -252,7 +334,7 @@ def prepare_scene(sc, base_dir, fonts, tmpdir):
         sc["_title"] = render_text(sc["title"], fonts["title"])
     if sc.get("captions", True):
         sc["_caps"] = [(render_text(line, fonts["caption"], box=True), s, e)
-                       for line, s, e in sc["_lines"]]
+                       for line, s, e in sc.get("_cap_lines", sc["_lines"])]
 
 
 def draw_frame(sc, t_local, clip_frame=None, text_alpha=1.0):
@@ -344,9 +426,11 @@ def main():
 
     print("음성: " + (f"직접 넣은 소리 ({args.audio})" if args.audio else
                       f"Google TTS ({voice})" if tts else "없음 (무음 영상)"))
-    pcm = build_timeline(scenes, tts, key, voice, ep.get("speaking_rate", 1.08), ep.get("pitch", 0.0))
+    mode = ep.get("caption_mode", "phrase")  # sentence(문장) · phrase(구절, 기본) · word(1~2 단어)
+    cap_chars = ep.get("caption_chars", CAPTION_CHARS.get(mode, CAPTION_CHARS["phrase"]))
+    pcm = build_timeline(scenes, tts, key, voice, ep.get("speaking_rate", 1.08), ep.get("pitch", 0.0), cap_chars)
     fonts = {"title": ImageFont.truetype(args.font, ep.get("title_size", 78)),
-             "caption": ImageFont.truetype(args.font, ep.get("caption_size", 50))}
+             "caption": ImageFont.truetype(args.font, ep.get("caption_size", 62))}
     tmp = tempfile.mkdtemp()
     for sc in scenes:
         prepare_scene(sc, base_dir, fonts, tmp)
