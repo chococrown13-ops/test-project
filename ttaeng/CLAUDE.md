@@ -18,6 +18,7 @@ AI 사무실이 운영하는 생활 돈 계산 카드뉴스 채널 「땡그랑�
 | `files/<id>` | 자료실 목록 {name, episode, kind, parts[asset id], sizeBytes, contentType, from, note, createdAt} — 15MB 넘으면 조각(첫 바이트 `<` 피하기) |
 | `log` | 진행 기록 {at: 실제 UTC 시각, who, text} |
 | `locks/<키>` · `handoff/<id>` | 중복 실행 막기 · 푸시 못 한 작업 파일 |
+| `requests/<id>` | 버튼 요청 추적 {at, text, kind, by, status: 전달 중→전달됨→진행 중→완료/실패/건너뜀/보류(→멈춤), startedAt, doneAt, result, error} — 버튼이 만들고 루틴이 상태를 바꿈 |
 | `checks/<YYYYMMDD-HHMM>` | 점검 보고서 {at, status: 정상/주의/문제, summary, items[{area, name, result, detail, fix}], fixed[], report} |
 
 ## 🤖 자동 진행 (사무실 버튼 → 루틴 「땡그랑 사무실 작업」 → 새 세션)
@@ -25,10 +26,12 @@ AI 사무실이 운영하는 생활 돈 계산 카드뉴스 채널 「땡그랑�
 |---|---|
 | `전략 회의: <안건>` | strategy-office 스킬로 여섯 부서 검토 → `strategy/` 메모 + db `strategy/<회의id>` |
 | `전략 결정: <회의id> · A1=key, …` | 같은 스킬 "결정이 나면" → `decisions.md`·`brand.md` 갱신, log |
-| `다음 카드뉴스 기획` | 제작 라인이 생기기 전까지는 "먼저 전략 회의실에서 주제·플랫폼을 정해 주세요" log 한 줄 |
+| `다음 카드뉴스 기획` | 제작 라인이 생기기 전까지는 요청을 "보류"로: result "카드뉴스 제작 라인이 아직 없어요 — 채팅에서 '제작 라인 만들어줘'라고 해 주세요" |
+| `<편 id> 결재: 승인/수정 요청` | 제작 라인이 생기기 전까지는 "보류" (같은 이유) |
 | `스튜디오 점검` | studio-check 스킬 → 점검팀 두 명 → `checks/` 보고서 + db `checks/<id>` |
 | `연결 테스트` | 저장소·db·푸시 권한 확인 후 log 한 줄 |
 
+- **요청 추적 (운영관리팀)**: 요청 끝에 `[req:<id>]` 가 붙어 오면 시작할 때 `requests/<id>` 를 {status:"진행 중", startedAt} 로, 끝날 때 {status:"완료"|"실패"|"보류", doneAt, result: 대표님이 읽을 한 줄} 로 바꿉니다. 잠금 때문에 건너뛰면 "건너뜀". 실패해도 반드시 "실패"+error 로 남깁니다(진행 중으로 두고 끝내지 않기).
 - 예약 실행(매일 09:00 KST, 요청 없음): 결정할 것이 있으면 "오늘 대표님 할 일" 한 줄만 log, 없으면 아무것도 안 남김. 월요일에는 스튜디오 점검도 함께.
 - 이전 채널(궁금해달)은 2026-10-13 에 저장소·사무실 db·자료실에서 모두 정리했어요. 되살리지 마세요.
 - 카드뉴스 제작 라인(기획 → 사실 확인 → 카드 디자인 → 검수 → 결재)은 전략 회의 결정 뒤에 만듭니다.

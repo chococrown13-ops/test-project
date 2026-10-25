@@ -10,7 +10,7 @@ description: 땡그랑 스튜디오 점검실. 점검팀(시스템 inspect-syste
 
 ## 진행
 1. **재료 모으기** (`ttaeng/checks/_snapshot/`, 커밋하지 않음)
-   - `ArtifactData` list 로 `locks`·`strategy`·`episodes`·`reviews`·`approvals`·`files`·`checks` 를 `out_dir` 에 저장
+   - `ArtifactData` list 로 `requests`·`locks`·`strategy`·`episodes`·`reviews`·`approvals`·`files`·`checks` 를 `out_dir` 에 저장
    - `log` 는 `out_dir` 없이 list(query.limit 200) 해서 결과 그대로(문서마다 `updatedAt` = 실제 저장 시각이 붙어 있음) `log.txt` 로 저장 — `out_dir` 파일에는 `updatedAt` 이 빠져서 미래 시각 점검을 못 해요
    - `Artifact` list(scope "assets") 결과를 `assets.txt` 로 저장
    - `Artifact` read(url = 사무실) 로 받은 페이지 HTML 을 `office.html` 로 복사
@@ -18,6 +18,7 @@ description: 땡그랑 스튜디오 점검실. 점검팀(시스템 inspect-syste
 2. **점검 (동시에)**: `inspect-system`, `inspect-code` 를 한 번에 띄웁니다. Agent 도구가 없으면 두 파일의 점검표를 직접 따라 합니다.
 3. **안전한 조치만 바로 하기** — 아래 두 가지만, 하면 보고서 `fixed` 에 적습니다.
    - 2시간 넘은 `locks/<키>` 삭제
+   - 전달됨 1시간↑·진행 중 3시간↑ 그대로인 `requests/<id>` 를 {status:"멈춤", error:"점검팀이 멈춤으로 표시 (마지막 상태 …)"} 로
    - 이 스킬이 전에 올린 `checks` 문서 중 최근 10개만 남기고 삭제
    그 밖의 수정(코드·설정·다른 사람이 쓴 기록)은 하지 않고 "고치는 법"으로 제안만 합니다.
 4. **보고서 쓰기**
