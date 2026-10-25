@@ -12,7 +12,7 @@ quant/**/__pycache__/
 quant/.pytest_cache/
 quant/.env
 
-# SNS 렌더링 결과물
-gunggeum/**/*.mp4
+# 궁금해달 렌더링 결과물 (완성 영상은 자료실로, 돈 든 클립 clips/*.mp4 는 커밋)
+gunggeum/episodes/*/out/
 gunggeum/**/*_s[0-9].png
 gunggeum/**/__pycache__/

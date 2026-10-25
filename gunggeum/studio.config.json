@@ -1,0 +1,14 @@
+{
+  "channel": "궁금해달",
+  "monthly_budget_usd": 21,
+  "per_episode_target_usd": 0.7,
+  "images_per_episode": 4,
+  "clips_per_episode": 1,
+  "clip": { "model": "gemini-omni-1.1-flash", "resolution": "720p", "seconds": 5 },
+  "image_model": "gemini-3.1-flash-image",
+  "tts": { "engine": "google-cloud-tts", "voice": "ko-KR-Neural2-A", "speaking_rate": 1.08 },
+  "video_mode": "auto",
+  "video_mode_note": "auto = Claude 가 API 로 이미지·영상까지 / flow = Google AI Pro 구독 시 대표님이 Flow 에 프롬프트를 붙여 영상 생성 후 자료실에 올림",
+  "topics": ["팩트체크", "돈·바뀐 제도", "심리학·뇌과학"],
+  "test_plan": "후보 3개 × 5편, 순서대로 돌아가며 하루 1편"
+}

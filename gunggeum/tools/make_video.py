@@ -319,6 +319,9 @@ def main():
     with open(args.episode, encoding="utf-8") as f:
         ep = json.load(f)
     base_dir = os.path.dirname(os.path.abspath(args.episode))
+    for path in (args.output, args.cover):
+        if path and os.path.dirname(os.path.abspath(path)):
+            os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     scenes = ep["scenes"]
     key = os.environ.get("GOOGLE_TTS_API_KEY")
     tts = not args.silent and not args.audio and (args.tts or bool(key))

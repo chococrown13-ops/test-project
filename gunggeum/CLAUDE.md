@@ -13,9 +13,11 @@ AI 사무실이 운영하는 쇼츠 채널 「궁금해달」입니다. 궁금�
 
 ## 쇼츠 시험 (2026-10-25 결정, `decisions.md`)
 - 새 채널 · 캐릭터 궁금해달 · 시험 후보 3개 × 5편: ① 「이거 진짜야?」 상식 팩트체크 ② 돈·바뀐 제도 ③ 심리학·뇌과학
-- 도구: 1순위 Google AI Pro(Flow — 스튜디오가 프롬프트를 주면 대표님이 생성해 자료실에 올림) + Vrew 무료(자막·AI 목소리) / 2순위 Veo API 자동
+- 도구: 지금은 **자동(API)** — 이미지 4장(약 $0.18) + 5초 720p 클립 1개(약 $0.51) ≈ 편당 $0.7, 월 한도 $21. (Google AI Pro 를 구독하면 `video_mode: flow` 로 바꿔 대표님이 Flow 에서 클립 생성 — 아직 아님)
 - 판정은 「분명히 나쁜 후보 탈락」만 (3초 유지율·저장·공유). 건강·의료 주제 금지, 모든 편에 기준일·출처 표기
-- **제작 라인(기획 → 사실 확인 → 대본 → 검수 → 결재 → 이미지·영상 → 편집 → 게시 문구)은 아직 없음** — 대표님이 "제작 라인 만들어줘" 하면 만듭니다
+- **제작 라인**: `.claude/skills/shorts-line/SKILL.md` — 기획(리서치 → 대본 → 1차 검수 → 게시 문구 → 결재함) / 승인 뒤 제작(이미지 4장 → S1 클립 → AI 목소리 편집 → 2차 검수 → 자료실). 직원: `.claude/agents/` 의 research-lead·scriptwriter·quality-guard·art-director·motion-director·editor·publisher·growth-analyst
+- 편 폴더 `episodes/sNN/` (plan.md · episode.json · images/ · clips/ · cost.json · publish.md, 완성본 out/ 은 커밋 안 함) · 틀 `episodes/_template/` · 고정 장면 `brand/scenes/`(intro·notebook·outro) · 주제 후보 `topics.md` · 설정·예산 `studio.config.json` · 장부 `tools/ledger.py`
+- 도구: `tools/make_image.py`(Gemini 이미지, 기준 이미지 참조) · `tools/make_clip.py`(Gemini Omni 영상 — Veo 는 2026-10 API 에서 빠짐) · `tools/make_video.py --tts`(편집·AI 목소리)
 
 ## 사무실 db (ArtifactData, url = 위 사무실 링크)
 | 컬렉션 | 내용 |
@@ -34,8 +36,9 @@ AI 사무실이 운영하는 쇼츠 채널 「궁금해달」입니다. 궁금�
 |---|---|
 | `전략 회의: <안건>` | strategy-office 스킬로 여섯 부서 검토 → `strategy/` 메모 + db `strategy/<회의id>` |
 | `전략 결정: <회의id> · A1=key, …` | 같은 스킬 "결정이 나면" → `decisions.md`·`brand.md` 갱신, log |
-| `다음 쇼츠 기획` (예전 이름 `다음 카드뉴스 기획`) | 제작 라인이 생기기 전까지는 요청을 "보류"로: result "쇼츠 제작 라인이 아직 없어요 — 채팅에서 '제작 라인 만들어줘'라고 해 주세요" |
-| `<편 id> 결재: 승인/수정 요청` | 제작 라인이 생기기 전까지는 "보류" (같은 이유) |
+| `다음 쇼츠 기획` (예전 이름 `다음 카드뉴스 기획`) | shorts-line 스킬 A (기획 → 결재함, 돈 안 듦) |
+| `<편 id> 결재: 승인/수정 요청` | shorts-line 스킬 B (승인이면 제작 → 자료실, 수정이면 대본 고쳐 다시 결재함) |
+| `<편 id> 올렸어` (채팅) | shorts-line 스킬 C (업로드 완료 표시) |
 | `스튜디오 점검` | studio-check 스킬 → 운영관리팀 두 명 → `checks/` 보고서 + db `checks/<id>` |
 | `연결 테스트` | 저장소·db·푸시 권한 확인 후 log 한 줄 |
 
