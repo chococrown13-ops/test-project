@@ -420,6 +420,8 @@ def main():
         if path and os.path.dirname(os.path.abspath(path)):
             os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     scenes = ep["scenes"]
+    for sc in scenes:  # 내레이션 자막은 기본으로 끔 (화면 제목만). 켜려면 에피소드나 장면에 "captions": true
+        sc.setdefault("captions", ep.get("captions", False))
     key = os.environ.get("GOOGLE_TTS_API_KEY")
     tts = not args.silent and not args.audio and (args.tts or bool(key))
     voice = args.voice or ep.get("voice", "ko-KR-Neural2-A")

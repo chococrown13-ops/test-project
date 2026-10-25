@@ -4,6 +4,7 @@
   "speaking_rate": 1.05,
   "pitch": 0,
   "caption_size": 62,
+  "captions": false,
   "caption_mode": "phrase",
   "image_prompt_prefix": "Use the attached character sheet as the exact reference for the main character: a small chubby sea otter mascot with dark chocolate-brown fur, cream face, round black eyes, blush cheeks, a light sky-blue knitted scarf with a white wavy pattern, and a tiny yellow spiral notebook. Keep the same face, colors and proportions. Soft 3D render. Vertical 9:16. No text, no letters, no numbers, no logos.",
   "motion_suffix": "Static camera, no zoom, no cuts. Gentle, natural, slow motion. Keep the character's appearance, light sky-blue scarf and tiny yellow notebook exactly the same as the first frame. No text, no new characters, no new objects. Vertical 9:16.",
