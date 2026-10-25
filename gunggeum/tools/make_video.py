@@ -43,8 +43,10 @@ DEFAULT_FONT = os.path.join(HERE, "fonts", "Pretendard-ExtraBold.otf")
 
 TTS_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
 TTS_RATE = 24000
-GAP_BETWEEN_LINES = 0.12  # 내레이션 문장 사이 쉼(초)
-SCENE_TAIL = 0.25  # 장면 끝 여유(초)
+GAP_BETWEEN_LINES = 0.15  # 내레이션 문장 사이 쉼(초)
+SCENE_LEAD = 0.2  # 장면이 바뀐 뒤 목소리가 나오기까지 쉼(초) — 화면이 먼저 자리 잡게
+SCENE_TAIL = 0.45  # 장면 끝 여유(초) — 말이 끝나고 바로 넘어가지 않게
+TRANSITION = 0.45  # 장면 사이 겹쳐 넘어가는 시간(초), 에피소드 JSON 의 "transition" 으로 바꿀 수 있음
 
 
 # ---------------------------------------------------------------- 음성
@@ -79,7 +81,8 @@ def build_timeline(scenes, tts, key, voice, rate, pitch=0.0):
         lines = sc.get("narration", [])
         timed, t = [], 0.0
         if tts:
-            chunk = bytearray()
+            chunk = bytearray(silence(SCENE_LEAD))
+            t = SCENE_LEAD
             for line in lines:
                 audio = synthesize(line, key, voice, rate, pitch)
                 dur = len(audio) / 2 / TTS_RATE
@@ -252,7 +255,7 @@ def prepare_scene(sc, base_dir, fonts, tmpdir):
                        for line, s, e in sc["_lines"]]
 
 
-def draw_frame(sc, t_local, clip_frame=None):
+def draw_frame(sc, t_local, clip_frame=None, text_alpha=1.0):
     """clip_frame 이 있으면 AI 영상 프레임을, 없으면 이미지에 카메라 움직임을 준 프레임을 쓴다."""
     if clip_frame is not None:
         fg = clip_frame
@@ -265,13 +268,25 @@ def draw_frame(sc, t_local, clip_frame=None):
     else:
         frame = fg
     frame = frame.convert("RGBA")
+    if text_alpha <= 0:
+        return frame.convert("RGB")
     if "_title" in sc:
-        ti = sc["_title"]
+        ti = faded(sc["_title"], text_alpha)
         frame.alpha_composite(ti, ((W - ti.width) // 2, round(H * sc.get("title_y", 0.1))))
     for cap, s, e in sc.get("_caps", []):
         if s <= t_local < e:
+            cap = faded(cap, text_alpha)
             frame.alpha_composite(cap, ((W - cap.width) // 2, round(H * sc.get("caption_y", 0.24))))
     return frame.convert("RGB")
+
+
+def faded(img, alpha):
+    """글자 그림을 alpha(0~1) 만큼만 보이게."""
+    if alpha >= 1:
+        return img
+    out = img.copy()
+    out.putalpha(img.getchannel("A").point(lambda v: int(v * alpha)))
+    return out
 
 
 # ---------------------------------------------------------------- 썸네일
@@ -376,16 +391,30 @@ def main():
             args.output]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     n = 0
+    # 장면이 바뀔 때 앞 장면 마지막 모습에서 새 장면으로 천천히 겹쳐 넘어간다 (소리·자막 시각은 그대로)
+    xf_frames = max(0, round(float(ep.get("transition", TRANSITION)) * FPS))
+    prev = None  # (앞 장면, 그 장면 마지막 클립 프레임)
     for sc in scenes:
         frames = round(sc["_duration"] * FPS)
         clip = clip_frames(sc) if "_clip" in sc else None
         last = None
+        xf = min(xf_frames, frames // 2) if prev is not None else 0
         for f in range(frames):
             if clip is not None:
                 last = next(clip, last)  # 클립이 한두 프레임 짧으면 마지막 프레임 유지
-            proc.stdin.write(draw_frame(sc, f / FPS, last).tobytes())
+            if f < xf:
+                # 그림은 천천히 겹치고, 글자는 앞 글자가 먼저 사라진 뒤 새 글자가 나온다 (겹쳐 보이지 않게)
+                a = ease((f + 1) / (xf + 1), "smooth")
+                psc, plast = prev
+                old = draw_frame(psc, psc["_duration"], plast, text_alpha=max(0.0, 1 - 2 * a))
+                new = draw_frame(sc, f / FPS, last, text_alpha=max(0.0, 2 * a - 1))
+                frame = Image.blend(old, new, a)
+            else:
+                frame = draw_frame(sc, f / FPS, last)
+            proc.stdin.write(frame.tobytes())
         if clip is not None:
             clip.close()
+        prev = (sc, last)
         n += frames
         print(f"  장면 {scenes.index(sc) + 1}/{len(scenes)} 완료 ({sc['_duration']:.1f}초)")
     proc.stdin.close()

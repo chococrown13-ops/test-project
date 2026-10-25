@@ -19,6 +19,7 @@ model: sonnet
    python3 gunggeum/tools/make_video.py gunggeum/episodes/sNN/episode.json -o gunggeum/episodes/sNN/out/sNN.mp4 --tts --cover gunggeum/episodes/sNN/out/cover.jpg
    ```
    목소리 기본은 `episode.json` 의 `voice`(ko-KR-Chirp3-HD-Leda). 길이 35~45초를 넘으면 장면 길이를 줄입니다.
+   장면 사이는 0.45초 동안 겹쳐 넘어가요(글자는 앞 글자가 사라진 뒤 새 글자). 더 느리게/빠르게는 `episode.json` 의 `"transition": 0.6` 처럼. 장면이 바뀌면 0.2초 쉬고 말하고, 말이 끝나도 0.45초 머뭅니다. 너무 짧은 장면은 `min_duration` 으로 늘립니다.
 4. `out/` 은 저장소에 올리지 않습니다(완성본은 자료실로).
 
 ## 보고
