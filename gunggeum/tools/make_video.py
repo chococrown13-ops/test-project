@@ -473,7 +473,8 @@ def main():
                 f"[1:a][m]amix=inputs=2:duration=first:normalize=0[a]",
                 "-map", "0:v", "-map", "[a]"]
     cmd += ["-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "192k", "-t", f"{total:.3f}", "-movflags", "+faststart",
+            "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",  # 인스타·틱톡은 48kHz 스테레오가 안전 (24kHz 모노는 인스타 업로드 실패)
+            "-t", f"{total:.3f}", "-movflags", "+faststart",
             args.output]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     n = 0
