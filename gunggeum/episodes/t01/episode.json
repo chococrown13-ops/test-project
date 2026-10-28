@@ -1,0 +1,19 @@
+{
+  "title": "T01. 해달 모습 고정 시험 (기준 이미지 참조 + 이어 찍기)",
+  "test": true,
+  "motion_suffix": "Static camera, no zoom, no cuts. Gentle, natural, slow motion. Keep the character's appearance, light sky-blue scarf and tiny yellow notebook exactly the same as the first frame. No text, no new characters, no new objects. Vertical 9:16.",
+  "scenes": [
+    {
+      "image": "images/c1.jpg",
+      "video": "clips/c1.mp4",
+      "duration": 5,
+      "motion": "The otter opens its tiny yellow notebook, looks surprised with wide eyes, then gives a small happy smile to the camera."
+    },
+    {
+      "extend_from": 1,
+      "video": "clips/c2.mp4",
+      "duration": 5,
+      "motion": "A gentle gust of wind flips the notebook pages; the otter panics comically, flails its little paws and catches the notebook, then sighs in relief."
+    }
+  ]
+}

@@ -15,7 +15,8 @@
   "clip": {
     "model": "gemini-omni-1.1-flash",
     "resolution": "720p",
-    "seconds": 5
+    "seconds": 5,
+    "reference_image": "brand/reference.png"
   },
   "image_model": "gemini-3.1-flash-image",
   "tts": {

@@ -5,7 +5,7 @@ description: 궁금해달 쇼츠 제작 라인. "다음 쇼츠 기획"이면 주
 
 # 궁금해달 쇼츠 제작 라인 (하루 1편)
 
-대표님은 **결재와 업로드만** 합니다. 녹화·녹음 없음(목소리는 AI). 월 예산 `gunggeum/studio.config.json` 의 `monthly_budget_usd`(약 3만 원), 편당 목표 약 $0.7.
+대표님은 **결재와 업로드만** 합니다. 녹화·녹음 없음(목소리는 AI). 월 예산 `gunggeum/studio.config.json` 의 `monthly_budget_usd`(**약 5만 원 = $35**, 2026-10-28 결정), 편당 목표는 `per_episode_target_usd`(정보 편 약 $1.4 · 해달 연재 약 $1.8). 주간 계획은 `weekly_plan`(해달 연재 풀 모션 주 3 · 정보 영상 주 2 · 카드뉴스 주 2 · 스레드 주 3) — 연재·카드 제작 틀은 준비 중이라, 준비되기 전까지는 아래 정보 편 흐름을 씁니다. 정보 편 클립은 `clips_per_episode.info`(2개: S1 훅 + 핵심 장면).
 사무실: https://claude.ai/artifact/W4ym2MMMzq5snKeKZxRpSi (db 는 `ArtifactData`, 자료실 파일은 `Artifact` 도구)
 
 편 번호: `S01`, `S02` … (폴더 `gunggeum/episodes/s01/`). 다음 번호 = 폴더 중 가장 큰 번호 + 1.

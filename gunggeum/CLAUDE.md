@@ -1,7 +1,7 @@
 # 궁금해달 (gunggeum/)
 
 AI 사무실이 운영하는 쇼츠 채널 「궁금해달」입니다. 궁금한 건 못 참는 해달이 떠도는 상식을 확인하고, 틀린 건 노란 수첩에 고쳐 적어요.
-대표(사용자)는 **결정·결재·업로드만** 합니다. **직접 녹화 없음**(화면 녹화·얼굴 촬영 안 함, 목소리는 AI 목소리). 하루 1편, 월 예산 약 3만 원.
+대표(사용자)는 **결정·결재·업로드만** 합니다. **직접 녹화 없음**(화면 녹화·얼굴 촬영 안 함, 목소리는 AI 목소리). 월 예산 약 5만 원($35, 2026-10-28 결정) — 주간 계획: 해달 연재 풀 모션 주 3 · 정보 영상 주 2 · 카드뉴스 주 2 · 스레드 주 3 (결정 메모 `strategy/2026-10-28-종합검토.md`).
 
 - 캐릭터·말투·장면 규칙·이미지 프롬프트: `brand.md` · 기준 이미지 `brand/reference.png`(AI 이미지·영상에 항상 참조로) · 코드 그림 `tools/otter_svg.py`
 - 대표 결정 기록: `decisions.md` · 전략 회의 메모: `strategy/` · 점검 보고서: `checks/`
@@ -13,7 +13,7 @@ AI 사무실이 운영하는 쇼츠 채널 「궁금해달」입니다. 궁금�
 
 ## 쇼츠 시험 (2026-10-25 결정, `decisions.md`)
 - 새 채널 · 캐릭터 궁금해달 · 시험 후보 3개 × 5편: ① 「이거 진짜야?」 상식 팩트체크 ② 돈·바뀐 제도 ③ 심리학·뇌과학
-- 도구: 지금은 **자동(API)** — 이미지 4장(약 $0.18) + 5초 720p 클립 1개(약 $0.51) ≈ 편당 $0.7, 월 한도 $21. (Google AI Pro 를 구독하면 `video_mode: flow` 로 바꿔 대표님이 Flow 에서 클립 생성 — 아직 아님)
+- 도구: **자동(Gemini API)만** — 대표님이 직접 클릭하는 도구(Flow 등)는 쓰지 않음(2026-10-28). 정보 편 = 이미지 4장(약 $0.18) + 5초 720p 클립 2개(약 $1.0) ≈ $1.2~1.4, 해달 연재 = 5초 컷 3개 이어 찍기 ≈ $1.5~1.8, 월 한도 $35. `make_clip.py` 가 기준 이미지를 캐릭터 참조로 함께 넣음. Gemini API 는 선불 크레딧 — 떨어지면 RESOURCE_EXHAUSTED, 대표님이 AI Studio 에서 충전
 - 판정은 「분명히 나쁜 후보 탈락」만 (3초 유지율·저장·공유). 건강·의료 주제 금지, 모든 편에 기준일·출처 표기
 - **제작 라인**: `.claude/skills/shorts-line/SKILL.md` — 기획(리서치 → 대본 → 1차 검수 → 게시 문구 → 결재함) / 승인 뒤 제작(이미지 4장 → S1 클립 → AI 목소리 편집 → 2차 검수 → 자료실). 직원: `.claude/agents/` 의 research-lead·scriptwriter·quality-guard·art-director·motion-director·editor·publisher·growth-analyst
 - 편 폴더 `episodes/sNN/` (plan.md · episode.json · images/ · clips/ · cost.json · publish.md, 완성본 out/ 은 커밋 안 함) · 틀 `episodes/_template/` · 고정 장면 `brand/scenes/`(intro·notebook·outro) · 주제 후보 `topics.md` · 설정·예산 `studio.config.json` · 장부 `tools/ledger.py`
