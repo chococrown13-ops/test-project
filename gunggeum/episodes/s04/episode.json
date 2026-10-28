@@ -1,0 +1,116 @@
+{
+  "title": "S04. 만리장성은 우주에서 맨눈으로 보인다? (반은 맞고 반은 틀려요 #2)",
+  "voice": "ko-KR-Chirp3-HD-Leda",
+  "speaking_rate": 1.05,
+  "pitch": 0,
+  "caption_size": 62,
+  "captions": false,
+  "caption_mode": "phrase",
+  "image_prompt_prefix": "Use the attached character sheet as the exact reference for the main character: a small chubby sea otter mascot with dark chocolate-brown fur, cream face, round black eyes, blush cheeks, a light sky-blue knitted scarf with a white wavy pattern, and a tiny yellow spiral notebook. Keep the same face, colors and proportions. Soft 3D render. Vertical 9:16. No text, no letters, no numbers, no logos.",
+  "motion_suffix": "Static camera, no zoom, no cuts. Gentle, natural, slow motion. Keep the character's appearance, light sky-blue scarf and tiny yellow notebook exactly the same as the first frame. No text, no new characters, no new objects. Vertical 9:16.",
+  "cover": {
+    "scene": 1,
+    "title": "우주에서 맨눈으로?\n**반은 틀렸어요**",
+    "title_size": 104,
+    "title_y": 0.07,
+    "fit": 0.7,
+    "fit_top": 0.31,
+    "badge": "궁금해달 · 반은 맞고 반은 틀려요 #2",
+    "badge_size": 44,
+    "badge_y": 0.255
+  },
+  "scenes": [
+    {
+      "image": "images/s1.jpg",
+      "video": "clips/s1.mp4",
+      "duration": 3.5,
+      "captions": false,
+      "title_y": 0.05,
+      "title": "팩트체크 #2\n만리장성 **맨눈으로?**",
+      "narration": [
+        "만리장성은, 우주에서 맨눈으로 보일까요? 반은 틀렸어요!"
+      ],
+      "image_prompt": "S1 hook: the otter sits next to a small glowing Earth globe, tilting its head, a big red question mark above.",
+      "motion": "The otter slowly tilts its head and blinks; the question mark bobs slightly.",
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.5,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.15,
+          "x": 0.5,
+          "y": 0.5
+        },
+        "ease": "out"
+      }
+    },
+    {
+      "image": "../../brand/scenes/intro.jpg",
+      "duration": 1.5,
+      "captions": false,
+      "title_y": 0.05,
+      "title": "**오늘의 궁금증**",
+      "narration": [
+        "오늘의 궁금증!"
+      ],
+      "min_duration": 2.0,
+      "camera": {
+        "from": {
+          "zoom": 1.0,
+          "x": 0.55,
+          "y": 0.5
+        },
+        "to": {
+          "zoom": 1.07,
+          "x": 0.55,
+          "y": 0.5
+        }
+      }
+    },
+    {
+      "image": "images/s3.jpg",
+      "duration": 6.0,
+      "title": "중국 첫 우주인은\n**못 봤다고 했어요**",
+      "narration": [
+        "중국의 첫 우주인 양리웨이는, 2003년에 우주에서 만리장성을 보지 못했다고 말했어요."
+      ],
+      "image_prompt": "S3: the otter peeks out of a small round spacecraft window at the blue Earth, looking puzzled."
+    },
+    {
+      "image": "images/s4.jpg",
+      "duration": 6.0,
+      "title": "나사도 맨눈으론\n**알아보기 어렵대요**",
+      "narration": [
+        "미국 항공우주국, 나사도, 맨눈으로는 알아보기 어렵다고 해요."
+      ],
+      "image_prompt": "S4: the otter holds small binoculars and squints at a hazy brown-green mountain landscape seen from far above, no wall visible."
+    },
+    {
+      "image": "images/s5.jpg",
+      "duration": 6.0,
+      "title": "다만 카메라엔\n**담겼대요**",
+      "narration": [
+        "다만 2004년에 우주정거장에서 찍은 사진에는, 만리장성이 담겼대요."
+      ],
+      "image_prompt": "S5: the otter holds a small camera and takes a photo of a long ancient stone wall winding along a mountain ridge below."
+    },
+    {
+      "image": "../../brand/scenes/notebook.jpg",
+      "duration": 6.0,
+      "title": "~~맨눈으로 보여요~~\n**카메라엔 담겨요**",
+      "narration": [
+        "수첩엔 이렇게 적었어요. 맨눈으로 보인다는 말은 틀렸고, 카메라에는 담길 수 있다!"
+      ]
+    },
+    {
+      "image": "../../brand/scenes/outro.jpg",
+      "duration": 4.5,
+      "title": "기준일 **2026-10-28**\n우주에서 뭐가 보일까요?",
+      "narration": [
+        "여러분은, 우주에서 뭐가 제일 잘 보일 것 같나요?"
+      ]
+    }
+  ]
+}
