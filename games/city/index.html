@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#1d2733" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏙️</text></svg>" />
+    <title>한강도시</title>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+
+    <header id="top">
+      <div class="city">
+        <button id="menuBtn" class="icon" aria-label="메뉴">☰</button>
+        <div>
+          <div id="cityName" class="name">새솔시</div>
+          <div id="date" class="date">2026년 3월 1일</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat" title="인구"><span class="k">인구</span><span id="pop" class="v">0</span></div>
+        <div class="stat" title="자금"><span class="k">자금</span><span id="money" class="v">0</span></div>
+        <div class="stat hide-s" title="행복도"><span class="k">행복</span><span id="happy" class="v">-</span></div>
+        <div class="rci" title="주거·상업·산업 수요">
+          <div class="bar r"><i id="dR"></i></div>
+          <div class="bar c"><i id="dC"></i></div>
+          <div class="bar i"><i id="dI"></i></div>
+          <div class="lab"><span>주</span><span>상</span><span>산</span></div>
+        </div>
+      </div>
+      <div class="speed" role="group" aria-label="속도">
+        <button data-speed="0" aria-label="일시정지">⏸</button>
+        <button data-speed="1" class="on" aria-label="보통">▶</button>
+        <button data-speed="2" aria-label="빠르게">▶▶</button>
+        <button data-speed="4" aria-label="아주 빠르게">▶▶▶</button>
+      </div>
+    </header>
+
+    <aside id="goal" class="card">
+      <div class="goal-head"><span class="tag">목표</span><span id="goalStep"></span><button id="goalFold" class="link" aria-label="접기">−</button></div>
+      <div id="goalText" class="goal-text"></div>
+      <div class="goal-bar"><i id="goalBar"></i></div>
+    </aside>
+
+    <div id="toasts"></div>
+    <div id="tip" class="tip"></div>
+
+    <section id="info" class="card sheet" hidden></section>
+    <section id="panel" class="card sheet wide" hidden></section>
+
+    <nav id="dock">
+      <div id="tools" class="tools" hidden></div>
+      <div id="cats" class="cats"></div>
+    </nav>
+
+    <div id="start" class="overlay">
+      <div class="card hero">
+        <div class="logo">🏙️</div>
+        <h1>한강도시</h1>
+        <p class="sub">강이 흐르는 빈 땅에 우리 도시를 세워 보세요.<br />도로를 깔고, 구역을 나누고, 전기와 물을 대면 사람들이 이사 와요.</p>
+        <label class="field">도시 이름<input id="nameInput" maxlength="10" value="새솔시" /></label>
+        <div class="row">
+          <button id="newBtn" class="primary">새 도시 시작</button>
+          <button id="loadBtn" class="ghost" hidden>이어하기</button>
+        </div>
+        <ul class="howto">
+          <li><b>PC</b> 좌클릭 건설 · 우클릭 드래그 회전 · 휠 확대 · WASD/가운데 버튼 이동</li>
+          <li><b>모바일</b> 한 손가락 건설(선택 도구일 땐 이동) · 두 손가락 이동/확대/회전</li>
+        </ul>
+      </div>
+    </div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

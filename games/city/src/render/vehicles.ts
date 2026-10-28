@@ -1,0 +1,89 @@
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { CELL, N, Road } from '../sim/defs';
+import { MAX_CARS, type Car, type Traffic } from '../sim/traffic';
+import type { World } from '../sim/world';
+import { shared } from './materials';
+
+function tinted(g: THREE.BufferGeometry, k: number) {
+  const n = g.attributes.position.count, a = new Float32Array(n * 3).fill(k);
+  g.setAttribute('color', new THREE.BufferAttribute(a, 3));
+  return g.toNonIndexed();
+}
+const box = (sx: number, sy: number, sz: number, x: number, y: number, z: number, k: number) => tinted(new THREE.BoxGeometry(sx, sy, sz).translate(x, y + sy / 2, z), k);
+
+/** Models face +x. Instance colour paints the body; glass and tyres stay dark. */
+const MODELS = [
+  // 승용차
+  mergeGeometries([box(4.3, 0.85, 1.8, 0, 0.3, 0, 1), box(2.3, 0.65, 1.6, -0.3, 1.15, 0, 0.22)]),
+  // 버스
+  mergeGeometries([box(10.5, 2.4, 2.4, 0, 0.35, 0, 1), box(10.3, 0.8, 2.45, 0, 1.45, 0, 0.18)]),
+  // 1톤 트럭 (포터)
+  mergeGeometries([box(1.9, 1.7, 1.75, 1.6, 0.3, 0, 1), box(0.9, 0.6, 1.7, 1.9, 1.25, 0, 0.2), box(3.1, 0.6, 1.8, -0.9, 0.35, 0, 0.75)]),
+] as THREE.BufferGeometry[];
+
+const CAR_COLORS = ['#f2f2f0', '#f2f2f0', '#1b1c1e', '#1b1c1e', '#a9adb2', '#a9adb2', '#6f7378', '#2a3d66', '#8c1d1d', '#e6e1d3'];
+const BUS_COLORS = ['#2e9e4f', '#2f6db5', '#2e9e4f', '#d9483b'];
+const TRUCK_COLORS = ['#2f5fa8', '#2f5fa8', '#f2f2f0'];
+
+export class VehicleLayer {
+  readonly group = new THREE.Group();
+  private meshes: THREE.InstancedMesh[];
+  private mat: THREE.MeshStandardMaterial;
+
+  constructor() {
+    this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.2 });
+    this.meshes = MODELS.map((g) => {
+      const m = new THREE.InstancedMesh(g, this.mat, MAX_CARS);
+      m.castShadow = true;
+      m.count = 0;
+      m.frustumCulled = false;
+      m.setColorAt(0, new THREE.Color());
+      this.group.add(m);
+      return m;
+    });
+  }
+
+  update(w: World, tr: Traffic) {
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
+    const n = [0, 0, 0];
+    const a = { x: 0, z: 0 }, b = { x: 0, z: 0 };
+    this.mat.emissive.setRGB(0.05 * shared.uNight.value, 0.05 * shared.uNight.value, 0.04 * shared.uNight.value);
+    for (const car of tr.cars) {
+      // Average two points along the path so cars round the corners.
+      sample(w, car, car.i + car.t - 0.3, a);
+      sample(w, car, car.i + car.t + 0.3, b);
+      const dx = b.x - a.x, dz = b.z - a.z;
+      if (dx * dx + dz * dz < 1e-4) continue;
+      const k = car.kind, i = n[k]++;
+      q.setFromAxisAngle(up, Math.atan2(-dz, dx));
+      p.set((a.x + b.x) / 2, 0.12, (a.z + b.z) / 2);
+      m.compose(p, q, one);
+      this.meshes[k].setMatrixAt(i, m);
+      const pal = k === 0 ? CAR_COLORS : k === 1 ? BUS_COLORS : TRUCK_COLORS;
+      c.set(pal[Math.floor(car.look * 997) % pal.length]);
+      this.meshes[k].setColorAt(i, c);
+    }
+    this.meshes.forEach((mesh, k) => {
+      mesh.count = n[k];
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    });
+  }
+}
+
+/** Position at path parameter s (cell index + fraction), in the right-hand lane. */
+function sample(w: World, car: Car, s: number, out: { x: number; z: number }) {
+  const path = car.path, last = path.length - 1;
+  s = Math.max(0, Math.min(last, s));
+  const i = Math.min(last - 1, Math.floor(s)), f = s - i;
+  const c0 = path[Math.max(0, i)], c1 = path[Math.min(last, i + 1)];
+  const x0 = (c0 % N) * CELL + 5, z0 = Math.floor(c0 / N) * CELL + 5;
+  const x1 = (c1 % N) * CELL + 5, z1 = Math.floor(c1 / N) * CELL + 5;
+  const dx = Math.sign(x1 - x0), dz = Math.sign(z1 - z0);
+  const cell = f < 0.5 ? c0 : c1;
+  const lane = w.road[cell] === Road.Avenue ? (car.look > 0.5 ? 4.1 : 1.6) : 1.6;
+  // Right of travel direction (dx, dz) with y up is (-dz, dx).
+  out.x = x0 + (x1 - x0) * f - dz * lane;
+  out.z = z0 + (z1 - z0) * f + dx * lane;
+}
