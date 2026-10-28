@@ -54,7 +54,7 @@ body { background: var(--color-paper); -webkit-user-select: none; user-select: n
 
 /* Top bar */
 #top { position: fixed; z-index: var(--z-sticky); top: calc(env(safe-area-inset-top, 0px) + 8px); left: var(--pad); right: var(--pad-r); min-height: var(--bar-h); display: flex; align-items: center; gap: var(--space-md); padding: var(--space-xs) var(--space-sm); }
-.city { min-width: 0; flex: 1 1 auto; }
+.city { min-width: 3em; flex: 1 1 auto; }
 .city .name { font-family: var(--font-display); font-size: var(--text-lg); line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .city .date { font-size: var(--text-xs); color: var(--color-muted); white-space: nowrap; }
 .stats { display: flex; gap: var(--space-md); margin: 0; flex: none; }
@@ -180,9 +180,11 @@ body { background: var(--color-paper); -webkit-user-select: none; user-select: n
   :root { --bar-h: 52px; }
   #top { gap: var(--space-xs); padding: var(--space-2xs) var(--space-xs); }
   .hide-s, .city .date { display: none; }
-  .stats { gap: var(--space-sm); }
-  .speed button { min-width: 36px; padding: 0 var(--space-2xs); }
+  .stats { gap: var(--space-xs); }
+  .speed button { min-width: 32px; padding: 0 var(--space-3xs); }
   .speed button[data-speed='4'] { display: none; }
+  .stat dd { font-size: var(--text-md); }
+  .rci { grid-template-columns: repeat(3, 8px); }
   #goal { right: var(--pad-r); width: auto; }
   #toasts { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 168px); }
   .sheet, .sheet.wide { left: var(--pad); right: var(--pad-r); width: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 92px); max-height: 52vh; }

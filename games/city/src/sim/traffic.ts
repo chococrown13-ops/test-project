@@ -1,5 +1,6 @@
 import { CELL, KINDS, N, ROAD_CAPACITY, ROAD_SPEED, Zone } from './defs';
 import { network } from './network';
+import { cellOf, forEachNeighbour, NN, roadTypeOf } from './graph';
 import { tryTransit } from './transit';
 import { rand, type World } from './world';
 
@@ -12,7 +13,7 @@ export interface Car {
   path: Int32Array;
   i: number;
   t: number;
-  kind: 0 | 1 | 2; // car, bus-ish van, truck
+  kind: 0 | 1 | 2 | 3; // car, bus-ish van, truck, delivery scooter
   look: number;
   age: number;
 }
@@ -31,7 +32,7 @@ export interface Traffic {
 }
 
 export function createTraffic(): Traffic {
-  return { cars: [], load: new Uint16Array(N * N), routes: new Map(), routesVer: -1, tripTime: 0, trips: 0 };
+  return { cars: [], load: new Uint16Array(NN * 2), routes: new Map(), routesVer: -1, tripTime: 0, trips: 0 };
 }
 
 /** Rush hours fill the roads; nights are quiet. */
@@ -80,7 +81,9 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
       const path = route(w, tr, a, b);
       if (!path || path.length < 2) continue;
       const kindRoll = rand(w);
-      tr.cars.push({ path, i: 0, t: 0, kind: kindRoll < 0.08 ? 2 : kindRoll < 0.15 ? 1 : 0, look: rand(w), age: 0 });
+      // Shop trips are often 배달 오토바이 bringing chicken and 짜장면.
+      const kind = goShop && kindRoll < 0.3 ? 3 : kindRoll < 0.08 ? 2 : kindRoll < 0.15 ? 1 : 0;
+      tr.cars.push({ path, i: 0, t: 0, kind, look: rand(w), age: 0 });
     }
   }
   // Move.
@@ -88,11 +91,15 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
   for (const c of tr.cars) tr.load[c.path[c.i]]++;
   const keep: Car[] = [];
   for (const c of tr.cars) {
-    const cell = c.path[c.i];
-    const r = (w.road[cell] || 1) as 1 | 2;
-    const over = tr.load[cell] / ROAD_CAPACITY[r];
+    const node = c.path[c.i];
+    const r = (roadTypeOf(w, node) || 1) as 1 | 2;
+    const over = tr.load[node] / ROAD_CAPACITY[r];
     const slow = over > 1 ? 1 / (1 + (over - 1) * 1.8) : 1;
-    const v = (ROAD_SPEED[r] * PACE * slow) / CELL;
+    // A diagonal step is √2 cells long, so it takes longer to cover.
+    const next = c.path[Math.min(c.i + 1, c.path.length - 1)];
+    const a = cellOf(node), b = cellOf(next);
+    const len = a % N !== b % N && ((a / N) | 0) !== ((b / N) | 0) ? Math.SQRT2 : 1;
+    const v = (ROAD_SPEED[r] * PACE * slow) / CELL / len;
     c.t += v * dt;
     c.age += dt;
     while (c.t >= 1 && c.i < c.path.length - 1) {
@@ -112,8 +119,9 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
   // Congestion field: load relative to capacity, smoothed over time.
   const k = Math.min(1, dt * 0.6);
   for (let i = 0; i < N * N; i++) {
-    const r = w.road[i] as 0 | 1 | 2;
-    const lv = r ? tr.load[i] / ROAD_CAPACITY[r as 1 | 2] : 0;
+    // The busier of the two layers sets the cell's congestion.
+    const r = w.road[i] as 0 | 1 | 2, ra = w.roadAlt[i] as 0 | 1 | 2;
+    const lv = Math.max(r ? tr.load[i] / ROAD_CAPACITY[r as 1 | 2] : 0, ra ? tr.load[i + NN] / ROAD_CAPACITY[ra as 1 | 2] : 0);
     w.traffic[i] += (Math.min(2, lv) - w.traffic[i]) * k;
   }
 }
@@ -127,7 +135,7 @@ export function closeDay(w: World, tr: Traffic) {
   tr.tripTime = 0;
   tr.trips = 0;
   let sum = 0, n = 0;
-  for (let i = 0; i < N * N; i++) if (w.road[i]) { sum += Math.min(1.5, w.traffic[i]); n++; }
+  for (let i = 0; i < N * N; i++) if (w.road[i] || w.roadAlt[i]) { sum += Math.min(1.5, w.traffic[i]); n++; }
   w.stats.congestion = n ? sum / n : 0;
 }
 
@@ -149,9 +157,9 @@ export function route(w: World, tr: Traffic, from: number, to: number): Int32Arr
   return p;
 }
 
-/** A* on road cells; avenues are faster so routes prefer them. */
+/** A* over road nodes; avenues are faster so routes prefer them. */
 function astar(w: World, from: number, to: number): Int32Array | null {
-  const tx = to % N, ty = (to / N) | 0;
+  const tc = cellOf(to), tx = tc % N, ty = (tc / N) | 0;
   const g = new Map<number, number>();
   const prev = new Map<number, number>();
   const heap = new Heap();
@@ -162,18 +170,16 @@ function astar(w: World, from: number, to: number): Int32Array | null {
     const c = heap.pop();
     if (c === to) break;
     const gc = g.get(c)!;
-    const x = c % N, y = (c / N) | 0;
-    const nb = [x > 0 ? c - 1 : -1, x < N - 1 ? c + 1 : -1, y > 0 ? c - N : -1, y < N - 1 ? c + N : -1];
-    for (const n of nb) {
-      if (n < 0 || !w.road[n]) continue;
-      const cost = gc + 1 / ROAD_SPEED[w.road[n] as 1 | 2];
+    forEachNeighbour(w, c, (n, len) => {
+      const cost = gc + len / ROAD_SPEED[roadTypeOf(w, n) as 1 | 2];
       if (cost < (g.get(n) ?? Infinity)) {
         g.set(n, cost);
         prev.set(n, c);
-        const h = (Math.abs((n % N) - tx) + Math.abs(((n / N) | 0) - ty)) / vmax;
-        heap.push(n, cost + h);
+        const nc = cellOf(n), dx = Math.abs((nc % N) - tx), dy = Math.abs(((nc / N) | 0) - ty);
+        // Octile distance: diagonals are allowed.
+        heap.push(n, cost + (Math.max(dx, dy) + (Math.SQRT2 - 1) * Math.min(dx, dy)) / vmax);
       }
-    }
+    });
   }
   if (!prev.has(to) && from !== to) return null;
   const out: number[] = [to];

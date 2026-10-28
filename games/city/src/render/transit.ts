@@ -4,6 +4,7 @@ import { CELL, N, Road } from '../sim/defs';
 import { busCount, busRoute, type LineKind } from '../sim/transit';
 import type { World } from '../sim/world';
 import { shared } from './materials';
+import { nodeCentre, nodeY } from './roadheight';
 
 const BUS_SPEED = 2.4; // cells per second at 1x
 const TRAIN_SPEED = 7;
@@ -88,7 +89,7 @@ export class TransitLayer {
       if (l.kind === 'bus') {
         for (const s of l.stops) if (!done.has(s)) { done.add(s); this.shelter(w, s, l.color); }
         const p = busRoute(w, l.stops, l.id);
-        if (p) this.routes.add(ribbon(Array.from(p).map(centre), l.color, 1.6, 0.7));
+        if (p) this.routes.add(ribbon(Array.from(p).map(nodeCentre), l.color, 1.6, 0.7));
       } else {
         this.routes.add(ribbon(l.stops.map(centre), l.color, 3.2, 0.9));
         for (const s of l.stops) this.routes.add(disc(centre(s), l.color, 4.2));
@@ -121,7 +122,7 @@ export class TransitLayer {
     const color = draft.kind === 'bus' ? '#2e9e4f' : '#263c96';
     for (const s of draft.stops) this.draft.add(disc(centre(s), color, draft.kind === 'bus' ? 3 : 4.5, 1.2));
     if (draft.stops.length < 2) return;
-    const pts = draft.kind === 'bus' ? Array.from(busRoute(w, draft.stops) ?? []).map(centre) : draft.stops.map(centre);
+    const pts = draft.kind === 'bus' ? Array.from(busRoute(w, draft.stops) ?? []).map(nodeCentre) : draft.stops.map(centre);
     if (pts.length > 1) this.draft.add(ribbon(pts, color, draft.kind === 'bus' ? 1.6 : 3.2, 1.1));
   }
 
@@ -137,9 +138,9 @@ export class TransitLayer {
         const n = busCount(w, l), L = path.length - 1;
         for (let k = 0; k < n && nb < MAX_BUSES; k++) {
           const s = (t * BUS_SPEED + (k * L) / n) % L;
-          const a = along(path, s - 0.35, true), b = along(path, s + 0.35, true);
+          const a = along(w, path, s - 0.35, true), b = along(w, path, s + 0.35, true);
           q.setFromAxisAngle(up, Math.atan2(-(b.z - a.z), b.x - a.x));
-          p.set((a.x + b.x) / 2, 0.12, (a.z + b.z) / 2);
+          p.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
           this.buses.setMatrixAt(nb, m.compose(p, q, one));
           this.buses.setColorAt(nb++, c);
         }
@@ -174,13 +175,15 @@ export class TransitLayer {
 }
 
 /** Point along a cell path at parameter s, in the right-hand lane. */
-function along(path: Int32Array, s: number, loop: boolean) {
+function along(w: World, path: Int32Array, s: number, loop: boolean) {
   const L = path.length - 1;
   if (loop) s = ((s % L) + L) % L; else s = Math.max(0, Math.min(L, s));
   const i = Math.min(L - 1, Math.floor(s)), f = s - i;
-  const a = centre(path[i]), b = centre(path[i + 1]);
-  const dx = Math.sign(b.x - a.x), dz = Math.sign(b.z - a.z);
-  return { x: a.x + (b.x - a.x) * f - dz * 1.7, z: a.z + (b.z - a.z) * f + dx * 1.7 };
+  const a = nodeCentre(path[i]), b = nodeCentre(path[i + 1]);
+  const len = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+  const dx = (b.x - a.x) / len, dz = (b.z - a.z) / len;
+  const y = nodeY(w, path[i]) + (nodeY(w, path[i + 1]) - nodeY(w, path[i])) * f;
+  return { x: a.x + (b.x - a.x) * f - dz * 1.7, z: a.z + (b.z - a.z) * f + dx * 1.7, y };
 }
 
 /** A flat coloured band through points, for route maps. */

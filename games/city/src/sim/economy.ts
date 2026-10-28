@@ -23,7 +23,11 @@ export function accrueDay(w: World) {
   });
   for (const l of w.lines) m.expense.transit += lineUpkeep(w, l) / 30;
   let roads = 0;
-  for (let i = 0; i < N * N; i++) if (w.road[i]) roads += ROAD_UPKEEP[w.road[i] as 1 | 2];
+  for (let i = 0; i < N * N; i++) {
+    if (w.road[i]) roads += ROAD_UPKEEP[w.road[i] as 1 | 2];
+    // Flyovers need inspections, tunnels ventilation and lighting.
+    if (w.roadAlt[i]) roads += ROAD_UPKEEP[w.roadAlt[i] as 1 | 2] * (w.altLevel[i] === 1 ? 2 : 3);
+  }
   m.expense.roads += roads / 30;
 }
 

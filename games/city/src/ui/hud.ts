@@ -1,4 +1,4 @@
-import { Ground, KINDS, N, Road, SERVICE, ZONE_NAME, Zone } from '../sim/defs';
+import { displayName, Ground, KINDS, LEVEL_NAME, N, Road, SERVICE, ZONE_NAME, Zone } from '../sim/defs';
 import { monthExpense, monthIncome } from '../sim/economy';
 import { network } from '../sim/network';
 import { busCount, lineCost, lineUpkeep, type LineKind } from '../sim/transit';
@@ -81,6 +81,8 @@ export const GOALS: Goal[] = [
   { text: '첫 아파트 단지를 세우세요. 땅값 높은 다세대 4채가 모이면 재건축돼요.', done: (w) => count(w, (b) => b.kind === 'r3') > 0 },
   { text: '인구 5,000명. 대로와 버스로 교통 체증을 줄이세요.', done: (w) => w.stats.pop >= 5000 },
   { text: '지하철 1호선을 개통하세요. 역 주변은 역세권이 돼요.', done: (w) => w.lines.some((l) => l.kind === 'metro') },
+  { text: '고가도로, 지하차도, 터널 중 하나로 막힌 길을 뚫어 보세요.', done: (w) => w.roadAlt.some((r) => r > 0) },
+  { text: '명소를 하나 지어 보세요. 전통시장, 한강공원, 고궁, 전망타워가 있어요.', done: (w) => count(w, (b) => ['market', 'riverpark', 'palace', 'tower'].includes(b.kind)) > 0 },
   { text: '첫 오피스 타워를 올리세요. 상업 구역의 땅값이 관건이에요.', done: (w) => count(w, (b) => b.kind === 'c3') > 0 },
   { text: '인구 20,000명. 진짜 도시가 됐어요!', done: (w) => w.stats.pop >= 20000 },
 ];
@@ -114,7 +116,7 @@ export function infoHtml(w: World, x: number, y: number): string {
     const d = KINDS[b.kind];
     const net = network(w);
     const hasRoad = net.access.has(b.id);
-    let h = head(d.name);
+    let h = head(displayName(b.kind, b.look));
     if (d.zone) {
       const cap = d.residents ?? d.jobs ?? 0;
       h += tags(ZONE_NAME[d.zone], `${d.level}단계`, `${b.floors}층`, b.abandoned ? '폐가' : '');
@@ -147,15 +149,18 @@ export function infoHtml(w: World, x: number, y: number): string {
     }
     return h;
   }
-  if (w.road[i]) {
-    const t = w.road[i] === Road.Avenue ? '4차선 대로' : '일반 도로';
+  if (w.road[i] || w.roadAlt[i]) {
+    const t = !w.road[i] ? LEVEL_NAME[w.altLevel[i]] : w.diag[i] ? '대각선 도로' : w.road[i] === Road.Avenue ? '4차선 대로' : '일반 도로';
     const load = Math.round(Math.min(150, w.traffic[i] * 100));
     const stops = w.lines.filter((l) => l.kind === 'bus' && l.stops.includes(i));
-    let h = `${head(t)}${kv('교통량', state(toneOf(100 - load), `${load}%`))}${meter(100 - load)}${kv('다리', w.ground[i] === Ground.Water ? '예' : '아니오')}`;
+    let h = `${head(t)}${kv('교통량', state(toneOf(100 - load), `${load}%`))}${meter(100 - load)}`;
+    if (w.road[i]) h += kv('다리', w.ground[i] === Ground.Water ? '예' : '아니오');
+    if (w.road[i] && w.roadAlt[i]) h += kv(w.altLevel[i] === 1 ? '위로 지나는 길' : '아래로 지나는 길', LEVEL_NAME[w.altLevel[i]]);
     for (const l of stops) h += kv(`<span class="sw" style="--sw:${l.color}"></span>${esc(l.name)} 정류장`, `지난달 ${num(l.riders)}명`);
     return h;
   }
-  if (w.ground[i] === Ground.Water) return `${head('강')}<p class="hint">도로를 놓으면 다리가 돼요. 비용은 4배예요.</p>`;
+  if (w.ground[i] === Ground.Water) return `${head('강')}<p class="hint">도로를 놓으면 다리가 돼요. 비용은 4배예요. 강 밑으로는 터널을 뚫을 수 있어요.</p>`;
+  if (w.ground[i] === Ground.Mountain) return `${head('산')}<p class="hint">산에는 집을 짓거나 길을 낼 수 없어요. 터널로 뚫고 지나가거나, 꼭대기에 전망타워를 세울 수 있어요. 산이 보이는 동네는 땅값이 조금 올라요.</p>`;
   return `${head('빈 땅')}${w.zone[i] ? kv('구역', ZONE_NAME[w.zone[i]]) : ''}${kv('땅값', `${Math.round(w.land[i])}`)}${kv('오염', `${Math.round(w.pollution[i])}`)}`;
 }
 
@@ -255,7 +260,7 @@ export const HELP = `${head('조작법')}
 <h4>카메라</h4>
 ${kv('이동', 'WASD, 방향키, 가운데 버튼 드래그')}${kv('회전', '우클릭 드래그, Q와 E')}${kv('확대', '마우스 휠, R과 F')}${kv('모바일', '두 손가락으로 이동, 확대, 회전')}
 <h4>건설</h4>
-${kv('도로', '드래그해서 직선이나 ㄱ자')}${kv('구역', '드래그해서 사각형으로 칠하기')}${kv('시설', '탭하거나 클릭해서 배치')}${kv('노선', '정류장을 차례로 찍고 완성')}${kv('취소', 'Esc 또는 우클릭')}
+${kv('도로', '드래그해서 직선이나 ㄱ자, 대각선을 켜면 45도')}${kv('고가와 터널', '도로 끝에서 끝까지 끌면 양 끝이 진입로가 돼요')}${kv('구역', '드래그해서 사각형으로 칠하기')}${kv('시설', '탭하거나 클릭해서 배치')}${kv('노선', '정류장을 차례로 찍고 완성')}${kv('취소', 'Esc 또는 우클릭')}
 <h4>단축키</h4>
-${kv('도구', 'Z 도로, X 구역, C 전기, V 상하수도, B 공공, N 대중교통, M 공원')}${kv('속도', 'Space 멈춤, 1, 2, 3')}
+${kv('도구', 'Z 도로, X 구역, C 전기, V 상하수도, B 공공, N 대중교통, M 공원, L 명소')}${kv('대각선', 'T')}${kv('속도', 'Space 멈춤, 1, 2, 3')}
 <p class="hint">전기와 수도는 도로 밑으로 흘러요. 발전소와 정수장이 도로망에 붙어 있어야 해요. 화력 발전소, 하수처리장, 공장은 오염을 내니 주거지와 떨어뜨리세요.</p>`;

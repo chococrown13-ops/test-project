@@ -54,6 +54,15 @@ export function stepDay(s: Sim) {
     notify(w, `${text} 국비 지원 ${grant.toLocaleString('ko-KR')}만 원`, 'good');
   }
   if (w.day % 15 === 0) warnings(w);
+  if (w.day % 30 === 0) seasonNotice(w);
+}
+
+/** The calendar month (1-12) of a game day; the game starts in March. */
+export const calendarMonth = (day: number) => ((Math.floor(day / 30) + 2) % 12) + 1;
+
+function seasonNotice(w: World) {
+  const text = ({ 4: '벚꽃이 활짝 피었어요. 강변이 분홍빛이에요.', 7: '장마철이에요. 여름이 시작됐어요.', 10: '단풍이 들기 시작했어요.', 12: '첫눈이 내렸어요.' } as Record<number, string>)[calendarMonth(w.day)];
+  if (text) notify(w, text, 'info');
 }
 
 function warnings(w: World) {

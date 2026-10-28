@@ -38,6 +38,12 @@ export interface World {
   money: number;
   ground: Uint8Array;
   road: Uint8Array;
+  /** A second road in the cell, over or under the ground one (type, as in `road`). */
+  roadAlt: Uint8Array;
+  /** Its level: Level.Elevated, Underpass or Tunnel. */
+  altLevel: Uint8Array;
+  /** Diagonal links of the ground road: 1 NE, 2 SE, 4 SW, 8 NW. */
+  diag: Uint8Array;
   zone: Uint8Array;
   bld: Int32Array;
   land: Float32Array;
@@ -114,6 +120,9 @@ export function createWorld(seed = 20261028, name = '새솔시'): World {
     money: START_MONEY,
     ground: new Uint8Array(size),
     road: new Uint8Array(size),
+    roadAlt: new Uint8Array(size),
+    altLevel: new Uint8Array(size),
+    diag: new Uint8Array(size),
     zone: new Uint8Array(size),
     bld: new Int32Array(size).fill(-1),
     land: new Float32Array(size),
@@ -144,8 +153,43 @@ export function createWorld(seed = 20261028, name = '새솔시'): World {
   }
   // The city starts with an expressway link from the west edge: the outside world.
   const row = Math.round(riverY(0, seed) - 22);
+  // Mountains behind the city and a hill across the river: 배산임수.
+  const hills = terrainField(seed);
+  for (let i = 0; i < size; i++) if (hills[i] > 0 && w.ground[i] === Ground.Land) w.ground[i] = Ground.Mountain;
   for (let x = 0; x <= 22; x++) w.road[idx(x, row)] = Road.Avenue;
   return w;
+}
+
+const fh = (x: number, y: number) => { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); };
+function vnoise(x: number, y: number): number {
+  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = fh(xi, yi), b = fh(xi + 1, yi), c = fh(xi, yi + 1), d = fh(xi + 1, yi + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+
+/**
+ * Mountain heights in metres per cell (0 on flat land), from the seed alone so
+ * the renderer can rebuild it. A ridge runs along the north edge and one hill
+ * stands south of the river; the river, its banks and the start road stay flat.
+ */
+export function terrainField(seed: number): Float32Array {
+  const h = new Float32Array(N * N);
+  const o = (seed % 997) * 0.37;
+  const row = Math.round(riverY(0, seed) - 22);
+  const hx = Math.round(N * (0.55 + (seed % 7) * 0.03)), hy = Math.round(Math.min(N - 14, riverY(hx, seed) + 22));
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const depth = 6 + vnoise(x / 13 + o, 3.1) * 13;
+    let v = 0;
+    if (y < depth) v = ((depth - y) / depth) ** 0.8 * (45 + vnoise(x / 8 + o, 7.7) * 50);
+    const d = Math.hypot(x - hx, y - hy), r = 7.5 + vnoise(o, 1.3) * 3;
+    if (d < r) v = Math.max(v, (1 - d / r) ** 1.2 * (55 + vnoise(o, 9.1) * 25));
+    v *= 0.85 + vnoise(x / 4 + o, y / 4) * 0.3;
+    const river = Math.abs(y + 0.5 - riverY(x, seed));
+    if (river < 9 || (x < 40 && Math.abs(y - row) < 12) || v < 4) v = 0;
+    h[y * N + x] = v;
+  }
+  return h;
 }
 
 export function notify(w: World, text: string, tone: 'info' | 'warn' | 'good' = 'info') {

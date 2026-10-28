@@ -7,6 +7,8 @@ import * as THREE from 'three';
 export const shared = {
   uNight: { value: 0 },
   uTime: { value: 0 },
+  /** 0..1: how much snow lies on the ground and roofs (winter months). */
+  uSnow: { value: 0 },
 };
 
 /**
@@ -23,6 +25,7 @@ export function buildingMaterial(): THREE.MeshStandardMaterial {
   const m = new THREE.MeshStandardMaterial({ vertexColors: false, roughness: 0.85, metalness: 0.0 });
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uNight = shared.uNight;
+    sh.uniforms.uSnow = shared.uSnow;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
         attribute float aStyle;
@@ -43,6 +46,7 @@ export function buildingMaterial(): THREE.MeshStandardMaterial {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
         uniform float uNight;
+        uniform float uSnow;
         varying vec3 vWP;
         varying vec3 vWN;
         varying float vStyle;
@@ -60,6 +64,8 @@ export function buildingMaterial(): THREE.MeshStandardMaterial {
           // Rooftops: the green waterproof paint on Korean villas and shops.
           if (st < 0.5 || abs(st - 2.0) < 0.5) diffuseColor.rgb = vec3(0.36, 0.55, 0.42);
           else diffuseColor.rgb *= 0.78;
+          // Winter: roofs whiten under the snow.
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.94, 0.96, 0.98), uSnow * 0.85);
         } else {
           vec2 t = normalize(vec2(-vWN.z, vWN.x));
           float u = dot(vWP.xz, t);
@@ -96,7 +102,7 @@ export function buildingMaterial(): THREE.MeshStandardMaterial {
         }
         diffuseColor.rgb *= 1.0 - abandoned * 0.35;`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-        totalEmissiveRadiance += lit * uNight * (abs(floor(vStyle + 0.5) - 2.0) < 0.5 && vWP.y < 9.0 && fract(vWP.y / 3.0) > 0.85 ? vSign * 1.6 : (winTint < 0.7 ? vec3(1.0, 0.78, 0.45) : winTint < 0.9 ? vec3(0.95, 0.92, 0.82) : vec3(0.55, 0.7, 1.0)) * 1.35);`);
+        totalEmissiveRadiance += lit * uNight * (abs(floor(vStyle + 0.5) - 2.0) < 0.5 && vWP.y < 9.0 && fract(vWP.y / 3.0) > 0.85 ? vSign * 1.6 : (winTint < 0.7 ? vec3(1.0, 0.78, 0.45) : winTint < 0.9 ? vec3(0.95, 0.92, 0.82) : vec3(0.55, 0.7, 1.0)) * 0.95);`);
   };
   m.customProgramCacheKey = () => 'city-building';
   return m;

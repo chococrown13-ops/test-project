@@ -1,4 +1,5 @@
 import { Ground, KINDS, N, SEWAGE_CAPACITY, ZONE_DEPTH } from './defs';
+import { forEachNeighbour, NN, nodeExists } from './graph';
 import { idx, inside, type Building, type World } from './world';
 
 /**
@@ -8,6 +9,7 @@ import { idx, inside, type Building, type World } from './world';
  */
 export interface Net {
   ver: string;
+  /** Component id per graph node (both road layers), -1 off the network. */
   comp: Int32Array;
   /** Component ids that touch the map edge, i.e. reach the outside world. */
   outside: Set<number>;
@@ -20,21 +22,20 @@ let cache: Net | null = null;
 export function network(w: World): Net {
   const ver = `${w.ver.roads}:${w.ver.buildings}`;
   if (cache && cache.ver === ver) return cache;
-  const comp = new Int32Array(N * N).fill(-1);
+  const comp = new Int32Array(NN * 2).fill(-1);
   const outside = new Set<number>();
   let next = 0;
   const stack: number[] = [];
-  for (let s = 0; s < N * N; s++) {
-    if (!w.road[s] || comp[s] >= 0) continue;
+  for (let s = 0; s < NN * 2; s++) {
+    if (comp[s] >= 0 || !nodeExists(w, s)) continue;
     const id = next++;
     comp[s] = id;
     stack.push(s);
     while (stack.length) {
-      const c = stack.pop()!;
-      const x = c % N, y = (c / N) | 0;
+      const node = stack.pop()!;
+      const c = node % NN, x = c % N, y = (c / N) | 0;
       if (x === 0 || y === 0 || x === N - 1 || y === N - 1) outside.add(id);
-      const nb = [x > 0 ? c - 1 : -1, x < N - 1 ? c + 1 : -1, y > 0 ? c - N : -1, y < N - 1 ? c + N : -1];
-      for (const n of nb) if (n >= 0 && w.road[n] && comp[n] < 0) { comp[n] = id; stack.push(n); }
+      forEachNeighbour(w, node, (n) => { if (comp[n] < 0) { comp[n] = id; stack.push(n); } });
     }
   }
   const access = new Map<number, number>();
@@ -57,7 +58,7 @@ export function findAccess(w: World, b: { x: number; y: number; size: number }):
       if (!inside(x, y)) return;
       const i = idx(x, y);
       if (w.road[i]) { if (d < bestD) { bestD = d; best = i; } return; }
-      if (w.ground[i] === Ground.Water) return;
+      if (w.ground[i] !== Ground.Land) return;
     }
   };
   for (let k = 0; k < b.size; k++) {

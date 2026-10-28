@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { CELL, KINDS, N } from '../sim/defs';
+import { CELL, KINDS, N, variantOf } from '../sim/defs';
 import { network } from '../sim/network';
 import type { Building, World } from '../sim/world';
-import { buildingMaterial } from './materials';
+import { buildingMaterial, shared } from './materials';
 
 /**
  * Every building is a handful of parts — boxes, sawtooth prisms, cylinders,
@@ -11,7 +11,7 @@ import { buildingMaterial } from './materials';
  * white apartment slabs with a brand stripe, shop buildings covered in signs.
  */
 
-type Shape = 'box' | 'prism' | 'cyl' | 'cone';
+type Shape = 'box' | 'prism' | 'cyl' | 'cone' | 'vault' | 'neon';
 interface Part {
   shape: Shape;
   x: number; y: number; z: number; // base centre
@@ -31,6 +31,8 @@ function seq(seed: number) {
   return () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
 }
 
+/** Signboard colour per 상가 trade, in VARIANTS order. */
+const C1_SIGN = ['#2bb24c', '#f2c12e', '#3d6b4f', '#2f6fd6', '#e2559b', '#1f4e9a', '#e8743b'];
 const BRICK = ['#a8553f', '#b4674a', '#c9a27e', '#e6ddcc', '#d6c7ad', '#94493a', '#cdb79a'];
 const TILE = ['#ebe8e1', '#dcd5c6', '#c9b89d', '#c3cacd', '#e3d7c3', '#d4c6b0'];
 const APT = ['#f1efe9', '#ebe6db', '#e2e6e8', '#eeeae2'];
@@ -94,16 +96,25 @@ function parts(b: Building, w: World): Part[] {
       break;
     }
     case 'c1': {
+      // The trade decides the signboard: 편의점, 치킨집, 카페, PC방, 노래방, 부동산, 분식집.
+      const v = variantOf('c1', b.look);
       const wdt = 8.2 + r() * 1.2, dep = 8.2 + r() * 1.2;
-      box(0, 0, 0, wdt, H, dep, pick(SHOP, r()), STYLE.shops, pick(SIGN, r()));
+      box(0, 0, 0, wdt, H, dep, pick(SHOP, r()), STYLE.shops, C1_SIGN[v]);
+      if (v === 0) box(0, 3.05, dep / 2 + 0.05, wdt * 0.9, 0.5, 0.2, C1_SIGN[v]); // the lit fascia of a 편의점
+      if (v === 2) shape('prism', 0, 2.6, dep / 2 + 0.6, wdt * 0.8, 0.6, 1.2, '#2f5a43'); // café awning
       rooftop(H, Math.min(wdt, dep));
       break;
     }
     case 'c2': {
+      const v = variantOf('c2', b.look);
       const wdt = 8.6 + r() * 0.8, dep = 8.6 + r() * 0.8;
-      box(0, 0, 0, wdt, H, dep, pick(SHOP, r()), STYLE.shops, pick(SIGN, r()));
+      box(0, 0, 0, wdt, H, dep, pick(SHOP, r()), STYLE.shops, v === 1 ? '#f2c12e' : v === 2 ? '#2fa35a' : pick(SIGN, r()));
       box(0, H, 0, wdt - 1, 0.8, dep - 1, '#9c9a94');
-      rooftop(H + 0.8, wdt - 1);
+      if (v === 3) {
+        // A church upstairs: the red neon cross that lights up Korean skylines at night.
+        out.push({ shape: 'neon', x: cx + wdt / 4, y: H + 0.8, z: cz, sx: 0.32, sy: 3.4, sz: 0.32, rot: 0, color: '#ff3b30', style: 0 });
+        out.push({ shape: 'neon', x: cx + wdt / 4, y: H + 3.0, z: cz, sx: 1.7, sy: 0.32, sz: 0.32, rot: 0, color: '#ff3b30', style: 0 });
+      } else rooftop(H + 0.8, wdt - 1);
       break;
     }
     case 'c3': {
@@ -190,6 +201,57 @@ function parts(b: Building, w: World): Part[] {
       box(-3.2, 0, -2.6, 0.5, 4.2, 0.5, '#e7ebee');
       box(-3.2, 4.2, -2.6, 1.6, 1.0, 0.4, '#263c96');
       break;
+    case 'market': {
+      // 전통시장: two rows of stalls under a translucent arcade roof.
+      for (const z of [-4.6, 4.6]) {
+        box(0, 0, z, 18, 3, 3.2, '#d9cfbf', STYLE.shops, pick(SIGN, r()));
+        for (let k = 0; k < 4; k++) shape('prism', -6.75 + k * 4.5, 2.4, z - Math.sign(z) * 2.1, 4.2, 0.7, 1.2, pick(['#d9483b', '#2f6db5', '#e0a400', '#2e9e4f'], r()), z > 0 ? 0 : Math.PI);
+      }
+      shape('vault', 0, 4.2, 0, 19, 3.2, 12.4, '#a9cfe3');
+      box(-9.6, 0, -6.4, 0.5, 6.4, 0.5, '#7a3b2e');
+      box(-9.6, 0, 6.4, 0.5, 6.4, 0.5, '#7a3b2e');
+      box(-9.6, 6.0, 0, 0.6, 1.4, 13.4, '#c0392b');
+      break;
+    }
+    case 'riverpark': {
+      // 한강공원: a bike path, a kiosk, picnic tents.
+      box(0, 0, 3, 19.6, 0.06, 2, '#d9c08a');
+      box(-6, 0, -4, 3.4, 2.8, 3, '#f4f6f6', STYLE.shops, '#2bb24c');
+      for (const [x, z, col] of [[2, -5, '#e74c3c'], [6, -3, '#3498db'], [3, -1, '#f1c40f']] as [number, number, string][]) {
+        shape('prism', x, 0, z, 2.2, 1.4, 1.1, col, 0);
+        shape('prism', x, 0, z - 1.1, 2.2, 1.4, 1.1, col, Math.PI);
+      }
+      for (const x of [-2, 8]) box(x, 0, 6, 1.6, 0.45, 0.5, '#8a5a3a');
+      break;
+    }
+    case 'palace': {
+      // 고궁: stone terrace, a hall with red pillars and green eaves, tiled gable roof, walls and a gate.
+      const S2 = 13.5;
+      for (const [x, z, sx, sz] of [[0, -S2, 27, 0.8], [0, S2, 27, 0.8], [-S2, 0, 0.8, 27], [S2, 0, 0.8, 27]] as number[][]) {
+        box(x, 0, z, sx, 2.6, sz, '#d8cfc0');
+        box(x, 2.6, z, sx + 0.6, 0.5, sz + 0.6, '#4a4f55');
+      }
+      box(0, 0, -2, 20, 1.4, 14, '#cfc8b8');
+      box(0, 1.4, -2, 15, 4.6, 8, '#a33b2c');
+      box(0, 6, -2, 18.5, 0.7, 11.5, '#2f6b5e');
+      shape('prism', 0, 6.7, -2 + 3, 19, 4.2, 6, '#474c52', Math.PI);
+      shape('prism', 0, 6.7, -2 - 3, 19, 4.2, 6, '#474c52', 0);
+      box(0, 0, S2, 7, 4.6, 3, '#a33b2c');
+      box(0, 4.6, S2, 8.6, 0.5, 4.4, '#2f6b5e');
+      shape('prism', 0, 5.1, S2 + 1.1, 9, 2.4, 2.2, '#474c52', Math.PI);
+      shape('prism', 0, 5.1, S2 - 1.1, 9, 2.4, 2.2, '#474c52', 0);
+      break;
+    }
+    case 'tower': {
+      // 전망타워 on the hilltop, its beacon red at night.
+      box(0, 0, 0, 9, 4, 7, '#e7ebee', STYLE.office);
+      shape('cyl', 0, 4, 0, 3.2, 50, 3.2, '#eef0f2');
+      shape('cyl', 0, 46, 0, 10, 6, 10, '#d5dadf');
+      shape('cyl', 0, 52, 0, 7, 3, 7, '#c9ced4');
+      shape('cyl', 0, 55, 0, 1.1, 20, 1.1, '#e05a4f');
+      out.push({ shape: 'neon', x: cx, y: 75, z: cz, sx: 1.4, sy: 1.4, sz: 1.4, rot: 0, color: '#ff3b30', style: 0 });
+      break;
+    }
     case 'clinic':
       box(0, 0, 0, 8.4, 9, 8.4, '#f4f6f6', STYLE.apt, '#2fa35a');
       box(0, 9, 0, 4, 0.5, 1.2, '#2fa35a');
@@ -218,6 +280,9 @@ const GEOS: Record<Shape, THREE.BufferGeometry> = {
   prism: PRISM,
   cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 12).translate(0, 0.5, 0),
   cone: new THREE.CylinderGeometry(0.32, 0.5, 1, 14, 1, true).translate(0, 0.5, 0),
+  // Half a cylinder lying along x, flat side down: an arcade roof one unit high.
+  vault: new THREE.CylinderGeometry(0.5, 0.5, 1, 14, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).scale(1, 2, 1),
+  neon: new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0),
 };
 
 interface Slot {
@@ -240,10 +305,19 @@ export class BuildingLayer {
   private iconTex: Record<string, THREE.SpriteMaterial> = {};
   private ver = '';
   private animating = false;
+  private neonMat!: THREE.MeshStandardMaterial;
+  /** Terrain height under a point, so a hilltop tower stands on the hill. */
+  heightAt: (x: number, z: number) => number = () => 0;
 
   constructor() {
     const plain = new THREE.MeshStandardMaterial({ roughness: 0.8, flatShading: true });
-    this.mats = { box: buildingMaterial(), prism: plain, cyl: plain, cone: new THREE.MeshStandardMaterial({ roughness: 0.9, side: THREE.DoubleSide }) };
+    this.neonMat = new THREE.MeshStandardMaterial({ color: '#c0392b', emissive: '#ff2a1f', emissiveIntensity: 0.2 });
+    this.mats = {
+      box: buildingMaterial(), prism: plain, cyl: plain,
+      cone: new THREE.MeshStandardMaterial({ roughness: 0.9, side: THREE.DoubleSide }),
+      vault: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.7, side: THREE.DoubleSide }),
+      neon: this.neonMat,
+    };
     (Object.keys(GEOS) as Shape[]).forEach((s) => this.alloc(s, s === 'box' ? 4096 : 512));
     // Problem badges as short words on a card-stock pill, in the HUD's coral and ink.
     for (const [k, word] of Object.entries({ power: '전기', water: '수도', road: '도로', gone: '폐가' })) {
@@ -287,10 +361,11 @@ export class BuildingLayer {
   /** Rebuild instance buffers when buildings change, and every frame while some are still rising. */
   update(w: World, now: number, force = false) {
     const ver = `${w.ver.buildings}:${w.ver.roads}`;
+    this.neonMat.emissiveIntensity = 0.25 + shared.uNight.value * 3;
     if (!force && ver === this.ver && !this.animating) return;
     this.ver = ver;
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), c = new THREE.Color(), up = new THREE.Vector3(0, 1, 0);
-    const need: Record<Shape, number> = { box: 0, prism: 0, cyl: 0, cone: 0 };
+    const need: Record<Shape, number> = { box: 0, prism: 0, cyl: 0, cone: 0, vault: 0, neon: 0 };
     const all: { b: Building; parts: Part[] }[] = [];
     const live = new Set<number>();
     w.buildings.forEach((b) => {
@@ -310,11 +385,12 @@ export class BuildingLayer {
       const age = now - this.born.get(b.id)!;
       let g = 1;
       if (age < 1.4) { g = Math.max(0.02, 1 - (1 - age / 1.4) ** 3); this.animating = true; }
+      const base = b.kind === 'tower' ? this.heightAt(b.x * CELL + CELL / 2, b.y * CELL + CELL / 2) : 0;
       for (const pt of ps) {
         const sl = this.slots[pt.shape];
         const i = sl.n++;
         q.setFromAxisAngle(up, pt.rot);
-        p.set(pt.x, pt.y * g, pt.z);
+        p.set(pt.x, pt.y * g + base, pt.z);
         s.set(pt.sx, pt.sy * g, pt.sz);
         m.compose(p, q, s);
         sl.mesh.setMatrixAt(i, m);
@@ -356,7 +432,7 @@ export class BuildingLayer {
     };
     w.buildings.forEach((b) => {
       const d = KINDS[b.kind];
-      if (b.kind === 'metro') return;
+      if (b.kind === 'metro' || b.kind === 'tower') return;
       if (!d.zone) { if (!net.access.has(b.id)) put(b, 'road'); else if (showAll && d.power > 0 && !b.powered) put(b, 'power'); return; }
       if (b.abandoned) put(b, 'gone');
       else if (b.outage > 3 || (showAll && b.outage > 0)) put(b, !b.powered ? 'power' : 'water');

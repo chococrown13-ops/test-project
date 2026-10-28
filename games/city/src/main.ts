@@ -1,8 +1,8 @@
 import './style.css';
-import { CELL, KINDS, N, Road, SERVICE, Zone } from './sim/defs';
+import { CELL, Ground, KINDS, Level, LEVEL_NAME, N, Road, SERVICE, Zone } from './sim/defs';
 import { loadLocal, saveLocal } from './sim/save';
 import { createSim, tick, type Sim } from './sim/sim';
-import { bulldoze, paintZone, placeFacility, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
+import { altCells, altCost, altProblem, bulldoze, diagonalPath, paintZone, placeAltRoad, placeFacility, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
 import { createLine, removeLine, STOP_RADIUS, stopProblem, type LineKind } from './sim/transit';
 import { createWorld, idx, riverY } from './sim/world';
 import { CityScene } from './render/scene';
@@ -26,6 +26,8 @@ let tool: ToolId = 'select';
 let cat: string | null = null;
 /** The bus or subway line being drawn: stops picked so far. */
 let draft: { kind: LineKind; stops: number[] } | null = null;
+/** Road tools draw 45° runs while this is on. */
+let diagonal = false;
 
 /* --------------------------------------------------------------- layout */
 
@@ -48,6 +50,7 @@ function renderCats() {
   const c = CATEGORIES.find((k) => k.id === cat);
   tools.hidden = !c || (c.tools.length < 2 && c.id !== 'transit');
   if (c) tools.innerHTML = c.tools.map((t) => `<button class="tool" data-tool="${t.id}" aria-pressed="${t.id === tool}">${t.swatch ? `<span class="sw" style="--sw:${t.swatch}"></span>` : ''}<span class="n">${t.name}</span>${t.price ? `<span class="p">${t.price}</span>` : ''}</button>`).join('')
+    + (c.id === 'road' ? `<span class="cats-rule" aria-hidden="true"></span><button class="tool" data-toggle="diag" aria-pressed="${diagonal}" aria-keyshortcuts="T"><span class="n">대각선</span><span class="p">${diagonal ? '켜짐' : '꺼짐'}</span></button>` : '')
     + (c.id === 'transit' ? `<button class="tool" data-panel="lines" aria-pressed="${panel === 'lines'}"><span class="n">노선 관리</span><span class="p">${sim.w.lines.length}개 운행 중</span></button>` : '');
   renderDraft();
 }
@@ -87,6 +90,7 @@ $('dock').addEventListener('click', (e) => {
   if (!el) return;
   if (el.dataset.cat) selectCategory(el.dataset.cat); else if (el.dataset.tool) setTool(el.dataset.tool as ToolId);
   else if (el.dataset.panel) openPanel(el.dataset.panel as PanelKind);
+  else if (el.dataset.toggle === 'diag') toggleDiagonal();
   else if (el.dataset.draft && draft) {
     if (el.dataset.draft === 'undo') draft.stops.pop();
     if (el.dataset.draft === 'cancel') { cat = null; setTool('select'); return; }
@@ -94,6 +98,12 @@ $('dock').addEventListener('click', (e) => {
     renderDraft();
   }
 });
+
+function toggleDiagonal() {
+  diagonal = !diagonal;
+  renderCats();
+  preview();
+}
 
 function selectCategory(id: string) {
   const c = CATEGORIES.find((k) => k.id === id);
@@ -231,11 +241,21 @@ function preview() {
   const a = drag ? { x: drag.sx, y: drag.sy } : hover;
   const b = hover;
   if (def.road !== undefined) {
-    const cells = roadPath(a.x, a.y, b.x, b.y);
+    const cells = (diagonal ? diagonalPath : roadPath)(a.x, a.y, b.x, b.y);
     const cost = roadCost(w, cells, def.road);
-    const bad = roadBlocked(w, cells) || cost > w.money;
+    const hill = cells.some((i) => w.ground[i] === Ground.Mountain);
+    const bad = hill || roadBlocked(w, cells) || cost > w.money;
     p.show(cells, bad ? '#ff5a5a' : def.road === Road.Avenue ? '#8fd0ff' : '#c6f0ff');
-    showTip(b.px, b.py, roadBlocked(w, cells) ? '시설과 겹쳐서 놓을 수 없어요' : cost > w.money ? `예산이 부족해요, ${won(cost)} 필요` : `${cells.length * 10}m, ${won(cost)}`, bad);
+    showTip(b.px, b.py, hill ? '산은 터널로만 지날 수 있어요' : roadBlocked(w, cells) ? '시설과 겹쳐서 놓을 수 없어요' : cost > w.money ? `예산이 부족해요, ${won(cost)} 필요` : `${diagonal ? '대각선 ' : ''}${Math.round(cells.length * 10)}m, ${won(cost)}`, bad);
+    return;
+  }
+  if (def.level) {
+    // Drag from a road end to a road end: the trimmed ends become the ramps.
+    const cells = altCells(w, roadPath(a.x, a.y, b.x, b.y));
+    if (!drag) { p.show([idx(b.x, b.y)], '#c6f0ff'); showTip(b.px, b.py, `${LEVEL_NAME[def.level]}: 도로 끝에서 시작해 이을 도로까지 끌어 주세요`); return; }
+    const why = altProblem(w, cells, def.level);
+    p.show(cells, why ? '#ff5a5a' : def.level === Level.Elevated ? '#c6f0ff' : '#a4b0c4', def.level === Level.Elevated ? 3 : 0.6);
+    showTip(b.px, b.py, why ?? `${LEVEL_NAME[def.level]} ${cells.length * 10}m, ${won(altCost(w, cells, def.level))}`, !!why);
     return;
   }
   if (def.zone !== undefined) {
@@ -277,7 +297,8 @@ function commit() {
   const w = sim.w;
   const a = { x: drag.sx, y: drag.sy }, b = { x: drag.cx, y: drag.cy };
   let err: string | null = null;
-  if (def.road !== undefined) err = placeRoad(w, roadPath(a.x, a.y, b.x, b.y), def.road);
+  if (def.road !== undefined) err = placeRoad(w, (diagonal ? diagonalPath : roadPath)(a.x, a.y, b.x, b.y), def.road);
+  else if (def.level) err = placeAltRoad(w, roadPath(a.x, a.y, b.x, b.y), def.level);
   else if (def.zone !== undefined) {
     const n = paintZone(w, rectCells(a.x, a.y, b.x, b.y), def.zone);
     if (!n && def.zone !== Zone.None) err = '도로에서 3칸 안쪽 빈 땅에만 구역을 칠할 수 있어요.';
@@ -386,6 +407,7 @@ window.addEventListener('keydown', (e) => {
   if (!running) return;
   if (draft && k === 'enter') { finishDraft(); return; }
   if (draft && k === 'backspace') { draft.stops.pop(); renderDraft(); return; }
+  if (k === 't') { toggleDiagonal(); return; }
   const hot = CATEGORIES.find((c) => c.key.toLowerCase() === k);
   if (hot && !e.ctrlKey && !e.metaKey) { selectCategory(hot.id); return; }
   if (k === ' ') { e.preventDefault(); setSpeed(speed ? 0 : lastSpeed); return; }

@@ -11,14 +11,24 @@ export const Zone = { None: 0, R: 1, C: 2, I: 3 } as const;
 export type Zone = (typeof Zone)[keyof typeof Zone];
 export const Road = { None: 0, Street: 1, Avenue: 2 } as const;
 export type Road = (typeof Road)[keyof typeof Road];
-export const Ground = { Land: 0, Water: 1 } as const;
+export const Ground = { Land: 0, Water: 1, Mountain: 2 } as const;
 export type Ground = (typeof Ground)[keyof typeof Ground];
+/** Where the second road in a cell runs: over the ground, in a shallow cut, or bored deep. */
+export const Level = { None: 0, Elevated: 1, Underpass: 2, Tunnel: 3 } as const;
+export type Level = (typeof Level)[keyof typeof Level];
+export const LEVEL_NAME = ['', '고가도로', '지하차도', '터널'] as const;
+/** Cost per cell relative to a ground avenue. */
+export const LEVEL_COST = { [Level.Elevated]: 3, [Level.Underpass]: 4, [Level.Tunnel]: 6 } as const;
+/** Deck height of an elevated road and depth of the ones below, in metres. */
+export const ELEVATED_Y = 8;
+export const UNDER_Y = -7;
 
 export type BuildingKind =
   | 'r1' | 'r2' | 'r3'
   | 'c1' | 'c2' | 'c3'
   | 'i1' | 'i2' | 'i3'
-  | 'coal' | 'solar' | 'water' | 'sewage' | 'park' | 'school' | 'police' | 'fire' | 'clinic' | 'metro';
+  | 'coal' | 'solar' | 'water' | 'sewage' | 'park' | 'school' | 'police' | 'fire' | 'clinic' | 'metro'
+  | 'market' | 'riverpark' | 'palace' | 'tower';
 
 export interface KindDef {
   name: string;
@@ -56,6 +66,10 @@ export const KINDS: Record<BuildingKind, KindDef> = {
   clinic: { name: '보건소', size: 1, power: 5, water: 4, cost: 3000, upkeep: 170, floors: [3, 3], desc: '반경 내 건강' },
   // Built and paid for through its subway line (transit.ts).
   metro: { name: '지하철역', size: 1, power: 6, water: 2, floors: [1, 1], desc: '역 주변 땅값 상승 (역세권)' },
+  market: { name: '전통시장', size: 2, power: 6, water: 4, cost: 3500, upkeep: 110, floors: [1, 1], desc: '주변 상업과 땅값을 살려요' },
+  riverpark: { name: '한강공원', size: 2, power: 1, water: 2, cost: 2500, upkeep: 60, floors: [0, 0], desc: '강가에만 지어요. 주변 땅값과 만족도가 크게 올라요' },
+  palace: { name: '고궁', size: 3, power: 4, water: 4, cost: 20000, upkeep: 200, floors: [1, 1], desc: '도시에 하나뿐인 명소. 넓은 범위의 땅값이 올라요' },
+  tower: { name: '전망타워', size: 1, power: 0, water: 0, cost: 15000, upkeep: 160, floors: [1, 1], desc: '산 위에만 지어요. 도시 어디서나 보이는 명소예요' },
 };
 
 /** Coverage radius in cells for service buildings, and how much they add to land value nearby. */
@@ -65,6 +79,16 @@ export const SERVICE: Partial<Record<BuildingKind, { radius: number; key: 'edu' 
   fire: { radius: 14, key: 'fire', value: 4 },
   clinic: { radius: 12, key: 'health', value: 6 },
 };
+
+/** Land value a landmark adds around itself: radius in cells and the bonus at its foot. */
+export const LANDMARK: Partial<Record<BuildingKind, { radius: number; value: number }>> = {
+  market: { radius: 7, value: 9 },
+  riverpark: { radius: 7, value: 16 },
+  palace: { radius: 12, value: 20 },
+  tower: { radius: 16, value: 8 },
+};
+/** Landmarks a city can only have one of. */
+export const UNIQUE: BuildingKind[] = ['palace', 'tower'];
 
 export const SEWAGE_CAPACITY = 600;
 
@@ -81,3 +105,14 @@ export const ZONE_DEPTH = 3;
 export const START_MONEY = 50000;
 
 export const ZONE_NAME = ['', '주거', '상업', '산업'] as const;
+
+/** What a zoned building actually is, by its look: Korean streets mix many small trades. */
+export const VARIANTS: Partial<Record<BuildingKind, string[]>> = {
+  r1: ['빌라', '빌라', '단독주택'],
+  r2: ['다세대 주택', '원룸 건물', '다가구 주택'],
+  c1: ['편의점', '치킨집', '카페', 'PC방', '노래방', '부동산', '분식집'],
+  c2: ['근린생활 빌딩', '학원 빌딩', '병원 빌딩', '교회가 있는 빌딩'],
+  i1: ['소규모 공장', '물류 창고'],
+};
+export const variantOf = (kind: BuildingKind, look: number) => { const v = VARIANTS[kind]; return v ? Math.floor(look * v.length) % v.length : 0; };
+export const displayName = (kind: BuildingKind, look: number) => VARIANTS[kind]?.[variantOf(kind, look)] ?? KINDS[kind].name;

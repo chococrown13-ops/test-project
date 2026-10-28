@@ -60,7 +60,8 @@ export class Atmosphere {
       puffs.push(new THREE.IcosahedronGeometry(r, 0).scale(1, 0.55, 1).translate(x, y, z));
     }
     const cloud = mergeGeometries(puffs)!;
-    this.clouds = new THREE.InstancedMesh(cloud, new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, flatShading: true, transparent: true, opacity: 0.94 }), 14);
+    // Only the clouds' shadows show: seen from above a city they read as boulders, not weather.
+    this.clouds = new THREE.InstancedMesh(cloud, new THREE.MeshStandardMaterial({ colorWrite: false, depthWrite: false }), 14);
     this.clouds.castShadow = true;
     this.clouds.frustumCulled = false;
     let seed = 7;
@@ -92,6 +93,5 @@ export class Atmosphere {
       this.clouds.setMatrixAt(i, m.compose(p, q, s));
     });
     this.clouds.instanceMatrix.needsUpdate = true;
-    (this.clouds.material as THREE.MeshStandardMaterial).color.setScalar(0.35 + day * 0.65);
   }
 }

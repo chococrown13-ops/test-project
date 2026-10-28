@@ -1,4 +1,5 @@
 import { CELL, Ground, KINDS, N, Road } from './defs';
+import { cellOf, forEachNeighbour } from './graph';
 import { invalidateNetwork } from './network';
 import { addBuilding, demolish } from './tools';
 import { idx, notify, type World } from './world';
@@ -132,18 +133,14 @@ export function busRoute(w: World, stops: number[], lineId = -1): Int32Array | n
 
 function bfs(w: World, a: number, b: number): number[] | null {
   if (a === b) return [a];
-  const prev = new Int32Array(N * N).fill(-1);
+  // Over the road graph, so buses use diagonals, flyovers and tunnels too.
+  const prev = new Int32Array(N * N * 2).fill(-1);
   prev[a] = a;
   const q = [a];
   for (let h = 0; h < q.length; h++) {
     const c = q[h];
     if (c === b) break;
-    const x = c % N, y = (c / N) | 0;
-    for (const n of [x > 0 ? c - 1 : -1, x < N - 1 ? c + 1 : -1, y > 0 ? c - N : -1, y < N - 1 ? c + N : -1]) {
-      if (n < 0 || !w.road[n] || prev[n] >= 0) continue;
-      prev[n] = c;
-      q.push(n);
-    }
+    forEachNeighbour(w, c, (n) => { if (prev[n] < 0) { prev[n] = c; q.push(n); } });
   }
   if (prev[b] < 0) return null;
   const out = [b];
@@ -166,7 +163,7 @@ export function coverage(w: World): Map<number, Uint8Array> {
     const r = STOP_RADIUS[l.kind];
     // A bus picks people up all along its route (stops every few blocks); the subway only at stations.
     const route = l.kind === 'bus' ? busRoute(w, l.stops, l.id) : null;
-    const centres = route ? [...l.stops, ...Array.from(route).filter((_, k) => k % 4 === 0)] : l.stops;
+    const centres = route ? [...l.stops, ...Array.from(route).filter((_, k) => k % 4 === 0).map(cellOf)] : l.stops;
     for (const s of centres) {
       const sx = s % N, sy = (s / N) | 0;
       for (let y = Math.max(0, sy - r); y <= Math.min(N - 1, sy + r); y++)

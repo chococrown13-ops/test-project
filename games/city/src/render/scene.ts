@@ -5,7 +5,9 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { CELL, N } from '../sim/defs';
-import { DAY_SECONDS, type Sim } from '../sim/sim';
+import { NN } from '../sim/graph';
+import { calendarMonth, DAY_SECONDS, type Sim } from '../sim/sim';
+import { busRoute } from '../sim/transit';
 import type { LineKind } from '../sim/transit';
 import { Atmosphere } from './atmosphere';
 import { BuildingLayer } from './buildings';
@@ -43,6 +45,8 @@ export class CityScene {
   private paintVer = '';
   private paintTimer = 0;
   private iconTimer = 0;
+  private busKey = '';
+  private busCells = new Set<number>();
   private sim: Sim;
   overlay: Overlay = 'none';
 
@@ -71,7 +75,7 @@ export class CityScene {
     pmrem.dispose();
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.view.cam));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0, 0.5, 0.82);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0, 0.35, 0.9);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
   }
@@ -161,7 +165,7 @@ export class CityScene {
     const night = shared.uNight.value;
     this.atmo.update(this.view.cam.position, shared.uTime.value, day, Math.min(1, dusk), night, this.sun.position.clone().sub(t).normalize());
     (this.scene.fog as THREE.Fog).color.copy(this.atmo.horizon);
-    this.bloom.strength = this.quality === 'high' ? night * 0.85 : 0;
+    this.bloom.strength = this.quality === 'high' ? night * 0.45 : 0;
     const s = Math.min(560, Math.max(140, this.view.dist * 1.2));
     const cam = this.sun.shadow.camera;
     if (cam.right !== s) { cam.left = -s; cam.right = s; cam.top = s; cam.bottom = -s; cam.near = 10; cam.far = 1600; cam.updateProjectionMatrix(); }
@@ -175,12 +179,26 @@ export class CityScene {
     this.view.update(dt);
     shared.uTime.value = now;
     this.light(this.sim.clock);
-    this.roads.update(w);
+    // Ground cells under bus routes, for the median bus lanes.
+    const bk = `${w.ver.transit}:${w.ver.roads}:${w.lines.length}`;
+    if (bk !== this.busKey) {
+      this.busKey = bk;
+      this.busCells = new Set();
+      for (const l of w.lines) if (l.kind === 'bus') for (const n of busRoute(w, l.stops, l.id) ?? []) if (n < NN) this.busCells.add(n);
+    }
+    this.roads.update(w, { key: bk, cells: this.busCells });
+    this.ground.shape(w);
+    // Seasons: foliage colour and snow follow the calendar.
+    const month = calendarMonth(w.day);
+    this.ground.month = month;
+    const snow = ({ 12: 0.45, 1: 0.9, 2: 0.6 } as Record<number, number>)[month] ?? 0;
+    shared.uSnow.value += (snow - shared.uSnow.value) * Math.min(1, dt * 0.8);
+    this.buildings.heightAt = (x, z) => this.ground.heightAt(x, z);
     this.buildings.update(w, now);
     this.vehicles.update(w, this.sim.tr);
     this.transit.update(w, w.day * DAY_SECONDS + this.sim.acc, this.draft);
     // Ground repaint: on edits right away, and for live overlays a few times a second.
-    const ver = `${w.ver.roads}:${w.ver.zones}:${w.ver.buildings}`;
+    const ver = `${w.ver.roads}:${w.ver.zones}:${w.ver.buildings}:${month}`;
     this.paintTimer -= dt;
     if (ver !== this.paintVer || (this.overlay !== 'none' && this.paintTimer <= 0)) {
       this.paintVer = ver;

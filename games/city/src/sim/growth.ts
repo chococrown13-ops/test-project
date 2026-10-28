@@ -1,4 +1,4 @@
-import { Ground, KINDS, N, SERVICE, Zone, type BuildingKind } from './defs';
+import { Ground, KINDS, LANDMARK, N, SERVICE, Zone, type BuildingKind } from './defs';
 import { findAccess, network, occRatio, reachesOutside } from './network';
 import { addBuilding, demolish, footprint } from './tools';
 import { transitLandBonus } from './transit';
@@ -38,14 +38,18 @@ export function updateLand(w: World) {
     const s = SERVICE[b.kind];
     if (s && b.powered) stamp(cx, cy, s.radius, (i, f) => { w[s.key][i] = 1; bonus[i] += s.value * Math.min(1, f * 2); });
     if (b.kind === 'park') stamp(cx, cy, 4, (i, f) => { bonus[i] += 14 * f; });
+    const lm = LANDMARK[b.kind];
+    if (lm) stamp(cx, cy, lm.radius, (i, f) => { bonus[i] += lm.value * Math.min(1, f * 1.6); });
     if (b.kind.startsWith('c') && !b.abandoned) stamp(cx, cy, 4, (i, f) => { bonus[i] += 4 * f * (KINDS[b.kind].level ?? 1); });
   });
   transitLandBonus(w, bonus);
   // River view: the closer to the water, the pricier (한강뷰).
   const waterDist = distanceTo((i) => w.ground[i] === Ground.Water, 6);
+  // A view of the hills is worth something too, if less than the river.
+  const hillDist = distanceTo((i) => w.ground[i] === Ground.Mountain, 5);
   for (let i = 0; i < size; i++) {
-    if (w.ground[i] === Ground.Water) { w.land[i] = 0; continue; }
-    const view = waterDist[i] <= 5 ? (6 - waterDist[i]) * 3 : 0;
+    if (w.ground[i] !== Ground.Land) { w.land[i] = 0; continue; }
+    const view = (waterDist[i] <= 5 ? (6 - waterDist[i]) * 3 : 0) + (hillDist[i] <= 4 ? (5 - hillDist[i]) * 2 : 0);
     const noise = w.traffic[i] * 6 + neighbourTraffic(w, i) * 4;
     w.land[i] = clamp(32 + view + bonus[i] - w.pollution[i] * 0.6 - noise, 0, 100);
   }
