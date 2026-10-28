@@ -19,3 +19,4 @@ gunggeum/**/__pycache__/
 
 # 카드뉴스 완성 이미지 (자료실에 올림)
 gunggeum/cards/*/out/
+gunggeum/devlog/*/*.mp4
