@@ -16,3 +16,6 @@ quant/.env
 gunggeum/episodes/*/out/
 gunggeum/**/*_s[0-9].png
 gunggeum/**/__pycache__/
+
+# 카드뉴스 완성 이미지 (자료실에 올림)
+gunggeum/cards/*/out/

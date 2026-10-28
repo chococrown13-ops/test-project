@@ -18,6 +18,7 @@ AI 사무실이 운영하는 쇼츠 채널 「궁금해달」입니다. 궁금�
 - **제작 라인**: `.claude/skills/shorts-line/SKILL.md` — 기획(리서치 → 대본 → 1차 검수 → 게시 문구 → 결재함) / 승인 뒤 제작(이미지 4장 → S1 클립 → AI 목소리 편집 → 2차 검수 → 자료실). 직원: `.claude/agents/` 의 research-lead·scriptwriter·quality-guard·art-director·motion-director·editor·publisher·growth-analyst
 - 편 폴더 `episodes/sNN/` (plan.md · episode.json · images/ · clips/ · cost.json · publish.md, 완성본 out/ 은 커밋 안 함) · 틀 `episodes/_template/` · 고정 장면 `brand/scenes/`(intro·notebook·outro) · 주제 후보 `topics.md` · 설정·예산 `studio.config.json` · 장부 `tools/ledger.py`
 - 도구: `tools/make_image.py`(Gemini 이미지, 기준 이미지 참조) · `tools/make_clip.py`(Gemini Omni 영상 — Veo 는 2026-10 API 에서 빠짐) · `tools/make_video.py --tts`(편집·AI 목소리)
+- 카드뉴스: `tools/make_cards.mjs <cards/kNN/card.json>` → 1080×1350 PNG(0원, 글자는 코드로, 해달은 brand/ 3D 이미지 재사용). 카드 폴더 `cards/kNN/`(card.json 커밋, out/ 은 커밋 안 함 — 자료실에 올림). 샘플 `cards/k01`(퇴직금, 검수 전)
 
 ## 사무실 db (ArtifactData, url = 위 사무실 링크)
 | 컬렉션 | 내용 |
