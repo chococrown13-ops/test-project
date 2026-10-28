@@ -55,7 +55,9 @@ function renderCats() {
 function renderDraft() {
   const el = $('draft');
   el.hidden = !draft;
-  if (draft) el.innerHTML = draftHtml(sim.w, draft.kind, draft.stops);
+  // Only touch the DOM when the text changes, so a press on 노선 완성 is never swallowed by a redraw.
+  const html = draft ? draftHtml(sim.w, draft.kind, draft.stops) : '';
+  if (html && html !== el.dataset.html) { el.innerHTML = html; el.dataset.html = html; }
   scene.draft = draft;
 }
 
