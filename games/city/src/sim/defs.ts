@@ -18,7 +18,7 @@ export type BuildingKind =
   | 'r1' | 'r2' | 'r3'
   | 'c1' | 'c2' | 'c3'
   | 'i1' | 'i2' | 'i3'
-  | 'coal' | 'solar' | 'water' | 'sewage' | 'park' | 'school' | 'police' | 'fire' | 'clinic';
+  | 'coal' | 'solar' | 'water' | 'sewage' | 'park' | 'school' | 'police' | 'fire' | 'clinic' | 'metro';
 
 export interface KindDef {
   name: string;
@@ -54,6 +54,8 @@ export const KINDS: Record<BuildingKind, KindDef> = {
   police: { name: '경찰서', size: 1, power: 4, water: 2, cost: 2500, upkeep: 150, floors: [3, 3], desc: '반경 내 치안' },
   fire: { name: '소방서', size: 1, power: 4, water: 3, cost: 2500, upkeep: 150, floors: [2, 2], desc: '반경 내 화재 안전' },
   clinic: { name: '보건소', size: 1, power: 5, water: 4, cost: 3000, upkeep: 170, floors: [3, 3], desc: '반경 내 건강' },
+  // Built and paid for through its subway line (transit.ts).
+  metro: { name: '지하철역', size: 1, power: 6, water: 2, floors: [1, 1], desc: '역 주변 땅값 상승 (역세권)' },
 };
 
 /** Coverage radius in cells for service buildings, and how much they add to land value nearby. */

@@ -1,4 +1,5 @@
 import { Ground, N, Road, START_MONEY, type BuildingKind } from './defs';
+import type { TransitLine } from './transit';
 
 export interface Building {
   id: number;
@@ -23,8 +24,8 @@ export interface Building {
 
 export interface MonthReport {
   month: number;
-  income: { R: number; C: number; I: number };
-  expense: { roads: number; facilities: number; services: number };
+  income: { R: number; C: number; I: number; T: number };
+  expense: { roads: number; facilities: number; services: number; transit: number };
   pop: number;
   jobs: number;
 }
@@ -46,6 +47,10 @@ export interface World {
   safety: Uint8Array;
   fire: Uint8Array;
   health: Uint8Array;
+  /** Walking distance to transit: 0 none, 1 bus, 2 subway. */
+  transit: Uint8Array;
+  lines: TransitLine[];
+  nextLine: number;
   buildings: Map<number, Building>;
   nextId: number;
   tax: { R: number; C: number; I: number };
@@ -70,7 +75,7 @@ export interface World {
   month: MonthReport;
   notices: { day: number; text: string; tone: 'info' | 'warn' | 'good' }[];
   /** Bumped whenever something the renderer draws changes. */
-  ver: { roads: number; zones: number; buildings: number };
+  ver: { roads: number; zones: number; buildings: number; transit: number };
   /** Milestones already announced. */
   milestones: number[];
 }
@@ -96,7 +101,7 @@ export function riverY(x: number, seed: number): number {
 }
 
 export function emptyMonth(month: number): MonthReport {
-  return { month, income: { R: 0, C: 0, I: 0 }, expense: { roads: 0, facilities: 0, services: 0 }, pop: 0, jobs: 0 };
+  return { month, income: { R: 0, C: 0, I: 0, T: 0 }, expense: { roads: 0, facilities: 0, services: 0, transit: 0 }, pop: 0, jobs: 0 };
 }
 
 export function createWorld(seed = 20261028, name = '새솔시'): World {
@@ -118,6 +123,9 @@ export function createWorld(seed = 20261028, name = '새솔시'): World {
     safety: new Uint8Array(size),
     fire: new Uint8Array(size),
     health: new Uint8Array(size),
+    transit: new Uint8Array(size),
+    lines: [],
+    nextLine: 1,
     buildings: new Map(),
     nextId: 1,
     tax: { R: 9, C: 9, I: 9 },
@@ -126,7 +134,7 @@ export function createWorld(seed = 20261028, name = '새솔시'): World {
     reports: [],
     month: emptyMonth(0),
     notices: [],
-    ver: { roads: 1, zones: 1, buildings: 1 },
+    ver: { roads: 1, zones: 1, buildings: 1, transit: 1 },
     milestones: [],
   };
   for (let x = 0; x < N; x++) {

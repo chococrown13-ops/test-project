@@ -1,6 +1,7 @@
 import { Ground, KINDS, N, SERVICE, Zone, type BuildingKind } from './defs';
 import { findAccess, network, occRatio, reachesOutside } from './network';
 import { addBuilding, demolish, footprint } from './tools';
+import { transitLandBonus } from './transit';
 import { idx, inside, notify, rand, type Building, type World } from './world';
 
 const LEVEL_KIND: Record<number, BuildingKind[]> = {
@@ -39,6 +40,7 @@ export function updateLand(w: World) {
     if (b.kind === 'park') stamp(cx, cy, 4, (i, f) => { bonus[i] += 14 * f; });
     if (b.kind.startsWith('c') && !b.abandoned) stamp(cx, cy, 4, (i, f) => { bonus[i] += 4 * f * (KINDS[b.kind].level ?? 1); });
   });
+  transitLandBonus(w, bonus);
   // River view: the closer to the water, the pricier (한강뷰).
   const waterDist = distanceTo((i) => w.ground[i] === Ground.Water, 6);
   for (let i = 0; i < size; i++) {
@@ -210,6 +212,7 @@ export function updateBuildings(w: World) {
       h += w.safety[i] ? 4 : -2;
       h += w.health[i] ? 4 : -2;
       h += w.fire[i] ? 2 : -1;
+      h += w.transit[i] === 2 ? 4 : w.transit[i] ? 2 : 0;
       h -= Math.max(0, s.commute - 35) * 0.6;
     }
     if (!reachesOutside(w, b)) h -= 30;

@@ -182,6 +182,14 @@ function parts(b: Building, w: World): Part[] {
       box(0, 0, 3.8, 6, 4, 0.6, '#b03a2e');
       box(-3, 7.5, -2.5, 2.2, 6, 2.2, '#efe9e1');
       break;
+    case 'metro':
+      // A Korean subway exit: a glass canopy over the stairs and a lit station sign.
+      box(0, 0, 0, 5.2, 0.4, 7.4, '#5b6066');
+      box(0, 0.4, 1.2, 4.2, 2.6, 4.6, '#a7c4d6', STYLE.office);
+      box(0, 3.0, 0.6, 4.8, 0.35, 6.2, '#e7ebee');
+      box(-3.2, 0, -2.6, 0.5, 4.2, 0.5, '#e7ebee');
+      box(-3.2, 4.2, -2.6, 1.6, 1.0, 0.4, '#263c96');
+      break;
     case 'clinic':
       box(0, 0, 0, 8.4, 9, 8.4, '#f4f6f6', STYLE.apt, '#2fa35a');
       box(0, 9, 0, 4, 0.5, 1.2, '#2fa35a');
@@ -237,14 +245,16 @@ export class BuildingLayer {
     const plain = new THREE.MeshStandardMaterial({ roughness: 0.8, flatShading: true });
     this.mats = { box: buildingMaterial(), prism: plain, cyl: plain, cone: new THREE.MeshStandardMaterial({ roughness: 0.9, side: THREE.DoubleSide }) };
     (Object.keys(GEOS) as Shape[]).forEach((s) => this.alloc(s, s === 'box' ? 4096 : 512));
-    for (const [k, e] of Object.entries({ power: '⚡', water: '💧', road: '🚧', gone: '🏚️' })) {
+    // Problem badges as short words on a card-stock pill, in the HUD's coral and ink.
+    for (const [k, word] of Object.entries({ power: '전기', water: '수도', road: '도로', gone: '폐가' })) {
       const c = document.createElement('canvas');
-      c.width = c.height = 64;
+      c.width = 128; c.height = 64;
       const g = c.getContext('2d')!;
-      g.fillStyle = k === 'gone' ? '#6b6b6b' : '#e74c3c';
-      g.beginPath(); g.arc(32, 32, 29, 0, Math.PI * 2); g.fill();
-      g.font = '36px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.fillText(e, 32, 35);
+      g.fillStyle = k === 'gone' ? '#4a4f57' : '#f0644f';
+      g.beginPath(); g.roundRect(4, 6, 120, 52, 26); g.fill();
+      g.fillStyle = '#fbf8ee';
+      g.font = '34px Jua, "Gothic A1", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(word, 64, 34);
       const t = new THREE.CanvasTexture(c);
       t.colorSpace = THREE.SRGBColorSpace;
       this.iconTex[k] = new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true });
@@ -340,12 +350,13 @@ export class BuildingLayer {
       sp.material = this.iconTex[k];
       const S = b.size * CELL;
       sp.position.set(b.x * CELL + S / 2, b.floors * 3 + 9, b.y * CELL + S / 2);
-      sp.scale.setScalar(7);
+      sp.scale.set(10, 5, 1);
       sp.visible = true;
       n++;
     };
     w.buildings.forEach((b) => {
       const d = KINDS[b.kind];
+      if (b.kind === 'metro') return;
       if (!d.zone) { if (!net.access.has(b.id)) put(b, 'road'); else if (showAll && d.power > 0 && !b.powered) put(b, 'power'); return; }
       if (b.abandoned) put(b, 'gone');
       else if (b.outage > 3 || (showAll && b.outage > 0)) put(b, !b.powered ? 'power' : 'water');

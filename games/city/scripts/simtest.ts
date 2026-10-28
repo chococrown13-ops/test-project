@@ -4,6 +4,7 @@ import { createSim, stepDay, tick } from '../src/sim/sim';
 import { paintZone, placeFacility, placeRoad, rectCells, roadPath } from '../src/sim/tools';
 import { createWorld, idx, riverY } from '../src/sim/world';
 import { monthExpense, monthIncome } from '../src/sim/economy';
+import { createLine } from '../src/sim/transit';
 
 const w = createWorld(7);
 const s = createSim(w);
@@ -39,12 +40,18 @@ for (let m = 1; m <= 60; m++) {
   // Keep utilities ahead of demand, like a sensible player.
   if (w.stats.powerUse > w.stats.powerSupply * 0.85) for (let tries = 0; tries < 40; tries++) { const x = 92 + (tries % 4) * 2, y = row + 1 + Math.floor(tries / 4) * 2; if (!placeFacility(w, 'solar', x, y)) break; }
   if (w.stats.waterUse > w.stats.waterSupply * 0.85) for (let x = 54; x < 80; x += 4) { if (!placeFacility(w, 'water', x, wy)) { err(placeRoad(w, roadPath(52, wy - 1, x + 3, wy - 1), Road.Street)); break; } }
+  if (m === 14) {
+    // A bus loop round the grid and a subway line under the avenue.
+    err(createLine(w, 'bus', [idx(30, row - 16), idx(46, row - 16), idx(62, row - 16), idx(62, row + 8), idx(30, row + 8)]));
+    w.money += 40000;
+    err(createLine(w, 'metro', [idx(33, row - 5), idx(49, row - 6), idx(65, row - 5), idx(81, row - 5)]));
+  }
   if (m === 8) { paintZone(w, rectCells(23, row - 40, 62, row - 25), Zone.C); for (let x = 30; x <= 62; x += 8) err(placeRoad(w, roadPath(x, row - 40, x, row - 24), Road.Street)); err(placeRoad(w, roadPath(30, row - 32, 62, row - 32), Road.Street)); err(placeRoad(w, roadPath(30, row - 40, 62, row - 40), Road.Street)); }
   if (m % 6 === 0) {
     const r = w.reports[w.reports.length - 1];
     const lv = [0, 0, 0, 0];
     w.buildings.forEach((b) => { const l = ({ r1: 1, c1: 1, i1: 1, r2: 2, c2: 2, i2: 2, r3: 3, c3: 3, i3: 3 } as Record<string, number>)[b.kind]; if (l) lv[l]++; });
-    console.log(`m${m} day ${w.day} pop ${w.stats.pop} jobs ${Math.round(w.stats.jobs)} money ${w.money} in ${Math.round(monthIncome(r))} out ${Math.round(monthExpense(r))} demand R${w.demand.R.toFixed(0)} C${w.demand.C.toFixed(0)} I${w.demand.I.toFixed(0)} happy ${w.stats.happy.toFixed(0)} power ${w.stats.powerUse.toFixed(0)}/${w.stats.powerSupply} water ${w.stats.waterUse.toFixed(0)}/${w.stats.waterSupply} cars ${s.tr.cars.length} commute ${w.stats.commute.toFixed(1)} cong ${w.stats.congestion.toFixed(2)} lv1/2/3 ${lv.slice(1).join('/')}`);
+    console.log(`m${m} day ${w.day} pop ${w.stats.pop} jobs ${Math.round(w.stats.jobs)} money ${w.money} in ${Math.round(monthIncome(r))} out ${Math.round(monthExpense(r))} demand R${w.demand.R.toFixed(0)} C${w.demand.C.toFixed(0)} I${w.demand.I.toFixed(0)} happy ${w.stats.happy.toFixed(0)} power ${w.stats.powerUse.toFixed(0)}/${w.stats.powerSupply} water ${w.stats.waterUse.toFixed(0)}/${w.stats.waterSupply} cars ${s.tr.cars.length} commute ${w.stats.commute.toFixed(1)} cong ${w.stats.congestion.toFixed(2)} transit ${w.lines.map((l) => `${l.name}:${l.riders}`).join(',')} fare ${Math.round(r.income.T)} tcost ${Math.round(r.expense.transit)} lv1/2/3 ${lv.slice(1).join('/')}`);
   }
 }
 const ms = performance.now() - t0;

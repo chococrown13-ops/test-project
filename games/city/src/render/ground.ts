@@ -3,12 +3,13 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { CELL, Ground, N, Zone, ZONE_DEPTH } from '../sim/defs';
 import { roadDistance } from '../sim/tools';
 import { idx, type World } from '../sim/world';
+import { shared } from './materials';
 
 const SIZE = N * CELL;
 /** Texels per cell, so zoned lots can show a thin grid line. */
 const TX = 4;
 
-export type Overlay = 'none' | 'traffic' | 'land' | 'pollution' | 'power' | 'water' | 'edu' | 'safety' | 'health' | 'fire';
+export type Overlay = 'none' | 'traffic' | 'transit' | 'land' | 'pollution' | 'power' | 'water' | 'edu' | 'safety' | 'health' | 'fire';
 
 const hash = (x: number, y: number) => {
   const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
@@ -24,9 +25,10 @@ function noise(x: number, y: number): number {
 }
 
 const ZONE_RGB: Record<number, [number, number, number]> = {
-  [Zone.R]: [96, 196, 92],
-  [Zone.C]: [74, 142, 224],
-  [Zone.I]: [232, 190, 62],
+  // The HUD's --color-zone-* tokens, so the map and the demand bars agree.
+  [Zone.R]: [76, 196, 124],
+  [Zone.C]: [63, 127, 214],
+  [Zone.I]: [227, 176, 75],
 };
 
 /** Five-stop heat scale: green (good) to red (bad). */
@@ -76,7 +78,19 @@ export class GroundLayer {
       if (cells && water === cells) pos.setY(v, -4.5);
     }
     geo.computeVertexNormals();
-    const land = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: this.tex, roughness: 1 }));
+    const landMat = new THREE.MeshStandardMaterial({ map: this.tex, roughness: 1 });
+    // Large soft patches of light and dark grass hide the cell grid on open land.
+    landMat.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vGP;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvGP = (modelMatrix * vec4(transformed, 1.0)).xz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+        varying vec2 vGP;
+        float hh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hh(i), hh(i + vec2(1, 0)), f.x), mix(hh(i + vec2(0, 1)), hh(i + vec2(1, 1)), f.x), f.y); }`)
+        .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= 0.9 + 0.14 * vn(vGP / 46.0) + 0.06 * vn(vGP / 9.0);');
+    };
+    landMat.customProgramCacheKey = () => 'city-land';
+    const land = new THREE.Mesh(geo, landMat);
     land.receiveShadow = true;
     this.group.add(land);
 
@@ -86,7 +100,18 @@ export class GroundLayer {
     far.position.set(SIZE / 2, -0.3, SIZE / 2);
     this.group.add(far);
 
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(SIZE + 40, SIZE), new THREE.MeshStandardMaterial({ color: '#3d93cc', roughness: 0.3, metalness: 0 }));
+    const waterMat = new THREE.MeshStandardMaterial({ color: '#2f7fb8', roughness: 0.08, metalness: 0.15 });
+    // Ripples: the normal wobbles with two crossing wave trains, so sun and sky glint off the river.
+    waterMat.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = shared.uTime;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vGP;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvGP = (modelMatrix * vec4(transformed, 1.0)).xz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vGP;\nuniform float uTime;')
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+          vec2 wv = vec2(sin(vGP.x * 0.21 + uTime * 1.3) + sin(vGP.y * 0.13 - uTime * 0.9) * 0.6, cos(vGP.y * 0.19 + uTime * 1.1) + sin((vGP.x + vGP.y) * 0.09 + uTime * 0.7) * 0.6);
+          normal = normalize(normal + (viewMatrix * vec4(wv.x * 0.06, 0.0, wv.y * 0.06, 0.0)).xyz);`);
+    };
+    waterMat.customProgramCacheKey = () => 'city-water';
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(SIZE * 4, SIZE), waterMat);
     water.rotation.x = -Math.PI / 2;
     water.position.set(SIZE / 2, -1.1, SIZE / 2);
     water.receiveShadow = true;
@@ -208,6 +233,7 @@ function bank(w: World, x: number, y: number): boolean {
 function overlayValue(w: World, ov: Overlay, i: number): number | null {
   switch (ov) {
     case 'traffic': return w.road[i] ? Math.min(1, w.traffic[i] / 1.3) : null;
+    case 'transit': return w.transit[i] === 2 ? 0 : w.transit[i] ? 0.35 : 1;
     case 'land': return (70 - w.land[i]) / 50;
     case 'pollution': return w.pollution[i] > 2 ? w.pollution[i] / 60 : 0;
     case 'edu': return w.edu[i] ? 0 : 1;

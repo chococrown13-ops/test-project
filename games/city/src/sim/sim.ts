@@ -2,6 +2,7 @@ import { closeMonth, accrueDay } from './economy';
 import { grow, updateBuildings, updateDemand, updateLand } from './growth';
 import { updateUtilities } from './network';
 import { closeDay, createTraffic, stepTraffic, type Traffic } from './traffic';
+import { closeTransitMonth, pruneLines } from './transit';
 import { notify, type World } from './world';
 
 /** Real seconds per game day at 1x. */
@@ -37,6 +38,7 @@ export const MILESTONES: [number, string, number][] = [
 export function stepDay(s: Sim) {
   const w = s.w;
   w.day += 1;
+  pruneLines(w);
   updateUtilities(w);
   if (w.day % 4 === 0) updateLand(w);
   updateBuildings(w);
@@ -44,7 +46,7 @@ export function stepDay(s: Sim) {
   grow(w);
   accrueDay(w);
   closeDay(w, s.tr);
-  if (w.day % 30 === 0) closeMonth(w);
+  if (w.day % 30 === 0) { closeMonth(w); closeTransitMonth(w); }
   for (const [n, text, grant] of MILESTONES) {
     if (w.stats.pop < n || w.milestones.includes(n)) continue;
     w.milestones.push(n);

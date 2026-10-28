@@ -3,21 +3,29 @@ import { CELL, KINDS, N, Road, SERVICE, Zone } from './sim/defs';
 import { loadLocal, saveLocal } from './sim/save';
 import { createSim, tick, type Sim } from './sim/sim';
 import { bulldoze, paintZone, placeFacility, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
+import { createLine, removeLine, STOP_RADIUS, stopProblem, type LineKind } from './sim/transit';
 import { createWorld, idx, riverY } from './sim/world';
 import { CityScene } from './render/scene';
 import type { Overlay } from './render/ground';
 import { CATEGORIES, TOOLS, type ToolDef, type ToolId } from './ui/tools';
-import { budgetHtml, HELP, infoHtml, menuHtml, pumpToasts, resetToasts, statsHtml, toast, updateGoal, updateTop } from './ui/hud';
+import { budgetHtml, draftHtml, HELP, infoHtml, linesHtml, menuHtml, pumpToasts, resetToasts, statsHtml, toast, updateGoal, updateTop } from './ui/hud';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('view');
 
 let sim: Sim = createSim(createWorld());
 const scene = new CityScene(canvas, sim);
+// Phones start on normal quality; the choice is remembered per browser.
+const QKEY = 'city.quality';
+let savedQ: string | null = null;
+try { savedQ = localStorage.getItem(QKEY); } catch { /* storage blocked */ }
+scene.setQuality(savedQ === 'high' || savedQ === 'normal' ? savedQ : matchMedia('(pointer: coarse)').matches ? 'normal' : 'high');
 let speed = 0;
 let running = false;
 let tool: ToolId = 'select';
 let cat: string | null = null;
+/** The bus or subway line being drawn: stops picked so far. */
+let draft: { kind: LineKind; stops: number[] } | null = null;
 
 /* --------------------------------------------------------------- layout */
 
@@ -34,12 +42,29 @@ focusStart();
 /* ---------------------------------------------------------------- dock */
 
 function renderCats() {
-  $('cats').innerHTML = CATEGORIES.map((c) => `<button class="cat${c.id === cat ? ' on' : ''}" data-cat="${c.id}"><span class="e">${c.icon}</span>${c.name}</button>`).join('')
-    + `<button class="cat" data-panel="stats"><span class="e">📊</span>현황</button><button class="cat" data-panel="budget"><span class="e">💰</span>예산</button>`;
+  $('cats').innerHTML = CATEGORIES.map((c) => `<button class="cat" data-cat="${c.id}" aria-pressed="${c.id === cat}" aria-keyshortcuts="${c.key}">${c.name}</button>`).join('')
+    + `<span class="cats-rule" aria-hidden="true"></span><button class="cat" data-panel="stats" aria-pressed="${panel === 'stats'}">현황</button><button class="cat" data-panel="budget" aria-pressed="${panel === 'budget'}">예산</button>`;
   const tools = $('tools');
   const c = CATEGORIES.find((k) => k.id === cat);
-  tools.hidden = !c || c.tools.length < 2;
-  if (c) tools.innerHTML = c.tools.map((t) => `<button class="tool${t.id === tool ? ' on' : ''}" data-tool="${t.id}"><span class="e">${t.icon}</span><span class="n">${t.name}</span><span class="p">${t.price}</span></button>`).join('');
+  tools.hidden = !c || (c.tools.length < 2 && c.id !== 'transit');
+  if (c) tools.innerHTML = c.tools.map((t) => `<button class="tool" data-tool="${t.id}" aria-pressed="${t.id === tool}">${t.swatch ? `<span class="sw" style="--sw:${t.swatch}"></span>` : ''}<span class="n">${t.name}</span>${t.price ? `<span class="p">${t.price}</span>` : ''}</button>`).join('')
+    + (c.id === 'transit' ? `<button class="tool" data-panel="lines" aria-pressed="${panel === 'lines'}"><span class="n">노선 관리</span><span class="p">${sim.w.lines.length}개 운행 중</span></button>` : '');
+  renderDraft();
+}
+
+function renderDraft() {
+  const el = $('draft');
+  el.hidden = !draft;
+  if (draft) el.innerHTML = draftHtml(sim.w, draft.kind, draft.stops);
+  scene.draft = draft;
+}
+
+function finishDraft() {
+  if (!draft) return;
+  const err = createLine(sim.w, draft.kind, draft.stops);
+  if (err) { toast(err, 'warn'); return; }
+  draft = { kind: draft.kind, stops: [] };
+  renderCats();
 }
 
 function setTool(t: ToolId) {
@@ -48,6 +73,8 @@ function setTool(t: ToolId) {
   scene.preview.clear();
   hideTip();
   const def = TOOLS[t];
+  draft = def?.line ? { kind: def.line, stops: draft?.kind === def.line ? draft.stops : [] } : null;
+  scene.transit.showRoutes = !!def?.line || scene.overlay === 'transit';
   scene.setZoneable(!!def && def.zone !== undefined && def.zone !== Zone.None);
   if (t !== 'select') closeInfo();
   renderCats();
@@ -56,20 +83,29 @@ function setTool(t: ToolId) {
 $('dock').addEventListener('click', (e) => {
   const el = (e.target as HTMLElement).closest('button');
   if (!el) return;
-  if (el.dataset.cat) {
-    const c = CATEGORIES.find((k) => k.id === el.dataset.cat)!;
-    if (cat === c.id) { cat = null; setTool('select'); return; }
-    cat = c.id;
-    setTool(c.tools[0].id);
-  } else if (el.dataset.tool) setTool(el.dataset.tool as ToolId);
+  if (el.dataset.cat) selectCategory(el.dataset.cat); else if (el.dataset.tool) setTool(el.dataset.tool as ToolId);
   else if (el.dataset.panel) openPanel(el.dataset.panel as PanelKind);
+  else if (el.dataset.draft && draft) {
+    if (el.dataset.draft === 'undo') draft.stops.pop();
+    if (el.dataset.draft === 'cancel') { cat = null; setTool('select'); return; }
+    if (el.dataset.draft === 'done') finishDraft();
+    renderDraft();
+  }
 });
+
+function selectCategory(id: string) {
+  const c = CATEGORIES.find((k) => k.id === id);
+  if (!c) return;
+  if (cat === c.id) { cat = null; setTool('select'); return; }
+  cat = c.id;
+  setTool(c.tools[0].id);
+}
 
 /* -------------------------------------------------------------- speeds */
 
 function setSpeed(s: number) {
   speed = s;
-  document.querySelectorAll<HTMLButtonElement>('.speed button').forEach((b) => b.classList.toggle('on', Number(b.dataset.speed) === s));
+  document.querySelectorAll<HTMLButtonElement>('.speed button').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.speed) === s)));
 }
 let lastSpeed = 1;
 document.querySelector('.speed')!.addEventListener('click', (e) => {
@@ -82,7 +118,8 @@ document.querySelector('.speed')!.addEventListener('click', (e) => {
 
 /* -------------------------------------------------------------- panels */
 
-type PanelKind = 'budget' | 'stats' | 'menu' | 'help';
+type PanelKind = 'budget' | 'stats' | 'menu' | 'help' | 'lines';
+let confirmLine: number | null = null;
 let panel: PanelKind | null = null;
 let panelStamp = '';
 let infoCell: { x: number; y: number } | null = null;
@@ -90,19 +127,22 @@ let infoCell: { x: number; y: number } | null = null;
 function openPanel(k: PanelKind) {
   if (panel === k) { closePanel(); return; }
   panel = k;
+  confirmLine = null;
   closeInfo();
   $('panel').hidden = false;
+  $('panel').setAttribute('aria-label', { budget: '예산', stats: '도시 현황', menu: '메뉴', help: '조작법', lines: '노선 관리' }[k]);
   renderPanel(true);
+  renderCats();
 }
-function closePanel() { panel = null; $('panel').hidden = true; }
+function closePanel() { const was = panel; panel = null; $('panel').hidden = true; if (was) renderCats(); }
 function renderPanel(force = false) {
   if (!panel) return;
   const w = sim.w;
   // The budget sheet only rebuilds on a new month so sliders don't jump under the finger.
-  const stamp = panel === 'budget' ? `${w.reports.length}:${w.tax.R}${w.tax.C}${w.tax.I}` : panel === 'stats' ? `${w.day}:${scene.overlay}` : panel;
+  const stamp = panel === 'budget' ? `${w.reports.length}:${w.tax.R}${w.tax.C}${w.tax.I}` : panel === 'stats' ? `${w.day}:${scene.overlay}` : panel === 'lines' ? `${w.ver.transit}:${w.reports.length}:${confirmLine}` : panel;
   if (!force && stamp === panelStamp) return;
   panelStamp = stamp;
-  $('panel').innerHTML = panel === 'budget' ? budgetHtml(w) : panel === 'stats' ? statsHtml(w, scene.overlay) : panel === 'menu' ? menuHtml(w) : HELP;
+  $('panel').innerHTML = panel === 'budget' ? budgetHtml(w) : panel === 'stats' ? statsHtml(w, scene.overlay) : panel === 'menu' ? menuHtml(w, scene.quality) : panel === 'lines' ? linesHtml(w, confirmLine) : HELP;
 }
 function openInfo(x: number, y: number) {
   infoCell = { x, y };
@@ -123,11 +163,23 @@ for (const id of ['info', 'panel']) {
       bulldoze(sim.w, (() => { const b = sim.w.buildings.get(Number(t.dataset.demolish)); return b ? [idx(b.x, b.y)] : []; })());
       closeInfo();
     }
-    if (t.dataset.ov) { scene.setOverlay(t.dataset.ov as Overlay); renderPanel(true); }
+    if (t.dataset.ov) { scene.setOverlay(t.dataset.ov as Overlay); scene.transit.showRoutes = t.dataset.ov === 'transit' || !!draft; renderPanel(true); }
+    if (t.dataset.removeLine) {
+      const id = Number(t.dataset.removeLine);
+      // Closing a line takes two presses: 폐선, then 폐선 확인.
+      if (t.dataset.confirmed !== undefined) { removeLine(sim.w, id); confirmLine = null; } else confirmLine = id;
+      renderPanel(true);
+      renderCats();
+    }
     if (t.dataset.act === 'save') toast(saveLocal(sim.w) ? '저장했어요.' : '저장하지 못했어요. (브라우저 저장소를 쓸 수 없어요)', 'good');
     if (t.dataset.act === 'load') { const w = loadLocal(); if (w) { useWorld(w); toast('불러왔어요.', 'good'); } else toast('저장된 도시가 없어요.', 'warn'); }
     if (t.dataset.act === 'new') { closePanel(); setSpeed(0); running = false; $('start').hidden = false; }
     if (t.dataset.act === 'help') openPanel('help');
+    if (t.dataset.act === 'quality') {
+      scene.setQuality(scene.quality === 'high' ? 'normal' : 'high');
+      try { localStorage.setItem(QKEY, scene.quality); } catch { /* storage blocked */ }
+      renderPanel(true);
+    }
   });
   el.addEventListener('input', (e) => {
     const t = e.target as HTMLInputElement;
@@ -160,7 +212,7 @@ let camDrag: { mode: 'pan' | 'rot'; x: number; y: number; moved: boolean } | nul
 let hover: { x: number; y: number; px: number; py: number } | null = null;
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}만 원`;
-const ZONE_COLOR: Record<number, string> = { [Zone.R]: '#62d35e', [Zone.C]: '#4f9cff', [Zone.I]: '#ffd34d' };
+const ZONE_COLOR: Record<number, string> = { [Zone.R]: '#4cc47c', [Zone.C]: '#3f7fd6', [Zone.I]: '#e3b04b' };
 
 function footprintAt(def: ToolDef, x: number, y: number) {
   const s = KINDS[def.kind!].size;
@@ -181,7 +233,7 @@ function preview() {
     const cost = roadCost(w, cells, def.road);
     const bad = roadBlocked(w, cells) || cost > w.money;
     p.show(cells, bad ? '#ff5a5a' : def.road === Road.Avenue ? '#8fd0ff' : '#c6f0ff');
-    showTip(b.px, b.py, `${cells.length * 10}m · ${won(cost)}${roadBlocked(w, cells) ? ' · 시설과 겹쳐요' : cost > w.money ? ' · 예산 부족' : ''}`, bad);
+    showTip(b.px, b.py, roadBlocked(w, cells) ? '시설과 겹쳐서 놓을 수 없어요' : cost > w.money ? `예산이 부족해요, ${won(cost)} 필요` : `${cells.length * 10}m, ${won(cost)}`, bad);
     return;
   }
   if (def.zone !== undefined) {
@@ -190,6 +242,14 @@ function preview() {
     const ok = cells.filter((i) => zoneable(w, i));
     p.show(ok, ZONE_COLOR[def.zone]);
     showTip(b.px, b.py, ok.length ? `${def.name} ${ok.length}칸` : '도로에서 3칸 안쪽만 칠할 수 있어요', !ok.length);
+    return;
+  }
+  if (def.line && draft) {
+    const i = idx(b.x, b.y);
+    const why = stopProblem(w, def.line, i, draft.stops);
+    p.show([i], why ? '#f0644f' : def.line === 'bus' ? '#2e9e4f' : '#263c96', def.line === 'bus' ? 0.6 : 3);
+    p.ringAt((b.x + 0.5) * CELL, (b.y + 0.5) * CELL, why ? 0 : STOP_RADIUS[def.line] * CELL);
+    showTip(b.px, b.py, why ?? (def.line === 'bus' ? `정류장 ${draft.stops.length + 1}번째로 추가` : `${draft.stops.length + 1}번째 역으로 추가`), !!why);
     return;
   }
   if (tool === 'bulldoze') {
@@ -205,7 +265,7 @@ function preview() {
     p.show(rectCells(f.x, f.y, f.x + f.s - 1, f.y + f.s - 1), why ? '#ff5a5a' : '#7cf0a6', 3);
     const svc = SERVICE[def.kind];
     p.ringAt((f.x + f.s / 2) * CELL, (f.y + f.s / 2) * CELL, svc ? svc.radius * CELL : 0);
-    showTip(b.px, b.py, why ?? `${def.name} · ${won(KINDS[def.kind].cost ?? 0)} · 유지비 ${won(KINDS[def.kind].upkeep ?? 0)}/월`, !!why);
+    showTip(b.px, b.py, why ?? `${def.name}, ${won(KINDS[def.kind].cost ?? 0)}, 유지비 월 ${won(KINDS[def.kind].upkeep ?? 0)}`, !!why);
   }
 }
 
@@ -221,6 +281,13 @@ function commit() {
     if (!n && def.zone !== Zone.None) err = '도로에서 3칸 안쪽 빈 땅에만 구역을 칠할 수 있어요.';
   } else if (tool === 'bulldoze') bulldoze(w, rectCells(a.x, a.y, b.x, b.y));
   else if (def.kind) { const f = footprintAt(def, b.x, b.y); err = placeFacility(w, def.kind, f.x, f.y); }
+  else if (def.line && draft) {
+    const i = idx(b.x, b.y);
+    // Tapping the first stop again closes the loop and finishes the line.
+    if (draft.stops.length >= 2 && i === draft.stops[0]) { finishDraft(); return; }
+    err = stopProblem(w, def.line, i, draft.stops);
+    if (!err) { draft.stops.push(i); renderDraft(); }
+  }
   if (err) toast(err, 'warn');
 }
 
@@ -315,6 +382,10 @@ window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (k === 'escape') { cat = null; setTool('select'); closeInfo(); closePanel(); return; }
   if (!running) return;
+  if (draft && k === 'enter') { finishDraft(); return; }
+  if (draft && k === 'backspace') { draft.stops.pop(); renderDraft(); return; }
+  const hot = CATEGORIES.find((c) => c.key.toLowerCase() === k);
+  if (hot && !e.ctrlKey && !e.metaKey) { selectCategory(hot.id); return; }
   if (k === ' ') { e.preventDefault(); setSpeed(speed ? 0 : lastSpeed); return; }
   if (k === '1' || k === '2' || k === '3') { lastSpeed = k === '3' ? 4 : Number(k); setSpeed(lastSpeed); return; }
   scene.view.keys.add(k);
@@ -353,8 +424,9 @@ function begin() {
 }
 $('goalFold').addEventListener('click', () => {
   const g = $('goal');
-  g.classList.toggle('fold');
-  $('goalFold').textContent = g.classList.contains('fold') ? '+' : '−';
+  const fold = g.classList.toggle('fold');
+  $('goalFold').textContent = fold ? '펼치기' : '접기';
+  $('goalFold').setAttribute('aria-expanded', String(!fold));
 });
 
 /* ---------------------------------------------------------------- loop */
@@ -377,6 +449,7 @@ function frame(t: number) {
     updateGoal(w);
     if (running) pumpToasts(w);
     if (infoCell) $('info').innerHTML = infoHtml(w, infoCell.x, infoCell.y);
+    if (draft && draft.stops.length >= 2) renderDraft();
     renderPanel();
     // Autosave at the start of every month.
     if (running && w.day >= saveDay + 30) { saveDay = w.day; saveLocal(w); }

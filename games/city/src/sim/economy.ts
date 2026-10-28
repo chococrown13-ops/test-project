@@ -1,5 +1,6 @@
 import { KINDS, N, ROAD_UPKEEP, Zone } from './defs';
-import { emptyMonth, notify, type World } from './world';
+import { FARE, lineUpkeep } from './transit';
+import { emptyMonth, notify, type MonthReport, type World } from './world';
 
 /** Monthly tax per resident / worker at a 10% rate, in 만원. */
 const TAX_BASE = { R: 1.0, C: 1.5, I: 1.3 };
@@ -20,6 +21,7 @@ export function accrueDay(w: World) {
       m.expense[group] += d.upkeep / 30;
     }
   });
+  for (const l of w.lines) m.expense.transit += lineUpkeep(w, l) / 30;
   let roads = 0;
   for (let i = 0; i < N * N; i++) if (w.road[i]) roads += ROAD_UPKEEP[w.road[i] as 1 | 2];
   m.expense.roads += roads / 30;
@@ -27,8 +29,9 @@ export function accrueDay(w: World) {
 
 export function closeMonth(w: World) {
   const m = w.month;
-  const income = m.income.R + m.income.C + m.income.I;
-  const expense = m.expense.roads + m.expense.facilities + m.expense.services;
+  m.income.T = w.lines.reduce((a, l) => a + l.ridersMonth, 0) * FARE;
+  const income = monthIncome(m);
+  const expense = monthExpense(m);
   w.money += Math.round(income - expense);
   m.pop = w.stats.pop;
   m.jobs = w.stats.jobs;
@@ -39,5 +42,6 @@ export function closeMonth(w: World) {
   w.month = emptyMonth(m.month + 1);
 }
 
-export const monthIncome = (r: { income: { R: number; C: number; I: number } }) => r.income.R + r.income.C + r.income.I;
-export const monthExpense = (r: { expense: { roads: number; facilities: number; services: number } }) => r.expense.roads + r.expense.facilities + r.expense.services;
+// Saves from before transit have no T or transit fields.
+export const monthIncome = (r: MonthReport) => r.income.R + r.income.C + r.income.I + (r.income.T ?? 0);
+export const monthExpense = (r: MonthReport) => r.expense.roads + r.expense.facilities + r.expense.services + (r.expense.transit ?? 0);

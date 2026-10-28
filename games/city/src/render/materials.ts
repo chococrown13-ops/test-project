@@ -50,7 +50,8 @@ export function buildingMaterial(): THREE.MeshStandardMaterial {
         varying vec3 vInfo;
         varying float vTop;
         float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-        float lit = 0.0;`)
+        float lit = 0.0;
+        float winTint = 0.0;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
         float st = floor(vStyle + 0.5);
         bool side = abs(vWN.y) < 0.5;
@@ -87,10 +88,15 @@ export function buildingMaterial(): THREE.MeshStandardMaterial {
           float on = step(0.42, h21(vec2(floorIx * 7.0 + vInfo.x * 91.0, colIx)));
           lit = win * on * vInfo.y * (1.0 - abandoned);
           if (abs(st - 2.0) < 0.5 && fy < 3.0 && fv > 0.85) lit = vInfo.y * 0.8;
+          // A thin slab line at every floor gives the facade its rhythm.
+          if (st < 4.5 && fv < 0.035 && vWP.y > 2.9) diffuseColor.rgb *= 0.86;
+          // Contact shade: walls darken toward the pavement, a cheap ambient occlusion.
+          diffuseColor.rgb *= mix(0.6, 1.0, smoothstep(0.0, 3.2, vWP.y));
+          winTint = h21(vec2(floorIx * 3.1 + vInfo.x * 17.0, colIx * 1.7));
         }
         diffuseColor.rgb *= 1.0 - abandoned * 0.35;`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-        totalEmissiveRadiance += lit * uNight * (abs(floor(vStyle + 0.5) - 2.0) < 0.5 && vWP.y < 9.0 && fract(vWP.y / 3.0) > 0.85 ? vSign * 1.6 : vec3(1.0, 0.78, 0.45) * 1.25);`);
+        totalEmissiveRadiance += lit * uNight * (abs(floor(vStyle + 0.5) - 2.0) < 0.5 && vWP.y < 9.0 && fract(vWP.y / 3.0) > 0.85 ? vSign * 1.6 : (winTint < 0.7 ? vec3(1.0, 0.78, 0.45) : winTint < 0.9 ? vec3(0.95, 0.92, 0.82) : vec3(0.55, 0.7, 1.0)) * 1.35);`);
   };
   m.customProgramCacheKey = () => 'city-building';
   return m;

@@ -1,5 +1,6 @@
 import { CELL, KINDS, N, ROAD_CAPACITY, ROAD_SPEED, Zone } from './defs';
 import { network } from './network';
+import { tryTransit } from './transit';
 import { rand, type World } from './world';
 
 /**
@@ -73,6 +74,9 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
         if (edge >= 0) [a, b] = morning ? [ha, edge] : [edge, ha];
       }
       if (a === undefined || b === undefined || a === b || net.comp[a] !== net.comp[b]) continue;
+      // Near a bus stop or a station at both ends, some people leave the car at home.
+      const ride = tryTransit(w, a, b, rand(w));
+      if (ride !== null) { tr.tripTime += ride; tr.trips++; continue; }
       const path = route(w, tr, a, b);
       if (!path || path.length < 2) continue;
       const kindRoll = rand(w);
