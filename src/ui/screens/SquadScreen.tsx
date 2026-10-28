@@ -1,310 +1,399 @@
 import { useState } from 'react';
-import { FORMATIONS, ROLE_LABEL } from '../../game/formations';
-import { overall } from '../../game/ratings';
-import type { AttributeKey, GameState, Player, Role } from '../../game/types';
-import { useGame } from '../../store/useGame';
-import { Card, gaugeColor } from '../components/common';
-import { PlayerDetail } from '../components/PlayerDetail';
-import { PlayerRow } from '../components/PlayerRow';
-import { useIsDesktop } from '../useMedia';
+import { averageRating, bestPosition, formatMoney, moraleLabel } from '../../game/ability';
+import { GROUP_LABEL, type AttrGroup } from '../../game/attributes';
+import { STATUS_LABEL } from '../../game/dynamics';
+import { POS_LINE } from '../../game/formations';
+import { FOCUS_HELP, FOCUS_LABEL } from '../../game/training';
+import { startNegotiation } from '../../game/transfers';
+import { releasePlayer } from '../../game/transfers';
+import type { Player, TrainingFocus } from '../../game/types';
+import { useGame, useStore } from '../../store';
+import { Card, Meter, Seg, Sheet, SubTabs, ratingColor, tone } from '../kit';
+import { PlayerRow } from '../PlayerRow';
 
-export function SquadScreen({ state }: { state: GameState }) {
-  const swapPlayers = useGame((s) => s.swapPlayers);
-  const autoPick = useGame((s) => s.autoPick);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [detail, setDetail] = useState<Player | null>(null);
-  const desktop = useIsDesktop();
+type Sub = 'squad' | 'training' | 'contracts' | 'medical' | 'dynamics' | 'youth';
+type Sort = 'pos' | 'ability' | 'age' | 'condition' | 'rating';
 
-  const club = state.teams[state.clubId];
-  const byId = new Map(club.players.map((p) => [p.id, p]));
-  const slots = FORMATIONS[club.formation].slots;
+const LINE_ORDER = { GK: 0, DEF: 1, MID: 2, ATT: 3 };
 
-  const reserves = club.players
-    .filter((p) => !club.lineup.includes(p.id) && !club.bench.includes(p.id))
-    .sort((a, b) => overall(b) - overall(a));
-
-  /** First tap selects, second tap swaps. Tapping the same player opens him. */
-  const handleTap = (playerId: string) => {
-    if (selected === null) {
-      setSelected(playerId);
-      return;
-    }
-    if (selected === playerId) {
-      setSelected(null);
-      const player = byId.get(playerId);
-      if (player) setDetail(player);
-      return;
-    }
-    swapPlayers(selected, playerId);
-    setSelected(null);
-  };
-
-  if (desktop) {
-    return (
-      <>
-        <SquadTable
-          lineup={club.lineup.map((id) => byId.get(id)).filter((p): p is Player => !!p)}
-          slots={slots}
-          bench={club.bench.map((id) => byId.get(id)).filter((p): p is Player => !!p)}
-          reserves={reserves}
-          selected={selected}
-          onTap={handleTap}
-          onAutoPick={() => {
-            autoPick();
-            setSelected(null);
-          }}
-          formation={club.formation}
-        />
-        {detail && <PlayerDetail player={detail} onClose={() => setDetail(null)} />}
-      </>
-    );
-  }
+export function SquadScreen() {
+  const state = useGame();
+  const sub = (useStore((s) => s.subs.squad) as Sub) ?? 'squad';
+  const setSub = useStore((s) => s.setSub);
+  const club = state.clubs[state.clubId];
+  const injured = club.playerIds.filter((id) => state.players[id]?.injury).length;
 
   return (
     <>
-      <Card
-        title={`선발 ${club.formation}`}
-        action={
-          <button
-            type="button"
-            className="btn tiny"
-            style={{ padding: '5px 10px', fontSize: 11 }}
-            onClick={() => {
-              autoPick();
-              setSelected(null);
-            }}
-          >
-            자동 선발
-          </button>
-        }
-      >
-        {club.lineup.map((id, index) => {
-          const player = byId.get(id);
-          if (!player) return null;
-          return (
-            <PlayerRow
-              key={id}
-              player={player}
-              slot={slots[index]}
-              selected={selected === id}
-              onClick={() => handleTap(id)}
-            />
-          );
-        })}
-      </Card>
-
-      <Card title={`교체 명단 (${club.bench.length})`}>
-        {club.bench.length === 0 && <div className="empty">벤치가 비어 있습니다.</div>}
-        {club.bench.map((id) => {
-          const player = byId.get(id);
-          if (!player) return null;
-          return (
-            <PlayerRow
-              key={id}
-              player={player}
-              selected={selected === id}
-              onClick={() => handleTap(id)}
-            />
-          );
-        })}
-      </Card>
-
-      <Card title={`나머지 선수 (${reserves.length})`}>
-        {reserves.length === 0 && <div className="empty">모든 선수가 명단에 포함되어 있습니다.</div>}
-        {reserves.map((player) => (
-          <PlayerRow
-            key={player.id}
-            player={player}
-            selected={selected === player.id}
-            onClick={() => handleTap(player.id)}
-          />
-        ))}
-      </Card>
-
-      <p className="tiny faint" style={{ textAlign: 'center', padding: '0 12px 8px' }}>
-        선수를 탭해 선택하고, 다른 선수를 탭하면 자리를 바꿉니다. 같은 선수를 다시 탭하면 상세
-        정보를 봅니다. 막대는 왼쪽부터 체력 · 폼 · 사기입니다.
-      </p>
-
-      {detail && <PlayerDetail player={detail} onClose={() => setDetail(null)} />}
+      <SubTabs<Sub>
+        value={sub}
+        onChange={(v) => setSub('squad', v)}
+        options={[
+          { value: 'squad', label: `선수단 ${club.playerIds.length}` },
+          { value: 'training', label: '훈련' },
+          { value: 'contracts', label: '계약' },
+          { value: 'medical', label: '의료', badge: injured },
+          { value: 'dynamics', label: '분위기' },
+          { value: 'youth', label: `유스 ${club.youthIds.length}` },
+        ]}
+      />
+      {sub === 'squad' && <SquadList />}
+      {sub === 'training' && <Training />}
+      {sub === 'contracts' && <Contracts />}
+      {sub === 'medical' && <Medical />}
+      {sub === 'dynamics' && <Dynamics />}
+      {sub === 'youth' && <Youth />}
     </>
   );
 }
 
-/* ------------------------------------------------------------ PC squad view */
-
-type SortKey = 'ovr' | 'age' | 'fit' | 'form' | 'value' | 'goals' | 'rating' | AttributeKey;
-
-const ATTR_COLUMNS: { key: AttributeKey; label: string }[] = [
-  { key: 'shooting', label: '슈팅' },
-  { key: 'passing', label: '패스' },
-  { key: 'dribbling', label: '드리블' },
-  { key: 'defending', label: '수비' },
-  { key: 'physical', label: '피지컬' },
-  { key: 'goalkeeping', label: 'GK' },
-];
-
-const money = (thousands: number): string =>
-  thousands >= 1000 ? `${(thousands / 1000).toFixed(1)}M` : `${thousands}K`;
-
-const avgRating = (p: Player) => (p.season.appearances > 0 ? p.season.ratingSum / p.season.appearances : 0);
-
-function sortValue(p: Player, key: SortKey): number {
-  switch (key) {
-    case 'ovr': return overall(p);
-    case 'age': return -p.age;
-    case 'fit': return p.fitness;
-    case 'form': return p.form;
-    case 'value': return p.value;
-    case 'goals': return p.season.goals;
-    case 'rating': return avgRating(p);
-    default: return p.attributes[key];
-  }
-}
-
-/** Colour attribute cells the way FM does: the better, the brighter. */
-function attrStyle(value: number) {
-  const color = value >= 65 ? '#3ddc91' : value >= 52 ? '#a3e635' : value >= 40 ? '#f5a524' : '#f4586a';
-  return { color, fontWeight: value >= 65 ? 800 : 600 };
-}
-
-function SquadTable({
-  lineup,
-  slots,
-  bench,
-  reserves,
-  selected,
-  onTap,
-  onAutoPick,
-  formation,
-}: {
-  lineup: Player[];
-  slots: Role[];
-  bench: Player[];
-  reserves: Player[];
-  selected: string | null;
-  onTap: (id: string) => void;
-  onAutoPick: () => void;
-  formation: string;
-}) {
-  const [sort, setSort] = useState<SortKey | null>(null);
-  const sorted = (list: Player[]) =>
-    sort ? [...list].sort((a, b) => sortValue(b, sort) - sortValue(a, sort)) : list;
-
-  const header = (key: SortKey, label: string) => (
-    <th
-      className={`sortable${sort === key ? ' sortable--active' : ''}`}
-      onClick={() => setSort(sort === key ? null : key)}
-    >
-      {label}
-    </th>
-  );
-
-  const row = (player: Player, slot?: Role) => {
-    const outOfPosition = slot !== undefined && slot !== player.role;
-    return (
-      <tr
-        key={player.id}
-        className={`squad-row${selected === player.id ? ' squad-row--selected' : ''}`}
-        onClick={() => onTap(player.id)}
-      >
-        <td>
-          <span className={`player__pos player__pos--${player.group}`}>{ROLE_LABEL[slot ?? player.role]}</span>
-        </td>
-        <td className="squad-row__name">
-          {player.name}
-          {outOfPosition && <span className="tiny" style={{ color: 'var(--warn)' }}> ({ROLE_LABEL[player.role]})</span>}
-          {player.injuredFor > 0 && <span style={{ color: 'var(--bad)' }}> ✚{player.injuredFor}</span>}
-        </td>
-        <td>{player.age}</td>
-        <td className="muted">{player.nationality}</td>
-        {ATTR_COLUMNS.map(({ key }) => (
-          <td key={key} style={attrStyle(player.attributes[key])}>
-            {player.group === 'GK' || key !== 'goalkeeping' ? player.attributes[key] : '-'}
-          </td>
-        ))}
-        <td className="squad-row__ovr">{overall(player)}</td>
-        <td>
-          <Meter value={player.fitness} />
-        </td>
-        <td>
-          <Meter value={player.form} />
-        </td>
-        <td>
-          <Meter value={player.morale} />
-        </td>
-        <td>{money(player.value)}</td>
-        <td className="muted">{money(player.wage)}</td>
-        <td>{player.season.appearances}</td>
-        <td>{player.season.goals}</td>
-        <td>{player.season.assists}</td>
-        <td style={{ color: avgRating(player) ? gaugeColor(avgRating(player) * 10) : undefined }}>
-          {avgRating(player) ? avgRating(player).toFixed(2) : '-'}
-        </td>
-      </tr>
-    );
-  };
-
-  const section = (label: string, count: number) => (
-    <tr className="squad-section">
-      <td colSpan={21}>
-        {label} <span className="faint">({count})</span>
-      </td>
-    </tr>
-  );
-
+function SquadList() {
+  const state = useGame();
+  const push = useStore((s) => s.push);
+  const [sort, setSort] = useState<Sort>('pos');
+  const club = state.clubs[state.clubId];
+  const lineup = new Set(club.tactic.lineup);
+  const players = club.playerIds.map((id) => state.players[id]).filter((p): p is Player => !!p);
+  const sorted = [...players].sort((a, b) => {
+    switch (sort) {
+      case 'pos':
+        return LINE_ORDER[POS_LINE[bestPosition(a)]] - LINE_ORDER[POS_LINE[bestPosition(b)]] || b.ca - a.ca;
+      case 'ability':
+        return b.ca - a.ca;
+      case 'age':
+        return a.age - b.age;
+      case 'condition':
+        return a.condition - b.condition;
+      case 'rating':
+        return (averageRating(b, state.season) ?? 0) - (averageRating(a, state.season) ?? 0);
+    }
+  });
   return (
-    <Card
-      title={`선수단 · ${formation}`}
-      action={
-        <button type="button" className="btn tiny" style={{ padding: '5px 10px', fontSize: 11 }} onClick={onAutoPick}>
-          자동 선발
-        </button>
-      }
-    >
-      <div className="squad-table-wrap">
-        <table className="table squad-table">
-          <thead>
-            <tr>
-              <th>포지션</th>
-              <th style={{ textAlign: 'left' }}>이름</th>
-              {header('age', '나이')}
-              <th>국적</th>
-              {ATTR_COLUMNS.map(({ key, label }) => header(key, label))}
-              {header('ovr', 'OVR')}
-              {header('fit', '체력')}
-              {header('form', '폼')}
-              <th>사기</th>
-              {header('value', '가치')}
-              <th>주급</th>
-              <th>출전</th>
-              {header('goals', '골')}
-              <th>도움</th>
-              {header('rating', '평점')}
-            </tr>
-          </thead>
-          <tbody>
-            {section('선발', lineup.length)}
-            {lineup.map((p, i) => row(p, slots[i]))}
-            {section('교체 명단', bench.length)}
-            {sorted(bench).map((p) => row(p))}
-            {section('나머지 선수', reserves.length)}
-            {sorted(reserves).map((p) => row(p))}
-          </tbody>
-        </table>
+    <>
+      <div style={{ marginBottom: 10 }}>
+        <Seg<Sort>
+          value={sort}
+          onChange={setSort}
+          options={[
+            { value: 'pos', label: '포지션' },
+            { value: 'ability', label: '능력' },
+            { value: 'age', label: '나이' },
+            { value: 'condition', label: '체력' },
+            { value: 'rating', label: '평점' },
+          ]}
+        />
       </div>
-      <p className="tiny faint" style={{ padding: '8px 12px', margin: 0 }}>
-        행을 클릭해 선택하고 다른 선수를 클릭하면 자리를 바꿉니다. 같은 선수를 다시 클릭하면 상세 정보를 봅니다.
-        열 제목을 클릭하면 교체·나머지 선수를 정렬합니다.
-      </p>
-    </Card>
+      <Card>
+        {sorted.map((p) => {
+          const avg = averageRating(p, state.season);
+          return (
+            <PlayerRow
+              key={p.id}
+              state={state}
+              player={p}
+              onClick={() => push({ kind: 'player', id: p.id })}
+              meta={
+                <>
+                  <span>{p.age}세</span>
+                  {lineup.has(p.id) && <span className="good">선발</span>}
+                  <span>
+                    체력 <Meter value={p.condition} width={34} />
+                  </span>
+                  <span>
+                    사기 <Meter value={p.morale} width={34} />
+                  </span>
+                </>
+              }
+              end={
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 900, color: avg ? ratingColor(avg) : 'var(--faint)' }}>{avg ? avg.toFixed(2) : '-'}</div>
+                  <div className="tiny faint">{formatMoney(p.value)}</div>
+                </div>
+              }
+            />
+          );
+        })}
+      </Card>
+      <p className="tiny faint" style={{ textAlign: 'center' }}>오른쪽 숫자는 이번 시즌 평균 평점입니다.</p>
+    </>
   );
 }
 
-function Meter({ value }: { value: number }) {
+const FOCUSES: TrainingFocus[] = ['balanced', 'tactical', 'attacking', 'defending', 'physical', 'setpieces', 'recovery', 'matchPrep'];
+
+function Training() {
+  const state = useGame();
+  const mutate = useStore((s) => s.mutate);
+  const push = useStore((s) => s.push);
+  const [focusFor, setFocusFor] = useState<Player | null>(null);
+  const club = state.clubs[state.clubId];
+  const coaches = state.staff.filter((s) => ['coach', 'assistant', 'fitness', 'gkCoach'].includes(s.role));
+
   return (
-    <span className="meter" title={String(Math.round(value))}>
-      <span className="meter__fill" style={{ width: `${value}%`, background: gaugeColor(value) }} />
-    </span>
+    <>
+      <Card title="팀 훈련 초점" padded>
+        <div className="grid2">
+          {FOCUSES.map((f) => (
+            <button
+              key={f}
+              type="button"
+              className={`chip${state.training.focus === f ? ' chip--on' : ''}`}
+              style={{ borderRadius: 10, textAlign: 'left' }}
+              onClick={() => mutate((s) => (s.training.focus = f))}
+            >
+              {FOCUS_LABEL[f]}
+            </button>
+          ))}
+        </div>
+        <p className="small muted" style={{ marginBottom: 0 }}>{FOCUS_HELP[state.training.focus]}</p>
+      </Card>
+
+      <Card title="훈련 강도" padded>
+        <Seg
+          value={state.training.intensity}
+          onChange={(v) => mutate((s) => (s.training.intensity = v))}
+          options={[
+            { value: 'low', label: '낮음' },
+            { value: 'normal', label: '보통' },
+            { value: 'high', label: '높음' },
+          ]}
+        />
+        <p className="small muted" style={{ marginBottom: 0 }}>
+          강도가 높으면 성장이 빨라지지만 체력 회복이 늦고 부상 위험이 커집니다.
+        </p>
+      </Card>
+
+      <Card title="전술 이해도" padded>
+        <div className="row">
+          <Meter value={club.tactic.familiarity} width={160} />
+          <b className="num">{Math.round(club.tactic.familiarity)}%</b>
+        </div>
+        <p className="small muted" style={{ marginBottom: 0 }}>
+          포메이션을 바꾸면 떨어지고, 전술 훈련과 경기를 치를수록 오릅니다. 경기력에 직접 영향을 줍니다.
+        </p>
+      </Card>
+
+      <Card title={`코칭스태프 ${coaches.length}명`} padded>
+        <div className="small muted">
+          평균 능력 {coaches.length ? (coaches.reduce((s, c) => s + c.ability, 0) / coaches.length).toFixed(1) : '-'} / 20 · 훈련 시설 {club.trainingFacilities} / 20
+        </div>
+      </Card>
+
+      <Card title="개인 훈련">
+        {club.playerIds.map((id) => {
+          const p = state.players[id];
+          if (!p) return null;
+          return (
+            <PlayerRow
+              key={id}
+              state={state}
+              player={p}
+              onClick={() => setFocusFor(p)}
+              end={<span className="badge">{p.trainingFocus ? GROUP_LABEL[p.trainingFocus] : '없음'}</span>}
+            />
+          );
+        })}
+      </Card>
+
+      {focusFor && (
+        <Sheet title={`${focusFor.name} 개인 훈련`} onClose={() => setFocusFor(null)}>
+          <div className="grid2">
+            {([null, 'attacking', 'creative', 'defending', 'physical', 'mental', 'goalkeeping', 'setpieces'] as (AttrGroup | null)[]).map((g) => (
+              <button
+                key={g ?? 'none'}
+                type="button"
+                className={`chip${focusFor.trainingFocus === g ? ' chip--on' : ''}`}
+                onClick={() => {
+                  mutate((s) => (s.players[focusFor.id].trainingFocus = g));
+                  setFocusFor(null);
+                }}
+              >
+                {g ? GROUP_LABEL[g] : '없음'}
+              </button>
+            ))}
+          </div>
+          <button type="button" className="btn btn--block" style={{ marginTop: 12 }} onClick={() => push({ kind: 'player', id: focusFor.id })}>
+            선수 정보 보기
+          </button>
+        </Sheet>
+      )}
+    </>
+  );
+}
+
+function Contracts() {
+  const state = useGame();
+  const push = useStore((s) => s.push);
+  const mutate = useStore((s) => s.mutate);
+  const [error, setError] = useState<string | null>(null);
+  const club = state.clubs[state.clubId];
+  const players = club.playerIds
+    .map((id) => state.players[id])
+    .filter((p): p is Player => !!p && !!p.contract)
+    .sort((a, b) => a.contract!.expires - b.contract!.expires || b.contract!.wage - a.contract!.wage);
+  return (
+    <>
+      {error && <div className="card card__body bad small">{error}</div>}
+      <Card title="계약 현황">
+        {players.map((p) => {
+          const c = p.contract!;
+          const expiring = c.expires <= state.season;
+          return (
+            <PlayerRow
+              key={p.id}
+              state={state}
+              player={p}
+              onClick={() => push({ kind: 'player', id: p.id })}
+              meta={
+                <>
+                  <span>{STATUS_LABEL[c.status]}</span>
+                  <span>주급 {formatMoney(c.wage)}</span>
+                  <span className={expiring ? 'bad' : undefined}>~{c.expires + 1}.6</span>
+                </>
+              }
+              end={
+                expiring && !p.loan ? (
+                  <span
+                    role="button"
+                    className="btn btn--sm btn--primary"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      let result: ReturnType<typeof startNegotiation> = '';
+                      mutate((s) => {
+                        result = startNegotiation(s, p.id, 'renewal');
+                      });
+                      if (typeof result === 'string') setError(result);
+                      else push({ kind: 'negotiation', id: (result as { id: string }).id });
+                    }}
+                  >
+                    재계약
+                  </span>
+                ) : (
+                  <span className="tiny faint">{c.expires - state.season + 1}년</span>
+                )
+              }
+            />
+          );
+        })}
+      </Card>
+    </>
+  );
+}
+
+function Medical() {
+  const state = useGame();
+  const push = useStore((s) => s.push);
+  const club = state.clubs[state.clubId];
+  const players = club.playerIds.map((id) => state.players[id]).filter((p): p is Player => !!p);
+  const injured = players.filter((p) => p.injury);
+  const tired = players.filter((p) => !p.injury && p.condition < 80).sort((a, b) => a.condition - b.condition);
+  const physios = state.staff.filter((s) => s.role === 'physio');
+  return (
+    <>
+      <Card title={`부상자 ${injured.length}명`}>
+        {injured.length === 0 && <div className="empty">부상자가 없습니다.</div>}
+        {injured.map((p) => (
+          <PlayerRow key={p.id} state={state} player={p} onClick={() => push({ kind: 'player', id: p.id })} meta={<span>{p.injury!.name}</span>} end={<b className="bad">{p.injury!.days}일</b>} />
+        ))}
+      </Card>
+      <Card title="체력 관리 필요">
+        {tired.length === 0 && <div className="empty">모두 정상 컨디션입니다.</div>}
+        {tired.map((p) => (
+          <PlayerRow key={p.id} state={state} player={p} onClick={() => push({ kind: 'player', id: p.id })} end={<b style={{ color: tone(p.condition) }}>{Math.round(p.condition)}%</b>} />
+        ))}
+      </Card>
+      <Card padded>
+        <div className="small muted">의무 트레이너 {physios.length}명 · 최고 능력 {physios.length ? Math.max(...physios.map((s) => s.ability)) : '-'} / 20 — 능력이 높을수록 부상 회복이 빠릅니다.</div>
+      </Card>
+    </>
+  );
+}
+
+function Dynamics() {
+  const state = useGame();
+  const push = useStore((s) => s.push);
+  const club = state.clubs[state.clubId];
+  const players = club.playerIds
+    .map((id) => state.players[id])
+    .filter((p): p is Player => !!p)
+    .sort((a, b) => a.morale - b.morale);
+  const avg = players.reduce((s, p) => s + p.morale, 0) / Math.max(1, players.length);
+  const captain = club.tactic.captain ? state.players[club.tactic.captain] : null;
+  return (
+    <>
+      <Card padded>
+        <div className="row">
+          <span className="muted">팀 사기</span>
+          <span className="spacer" />
+          <b style={{ color: tone(avg) }}>{moraleLabel(avg)}</b>
+        </div>
+        <div className="row small" style={{ marginTop: 6 }}>
+          <span className="muted">주장</span>
+          <span className="spacer" />
+          <b>{captain?.name ?? '-'}</b>
+        </div>
+      </Card>
+      <Card title="선수별 사기 (낮은 순)">
+        {players.map((p) => (
+          <PlayerRow
+            key={p.id}
+            state={state}
+            player={p}
+            onClick={() => push({ kind: 'player', id: p.id })}
+            meta={
+              <>
+                <span>{p.contract ? STATUS_LABEL[p.contract.status] : ''}</span>
+                {p.unhappy && <span className="warn">{p.unhappy}</span>}
+              </>
+            }
+            end={<b style={{ color: tone(p.morale) }}>{moraleLabel(p.morale)}</b>}
+          />
+        ))}
+      </Card>
+    </>
+  );
+}
+
+function Youth() {
+  const state = useGame();
+  const push = useStore((s) => s.push);
+  const mutate = useStore((s) => s.mutate);
+  const club = state.clubs[state.clubId];
+  const youth = club.youthIds.map((id) => state.players[id]).filter((p): p is Player => !!p).sort((a, b) => b.pa - a.pa);
+  return (
+    <>
+      <Card title="유스팀">
+        {youth.length === 0 && <div className="empty">유스 선수가 없습니다. 3월 유스 인테이크를 기다리세요.</div>}
+        {youth.map((p) => (
+          <div key={p.id} style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <PlayerRow state={state} player={p} onClick={() => push({ kind: 'player', id: p.id })} />
+            </div>
+            <div className="row" style={{ paddingRight: 12, gap: 6 }}>
+              <button
+                type="button"
+                className="btn btn--sm btn--primary"
+                onClick={() =>
+                  mutate((s) => {
+                    const c = s.clubs[s.clubId];
+                    c.youthIds = c.youthIds.filter((x) => x !== p.id);
+                    c.playerIds.push(p.id);
+                    s.players[p.id].youth = false;
+                  })
+                }
+              >
+                1군
+              </button>
+              <button type="button" className="btn btn--sm btn--danger" onClick={() => mutate((s) => releasePlayer(s, s.players[p.id], false))}>
+                방출
+              </button>
+            </div>
+          </div>
+        ))}
+      </Card>
+      <p className="tiny faint" style={{ textAlign: 'center' }}>
+        유스 시설 {club.youthFacilities}/20. 매년 3월 중순 새로운 유스 선수들이 들어옵니다. 18세가 되면 1군으로 올라옵니다.
+      </p>
+    </>
   );
 }

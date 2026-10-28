@@ -18,6 +18,8 @@ export const PITCH_H = 68;
 /** Grass drawn around the touchlines, in metres. */
 export const MARGIN = 4;
 export const GOAL_HALF = 3.66;
+/** Length of a goal replay, in director seconds. */
+const REPLAY_TIME = 6;
 const CENTER = { x: PITCH_W / 2, y: PITCH_H / 2 };
 
 export type SideKey = 'home' | 'away';
@@ -46,6 +48,8 @@ export interface RosterInput {
   entries: RosterEntry[];
   /** Formation layout, x: 0-100 left-right, y: 0-100 own goal -> opposition goal. */
   layout: { x: number; y: number }[];
+  /** Out-of-possession position of each IP slot (same indexing), when the shapes differ. */
+  oopLayout?: { x: number; y: number }[];
   sentOff: string[];
 }
 
@@ -79,7 +83,9 @@ type Step =
   | { kind: 'carry'; to: Vec; dur: number; ambient?: boolean }
   | { kind: 'shoot'; target: Vec; peak: number; speed: number }
   | { kind: 'wait'; dur: number; ambient?: boolean }
-  | { kind: 'call'; fn: () => void };
+  | { kind: 'call'; fn: () => void }
+  /** Holds until any goal replay has finished playing. */
+  | { kind: 'replay' };
 
 interface Banner {
   text: string;
@@ -114,6 +120,12 @@ export interface SceneView {
   highlight: boolean;
   /** Side celebrating a goal right now, if any. */
   celebrating: SideKey | null;
+  /** Keepers mid-dive: who, toward which pitch point, and how far in (seconds). */
+  dives: readonly { actorId: string; toward: Readonly<Vec>; t: number }[];
+  /** Set while a goal replay should be shown instead of the live picture. */
+  replay: { t: number; dur: number } | null;
+  /** Director clock in seconds, for recording and replaying frames. */
+  time: number;
   banner: { text: string; sub?: string; color: string; alpha: number; big: boolean } | null;
   markers: readonly { actorId: string; kind: 'yellow' | 'red' | 'injury' }[];
   kits: Record<SideKey, Kit>;
@@ -131,15 +143,12 @@ const dirOf = (side: SideKey) => (side === 'home' ? 1 : -1);
 /** x of the goal this side attacks. */
 const targetGoalX = (side: SideKey) => (side === 'home' ? PITCH_W : 0);
 
-function surname(name: string): string {
-  const parts = name.split(' ');
-  return parts[parts.length - 1];
-}
-
 export class MatchDirector {
   private actors: Actor[] = [];
   private kits: Record<SideKey, Kit>;
   private layouts: Record<SideKey, { x: number; y: number }[]> = { home: [], away: [] };
+  private oopLayouts: Record<SideKey, { x: number; y: number }[]> = { home: [], away: [] };
+  private highlightFilter: ((event: MatchEvent) => boolean) | null = null;
   private deadSlots: Record<SideKey, Set<number>> = { home: new Set(), away: new Set() };
 
   private ball = { pos: { ...CENTER }, h: 0 };
@@ -167,6 +176,10 @@ export class MatchDirector {
   private timeScale = 1;
   private lastBusy = false;
   private celebrating: SideKey | null = null;
+  private dives: { actorId: string; toward: Vec; t: number }[] = [];
+  private replay: { t: number; dur: number } | null = null;
+  /** Only a renderer that records frames can show a replay; others skip it. */
+  private replaysEnabled = false;
 
   constructor(
     kits: Record<SideKey, Kit>,
@@ -196,6 +209,20 @@ export class MatchDirector {
     this.kits = kits;
   }
 
+  /** Events the filter rejects are revealed at once instead of being played out (dynamic highlights). */
+  setHighlightFilter(filter: ((event: MatchEvent) => boolean) | null): void {
+    this.highlightFilter = filter;
+  }
+
+  setReplaysEnabled(enabled: boolean): void {
+    this.replaysEnabled = enabled;
+  }
+
+  /** Cut a running replay short. */
+  skipReplay(): void {
+    if (this.replay) this.replay.t = this.replay.dur;
+  }
+
   setTimeScale(scale: number): void {
     this.timeScale = scale;
   }
@@ -219,6 +246,7 @@ export class MatchDirector {
   /** Bring the roster in line with who the engine has on the pitch. */
   syncRoster(side: SideKey, input: RosterInput): void {
     this.layouts[side] = input.layout;
+    this.oopLayouts[side] = input.oopLayout ?? input.layout;
     const onPitch = new Set(input.entries.map((e) => e.id));
     const sentOff = new Set(input.sentOff);
 
@@ -248,7 +276,7 @@ export class MatchDirector {
       const existing = this.actors.find((a) => a.id === entry.id && !a.leaving);
       if (existing) {
         existing.number = entry.number;
-        existing.label = surname(entry.name);
+        existing.label = entry.name;
         return;
       }
       const slot =
@@ -259,7 +287,7 @@ export class MatchDirector {
         side,
         slot,
         number: entry.number,
-        label: surname(entry.name),
+        label: entry.name,
         isKeeper: entry.isKeeper || slot === 0,
         pos: { x: 0, y: 0 },
         override: null,
@@ -304,6 +332,8 @@ export class MatchDirector {
     this.stepStarted = false;
     this.banner = null;
     this.markers = [];
+    this.dives = [];
+    this.replay = null;
     this.clearOverrides();
     this.ended = events.some((e) => e.kind === 'fulltime');
     this.kickoff('home', true);
@@ -320,6 +350,8 @@ export class MatchDirector {
       if (this.banner.t >= this.banner.dur) this.banner = null;
     }
     this.markers = this.markers.filter((m) => (m.t += dt) < m.dur);
+    this.dives = this.dives.filter((d) => (d.t += dt) < 1.6);
+    if (this.replay) this.replay.t = Math.min(this.replay.dur, this.replay.t + dt);
 
     this.runSteps(dt);
     this.moveActors(dt);
@@ -341,6 +373,9 @@ export class MatchDirector {
       ownerId: this.owner?.id ?? null,
       highlight: this.current !== null,
       celebrating: this.celebrating,
+      dives: this.dives,
+      replay: this.replay ? { t: this.replay.t, dur: this.replay.dur } : null,
+      time: this.time,
       banner,
       markers: this.markers,
       kits: this.kits,
@@ -441,6 +476,8 @@ export class MatchDirector {
         return this.stepT >= step.dur;
       case 'call':
         return true;
+      case 'replay':
+        return !this.replay || this.replay.t >= this.replay.dur;
     }
   }
 
@@ -509,6 +546,35 @@ export class MatchDirector {
     this.steps = [];
     this.stepStarted = false;
     const reveal = () => this.reveal(index);
+
+    const optional = ['chance', 'save', 'miss', 'foul', 'yellow', 'corner', 'offside', 'injury', 'sub', 'goal'];
+    if (optional.includes(event.kind) && this.highlightFilter && !this.highlightFilter(event)) {
+      this.steps.push({ kind: 'call', fn: reveal });
+      return;
+    }
+
+    switch (event.kind) {
+      case 'offside':
+        this.steps.push(
+          { kind: 'call', fn: () => { reveal(); this.flight = null; this.showBanner('오프사이드', this.actorName(event.playerId), '#334155', 0.9, false); } },
+          { kind: 'wait', dur: 0.8 },
+          { kind: 'call', fn: () => { const d = this.nearest(event.side === 'home' ? 'away' : 'home', this.ball.pos, true); if (d) { this.owner = d; this.possession = d.side; } } },
+        );
+        return;
+      case 'corner':
+        this.steps.push({ kind: 'call', fn: () => { reveal(); this.showBanner('코너킥', undefined, '#334155', 0.8, false); } }, { kind: 'wait', dur: 0.5 });
+        return;
+      case 'extratime':
+        this.steps.push(
+          { kind: 'call', fn: () => { reveal(); this.showBanner('연장전', `${event.homeGoals} - ${event.awayGoals}`, '#0f172a', 1.8, true); } },
+          { kind: 'wait', dur: 1.8 },
+          { kind: 'call', fn: () => this.kickoff('home', true) },
+        );
+        return;
+      case 'pens':
+        this.steps.push({ kind: 'call', fn: () => { reveal(); this.showBanner('승부차기', event.text, '#7c3aed', 3, true); } }, { kind: 'wait', dur: 3 });
+        return;
+    }
 
     switch (event.kind) {
       case 'goal':
@@ -625,77 +691,89 @@ export class MatchDirector {
       y: clamp(y, 2, PITCH_H - 2),
     });
 
-    // 1. Win the ball back if the other side has it.
-    if (!this.owner || this.owner.side !== atk) {
-      const winner = this.nearest(atk, this.ball.pos, true);
-      if (winner) steps.push({ kind: 'pass', to: winner, speed: 16 });
-    }
+    const type = event.chance ?? (assister && assister !== shooter ? (Math.random() < 0.5 ? 'cross' : 'through') : 'dribble');
+    let shotSpot: Vec = at(rand(9, 15), CENTER.y + rand(-7, 7));
 
-    // 2. A little build-up through midfield.
-    const builders = this.team(atk).filter((a) => !a.isKeeper && a !== shooter && a !== assister);
-    const buildCount = Math.random() < 0.5 ? 1 : 2;
-    for (let i = 0; i < buildCount && builders.length > 0; i++) {
-      const b = builders.splice(Math.floor(Math.random() * builders.length), 1)[0];
+    if (type === 'penalty' || type === 'freekick') {
+      shotSpot = type === 'penalty' ? at(11, CENTER.y) : at(rand(20, 26), CENTER.y + rand(-9, 9));
+      steps.push({ kind: 'call', fn: () => this.setPiece(atk, shooter, shotSpot, type) });
+      steps.push({ kind: 'wait', dur: type === 'penalty' ? 1.6 : 1.4 });
+    } else if (type === 'corner') {
+      const flag = { x: goalX - dir * 0.6, y: flank > 0 ? PITCH_H - 0.6 : 0.6 };
+      shotSpot = at(rand(6, 10), CENTER.y + rand(-5, 5));
+      const taker = assister && assister !== shooter ? assister : this.team(atk).find((a) => !a.isKeeper && a !== shooter) ?? null;
       steps.push({
         kind: 'call',
         fn: () => {
-          b.override = at(rand(38, 55), rand(14, 54));
+          this.flight = null;
+          this.ball.pos = { ...flag };
+          this.ball.h = 0;
+          if (taker) {
+            taker.pos = { x: flag.x - dir * 0.8, y: flag.y };
+            taker.override = { ...taker.pos };
+            this.owner = taker;
+            this.possession = atk;
+          }
+          this.packBox(atk, [shooter, taker]);
+          shooter.override = at(13, CENTER.y - flank * 3);
         },
       });
-      steps.push({ kind: 'pass', to: b });
-      steps.push({ kind: 'carry', to: at(rand(32, 40), b.override?.y ?? CENTER.y), dur: 0.7 });
-    }
+      steps.push({ kind: 'wait', dur: 1.3 });
+      steps.push({ kind: 'call', fn: () => { shooter.override = { ...shotSpot }; } });
+      steps.push({ kind: 'pass', to: shooter, point: shotSpot, peak: 4, speed: 20 });
+    } else {
+      // Win the ball back if the other side has it.
+      if (!this.owner || this.owner.side !== atk) {
+        const winner = this.nearest(atk, this.ball.pos, true);
+        if (winner) steps.push({ kind: 'pass', to: winner, speed: type === 'counter' ? 22 : 16 });
+      }
 
-    // 3. The final ball.
-    const shotSpot = at(rand(9, 15), CENTER.y + rand(-7, 7));
-    if (assister && assister !== shooter) {
-      const cross = Math.random() < 0.5;
-      if (cross) {
+      // A little build-up through midfield (counters skip it).
+      if (type !== 'counter' && type !== 'longball') {
+        const builders = this.team(atk).filter((a) => !a.isKeeper && a !== shooter && a !== assister);
+        const buildCount = Math.random() < 0.5 ? 1 : 2;
+        for (let i = 0; i < buildCount && builders.length > 0; i++) {
+          const b = builders.splice(Math.floor(Math.random() * builders.length), 1)[0];
+          steps.push({ kind: 'call', fn: () => { b.override = at(rand(38, 55), rand(14, 54)); } });
+          steps.push({ kind: 'pass', to: b });
+          steps.push({ kind: 'carry', to: at(rand(32, 40), b.override?.y ?? CENTER.y), dur: 0.7 });
+        }
+      }
+
+      const withAssist = assister && assister !== shooter;
+      if (type === 'cross' && withAssist) {
         const wideY = CENTER.y + flank * 26;
-        steps.push({
-          kind: 'call',
-          fn: () => {
-            assister.override = at(24, wideY);
-            shooter.override = at(18, CENTER.y - flank * 4);
-          },
-        });
+        steps.push({ kind: 'call', fn: () => { assister.override = at(24, wideY); shooter.override = at(18, CENTER.y - flank * 4); } });
         steps.push({ kind: 'pass', to: assister });
         steps.push({ kind: 'carry', to: at(rand(8, 13), wideY), dur: 1.1 });
-        steps.push({
-          kind: 'call',
-          fn: () => {
-            shooter.override = { ...shotSpot };
-          },
-        });
+        steps.push({ kind: 'call', fn: () => { shooter.override = { ...shotSpot }; } });
         steps.push({ kind: 'pass', to: shooter, point: shotSpot, peak: 3.2, speed: 19 });
-      } else {
-        steps.push({
-          kind: 'call',
-          fn: () => {
-            assister.override = at(28, CENTER.y + rand(-10, 10));
-            shooter.override = at(22, CENTER.y + flank * 9);
-          },
-        });
+      } else if (type === 'cutback' && withAssist) {
+        const wideY = CENTER.y + flank * 15;
+        shotSpot = at(rand(9, 12), CENTER.y + flank * rand(0, 4));
+        steps.push({ kind: 'call', fn: () => { assister.override = at(16, wideY); shooter.override = at(20, CENTER.y); } });
         steps.push({ kind: 'pass', to: assister });
-        steps.push({ kind: 'wait', dur: 0.35 });
-        steps.push({
-          kind: 'call',
-          fn: () => {
-            shooter.override = { ...shotSpot };
-          },
-        });
+        steps.push({ kind: 'carry', to: at(2.5, CENTER.y + flank * 9), dur: 1.2 });
+        steps.push({ kind: 'call', fn: () => { shooter.override = { ...shotSpot }; } });
+        steps.push({ kind: 'pass', to: shooter, point: shotSpot, speed: 18 });
+      } else if (type === 'longshot') {
+        shotSpot = at(rand(22, 28), CENTER.y + rand(-8, 8));
+        steps.push({ kind: 'call', fn: () => { shooter.override = at(30, shotSpot.y); } });
+        steps.push({ kind: 'pass', to: shooter });
+        steps.push({ kind: 'carry', to: shotSpot, dur: 0.8 });
+      } else if (withAssist && type !== 'dribble') {
+        // Through ball (also counters and knock-downs).
+        steps.push({ kind: 'call', fn: () => { assister.override = at(type === 'counter' ? 40 : 28, CENTER.y + rand(-10, 10)); shooter.override = at(type === 'counter' ? 34 : 22, CENTER.y + flank * 9); } });
+        steps.push({ kind: 'pass', to: assister, peak: type === 'longball' ? 7 : undefined, speed: type === 'longball' ? 24 : undefined });
+        steps.push({ kind: 'wait', dur: 0.3 });
+        steps.push({ kind: 'call', fn: () => { shooter.override = { ...shotSpot }; } });
         steps.push({ kind: 'pass', to: shooter, point: shotSpot, speed: 21 });
+      } else {
+        // Solo run.
+        steps.push({ kind: 'call', fn: () => { shooter.override = at(26, CENTER.y + flank * 10); } });
+        steps.push({ kind: 'pass', to: shooter });
+        steps.push({ kind: 'carry', to: shotSpot, dur: 1.4 });
       }
-    } else {
-      // Solo run.
-      steps.push({
-        kind: 'call',
-        fn: () => {
-          shooter.override = at(26, CENTER.y + flank * 10);
-        },
-      });
-      steps.push({ kind: 'pass', to: shooter });
-      steps.push({ kind: 'carry', to: shotSpot, dur: 1.4 });
     }
 
     // 4. The shot, and how it ends.
@@ -707,6 +785,9 @@ export class MatchDirector {
         x: goalLineX + dir * 1.4,
         y: CENTER.y + rand(-GOAL_HALF + 0.5, GOAL_HALF - 0.5),
       };
+      if (keeper) {
+        steps.push({ kind: 'call', fn: () => this.dive(keeper, target) });
+      }
       steps.push({ kind: 'shoot', target, peak: rand(0.2, 1.6), speed: 30 });
       steps.push({
         kind: 'call',
@@ -729,6 +810,14 @@ export class MatchDirector {
       steps.push({
         kind: 'call',
         fn: () => {
+          if (this.replaysEnabled) this.replay = { t: 0, dur: REPLAY_TIME };
+        },
+      });
+      steps.push({ kind: 'replay' });
+      steps.push({
+        kind: 'call',
+        fn: () => {
+          this.replay = null;
           this.clearOverrides();
           this.kickoff(def, true);
         },
@@ -743,6 +832,7 @@ export class MatchDirector {
         kind: 'call',
         fn: () => {
           keeper.override = { ...saveAt };
+          this.dive(keeper, saveAt);
         },
       });
       steps.push({ kind: 'shoot', target: saveAt, peak: rand(0.2, 1.4), speed: 26 });
@@ -910,6 +1000,59 @@ export class MatchDirector {
     this.banner = { text, sub, color, dur, big, t: 0 };
   }
 
+  /** Penalty or direct free kick: ball on the spot, taker behind it, everyone else in place. */
+  private setPiece(atk: SideKey, taker: Actor, spot: Vec, type: 'penalty' | 'freekick'): void {
+    const dir = dirOf(atk);
+    const goalX = targetGoalX(atk);
+    this.flight = null;
+    this.ball.pos = { ...spot };
+    this.ball.h = 0;
+    taker.pos = { x: spot.x - dir * 1.2, y: spot.y };
+    taker.override = { ...taker.pos };
+    this.owner = taker;
+    this.possession = atk;
+    const def = other(atk);
+    if (type === 'penalty') {
+      this.actors.forEach((a) => {
+        if (a === taker || a.leaving) return;
+        if (a.isKeeper) {
+          a.override = a.side === def ? { x: goalX - dir * 0.4, y: CENTER.y } : null;
+          return;
+        }
+        a.override = { x: goalX - dir * rand(19, 23), y: CENTER.y + rand(-16, 16) };
+      });
+      this.showBanner('페널티킥!', this.actorName(taker.id), '#dc2626', 1.4, false);
+    } else {
+      // A wall of four, 9 metres towards goal.
+      const toGoal = { x: goalX - spot.x, y: CENTER.y - spot.y };
+      const len = Math.hypot(toGoal.x, toGoal.y) || 1;
+      const wall = { x: spot.x + (toGoal.x / len) * 9, y: spot.y + (toGoal.y / len) * 9 };
+      const defenders = this.team(def).filter((a) => !a.isKeeper);
+      defenders.slice(0, 4).forEach((a, i) => (a.override = { x: wall.x, y: wall.y + (i - 1.5) * 0.9 }));
+      this.packBox(atk, [taker]);
+      this.showBanner('프리킥', this.actorName(taker.id), '#334155', 1.2, false);
+    }
+  }
+
+  /** Crowd the penalty area for a set piece: attackers in, defenders marking them. */
+  private packBox(atk: SideKey, skip: (Actor | null)[]): void {
+    const dir = dirOf(atk);
+    const goalX = targetGoalX(atk);
+    const def = other(atk);
+    this.team(atk)
+      .filter((a) => !a.isKeeper && !skip.includes(a))
+      .slice(0, 5)
+      .forEach((a) => (a.override = { x: goalX - dir * rand(6, 15), y: CENTER.y + rand(-10, 10) }));
+    this.team(def)
+      .filter((a) => !a.isKeeper && !a.override)
+      .slice(0, 6)
+      .forEach((a) => (a.override = { x: goalX - dir * rand(4, 13), y: CENTER.y + rand(-11, 11) }));
+  }
+
+  private dive(keeper: Actor, toward: Vec): void {
+    this.dives.push({ actorId: keeper.id, toward: { ...toward }, t: 0 });
+  }
+
   private mark(actorId: string, kind: Marker['kind'], dur: number): void {
     this.markers.push({ actorId, kind, dur, t: 0 });
   }
@@ -923,7 +1066,8 @@ export class MatchDirector {
 
   /** Where a player wants to stand given the ball, the phase and his slot. */
   private shapeTarget(actor: Actor, kickoff = false): Vec {
-    const layout = this.layouts[actor.side][actor.slot] ?? { x: 50, y: 50 };
+    const inPossessionShape = kickoff || this.possession === actor.side;
+    const layout = (inPossessionShape ? this.layouts : this.oopLayouts)[actor.side][actor.slot] ?? this.layouts[actor.side][actor.slot] ?? { x: 50, y: 50 };
     const ballX = kickoff ? CENTER.x : this.ball.pos.x;
     const ballY = kickoff ? CENTER.y : this.ball.pos.y;
     const ballProg = this.progress(actor.side, ballX);

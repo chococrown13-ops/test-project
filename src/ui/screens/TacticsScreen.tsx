@@ -1,206 +1,592 @@
-import { useState } from 'react';
-import { FORMATIONS, FORMATION_IDS, ROLE_LABEL } from '../../game/formations';
+import { useRef, useState } from 'react';
+import { bestPosition, caStars } from '../../game/ability';
+import { FORMATION_HINT, FORMATION_IDS, POS_LABEL, SPOTS, nearestSpot, type FormationId, type Spot } from '../../game/formations';
+import { ROLE_BY_ID, roleScore, roleStars, rolesFor, type Role } from '../../game/roles';
 import {
+  MENTALITIES,
   MENTALITY_LABEL,
-  PASSING_LABEL,
-  PRESSING_LABEL,
-  TEMPO_LABEL,
-  overall,
-  teamStrength,
-} from '../../game/ratings';
-import type { GameState, Mentality, PassingStyle, Pressing, Tempo } from '../../game/types';
-import { useGame } from '../../store/useGame';
-import { Card, Field, Segmented, gaugeColor } from '../components/common';
+  PRESETS,
+  autoSelect,
+  available,
+  changeIpFormation,
+  changeOopFormation,
+  ipSlotsOf,
+  isCustomShape,
+  lineupIssues,
+  makeTactic,
+  moveSlot,
+  oopSlotsOf,
+  slotFit,
+} from '../../game/tactics';
+import type { IpInstructions, OopInstructions, Player, Tactic } from '../../game/types';
+import { useGame, useStore } from '../../store';
+import { Avatar } from '../art';
+import { Card, Meter, Seg, Sheet, Stars } from '../kit';
+import { readableOn } from '../match2d/director';
 
-export function TacticsScreen({ state }: { state: GameState }) {
-  const setFormation = useGame((s) => s.setFormation);
-  const setTactics = useGame((s) => s.setTactics);
-  const swapPlayers = useGame((s) => s.swapPlayers);
-  const [selected, setSelected] = useState<string | null>(null);
+type View = 'ip' | 'oop' | 'visual';
 
-  const club = state.teams[state.clubId];
-  const formation = FORMATIONS[club.formation];
-  const byId = new Map(club.players.map((p) => [p.id, p]));
-  const strength = teamStrength(club);
-
-  const handleSlotTap = (playerId: string) => {
-    if (selected === null) {
-      setSelected(playerId);
-    } else if (selected === playerId) {
-      setSelected(null);
-    } else {
-      swapPlayers(selected, playerId);
-      setSelected(null);
-    }
-  };
-
-  const units = [
-    { label: '공격', value: strength.attack },
-    { label: '중원', value: strength.midfield },
-    { label: '수비', value: strength.defence },
-    { label: 'GK', value: strength.goalkeeper },
-  ];
+export function TacticsScreen({ compact }: { compact?: boolean }) {
+  const state = useGame();
+  const mutate = useStore((s) => s.mutate);
+  const [view, setView] = useState<View>('ip');
+  const [slot, setSlot] = useState<number | null>(null);
+  const [presets, setPresets] = useState(false);
+  const club = state.clubs[state.clubId];
+  const tactic = club.tactic;
+  const issues = lineupIssues(club, state.players);
 
   return (
-    <div className="tactics-layout">
-      <div className="tactics-layout__pitch">
-        <div className="pitch" style={{ marginBottom: 12 }}>
-          <div className="pitch__stripes" />
-          <div className="pitch__markings">
-            <div className="pitch__halfway" />
-            <div className="pitch__circle" />
-            <div className="pitch__box pitch__box--bottom" />
-            <div className="pitch__box pitch__box--top" />
-            <div className="pitch__six pitch__six--bottom" />
-            <div className="pitch__six pitch__six--top" />
-          </div>
+    <>
+      <div style={{ marginBottom: 10 }}>
+        <Seg<View>
+          value={view}
+          onChange={setView}
+          options={[
+            { value: 'ip', label: '공격 시 (IP)' },
+            { value: 'oop', label: '수비 시 (OOP)' },
+            { value: 'visual', label: '비주얼라이저' },
+          ]}
+        />
+      </div>
 
-          {formation.layout.map((point, index) => {
-            const id = club.lineup[index];
-            const player = id ? byId.get(id) : undefined;
-            const slot = formation.slots[index];
-            return (
-              <button
-                key={index}
-                type="button"
-                className={`slot${selected === id ? ' slot--selected' : ''}`}
-                // The layout runs from own goal up, so invert for screen coords.
-                style={{ left: `${point.x}%`, top: `${100 - point.y}%` }}
-                onClick={() => id && handleSlotTap(id)}
-              >
-                <span
-                  className="slot__shirt"
-                  style={{ background: club.color, color: club.accent }}
-                >
-                  {player ? overall(player) : '-'}
-                </span>
-                <span className="slot__name">{player ? shortName(player.name) : '비어 있음'}</span>
-                <span className="slot__role">{ROLE_LABEL[slot]}</span>
-              </button>
-            );
-          })}
+      {issues.length > 0 && (
+        <div className="card card__body small warn" style={{ marginBottom: 10 }}>
+          {issues.slice(0, 2).join(' · ')}
         </div>
+      )}
 
-        <Card title="교체 명단">
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: 10 }}>
-            {club.bench.length === 0 && <span className="tiny faint">벤치가 비어 있습니다.</span>}
-            {club.bench.map((id) => {
-              const player = byId.get(id);
-              if (!player) return null;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  className={`btn tiny${selected === id ? ' btn--primary' : ''}`}
-                  style={{ padding: '6px 10px', fontSize: 11.5 }}
-                  onClick={() => handleSlotTap(id)}
-                >
-                  {ROLE_LABEL[player.role]} {shortName(player.name)} {overall(player)}
-                </button>
-              );
-            })}
-          </div>
-        </Card>
-      </div>
+      {view === 'visual' ? (
+        <Visualiser tactic={tactic} />
+      ) : (
+        <>
+          <ShapePitch tactic={tactic} phase={view} selected={slot} onSlot={setSlot} />
+          <FormationPicker
+            value={view === 'ip' ? tactic.ipFormation : tactic.oopFormation}
+            custom={isCustomShape(tactic, view)}
+            onChange={(f) => mutate((s) => (view === 'ip' ? changeIpFormation(s.clubs[s.clubId].tactic, f) : changeOopFormation(s.clubs[s.clubId].tactic, f)))}
+          />
+        </>
+      )}
 
-      <div className="tactics-layout__panel">
-        <Card title="팀 전력" padded>
-          {units.map((unit) => (
-            <div key={unit.label} className="attr" style={{ marginBottom: 7 }}>
-              <span className="attr__label">{unit.label}</span>
-              <span className="attr__track" style={{ width: 120 }}>
-                <span
-                  className="attr__fill"
-                  style={{
-                    width: `${Math.min(100, unit.value)}%`,
-                    background: gaugeColor(unit.value),
-                  }}
-                />
+      {!compact && (
+        <div className="row" style={{ margin: '10px 0' }}>
+          <button type="button" className="btn btn--sm" onClick={() => mutate((s) => autoSelect(s.clubs[s.clubId], s.players))}>
+            자동 선발
+          </button>
+          <button type="button" className="btn btn--sm" onClick={() => setPresets(true)}>
+            전술 프리셋
+          </button>
+          <span className="spacer" />
+          <span className="tiny muted">이해도</span>
+          <Meter value={tactic.familiarity} width={60} />
+        </div>
+      )}
+
+      <Bench tactic={tactic} selected={slot} onDone={() => setSlot(null)} />
+
+      {view !== 'oop' && <IpPanel tactic={tactic} />}
+      {view !== 'ip' && <OopPanel tactic={tactic} />}
+      {!compact && <SetPieces tactic={tactic} />}
+
+      {slot !== null && <SlotSheet slot={slot} phase={view === 'oop' ? 'oop' : 'ip'} onClose={() => setSlot(null)} />}
+      {presets && (
+        <Sheet title="전술 프리셋" onClose={() => setPresets(false)}>
+          <p className="small muted" style={{ marginTop: 0 }}>프리셋을 불러오면 포메이션·역할·지시가 바뀌고 전술 이해도가 떨어집니다. 선발 명단은 자동으로 다시 짭니다.</p>
+          {PRESETS.map((p) => (
+            <button
+              key={p.name}
+              type="button"
+              className="list-row"
+              onClick={() => {
+                mutate((s) => {
+                  const c = s.clubs[s.clubId];
+                  const fam = c.tactic.familiarity;
+                  c.tactic = makeTactic(p);
+                  c.tactic.familiarity = Math.min(fam, 50);
+                  autoSelect(c, s.players);
+                });
+                setPresets(false);
+              }}
+            >
+              <span className="list-row__main">
+                <span className="list-row__title" style={{ display: 'block' }}>{p.name}</span>
+                <span className="list-row__meta">
+                  공격 {p.ipFormation} · 수비 {p.oopFormation} · {MENTALITY_LABEL[p.mentality]}
+                </span>
+                <span className="tiny muted" style={{ display: 'block', whiteSpace: 'normal' }}>{p.description}</span>
               </span>
-              <span className="attr__value">{Math.round(unit.value)}</span>
-            </div>
+            </button>
           ))}
-        </Card>
+        </Sheet>
+      )}
+    </>
+  );
+}
 
-        <Card title="전술" padded>
-          <Field label="포메이션">
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {FORMATION_IDS.map((id) => (
-                <button
-                  key={id}
-                  type="button"
-                  className={`btn${club.formation === id ? ' btn--primary' : ''}`}
-                  style={{ padding: '8px 12px', fontSize: 13, flex: '1 0 30%' }}
-                  onClick={() => {
-                    setFormation(id);
-                    setSelected(null);
-                  }}
-                >
-                  {id}
-                </button>
-              ))}
-            </div>
-          </Field>
+const toTop = (y: number) => 100 - y * 0.92 - 4;
+const fromTop = (top: number) => (100 - 4 - top) / 0.92;
 
-          <Field label="팀 성향">
-            <Segmented<Mentality>
-              value={club.tactics.mentality}
-              onChange={(mentality) => setTactics({ mentality })}
-              options={(Object.keys(MENTALITY_LABEL) as Mentality[]).map((value) => ({
-                value,
-                label: MENTALITY_LABEL[value],
-              }))}
-            />
-          </Field>
+interface Drag {
+  slot: number;
+  startX: number;
+  startY: number;
+  x: number;
+  y: number;
+  moving: boolean;
+}
 
-          <Field label="템포">
-            <Segmented<Tempo>
-              value={club.tactics.tempo}
-              onChange={(tempo) => setTactics({ tempo })}
-              options={(Object.keys(TEMPO_LABEL) as Tempo[]).map((value) => ({
-                value,
-                label: TEMPO_LABEL[value],
-              }))}
-            />
-          </Field>
+/**
+ * The pitch for one phase: IP slots, or every player's paired OOP slot.
+ * Tap a player to pick him; drag him to any spot on the grid to reshape the
+ * formation one player at a time (drop on a team-mate to swap the two).
+ */
+function ShapePitch({ tactic, phase, selected, onSlot }: { tactic: Tactic; phase: 'ip' | 'oop'; selected: number | null; onSlot: (i: number) => void }) {
+  const state = useGame();
+  const mutate = useStore((s) => s.mutate);
+  const club = state.clubs[state.clubId];
+  const ip = ipSlotsOf(tactic);
+  const oop = oopSlotsOf(tactic);
+  const pitchRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<Drag | null>(null);
 
-          <Field label="압박 강도">
-            <Segmented<Pressing>
-              value={club.tactics.pressing}
-              onChange={(pressing) => setTactics({ pressing })}
-              options={(Object.keys(PRESSING_LABEL) as Pressing[]).map((value) => ({
-                value,
-                label: PRESSING_LABEL[value],
-              }))}
-            />
-          </Field>
+  const pitchPoint = (clientX: number, clientY: number) => {
+    const r = pitchRef.current!.getBoundingClientRect();
+    return { x: ((clientX - r.left) / r.width) * 100, y: fromTop(((clientY - r.top) / r.height) * 100) };
+  };
+  const target: Spot | null = drag?.moving ? nearestSpot(drag.x, drag.y) : null;
 
-          <Field label="패스 길이">
-            <Segmented<PassingStyle>
-              value={club.tactics.passing}
-              onChange={(passing) => setTactics({ passing })}
-              options={(Object.keys(PASSING_LABEL) as PassingStyle[]).map((value) => ({
-                value,
-                label: PASSING_LABEL[value],
-              }))}
-            />
-          </Field>
-
-          <p className="tiny faint" style={{ marginTop: 4, marginBottom: 0 }}>
-            공격적일수록 기회는 늘지만 뒷공간을 내줍니다. 높은 템포와 강한 압박은 체력을 빠르게
-            소모시킵니다.
-          </p>
-        </Card>
-      </div>
+  return (
+    <div className={`pitch${drag?.moving ? ' pitch--dragging' : ''}`} ref={pitchRef}>
+      <div className="pitch__lines" />
+      <div className="pitch__circle" />
+      <div className="pitch__box pitch__box--top" />
+      <div className="pitch__box pitch__box--bottom" />
+      {drag?.moving &&
+        SPOTS.map((sp) => (
+          <span
+            key={sp.id}
+            className={`spot${target?.id === sp.id ? ' spot--on' : ''}`}
+            style={{ left: `${sp.x}%`, top: `${toTop(sp.y)}%` }}
+          >
+            {target?.id === sp.id ? POS_LABEL[sp.pos] : ''}
+          </span>
+        ))}
+      {ip.map((ipSlot, i) => {
+        const point = phase === 'ip' ? ipSlot : oop[tactic.oopOf[i]];
+        const id = tactic.lineup[i];
+        const p = id ? state.players[id] : null;
+        const role = ROLE_BY_ID[phase === 'ip' ? tactic.ipRoles[i] : tactic.oopRoles[tactic.oopOf[i]]];
+        const keeper = point.pos === 'GK';
+        const fill = keeper ? '#f4cf57' : club.primary;
+        const dragging = drag?.slot === i && drag.moving;
+        const at = dragging ? { x: drag.x, y: drag.y } : point;
+        return (
+          <button
+            key={i}
+            type="button"
+            className={`slot${selected === i ? ' slot--selected' : ''}${dragging ? ' slot--dragging' : ''}${keeper ? '' : ' slot--movable'}`}
+            style={{ left: `${at.x}%`, top: `${toTop(at.y)}%` }}
+            onPointerDown={(e) => {
+              if (keeper) return;
+              e.currentTarget.setPointerCapture(e.pointerId);
+              const pt = pitchPoint(e.clientX, e.clientY);
+              setDrag({ slot: i, startX: e.clientX, startY: e.clientY, x: pt.x, y: pt.y, moving: false });
+            }}
+            onPointerMove={(e) => {
+              if (!drag || drag.slot !== i) return;
+              const moving = drag.moving || Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > 8;
+              const pt = pitchPoint(e.clientX, e.clientY);
+              setDrag({ ...drag, x: pt.x, y: pt.y, moving });
+            }}
+            onPointerUp={() => {
+              if (drag?.slot === i && drag.moving) {
+                const spot = nearestSpot(drag.x, drag.y);
+                mutate((s) => moveSlot(s.clubs[s.clubId].tactic, phase, i, spot));
+              } else {
+                onSlot(i);
+              }
+              setDrag(null);
+            }}
+            onPointerCancel={() => setDrag(null)}
+          >
+            <span className="slot__token">
+              {p ? (
+                <Avatar id={p.id} shirt={fill} trim={club.secondary} size={38} ring={selected === i || dragging ? 'var(--accent)' : 'rgba(255,255,255,0.9)'} />
+              ) : (
+                <span className="slot__shirt slot__shirt--empty" />
+              )}
+              <span className="slot__pos" style={{ background: fill, color: readableOn(fill) }}>
+                {POS_LABEL[dragging && target ? target.pos : point.pos]}
+              </span>
+            </span>
+            <span className="slot__name">{p ? p.name : '비어 있음'}</span>
+            <span className="slot__role">{role?.name ?? '-'}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
+function FormationPicker({ value, custom, onChange }: { value: FormationId; custom: boolean; onChange: (f: FormationId) => void }) {
+  return (
+    <>
+      <div className="row" style={{ margin: '0 2px 6px' }}>
+        <span className="tiny muted">
+          기본 틀 <b>{value}</b>
+          {custom && <span className="accent-text"> · 개별 위치 수정됨</span>}
+        </span>
+        <span className="spacer" />
+        {custom ? (
+          <button type="button" className="btn btn--sm" onClick={() => onChange(value)}>
+            기본 위치로
+          </button>
+        ) : (
+          <span className="tiny faint">선수를 끌어서 위치 이동</span>
+        )}
+      </div>
+      <div className="subtabs" style={{ marginBottom: 4 }}>
+        {FORMATION_IDS.map((f) => (
+          <button key={f} type="button" className={`chip chip--small${value === f ? ' chip--on' : ''}`} onClick={() => onChange(f)}>
+            {f}
+          </button>
+        ))}
+      </div>
+      {FORMATION_HINT[value] && <p className="tiny muted" style={{ margin: '0 2px 8px' }}>{FORMATION_HINT[value]}</p>}
+    </>
+  );
+}
+
+function Bench({ tactic, selected, onDone }: { tactic: Tactic; selected: number | null; onDone: () => void }) {
+  const state = useGame();
+  const mutate = useStore((s) => s.mutate);
+  const push = useStore((s) => s.push);
+  const club = state.clubs[state.clubId];
+  const others = club.playerIds.filter((id) => !tactic.lineup.includes(id) && !tactic.bench.includes(id));
+  return (
+    <Card title={`교체 명단 ${tactic.bench.length}/9`}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: 10 }}>
+        {tactic.bench.length === 0 && <span className="tiny faint">교체 선수가 없습니다.</span>}
+        {[...tactic.bench, ...others].map((id) => {
+          const p = state.players[id];
+          if (!p) return null;
+          const onBench = tactic.bench.includes(id);
+          return (
+            <button
+              key={id}
+              type="button"
+              className={`chip chip--small${onBench ? '' : ' faint'}`}
+              style={{ opacity: available(p) ? 1 : 0.45 }}
+              onClick={() => {
+                if (selected === null) {
+                  push({ kind: 'player', id });
+                  return;
+                }
+                mutate((s) => {
+                  const t = s.clubs[s.clubId].tactic;
+                  const out = t.lineup[selected];
+                  t.lineup[selected] = id;
+                  t.bench = t.bench.filter((x) => x !== id);
+                  if (out && t.bench.length < 9) t.bench.push(out);
+                });
+                onDone();
+              }}
+            >
+              {POS_LABEL[bestPosition(p)]} {p.name}
+              {!onBench && ' (명단 외)'}
+              {p.injury && ' ✚'}
+            </button>
+          );
+        })}
+      </div>
+      <p className="tiny faint" style={{ margin: '0 12px 10px' }}>
+        경기장 위 선수를 누른 뒤 여기서 선수를 고르면 교체됩니다. 아무것도 선택하지 않고 누르면 선수 정보를 봅니다.
+      </p>
+    </Card>
+  );
+}
+
+function SlotSheet({ slot, phase, onClose }: { slot: number; phase: 'ip' | 'oop'; onClose: () => void }) {
+  const state = useGame();
+  const mutate = useStore((s) => s.mutate);
+  const push = useStore((s) => s.push);
+  const club = state.clubs[state.clubId];
+  const tactic = club.tactic;
+  const ipSlot = ipSlotsOf(tactic)[slot];
+  const oopIndex = tactic.oopOf[slot];
+  const oopSlot = oopSlotsOf(tactic)[oopIndex];
+  const current = tactic.lineup[slot] ? state.players[tactic.lineup[slot]!] : null;
+  const [tab, setTab] = useState<'player' | 'ip' | 'oop'>(phase === 'oop' ? 'oop' : 'ip');
+
+  const candidates = club.playerIds
+    .map((id) => state.players[id])
+    .filter((p): p is Player => !!p)
+    .map((p) => ({ p, fit: slotFit(p, tactic, slot) }))
+    .sort((a, b) => b.fit - a.fit);
+  const maxFit = candidates[0]?.fit ?? 1;
+
+  const roleList = (which: 'ip' | 'oop') => rolesFor(which === 'ip' ? ipSlot.pos : oopSlot.pos, which);
+  const roleRow = (role: Role, which: 'ip' | 'oop') => {
+    const selectedRole = which === 'ip' ? tactic.ipRoles[slot] : tactic.oopRoles[oopIndex];
+    return (
+      <button
+        key={role.id}
+        type="button"
+        className="list-row"
+        style={role.id === selectedRole ? { background: 'rgba(59,227,162,0.08)' } : undefined}
+        onClick={() =>
+          mutate((s) => {
+            const t = s.clubs[s.clubId].tactic;
+            if (which === 'ip') t.ipRoles[slot] = role.id;
+            else t.oopRoles[oopIndex] = role.id;
+          })
+        }
+      >
+        <span className="list-row__main">
+          <span className="list-row__title" style={{ display: 'block' }}>
+            {role.id === selectedRole ? '✓ ' : ''}
+            {role.name}
+          </span>
+          <span className="tiny muted" style={{ display: 'block', whiteSpace: 'normal' }}>{role.description}</span>
+        </span>
+        {current && <Stars value={roleStars(roleScore(current.attrs, role))} />}
+      </button>
+    );
+  };
+
+  return (
+    <Sheet title={`${POS_LABEL[ipSlot.pos]} (공격) / ${POS_LABEL[oopSlot.pos]} (수비)`} onClose={onClose}>
+      <div style={{ marginBottom: 10 }}>
+        <Seg
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: 'player', label: '선수' },
+            { value: 'ip', label: '공격 역할' },
+            { value: 'oop', label: '수비 역할' },
+          ]}
+        />
+      </div>
+      {current && (
+        <button type="button" className="small" style={{ color: 'var(--blue)', fontWeight: 700, marginBottom: 6 }} onClick={() => push({ kind: 'player', id: current.id })}>
+          현재: {current.name} ›
+        </button>
+      )}
+      {tab === 'player' && (
+        <div className="card">
+          {candidates.map(({ p, fit }) => {
+            const inXI = tactic.lineup.indexOf(p.id);
+            return (
+              <button
+                key={p.id}
+                type="button"
+                className="list-row"
+                disabled={!available(p)}
+                style={{ opacity: available(p) ? 1 : 0.45 }}
+                onClick={() => {
+                  mutate((s) => {
+                    const t = s.clubs[s.clubId].tactic;
+                    const prev = t.lineup[slot];
+                    if (inXI >= 0) t.lineup[inXI] = prev;
+                    else {
+                      t.bench = t.bench.filter((x) => x !== p.id);
+                      if (prev && t.bench.length < 9) t.bench.push(prev);
+                    }
+                    t.lineup[slot] = p.id;
+                  });
+                  onClose();
+                }}
+              >
+                <span className="pos pos--MID" style={{ background: 'var(--raised)', color: 'var(--dim)' }}>{POS_LABEL[bestPosition(p)]}</span>
+                <span className="list-row__main">
+                  <span className="list-row__title" style={{ display: 'block' }}>
+                    {p.name} {p.injury ? '✚' : ''}
+                  </span>
+                  <span className="list-row__meta">
+                    <span>{inXI >= 0 ? `선발 (${POS_LABEL[ipSlotsOf(tactic)[inXI].pos]})` : tactic.bench.includes(p.id) ? '교체' : '명단 외'}</span>
+                    <span>체력 {Math.round(p.condition)}%</span>
+                    <span>능력 {caStars(p.ca)}★</span>
+                  </span>
+                </span>
+                <Stars value={Math.max(0.5, Math.round((fit / maxFit) * 10) / 2)} />
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {tab === 'ip' && <div className="card">{roleList('ip').map((r) => roleRow(r, 'ip'))}</div>}
+      {tab === 'oop' && <div className="card">{roleList('oop').map((r) => roleRow(r, 'oop'))}</div>}
+      <p className="tiny faint">별점은 현재 선수의 능력치가 그 역할에 얼마나 맞는지 보여줍니다. 선수 탭의 별점은 이 자리(공격·수비 역할 모두)에 대한 적합도입니다.</p>
+    </Sheet>
+  );
+}
+
+function Opt<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
+  return (
+    <div className="field">
+      <div className="field__label">{label}</div>
+      <Seg value={value} onChange={onChange} options={options.map(([v, l]) => ({ value: v, label: l }))} />
+    </div>
+  );
+}
+
+function IpPanel({ tactic }: { tactic: Tactic }) {
+  const mutate = useStore((s) => s.mutate);
+  const set = (patch: Partial<IpInstructions>) => mutate((s) => Object.assign(s.clubs[s.clubId].tactic.ip, patch));
+  return (
+    <Card title="공격 시 지시 (In Possession)" padded>
+      <div className="field">
+        <div className="field__label">팀 성향 (멘탈리티)</div>
+        <select className="select" id="mentality" value={tactic.mentality} onChange={(e) => mutate((s) => (s.clubs[s.clubId].tactic.mentality = e.target.value as Tactic['mentality']))}>
+          {MENTALITIES.map((m) => (
+            <option key={m} value={m}>
+              {MENTALITY_LABEL[m]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <Opt label="템포" value={tactic.ip.tempo} onChange={(tempo) => set({ tempo })} options={[['slow', '느리게'], ['normal', '보통'], ['fast', '빠르게']]} />
+      <Opt label="패스 길이" value={tactic.ip.passing} onChange={(passing) => set({ passing })} options={[['short', '짧게'], ['mixed', '혼합'], ['direct', '직선적']]} />
+      <Opt label="공격 폭" value={tactic.ip.width} onChange={(width) => set({ width })} options={[['narrow', '좁게'], ['normal', '보통'], ['wide', '넓게']]} />
+      <Opt label="파이널 서드" value={tactic.ip.finalThird} onChange={(finalThird) => set({ finalThird })} options={[['workIntoBox', '박스까지 연결'], ['mixed', '혼합'], ['shootOnSight', '보이면 슈팅']]} />
+      <Opt label="공을 빼앗았을 때" value={tactic.ip.transition} onChange={(transition) => set({ transition })} options={[['counter', '즉시 역습'], ['patient', '천천히 정비']]} />
+    </Card>
+  );
+}
+
+function OopPanel({ tactic }: { tactic: Tactic }) {
+  const mutate = useStore((s) => s.mutate);
+  const set = (patch: Partial<OopInstructions>) => mutate((s) => Object.assign(s.clubs[s.clubId].tactic.oop, patch));
+  return (
+    <Card title="수비 시 지시 (Out of Possession)" padded>
+      <Opt label="압박 시작 위치" value={tactic.oop.engagement} onChange={(engagement) => set({ engagement })} options={[['low', '낮게'], ['mid', '중간'], ['high', '높게']]} />
+      <Opt label="수비 라인" value={tactic.oop.line} onChange={(line) => set({ line })} options={[['deep', '깊게'], ['normal', '보통'], ['high', '높게']]} />
+      <Opt label="압박 강도" value={tactic.oop.press} onChange={(press) => set({ press })} options={[['less', '약하게'], ['normal', '보통'], ['more', '강하게']]} />
+      <Opt label="태클" value={tactic.oop.tackling} onChange={(tackling) => set({ tackling })} options={[['stayOnFeet', '서서 막기'], ['normal', '보통'], ['aggressive', '거칠게']]} />
+      <Opt label="공을 잃었을 때" value={tactic.oop.transition} onChange={(transition) => set({ transition })} options={[['counterpress', '즉시 재압박'], ['regroup', '대열 정비']]} />
+    </Card>
+  );
+}
+
+function SetPieces({ tactic }: { tactic: Tactic }) {
+  const state = useGame();
+  const mutate = useStore((s) => s.mutate);
+  const xi = tactic.lineup.filter((id): id is string => !!id).map((id) => state.players[id]).filter(Boolean);
+  const pick = (label: string, key: 'captain' | 'penaltyTaker' | 'setPieceTaker') => (
+    <div className="field">
+      <div className="field__label">{label}</div>
+      <select className="select" value={tactic[key] ?? ''} onChange={(e) => mutate((s) => (s.clubs[s.clubId].tactic[key] = e.target.value || null))}>
+        <option value="">자동</option>
+        {xi.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+  return (
+    <Card title="주장·키커" padded>
+      {pick('주장', 'captain')}
+      {pick('페널티 키커', 'penaltyTaker')}
+      {pick('코너킥·프리킥 키커', 'setPieceTaker')}
+    </Card>
+  );
+}
+
+/* --------------------------------------------------------------- visualiser */
+
+type Third = 'def' | 'mid' | 'att';
+
 /**
- * "Lucas Fernandes" -> "Fernandes". Surname only, as squad lists and shirts
- * do it — an initial plus surname does not fit inside a pitch marker.
+ * FM26's Visualiser: where everyone stands with and without the ball as play
+ * moves through the thirds. Shapes come from the two formations plus each
+ * role's push (advance/drop) and width.
  */
-function shortName(name: string): string {
-  const parts = name.split(' ');
-  return parts[parts.length - 1];
+function Visualiser({ tactic }: { tactic: Tactic }) {
+  const state = useGame();
+  const club = state.clubs[state.clubId];
+  const [phase, setPhase] = useState<'ip' | 'oop'>('ip');
+  const [third, setThird] = useState<Third>('mid');
+  const ip = ipSlotsOf(tactic);
+  const oop = oopSlotsOf(tactic);
+  const lineShift = { def: -16, mid: 0, att: 16 }[third];
+  const engagement = { low: -8, mid: 0, high: 8 }[tactic.oop.engagement];
+  const lineHeight = { deep: -5, normal: 0, high: 6 }[tactic.oop.line];
+
+  const points = ip.map((ipSlot, i) => {
+    const base = phase === 'ip' ? ipSlot : oop[tactic.oopOf[i]];
+    const role = ROLE_BY_ID[phase === 'ip' ? tactic.ipRoles[i] : tactic.oopRoles[tactic.oopOf[i]]];
+    if (base.pos === 'GK') return { x: 50, y: 5 + (phase === 'ip' && third === 'att' ? 6 : 0) };
+    let y = base.y;
+    let x = base.x;
+    if (phase === 'ip') {
+      const b = role?.ip;
+      y += (b?.advance ?? 0) * 100 * (third === 'def' ? 0.4 : 1) + lineShift * (0.6 + base.y / 160);
+      const width = { narrow: -6, normal: 0, wide: 6 }[tactic.ip.width];
+      x = 50 + (x - 50) * (1 + width / 50);
+      if (b) x += b.width < 0 ? (50 - x) * -b.width * 0.45 : (x < 50 ? -1 : 1) * b.width * 2;
+    } else {
+      const b = role?.oop;
+      // Out of possession the block shifts with the ball but stays compact.
+      y = y * 0.85 + (b?.drop ?? 0) * 100 + lineShift * 0.55 + engagement * (base.y / 100) + lineHeight * (1 - base.y / 100);
+      if (b && b.outlet > 0.6) y += 10;
+      x = 50 + (x - 50) * 0.85;
+    }
+    return { x: Math.max(8, Math.min(92, x)), y: Math.max(8, Math.min(95, y)) };
+  });
+  const ball = { def: 22, mid: 50, att: 80 }[third];
+
+  return (
+    <>
+      <div className="row" style={{ marginBottom: 8 }}>
+        <Seg
+          value={phase}
+          onChange={setPhase}
+          options={[
+            { value: 'ip', label: '공 소유' },
+            { value: 'oop', label: '공 없음' },
+          ]}
+        />
+      </div>
+      <div className="pitch">
+        <div className="pitch__lines" />
+        <div className="pitch__circle" />
+        <div className="pitch__box pitch__box--top" />
+        <div className="pitch__box pitch__box--bottom" />
+        <div className="pitch__third" style={{ top: '33%' }} />
+        <div className="pitch__third" style={{ top: '66%' }} />
+        <div className="ball-marker" style={{ left: '55%', top: `${100 - ball}%` }} />
+        {points.map((pt, i) => {
+          const id = tactic.lineup[i];
+          const p = id ? state.players[id] : null;
+          const keeper = ip[i].pos === 'GK';
+          const fill = keeper ? '#f4cf57' : club.primary;
+          return (
+            <div key={i} className="slot" style={{ left: `${pt.x}%`, top: `${100 - pt.y}%` }}>
+              <span className="slot__shirt" style={{ background: fill, color: readableOn(fill), width: 26, height: 26, fontSize: 10 }}>
+                {i + 1}
+              </span>
+              <span className="slot__name">{p ? p.name : ''}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <Seg
+          value={third}
+          onChange={setThird}
+          options={[
+            { value: 'def', label: '수비 1/3' },
+            { value: 'mid', label: '중원 1/3' },
+            { value: 'att', label: '공격 1/3' },
+          ]}
+        />
+      </div>
+      <p className="tiny muted" style={{ marginTop: -4 }}>
+        공의 위치와 소유 여부에 따라 팀 형태가 어떻게 바뀌는지 보여줍니다. 역할(전진·후퇴·폭)과 수비 라인·압박 위치 지시가 반영됩니다.
+      </p>
+    </>
+  );
 }

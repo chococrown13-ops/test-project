@@ -1,4 +1,12 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { appearance } from '../../game/appearance';
+import { attachToBone, instantiate, type PlayerInstance, type PlayerModel } from './playerModel';
 import {
   GOAL_HALF,
   MARGIN,
@@ -14,9 +22,10 @@ import {
  * 3D renderer for the match. It owns no match logic: every frame it reads the
  * director's scene snapshot and poses a stadium full of players to match.
  *
- * Two quality tiers. "high" adds real-time shadows and full pixel density;
- * "low" falls back to blob shadows at 1x so older phones keep their frame
- * rate. The caller measures frame time and steps down when needed.
+ * Two quality tiers. "high" adds real-time shadows, full pixel density and a
+ * bloom pass (floodlights, LED boards); "low" falls back to blob shadows at
+ * 1x with no post-processing so older phones keep their frame rate. The
+ * caller measures frame time and steps down when needed.
  *
  * Axes: pitch x (0-105) -> world x centred on 0, pitch y (0-68) -> world z
  * centred on 0, y is up. The main camera sits on the +z touchline.
@@ -29,12 +38,11 @@ export type Quality = 'high' | 'low';
 const PLAYER_SCALE = 1.6;
 const BALL_R = 0.3;
 const KICK_TIME = 0.34;
+const TRAIL = 16;
 
 const wx = (x: number) => x - PITCH_W / 2;
 const wz = (y: number) => y - PITCH_H / 2;
 
-const SKIN = ['#f3cfb1', '#e0ac85', '#c18a60', '#9a6843', '#6e4630', '#4a2f20'];
-const HAIR = ['#17120f', '#2e2019', '#5a3d25', '#b8894a', '#d9c08a', '#0c0c0c'];
 
 interface Limb {
   hip: THREE.Group;
@@ -57,6 +65,7 @@ interface Rig {
   badge: THREE.Sprite;
   badgeKey: string;
   numberDecal: THREE.Mesh;
+  chestDecal: THREE.Mesh;
   numberKey: string;
   kitKey: string;
   parts: {
@@ -71,7 +80,17 @@ interface Rig {
   yaw: number;
   kickT: number;
   seed: number;
+  speed: number;
+  /** Dribble: 0-1 through the current touch, and a small kick when it wraps. */
+  touch: number;
+  touchKickT: number;
+  /** Set when the rig is the motion-captured model rather than the simple one. */
+  skinned?: PlayerInstance;
 }
+
+/** Motion-capture clip speeds at our player scale, in world units per second. */
+const WALK_SPEED = 2.6;
+const RUN_SPEED = 6.2;
 
 export class Match3D {
   private renderer: THREE.WebGLRenderer;
@@ -86,7 +105,17 @@ export class Match3D {
   private prevOwner: string | null = null;
   private cardSprites: THREE.Sprite[] = [];
   private cardTextures: Record<'yellow' | 'red' | 'injury', THREE.Texture>;
-  private crowdTextures: THREE.Texture[] = [];
+  private ledTextures: THREE.Texture[] = [];
+  private crowd: THREE.InstancedMesh | null = null;
+  private crowdEnds: number[] = [];
+  private crowdKey = '';
+  private crowdUniforms = { uTime: { value: 0 }, uExcite: { value: 0 } };
+  private nets: { end: number; geo: THREE.PlaneGeometry; base: Float32Array; amp: number; at: { x: number; y: number } }[] = [];
+  private trail: THREE.Sprite[] = [];
+  private trailPts: THREE.Vector3[] = [];
+  private composer: EffectComposer | null = null;
+  private size = { w: 1, h: 1 };
+  private replayAngle = 0;
   private fascia: THREE.MeshStandardMaterial;
   private fasciaColor = '';
 
@@ -103,17 +132,37 @@ export class Match3D {
   private time = 0;
   private ballSpin = 0;
   private lastBall = { x: PITCH_W / 2, y: PITCH_H / 2 };
+  private ballShown = new THREE.Vector3();
+  private wasReplay = false;
+  private replayCam = false;
 
-  constructor(canvas: HTMLCanvasElement) {
+  private model: PlayerModel | null;
+  private skinGeo: { back: THREE.BufferGeometry; chest: THREE.BufferGeometry } | null = null;
+
+  constructor(canvas: HTMLCanvasElement, model: PlayerModel | null = null) {
+    this.model = model;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.scene.background = skyTexture();
-    this.scene.fog = new THREE.Fog('#16233c', 170, 330);
+    // A photographed night sky (Poly Haven, CC0) replaces the gradient once it arrives.
+    new THREE.TextureLoader().load(new URL('models/night-sky.jpg', document.baseURI).href, (tex) => {
+      tex.mapping = THREE.EquirectangularReflectionMapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      this.scene.background = tex;
+      this.scene.backgroundIntensity = 0.75;
+    });
+    this.scene.fog = new THREE.Fog('#16233c', 190, 360);
 
-    this.scene.add(new THREE.HemisphereLight('#cfe0ff', '#27501f', 1.05));
+    // Image-based light for soft reflections on kits, posts and the roof.
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environmentIntensity = 0.32;
+    pmrem.dispose();
+
+    this.scene.add(new THREE.HemisphereLight('#cfe0ff', '#27501f', 0.85));
     this.sun = new THREE.DirectionalLight('#fff4e0', 2.3);
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.bias = -0.0004;
@@ -125,7 +174,7 @@ export class Match3D {
     this.scene.add(fill);
 
     this.blobMat = new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false });
-    this.fascia = new THREE.MeshStandardMaterial({ color: '#1e3a8a', roughness: 0.6 });
+    this.fascia = new THREE.MeshStandardMaterial({ color: '#1e3a8a', roughness: 0.5, metalness: 0.1 });
 
     this.buildPitch();
     this.buildStadium();
@@ -138,6 +187,15 @@ export class Match3D {
     this.scene.add(this.ball);
     this.ballBlob = new THREE.Mesh(this.geo.blob, this.blobMat);
     this.scene.add(this.ballBlob);
+
+    // Shots leave a short glowing trail.
+    const trailMat = new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+    for (let i = 0; i < TRAIL; i++) {
+      const sprite = new THREE.Sprite(trailMat.clone());
+      sprite.visible = false;
+      this.trail.push(sprite);
+      this.scene.add(sprite);
+    }
 
     this.ownerLabel = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, transparent: true }));
     this.ownerLabel.renderOrder = 10;
@@ -153,7 +211,12 @@ export class Match3D {
   }
 
   setSize(width: number, height: number): void {
+    this.size = { w: width, h: height };
     this.renderer.setSize(width, height, false);
+    if (this.composer) {
+      this.composer.setPixelRatio(this.renderer.getPixelRatio());
+      this.composer.setSize(width, height);
+    }
     this.aspect = width / Math.max(1, height);
     this.camera.aspect = this.aspect;
     this.camera.updateProjectionMatrix();
@@ -171,6 +234,19 @@ export class Match3D {
     this.sun.castShadow = high;
     this.ballBlob.visible = !high;
     this.rigs.forEach((rig) => (rig.blob.visible = !high));
+    if (high && !this.composer) {
+      // Multisampled HDR target so bloom keeps antialiased edges.
+      const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
+      this.composer = new EffectComposer(this.renderer, target);
+      this.composer.addPass(new RenderPass(this.scene, this.camera));
+      this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.45, 1.05));
+      this.composer.addPass(new OutputPass());
+    } else if (!high && this.composer) {
+      this.composer.dispose();
+      this.composer = null;
+    }
+    this.setSize(this.size.w, this.size.h);
+    if (this.crowd) this.crowd.count = high ? this.crowdEnds.length : Math.floor(this.crowdEnds.length * 0.55);
     // Shaders are compiled with or without shadow support; force a rebuild.
     this.scene.traverse((obj) => {
       const material = (obj as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
@@ -179,24 +255,46 @@ export class Match3D {
     });
   }
 
-  render(view: SceneView, dt: number): void {
+  /**
+   * Draw one frame. `replay` switches to the low replay camera; switching in
+   * or out is treated as a cut, so nothing sprints or swings across the gap.
+   */
+  render(view: SceneView, dt: number, replay = false): void {
     this.time += dt;
+    const cut = replay !== this.wasReplay;
+    this.wasReplay = replay;
+    this.replayCam = replay;
+    if (cut && replay) this.replayAngle = (this.replayAngle + 1) % 3;
+    if (cut) {
+      view.actors.forEach((a) => {
+        const rig = this.rigs.get(a.id);
+        if (rig) rig.prev = { x: a.pos.x, y: a.pos.y };
+      });
+      this.prevOwner = view.ownerId;
+    }
     if (view.kits.home.fill !== this.fasciaColor) {
       this.fasciaColor = view.kits.home.fill;
       this.fascia.color.set(this.fasciaColor);
     }
-    // The crowd bounces when a goal goes in.
-    const bounce = view.celebrating ? Math.abs(Math.sin(this.time * 9)) * 0.06 : 0;
-    this.crowdTextures.forEach((tex, i) => (tex.offset.y = bounce * (i % 2 ? 1 : 0.7)));
+    // The crowd jumps when a goal goes in; LED boards scroll.
+    this.colourCrowd(view);
+    const excite = this.crowdUniforms.uExcite;
+    excite.value += ((view.celebrating ? 1 : view.highlight ? 0.25 : 0) - excite.value) * Math.min(1, dt * 3);
+    this.crowdUniforms.uTime.value = this.time;
+    this.ledTextures.forEach((tex) => (tex.offset.x = (this.time * 0.05) % 1));
 
     this.syncPlayers(view, dt);
-    this.poseBall(view);
+    this.poseBall(view, dt);
+    this.poseNets(dt);
+    this.poseTrail(dt);
     this.poseCards(view);
-    this.moveCamera(view, dt);
-    this.renderer.render(this.scene, this.camera);
+    this.moveCamera(view, dt, cut);
+    if (this.composer) this.composer.render(dt);
+    else this.renderer.render(this.scene, this.camera);
   }
 
   dispose(): void {
+    this.composer?.dispose();
     this.renderer.dispose();
     this.scene.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
@@ -266,8 +364,19 @@ export class Match3D {
     grassTex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
     const pitch = new THREE.Mesh(
       new THREE.PlaneGeometry(fullW, fullH).rotateX(-Math.PI / 2),
-      new THREE.MeshStandardMaterial({ map: grassTex, color: '#cfdcc6', roughness: 0.93, metalness: 0 }),
+      new THREE.MeshStandardMaterial({ map: grassTex, color: '#cfdcc6', roughness: 0.9, metalness: 0, bumpMap: grassBump(), bumpScale: 0.9 }),
     );
+    // Real grass relief (Poly Haven, CC0) swaps in for the noise bump when loaded.
+    const pitchMat = pitch.material as THREE.MeshStandardMaterial;
+    new THREE.TextureLoader().load(new URL('models/grass-normal.jpg', document.baseURI).href, (tex) => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(90, 60);
+      tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+      pitchMat.normalMap = tex;
+      pitchMat.normalScale.set(0.55, 0.55);
+      pitchMat.bumpMap = null;
+      pitchMat.needsUpdate = true;
+    });
     pitch.receiveShadow = true;
     this.scene.add(pitch);
 
@@ -290,19 +399,18 @@ export class Match3D {
   /* ---------------------------------------------------------------- stadium */
 
   private buildStadium(): void {
-    // Advertising boards round the pitch, lit so they glow like LED boards.
-    const boardTex = boardTexture();
+    // LED advertising boards round the pitch. Their textures scroll and glow.
     const edge = new THREE.MeshStandardMaterial({ color: '#0f172a', roughness: 0.6 });
     const board = (length: number, x: number, z: number, rotY: number) => {
-      const tex = boardTex.clone();
-      tex.needsUpdate = true;
+      const tex = boardTexture();
       tex.wrapS = THREE.RepeatWrapping;
       tex.repeat.set(length / 16, 1);
+      this.ledTextures.push(tex);
       const face = new THREE.MeshStandardMaterial({
         map: tex,
         emissive: '#ffffff',
         emissiveMap: tex,
-        emissiveIntensity: 0.55,
+        emissiveIntensity: 1.25,
         roughness: 0.5,
       });
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(length, 0.95, 0.15), [edge, edge, edge, edge, face, edge]);
@@ -316,58 +424,119 @@ export class Match3D {
     board(PITCH_H + 6, -(PITCH_W / 2 + MARGIN + 0.5), 0, Math.PI / 2);
     board(PITCH_H + 6, PITCH_W / 2 + MARGIN + 0.5, 0, -Math.PI / 2);
 
-    // Stands on three sides; the camera side stays open.
-    const concrete = new THREE.MeshStandardMaterial({ color: '#2b3546', roughness: 0.9 });
-    const riser = new THREE.MeshStandardMaterial({ color: '#1c2433', roughness: 0.9 });
-    const steel = new THREE.MeshStandardMaterial({ color: '#8a96a8', roughness: 0.4, metalness: 0.6 });
-    const roofMat = new THREE.MeshStandardMaterial({ color: '#dfe5ee', roughness: 0.5, metalness: 0.3 });
-    const stand = (length: number, depth: number, cx: number, cz: number, rotY: number) => {
+    // Two-tier stands with a cantilever roof on three sides, a low one behind
+    // the dugouts. Fans are one instanced mesh filled in afterwards.
+    const concrete = new THREE.MeshStandardMaterial({ color: '#3a4558', roughness: 0.9 });
+    const dark = new THREE.MeshStandardMaterial({ color: '#1a2130', roughness: 0.9 });
+    const steel = new THREE.MeshStandardMaterial({ color: '#9aa6b8', roughness: 0.35, metalness: 0.7 });
+    const roofMat = new THREE.MeshStandardMaterial({ color: '#e5eaf2', roughness: 0.45, metalness: 0.35 });
+    const strip = new THREE.MeshBasicMaterial({ color: new THREE.Color('#fff6dc').multiplyScalar(5) });
+    const seatTex = seatTexture();
+    seatTex.wrapS = THREE.RepeatWrapping;
+    const seats = new THREE.MeshStandardMaterial({ map: seatTex, roughness: 0.8 });
+    const fans: { pos: THREE.Vector3; yaw: number; end: number }[] = [];
+
+    const stand = (length: number, cx: number, cz: number, rotY: number, kind: 'main' | 'low', end = 0) => {
       const group = new THREE.Group();
-      const tiers = 9;
-      const rise = 1.35;
-      for (let i = 0; i < tiers; i++) {
-        const tex = crowdTexture();
-        tex.wrapS = THREE.RepeatWrapping;
-        tex.repeat.set(length / 10, 1);
-        this.crowdTextures.push(tex);
-        const seats = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95 });
-        const step = new THREE.Mesh(new THREE.BoxGeometry(length, rise, depth / tiers), [
-          concrete,
-          concrete,
-          riser,
-          concrete,
-          seats,
-          concrete,
-        ]);
-        step.position.set(0, 1.2 + rise / 2 + i * rise, -(i + 0.5) * (depth / tiers));
-        group.add(step);
-      }
-      // Club-coloured fascia along the front of the lower tier.
-      const band = new THREE.Mesh(new THREE.BoxGeometry(length, 1.2, 0.3), this.fascia);
-      band.position.set(0, 0.6, 0.1);
-      group.add(band);
-      // Back wall and a cantilevered roof on columns.
-      const roofH = tiers * rise + 7;
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(length, roofH, 0.6), concrete);
-      wall.position.set(0, roofH / 2, -depth - 0.3);
+      const spots: THREE.Vector3[] = [];
+      const tier = (rows: number, z0: number, y0: number, rowD: number, rise: number) => {
+        for (let i = 0; i < rows; i++) {
+          const top = y0 + (i + 1) * rise;
+          const step = new THREE.Mesh(new THREE.BoxGeometry(length, rise + 0.02, rowD), [dark, dark, concrete, dark, seats, dark]);
+          step.position.set(0, top - rise / 2, z0 - (i + 0.5) * rowD);
+          group.add(step);
+          for (let x = -length / 2 + 0.6; x < length / 2 - 0.6; x += 0.82) {
+            if (Math.random() < 0.88) spots.push(new THREE.Vector3(x + (Math.random() - 0.5) * 0.2, top, z0 - (i + 0.62) * rowD));
+          }
+        }
+        return { back: z0 - rows * rowD, top: y0 + rows * rise };
+      };
+      // Front wall in club colours, with the lower tier rising behind it.
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(length, 1.3, 0.3), this.fascia);
+      wall.position.set(0, 0.65, 0.15);
       group.add(wall);
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(length + 2, 0.35, depth + 5), roofMat);
-      roof.position.set(0, roofH, -(depth + 5) / 2 + 3);
-      roof.rotation.x = -0.06;
-      group.add(roof);
-      const columns = Math.max(2, Math.round(length / 22));
-      for (let i = 0; i <= columns; i++) {
-        const col = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, roofH, 8), steel);
-        col.position.set(-length / 2 + (i * length) / columns, roofH / 2, -depth + 0.4);
-        group.add(col);
+      const lower = tier(kind === 'main' ? 12 : 7, 0, 1.3, 0.9, 0.5);
+      const fill = new THREE.Mesh(new THREE.BoxGeometry(length, lower.top, 0.6), dark);
+      fill.position.set(0, lower.top / 2, lower.back - 0.3);
+      group.add(fill);
+
+      if (kind === 'main') {
+        // Concourse box, then the upper tier hanging slightly over the lower.
+        const concourse = new THREE.Mesh(new THREE.BoxGeometry(length, 3, 1.4), concrete);
+        concourse.position.set(0, lower.top + 1.5, lower.back + 0.1);
+        group.add(concourse);
+        const y0 = lower.top + 3;
+        const z0 = lower.back + 0.9;
+        const upper = tier(11, z0, y0, 0.95, 0.62);
+        // Underside of the upper tier, seen from low cameras.
+        const slope = Math.hypot(upper.top - y0, z0 - upper.back);
+        const soffit = new THREE.Mesh(new THREE.PlaneGeometry(length, slope), dark);
+        soffit.material = dark;
+        soffit.position.set(0, (y0 + upper.top) / 2 - 0.3, (z0 + upper.back) / 2);
+        soffit.rotation.x = Math.PI / 2 + Math.atan2(upper.top - y0, z0 - upper.back);
+        group.add(soffit);
+        // Fascia and a ribbon LED board along the upper tier front.
+        const band = new THREE.Mesh(new THREE.BoxGeometry(length, 1.1, 0.3), this.fascia);
+        band.position.set(0, y0 - 0.25, z0 + 0.2);
+        group.add(band);
+        const ribbonTex = boardTexture();
+        ribbonTex.wrapS = THREE.RepeatWrapping;
+        ribbonTex.repeat.set(length / 20, 1);
+        this.ledTextures.push(ribbonTex);
+        const ribbon = new THREE.Mesh(
+          new THREE.PlaneGeometry(length, 0.7),
+          new THREE.MeshStandardMaterial({ map: ribbonTex, emissive: '#ffffff', emissiveMap: ribbonTex, emissiveIntensity: 1.1 }),
+        );
+        ribbon.position.set(0, y0 - 0.25, z0 + 0.36);
+        group.add(ribbon);
+
+        // Back wall, roof, front truss with a light strip under it, columns.
+        const roofY = upper.top + 4.5;
+        const back = new THREE.Mesh(new THREE.BoxGeometry(length, roofY, 0.6), concrete);
+        back.position.set(0, roofY / 2, upper.back - 0.3);
+        group.add(back);
+        const roofDepth = -upper.back + 2;
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(length + 2, 0.35, roofDepth), roofMat);
+        roof.position.set(0, roofY, upper.back + roofDepth / 2 - 0.5);
+        roof.rotation.x = -0.05;
+        group.add(roof);
+        const frontZ = upper.back + roofDepth - 0.5;
+        const truss = new THREE.Mesh(new THREE.BoxGeometry(length + 2, 0.9, 0.7), steel);
+        truss.position.set(0, roofY - 0.1 - Math.sin(0.05) * roofDepth * 0.5, frontZ);
+        group.add(truss);
+        const lights = new THREE.Mesh(new THREE.BoxGeometry(length * 0.96, 0.14, 0.3), strip);
+        lights.position.set(0, truss.position.y - 0.55, frontZ - 0.2);
+        group.add(lights);
+        const ribs = Math.round(length / 9);
+        for (let i = 0; i <= ribs; i++) {
+          const rib = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.7, roofDepth), steel);
+          rib.position.set(-length / 2 + (i * length) / ribs, roofY + 0.45, roof.position.z);
+          rib.rotation.x = -0.05;
+          group.add(rib);
+        }
+        const columns = Math.max(2, Math.round(length / 22));
+        for (let i = 0; i <= columns; i++) {
+          const col = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, roofY, 8), steel);
+          col.position.set(-length / 2 + (i * length) / columns, roofY / 2, upper.back + 0.2);
+          group.add(col);
+        }
       }
+
       group.position.set(cx, 0, cz);
       group.rotation.y = rotY;
       this.scene.add(group);
+      group.updateMatrixWorld(true);
+      spots.forEach((p) => fans.push({ pos: p.applyMatrix4(group.matrixWorld), yaw: rotY, end }));
     };
-    stand(PITCH_W + 20, 18, 0, -(PITCH_H / 2 + MARGIN + 3), 0);
-    stand(PITCH_H + 16, 15, -(PITCH_W / 2 + MARGIN + 3), 0, Math.PI / 2);
-    stand(PITCH_H + 16, 15, PITCH_W / 2 + MARGIN + 3, 0, -Math.PI / 2);
+    const back = PITCH_H / 2 + MARGIN + 3;
+    const side = PITCH_W / 2 + MARGIN + 3;
+    stand(PITCH_W + 20, 0, -back, 0, 'main');
+    stand(PITCH_H + 16, -side, 0, Math.PI / 2, 'main', -1);
+    stand(PITCH_H + 16, side, 0, -Math.PI / 2, 'main', 1);
+    // Near side: low terraces either side of the dugouts.
+    stand(40, -40, back + 2, Math.PI, 'low');
+    stand(40, 40, back + 2, Math.PI, 'low');
+    this.buildCrowd(fans);
 
     // Dugouts on the near touchline.
     const dugoutShell = new THREE.MeshStandardMaterial({ color: '#cbd5e1', roughness: 0.4, metalness: 0.2 });
@@ -380,20 +549,21 @@ export class Match3D {
     const seatMat = new THREE.MeshStandardMaterial({ color: '#1d4ed8', roughness: 0.6 });
     [-12, 12].forEach((x) => {
       const group = new THREE.Group();
-      const back = new THREE.Mesh(new THREE.BoxGeometry(8, 2.2, 0.15), dugoutShell);
-      back.position.set(0, 1.1, 1.2);
+      const backPanel = new THREE.Mesh(new THREE.BoxGeometry(8, 2.2, 0.15), dugoutShell);
+      backPanel.position.set(0, 1.1, 1.2);
       const roof = new THREE.Mesh(new THREE.BoxGeometry(8, 0.1, 2.4), dugoutGlass);
       roof.position.set(0, 2.2, 0);
-      const seats = new THREE.Mesh(new THREE.BoxGeometry(7.4, 0.5, 0.6), seatMat);
-      seats.position.set(0, 0.25, 0.8);
-      group.add(back, roof, seats);
+      const bench = new THREE.Mesh(new THREE.BoxGeometry(7.4, 0.5, 0.6), seatMat);
+      bench.position.set(0, 0.25, 0.8);
+      group.add(backPanel, roof, bench);
       group.position.set(x, 0, PITCH_H / 2 + MARGIN + 2.5);
       this.scene.add(group);
     });
 
-    // Floodlights with a soft glow.
+    // Floodlight pylons: a bank of lamps that bloom on high quality.
     const poleMat = new THREE.MeshStandardMaterial({ color: '#64748b', roughness: 0.5, metalness: 0.5 });
-    const lampMat = new THREE.MeshBasicMaterial({ color: '#fffbe8' });
+    const lampMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#fffbe8').multiplyScalar(6) });
+    const frameMat = new THREE.MeshStandardMaterial({ color: '#1f2937', roughness: 0.6 });
     const glowMat = new THREE.SpriteMaterial({
       map: glowTexture(),
       blending: THREE.AdditiveBlending,
@@ -406,20 +576,29 @@ export class Match3D {
       [-1, 1],
       [1, 1],
     ].forEach(([sx, sz]) => {
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.7, 40, 10), poleMat);
-      pole.position.set(sx * (PITCH_W / 2 + 22), 20, sz * (PITCH_H / 2 + 20));
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.8, 44, 10), poleMat);
+      pole.position.set(sx * (PITCH_W / 2 + 26), 22, sz * (PITCH_H / 2 + 24));
       this.scene.add(pole);
-      const lamp = new THREE.Mesh(new THREE.BoxGeometry(7, 3.5, 0.8), lampMat);
-      lamp.position.set(pole.position.x, 40, pole.position.z);
-      lamp.lookAt(0, 0, 0);
-      this.scene.add(lamp);
+      const head = new THREE.Group();
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(8.4, 4.6, 0.6), frameMat);
+      head.add(frame);
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 5; c++) {
+          const lamp = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.1, 0.2), lampMat);
+          lamp.position.set(-3.2 + c * 1.6, -1.4 + r * 1.4, 0.35);
+          head.add(lamp);
+        }
+      }
+      head.position.set(pole.position.x, 44, pole.position.z);
+      head.lookAt(0, 0, 0);
+      this.scene.add(head);
       const glow = new THREE.Sprite(glowMat);
-      glow.position.copy(lamp.position);
-      glow.scale.set(26, 26, 1);
+      glow.position.copy(head.position);
+      glow.scale.set(30, 30, 1);
       this.scene.add(glow);
     });
 
-    // Goals: posts, bar, back stays and a see-through net.
+    // Goals: posts, bar, back stays and a net that bulges when it's hit.
     const postMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.3 });
     const netMat = new THREE.MeshBasicMaterial({
       map: netTexture(),
@@ -448,18 +627,20 @@ export class Match3D {
       bar.castShadow = true;
       group.add(bar);
 
-      const back = new THREE.Mesh(new THREE.PlaneGeometry(GOAL_HALF * 2, goalH), netMat);
+      const backGeo = new THREE.PlaneGeometry(GOAL_HALF * 2, goalH, 16, 6);
+      const back = new THREE.Mesh(backGeo, netMat);
       back.rotation.y = Math.PI / 2;
       back.position.set(end * goalD, goalH / 2, 0);
       group.add(back);
+      this.nets.push({ end, geo: backGeo, base: Float32Array.from(backGeo.attributes.position.array), amp: 0, at: { x: 0, y: 0 } });
       const top = new THREE.Mesh(new THREE.PlaneGeometry(goalD, GOAL_HALF * 2), netMat);
       top.rotation.x = -Math.PI / 2;
       top.position.set((end * goalD) / 2, goalH, 0);
       group.add(top);
       [-GOAL_HALF, GOAL_HALF].forEach((z) => {
-        const side = new THREE.Mesh(new THREE.PlaneGeometry(goalD, goalH), netMat);
-        side.position.set((end * goalD) / 2, goalH / 2, z);
-        group.add(side);
+        const sideNet = new THREE.Mesh(new THREE.PlaneGeometry(goalD, goalH), netMat);
+        sideNet.position.set((end * goalD) / 2, goalH / 2, z);
+        group.add(sideNet);
       });
       group.position.x = end * (PITCH_W / 2);
       this.scene.add(group);
@@ -481,6 +662,88 @@ export class Match3D {
     });
   }
 
+  /**
+   * Every fan in the ground as one instanced mesh. A small vertex-shader
+   * patch gives each a skin tone and makes them jump when a goal goes in,
+   * so the whole crowd costs one draw call and no per-frame CPU work.
+   */
+  private buildCrowd(spots: { pos: THREE.Vector3; yaw: number; end: number }[]): void {
+    const body = new THREE.BoxGeometry(0.46, 0.62, 0.3).toNonIndexed();
+    body.translate(0, 0.31, 0);
+    const head = new THREE.OctahedronGeometry(0.15, 1);
+    head.translate(0, 0.78, 0);
+    const skinFlag = (geo: THREE.BufferGeometry, v: number) =>
+      geo.setAttribute('aSkin', new THREE.Float32BufferAttribute(new Array(geo.attributes.position.count).fill(v), 1));
+    skinFlag(body, 0);
+    skinFlag(head, 1);
+    body.deleteAttribute('uv');
+    head.deleteAttribute('uv');
+    const geo = mergeGeometries([body, head])!;
+
+    const mat = new THREE.MeshStandardMaterial({ roughness: 0.9 });
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = this.crowdUniforms.uTime;
+      shader.uniforms.uExcite = this.crowdUniforms.uExcite;
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nuniform float uTime;\nuniform float uExcite;\nattribute float aSkin;\nfloat fanHash;',
+        )
+        .replace(
+          '#include <color_vertex>',
+          `#include <color_vertex>
+          fanHash = fract(sin(dot(instanceMatrix[3].xz, vec2(12.9898, 78.233))) * 43758.5453);
+          vec3 skinTone = mix(vec3(0.86, 0.55, 0.38), vec3(0.12, 0.06, 0.035), fract(fanHash * 7.31));
+          vColor.xyz = mix(vColor.xyz, skinTone, aSkin);`,
+        )
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+          float jump = abs(sin(uTime * 8.5 + fanHash * 6.2831)) * 0.45 * uExcite * step(0.25, fanHash);
+          transformed.y += jump + sin(uTime * 1.7 + fanHash * 40.0) * 0.03;`,
+        );
+    };
+
+    // Shuffle so dropping the instance count thins the crowd evenly.
+    for (let i = spots.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [spots[i], spots[j]] = [spots[j], spots[i]];
+    }
+    const crowd = new THREE.InstancedMesh(geo, mat, spots.length);
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const s = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    spots.forEach((spot, i) => {
+      q.setFromAxisAngle(up, spot.yaw + (Math.random() - 0.5) * 0.5);
+      const k = 0.92 + Math.random() * 0.18;
+      s.set(k, k, k);
+      m.compose(spot.pos, q, s);
+      crowd.setMatrixAt(i, m);
+      crowd.setColorAt(i, new THREE.Color('#888888'));
+    });
+    crowd.frustumCulled = false;
+    this.crowd = crowd;
+    this.crowdEnds = spots.map((sp) => sp.end);
+    this.scene.add(crowd);
+  }
+
+  /** Dress the crowd in the two clubs' colours; the away fans fill one end. */
+  private colourCrowd(view: SceneView): void {
+    const key = `${view.kits.home.fill}|${view.kits.away.fill}`;
+    if (!this.crowd || key === this.crowdKey) return;
+    this.crowdKey = key;
+    const neutral = ['#e2e8f0', '#1e293b', '#475569', '#94a3b8', '#f8fafc'];
+    const c = new THREE.Color();
+    this.crowdEnds.forEach((end, i) => {
+      const r = Math.random();
+      const kit = end === 1 && r < 0.75 ? view.kits.away : view.kits.home;
+      const hex = r < 0.55 ? kit.fill : r < 0.75 ? kit.trim : neutral[Math.floor(Math.random() * neutral.length)];
+      this.crowd!.setColorAt(i, c.set(hex));
+    });
+    this.crowd.instanceColor!.needsUpdate = true;
+  }
+
   /* ---------------------------------------------------------------- players */
 
   private material(color: string, roughness = 0.75): THREE.MeshStandardMaterial {
@@ -493,11 +756,127 @@ export class Match3D {
     return mat;
   }
 
+  /** Shirt fabric: a sheen layer gives the soft highlight of a real kit under lights. */
+  private cloth(color: string): THREE.MeshStandardMaterial {
+    const key = `cloth|${color}`;
+    let mat = this.mats.get(key);
+    if (!mat) {
+      mat = new THREE.MeshPhysicalMaterial({ color, roughness: 0.62, metalness: 0, sheen: 0.6, sheenRoughness: 0.5, sheenColor: '#ffffff' });
+      this.mats.set(key, mat);
+    }
+    return mat;
+  }
+
+  /** A motion-captured player: the shared model, dressed and given a face. */
+  private buildSkinnedRig(id: string, x: number, y: number, model: PlayerModel): Rig {
+    const look = appearance(id);
+    const inst = instantiate(model);
+    const info = model.info;
+    inst.uniforms.uSkin.value.set(look.skin);
+    inst.uniforms.uHands.value.set(look.skin);
+    inst.uniforms.uBoots.value.set(look.boots);
+
+    // Face, ears and hair from the simple rig, pinned to the head bone over
+    // the hidden mannequin head.
+    const g = this.geo;
+    const skin = this.material(look.skin, 0.6);
+    const hair = this.material(look.hair, 0.9);
+    const head = new THREE.Group();
+    const part = (geo: THREE.BufferGeometry, mat: THREE.Material, pos: [number, number, number] = [0, 0, 0]) => {
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(pos[0], pos[1] - 1.87, pos[2]);
+      mesh.castShadow = true;
+      head.add(mesh);
+      return mesh;
+    };
+    part(g.headSkin, skin);
+    part(g.face, this.material('#1b1411', 0.5));
+    part(g.brows, hair);
+    if (look.beard) part(g.beard, hair);
+    if (look.style === 'short' || look.style === 'bun') part(g.hairShort, hair, [0, 1.885, -0.005]);
+    if (look.style === 'crop') part(g.hairShort, hair, [0, 1.87, -0.01]).scale.set(0.98, 0.8, 0.98);
+    if (look.style === 'afro') part(g.hairAfro, hair, [0, 1.93, -0.02]);
+    if (look.style === 'bun') part(g.bun, hair, [0, 1.96, -0.1]);
+    const headScale = info.head.size.y / 0.27;
+    attachToBone(inst.bones.head, head, info.head.center.clone().add(new THREE.Vector3(0, -0.01, 0.005)), headScale);
+
+    // Name and number on the back, crest and number on the chest.
+    if (!this.skinGeo) {
+      const t = info.torso;
+      const cz = (t.front + t.back) / 2;
+      const rz = (t.front - t.back) / 2;
+      const bent = (w: number, h: number) => {
+        const geo = new THREE.PlaneGeometry(w, h, 10, 4);
+        const pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const u = pos.getX(i) / (t.halfWidth * 1.05);
+          pos.setZ(i, rz * Math.sqrt(Math.max(0.05, 1 - u * u)) + 0.006);
+        }
+        geo.computeVertexNormals();
+        return geo;
+      };
+      const w = Math.min(0.3, t.halfWidth * 1.7);
+      this.skinGeo = { back: bent(w, w), chest: bent(w, w * 0.32) };
+      this.skinGeo.back.userData = { at: new THREE.Vector3(0, (t.y0 + t.y1) / 2, cz) };
+      this.skinGeo.chest.userData = { at: new THREE.Vector3(0, t.y1 - 0.07, cz) };
+    }
+    const decalMat = () => new THREE.MeshStandardMaterial({ transparent: true, roughness: 0.7, depthWrite: false });
+    const numberDecal = new THREE.Mesh(this.skinGeo.back, decalMat());
+    attachToBone(inst.bones.spine, numberDecal, this.skinGeo.back.userData.at, 1, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
+    const chestDecal = new THREE.Mesh(this.skinGeo.chest, decalMat());
+    attachToBone(inst.bones.spine, chestDecal, this.skinGeo.chest.userData.at, 1);
+
+    const root = new THREE.Group();
+    const body = new THREE.Group();
+    root.add(body);
+    body.add(inst.root);
+    inst.root.position.y = -info.floor;
+    root.scale.setScalar((2.0 * PLAYER_SCALE) / info.height);
+    this.scene.add(root);
+
+    const blob = new THREE.Mesh(this.geo.blob, this.blobMat);
+    blob.position.y = 0.02;
+    blob.visible = this.quality === 'low';
+    this.scene.add(blob);
+    const badge = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, transparent: true }));
+    badge.renderOrder = 5;
+    this.scene.add(badge);
+
+    const unused = () => ({ hip: new THREE.Group(), knee: new THREE.Group(), shoulder: new THREE.Group(), elbow: new THREE.Group() });
+    return {
+      root,
+      body,
+      legL: unused(),
+      legR: unused(),
+      armL: unused(),
+      armR: unused(),
+      blob,
+      badge,
+      badgeKey: '',
+      numberDecal,
+      chestDecal,
+      numberKey: '',
+      kitKey: '',
+      parts: { shirt: [], shorts: [], socks: [], trim: [], hands: [] },
+      prev: { x, y },
+      phase: Math.random() * 6,
+      yaw: 0,
+      kickT: 0,
+      seed: (look.hash % 1000) / 100,
+      speed: 0,
+      touch: 0,
+      touchKickT: 0,
+      skinned: inst,
+    };
+  }
+
   private buildRig(id: string, x: number, y: number): Rig {
-    const hash = [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
-    const skin = this.material(SKIN[hash % SKIN.length], 0.6);
-    const hair = this.material(HAIR[(hash >> 3) % HAIR.length], 0.9);
-    const boots = this.material(['#111827', '#f8fafc', '#ef4444', '#f59e0b'][(hash >> 6) % 4], 0.35);
+    if (this.model) return this.buildSkinnedRig(id, x, y, this.model);
+    const look = appearance(id);
+    const hash = look.hash;
+    const skin = this.material(look.skin, 0.6);
+    const hair = this.material(look.hair, 0.9);
+    const boots = this.material(look.boots, 0.35);
     const placeholder = this.material('#888888');
     const g = this.geo;
     const parts: Rig['parts'] = { shirt: [], shorts: [], socks: [], trim: [], hands: [] };
@@ -550,41 +929,45 @@ export class Match3D {
     const legL = leg(-1);
     const legR = leg(1);
     parts.shorts.push(add(body, g.pelvis, placeholder, [0, 0.98, 0]));
-    parts.shirt.push(add(body, g.torso, placeholder, [0, 1.36, 0]));
+    parts.shirt.push(add(body, g.torso, placeholder, [0, TORSO_Y, 0]));
     const collar = add(body, g.collar, placeholder, [0, 1.69, 0.01]);
     collar.rotation.x = Math.PI / 2;
     parts.trim.push(collar);
     const armL = arm(-1);
     const armR = arm(1);
-    add(body, g.neck, skin, [0, 1.74, 0]);
-    add(body, g.head, skin, [0, 1.87, 0]);
-    add(body, g.nose, skin, [0, 1.86, 0.12]);
+    // Head, neck, ears and nose are one mesh; eyes, brows and mouth another.
+    add(body, g.headSkin, skin, [0, 0, 0]);
+    add(body, g.face, this.material('#1b1411', 0.5), [0, 0, 0]);
+    add(body, g.brows, hair, [0, 0, 0]);
+    if (look.beard) add(body, g.beard, hair, [0, 0, 0]);
 
-    switch (hash % 5) {
-      case 0:
+    switch (look.style) {
+      case 'short':
         add(body, g.hairShort, hair, [0, 1.885, -0.005]);
         break;
-      case 1:
+      case 'crop':
         add(body, g.hairShort, hair, [0, 1.87, -0.01]).scale.set(0.98, 0.8, 0.98);
         break;
-      case 2:
+      case 'afro':
         add(body, g.hairAfro, hair, [0, 1.93, -0.02]);
         break;
-      case 3:
-        break; // shaved
+      case 'shaved':
+        break;
       default:
         add(body, g.hairShort, hair, [0, 1.885, -0.005]);
         add(body, g.bun, hair, [0, 1.96, -0.1]);
     }
 
-    // Shirt number on the back.
-    const numberDecal = new THREE.Mesh(
-      g.decal,
-      new THREE.MeshStandardMaterial({ transparent: true, roughness: 0.7, depthWrite: false }),
-    );
-    numberDecal.position.set(0, 1.43, -0.145);
+    // Full name and number on the back, crest and number on the chest. The
+    // decals are bent to the shirt so they sit on it from any angle.
+    const decalMat = () => new THREE.MeshStandardMaterial({ transparent: true, roughness: 0.7, depthWrite: false });
+    const numberDecal = new THREE.Mesh(g.backDecal, decalMat());
+    numberDecal.position.set(0, TORSO_Y, 0);
     numberDecal.rotation.y = Math.PI;
     body.add(numberDecal);
+    const chestDecal = new THREE.Mesh(g.chestDecal, decalMat());
+    chestDecal.position.set(0, TORSO_Y, 0);
+    body.add(chestDecal);
 
     this.scene.add(root);
 
@@ -608,6 +991,7 @@ export class Match3D {
       badge,
       badgeKey: '',
       numberDecal,
+      chestDecal,
       numberKey: '',
       kitKey: '',
       parts,
@@ -616,14 +1000,21 @@ export class Match3D {
       yaw: 0,
       kickT: 0,
       seed: (hash % 1000) / 100,
+      speed: 0,
+      touch: 0,
+      touchKickT: 0,
     };
   }
 
   private removeRig(rig: Rig): void {
+    rig.skinned?.mixer.stopAllAction();
+    if (rig.skinned) (rig.skinned.mesh.material as THREE.Material).dispose();
     this.scene.remove(rig.root, rig.blob, rig.badge);
-    const decal = rig.numberDecal.material as THREE.MeshStandardMaterial;
-    decal.map?.dispose();
-    decal.dispose();
+    [rig.numberDecal, rig.chestDecal].forEach((mesh) => {
+      const decal = mesh.material as THREE.MeshStandardMaterial;
+      decal.map?.dispose();
+      decal.dispose();
+    });
     rig.badge.material.map?.dispose();
     rig.badge.material.dispose();
   }
@@ -639,8 +1030,16 @@ export class Match3D {
     const key = `${shirt}|${shorts}|${socks}|${trim}|${gloves}`;
     if (rig.kitKey === key) return;
     rig.kitKey = key;
+    if (rig.skinned) {
+      const u = rig.skinned.uniforms;
+      u.uShirt.value.set(shirt);
+      u.uShorts.value.set(shorts);
+      u.uSocks.value.set(socks);
+      u.uHands.value.copy(gloves ? new THREE.Color(gloves) : u.uSkin.value);
+      return;
+    }
     const set = (list: THREE.Mesh[], mat: THREE.Material) => list.forEach((m) => (m.material = mat));
-    set(rig.parts.shirt, this.material(shirt, 0.7));
+    set(rig.parts.shirt, this.cloth(shirt));
     set(rig.parts.shorts, this.material(shorts, 0.7));
     set(rig.parts.socks, this.material(socks, 0.8));
     set(rig.parts.trim, this.material(trim, 0.6));
@@ -678,12 +1077,18 @@ export class Match3D {
       );
 
       const numberKey = `${actor.number}|${shirtColor}`;
-      if (rig.numberKey !== numberKey) {
-        rig.numberKey = numberKey;
-        const mat = rig.numberDecal.material as THREE.MeshStandardMaterial;
-        mat.map?.dispose();
-        mat.map = numberTexture(String(actor.number), readableOn(shirtColor));
-        mat.needsUpdate = true;
+      const shirtKey = `${numberKey}|${actor.label}|${kit.trim}`;
+      if (rig.numberKey !== shirtKey) {
+        rig.numberKey = shirtKey;
+        const ink = readableOn(shirtColor);
+        const setMap = (mesh: THREE.Mesh, tex: THREE.Texture) => {
+          const mat = mesh.material as THREE.MeshStandardMaterial;
+          mat.map?.dispose();
+          mat.map = tex;
+          mat.needsUpdate = true;
+        };
+        setMap(rig.numberDecal, backTexture(actor.label, String(actor.number), ink));
+        setMap(rig.chestDecal, chestTexture(String(actor.number), ink, actor.isKeeper ? ink : kit.trim));
       }
       if (rig.badgeKey !== numberKey) {
         rig.badgeKey = numberKey;
@@ -704,7 +1109,7 @@ export class Match3D {
       rig.badge.position.set(x, 2.25 * PLAYER_SCALE + 0.5, z);
       const badgeSize = this.mode === 'tactical' ? 4.2 : 1.15;
       rig.badge.scale.set(badgeSize, badgeSize, 1);
-      rig.badge.visible = !actor.leaving;
+      rig.badge.visible = !actor.leaving && !this.replayCam;
     });
 
     this.rigs.forEach((rig, id) => {
@@ -716,7 +1121,7 @@ export class Match3D {
 
     // Name tag over whoever has the ball.
     const owner = view.ownerId ? view.actors.find((a) => a.id === view.ownerId) : undefined;
-    if (owner && this.mode === 'broadcast') {
+    if (owner && this.mode === 'broadcast' && !this.replayCam) {
       const key = `${owner.number} ${owner.label}`;
       if (key !== this.ownerLabelKey) {
         this.ownerLabelKey = key;
@@ -747,6 +1152,12 @@ export class Match3D {
     const vy = dt > 0 ? (actor.pos.y - rig.prev.y) / dt : 0;
     rig.prev = { x: actor.pos.x, y: actor.pos.y };
     const speed = Math.hypot(vx, vy);
+    rig.speed = speed;
+    if (rig.skinned) {
+      this.poseSkinned(rig, actor, view, dt, speed);
+      this.face(rig, vx, vy, speed, ball, dt);
+      return;
+    }
 
     rig.phase += dt * (2 + speed * 1.3);
     const stride = Math.min(0.9, speed * 0.12);
@@ -784,6 +1195,22 @@ export class Match3D {
       rig.body.rotation.x = -0.1 * arc;
     }
 
+    // Dribbling: a light tap with the right foot on each touch.
+    if (rig.touchKickT > 0) {
+      rig.touchKickT = Math.max(0, rig.touchKickT - dt);
+      const tap = Math.sin((1 - rig.touchKickT / 0.18) * Math.PI);
+      rig.legR.hip.rotation.x = -0.75 * tap;
+      rig.legR.knee.rotation.x = 0.35 * tap;
+    }
+
+    const dive = view.dives.find((d) => d.actorId === actor.id);
+    if (dive) {
+      this.poseDive(rig, actor, dive);
+      return;
+    }
+    rig.body.rotation.z = 0;
+    rig.body.position.x = 0;
+
     if (view.celebrating === actor.side && !actor.isKeeper) {
       const t = this.time * 7 + rig.seed;
       rig.armL.shoulder.rotation.x = -2.7;
@@ -795,23 +1222,200 @@ export class Match3D {
       if (speed < 1) rig.body.position.y = Math.max(0, Math.sin(t)) * 0.14;
     }
 
-    const wantYaw =
-      speed > 0.6
-        ? Math.atan2(vx, vy)
-        : Math.atan2(ball.x - actor.pos.x, ball.y - actor.pos.y);
+    this.face(rig, vx, vy, speed, ball, dt);
+  }
+
+  /** Turn to face the way he's running, or the ball when standing. */
+  private face(rig: Rig, vx: number, vy: number, speed: number, ball: SceneView['ball'], dt: number): void {
+    const x = rig.prev.x;
+    const y = rig.prev.y;
+    const wantYaw = speed > 0.6 ? Math.atan2(vx, vy) : Math.atan2(ball.x - x, ball.y - y);
     rig.yaw = approachAngle(rig.yaw, wantYaw, Math.min(1, dt * 8));
     rig.root.rotation.y = rig.yaw;
   }
 
-  private poseBall(view: SceneView): void {
-    const { x, y, h } = view.ball;
-    const moved = Math.hypot(x - this.lastBall.x, y - this.lastBall.y);
-    this.lastBall = { x, y };
+  /**
+   * Motion-captured locomotion blended by speed, with kicks, touches, dives
+   * and celebrations layered on top by turning bones after the mixer runs.
+   */
+  private poseSkinned(rig: Rig, actor: SceneView['actors'][number], view: SceneView, dt: number, speed: number): void {
+    const sk = rig.skinned!;
+    const clamp = THREE.MathUtils.clamp;
+    const wIdle = clamp(1 - speed / 1.4, 0, 1);
+    const wRun = clamp((speed - 2.6) / 2.2, 0, 1);
+    sk.actions.idle.setEffectiveWeight(wIdle);
+    sk.actions.run.setEffectiveWeight(wRun);
+    sk.actions.walk.setEffectiveWeight(Math.max(0, 1 - wIdle - wRun));
+    sk.actions.walk.timeScale = clamp(speed / WALK_SPEED, 0.6, 1.7);
+    sk.actions.run.timeScale = clamp(speed / RUN_SPEED, 0.8, 1.6);
+    sk.mixer.update(dt);
+
+    const b = sk.bones;
+    // Positive = forward (legs) or outward/up (arms).
+    const swing = (bone: THREE.Bone, angle: number) => bone.rotateOnAxis(sk.side.get(bone)!, -angle);
+    const bend = (bone: THREE.Bone, angle: number) => bone.rotateOnAxis(sk.side.get(bone)!, angle);
+    const raise = (bone: THREE.Bone, angle: number, left: boolean) => bone.rotateOnAxis(sk.forward.get(bone)!, left ? angle : -angle);
+
+    if (rig.kickT > 0) {
+      rig.kickT = Math.max(0, rig.kickT - dt);
+      const k = 1 - rig.kickT / KICK_TIME;
+      // Wind the leg back, then strike through the ball.
+      const hip = k < 0.35 ? -(k / 0.35) * 0.75 : -0.75 + ((k - 0.35) / 0.65) * 2.1;
+      const knee = k < 0.35 ? 1.3 * (k / 0.35) : 1.3 * (1 - (k - 0.35) / 0.65);
+      swing(b.rUpLeg, hip);
+      bend(b.rLeg, knee);
+      const arc = Math.sin(k * Math.PI);
+      raise(b.lArm, arc * 0.9, true);
+      raise(b.rArm, arc * 0.4, false);
+    }
+    if (rig.touchKickT > 0) {
+      rig.touchKickT = Math.max(0, rig.touchKickT - dt);
+      const tap = Math.sin((1 - rig.touchKickT / 0.18) * Math.PI);
+      swing(b.rUpLeg, 0.55 * tap);
+    }
+
+    const dive = view.dives.find((d) => d.actorId === actor.id);
+    if (dive) {
+      this.poseDive(rig, actor, dive);
+      raise(b.lArm, 2.5, true);
+      raise(b.rArm, 2.5, false);
+      bend(b.lLeg, 0.4);
+      return;
+    }
+    rig.body.rotation.z = 0;
+    rig.body.position.set(0, 0, 0);
+
+    if (view.celebrating === actor.side && !actor.isKeeper) {
+      const t = this.time * 7 + rig.seed;
+      raise(b.lArm, 2.3 + Math.sin(t) * 0.25, true);
+      raise(b.rArm, 2.3 + Math.sin(t) * 0.25, false);
+      if (speed < 1) rig.body.position.y = Math.max(0, Math.sin(t)) * 0.12;
+    }
+  }
+
+  /** Keeper launches sideways off his feet, arms stretched, then lands. */
+  private poseDive(
+    rig: Rig,
+    actor: SceneView['actors'][number],
+    dive: SceneView['dives'][number],
+  ): void {
+    // Which way is the ball, in the keeper's own left/right?
+    const dx = dive.toward.x - actor.pos.x;
+    const dz = dive.toward.y - actor.pos.y;
+    const localX = dx * Math.cos(rig.yaw) - dz * Math.sin(rig.yaw);
+    const side = localX >= 0 ? 1 : -1;
+    const t = dive.t;
+
+    let roll: number;
+    let lift: number;
+    if (t < 0.12) {
+      // Set: a quick crouch.
+      roll = 0;
+      lift = -0.12 * (t / 0.12);
+    } else if (t < 0.5) {
+      const k = (t - 0.12) / 0.38;
+      roll = 1.35 * Math.sin((k * Math.PI) / 2);
+      lift = 0.45 * Math.sin(k * Math.PI);
+    } else {
+      roll = 1.5;
+      lift = 0.12;
+    }
+    rig.body.rotation.x = 0;
+    rig.body.rotation.z = -side * roll;
+    rig.body.position.set(side * Math.min(1, t / 0.5) * 0.5, lift, 0);
+    rig.armL.shoulder.rotation.set(-2.9, 0, -0.25);
+    rig.armR.shoulder.rotation.set(-2.9, 0, 0.25);
+    rig.armL.elbow.rotation.x = -0.1;
+    rig.armR.elbow.rotation.x = -0.1;
+    rig.legL.hip.rotation.x = 0.15;
+    rig.legR.hip.rotation.x = -0.2;
+    rig.legL.knee.rotation.x = 0.5;
+    rig.legR.knee.rotation.x = 0.3;
+  }
+
+  private poseBall(view: SceneView, dt: number): void {
+    const { h } = view.ball;
+    let x = view.ball.x;
+    let y = view.ball.y;
+
+    // A running ball carrier pushes the ball ahead and catches it up again.
+    const owner = view.ownerId ? view.actors.find((a) => a.id === view.ownerId) : undefined;
+    const rig = owner ? this.rigs.get(owner.id) : undefined;
+    if (owner && rig && h === 0 && rig.speed > 1.2) {
+      rig.touch += dt * (0.9 + rig.speed * 0.18);
+      if (rig.touch >= 1) {
+        rig.touch -= 1;
+        rig.touchKickT = 0.18;
+      }
+      const ease = 1 - (1 - rig.touch) * (1 - rig.touch);
+      const ahead = 0.55 + 1.3 * ease;
+      x = owner.pos.x + Math.sin(rig.yaw) * ahead;
+      y = owner.pos.y + Math.cos(rig.yaw) * ahead;
+    }
+
+    const target = new THREE.Vector3(wx(x), BALL_R + h, wz(y));
+    // The net stops the ball.
+    if (Math.abs(target.x) > PITCH_W / 2 && Math.abs(target.z) < GOAL_HALF + 0.3) {
+      target.x = Math.sign(target.x) * Math.min(Math.abs(target.x), PITCH_W / 2 + 2.0);
+      target.y = Math.min(target.y, 2.3);
+    }
+    if (this.ballShown.lengthSq() === 0) this.ballShown.copy(target);
+    this.ballShown.lerp(target, 1 - Math.exp(-dt * 22));
+    const moved = Math.hypot(this.ballShown.x - this.lastBall.x, this.ballShown.z - this.lastBall.y);
+    this.lastBall = { x: this.ballShown.x, y: this.ballShown.z };
     this.ballSpin += moved / BALL_R;
-    this.ball.position.set(wx(x), BALL_R + h, wz(y));
+    this.ball.position.copy(this.ballShown);
     this.ball.rotation.set(this.ballSpin, this.ballSpin * 0.3, 0);
-    this.ballBlob.position.set(wx(x) + h * 0.15, 0.03, wz(y) + h * 0.2);
+    this.ballBlob.position.set(this.ballShown.x + h * 0.15, 0.03, this.ballShown.z + h * 0.2);
     this.ballBlob.scale.setScalar(0.55 * Math.max(0.5, 1 - h * 0.08));
+  }
+
+  /** The back of the net bellies out where the ball hits it, then settles. */
+  private poseNets(dt: number): void {
+    const b = this.ball.position;
+    this.nets.forEach((net) => {
+      const depth = net.end * b.x - PITCH_W / 2;
+      if (depth > 0.8 && Math.abs(b.z) < GOAL_HALF && b.y < 2.44) {
+        net.amp = Math.max(net.amp, Math.min(0.75, (depth - 0.8) * 0.8));
+        net.at = { x: -b.z, y: b.y - 1.22 };
+      }
+      if (net.amp < 0.004) {
+        if (net.amp > 0) {
+          net.amp = 0;
+          (net.geo.attributes.position.array as Float32Array).set(net.base);
+          net.geo.attributes.position.needsUpdate = true;
+        }
+        return;
+      }
+      net.amp *= Math.exp(-dt * 2.2);
+      const wobble = net.amp * (0.7 + 0.3 * Math.cos(this.time * 13));
+      const pos = net.geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const dx = net.base[i * 3] - net.at.x;
+        const dy = net.base[i * 3 + 1] - net.at.y;
+        pos.setZ(i, net.base[i * 3 + 2] + net.end * wobble * Math.exp(-(dx * dx + dy * dy) / 1.8));
+      }
+      pos.needsUpdate = true;
+    });
+  }
+
+  /** A fading streak behind a hard-hit ball. */
+  private poseTrail(dt: number): void {
+    const p = this.ball.position.clone();
+    const last = this.trailPts[0];
+    const speed = last && dt > 0 ? p.distanceTo(last) / dt : 0;
+    this.trailPts.unshift(p);
+    if (this.trailPts.length > TRAIL) this.trailPts.pop();
+    const alpha = THREE.MathUtils.clamp((speed - 15) / 12, 0, 1);
+    this.trail.forEach((sprite, i) => {
+      const at = this.trailPts[i];
+      const k = 1 - i / TRAIL;
+      sprite.visible = !!at && alpha > 0 && i > 0;
+      if (!sprite.visible) return;
+      sprite.position.copy(at);
+      sprite.scale.setScalar(0.85 * k + 0.15);
+      sprite.material.opacity = alpha * k * 0.55;
+    });
   }
 
   private poseCards(view: SceneView): void {
@@ -838,8 +1442,8 @@ export class Match3D {
 
   /* ----------------------------------------------------------------- camera */
 
-  private moveCamera(view: SceneView, dt: number): void {
-    const k = 1 - Math.exp(-dt * 2.4);
+  private moveCamera(view: SceneView, dt: number, cut: boolean): void {
+    const k = cut ? 1 : 1 - Math.exp(-dt * (this.replayCam ? 4 : 2.4));
     // Move in on key moments, pull back for open play.
     this.zoom += ((view.highlight ? 1 : 0) - this.zoom) * (1 - Math.exp(-dt * 1.2));
 
@@ -849,7 +1453,23 @@ export class Match3D {
     const pos = new THREE.Vector3();
     let shadowSpan = 38;
 
-    if (this.mode === 'tactical') {
+    if (this.replayCam) {
+      // Replays rotate through three angles: pitch-side, behind the goal and
+      // the reverse angle from the far touchline.
+      const fx = THREE.MathUtils.clamp(bx, -PITCH_W / 2 + 6, PITCH_W / 2 - 6);
+      const end = bx >= 0 ? 1 : -1;
+      if (this.replayAngle === 1) {
+        target.set(bx - end * 7, 1, bz * 0.8);
+        pos.set(end * (PITCH_W / 2 + 9), 7.5, bz * 0.45);
+      } else if (this.replayAngle === 2) {
+        target.set(fx, 1, bz);
+        pos.set(fx * 0.85, 10, bz - 22);
+      } else {
+        target.set(fx, 1, bz);
+        pos.set(fx * 0.92, 9, bz + 21);
+      }
+      shadowSpan = 30;
+    } else if (this.mode === 'tactical') {
       // Whole pitch in view, from high over the near touchline.
       const halfFov = THREE.MathUtils.degToRad(this.camera.fov / 2);
       const hFov = Math.atan(Math.tan(halfFov) * this.aspect);
@@ -890,9 +1510,52 @@ export class Match3D {
 
 /* ----------------------------------------------------------------- helpers */
 
+/** Torso centre height, and its side profile (radius, height from centre): a V from chest to waist. */
+const TORSO_Y = 1.37;
+const TORSO_PROFILE: [number, number][] = [
+  [0.001, -0.28],
+  [0.15, -0.27],
+  [0.165, -0.13],
+  [0.172, 0.0],
+  [0.198, 0.14],
+  [0.205, 0.21],
+  [0.17, 0.27],
+  [0.09, 0.3],
+  [0.001, 0.305],
+];
+const TORSO_SX = 1.18;
+const TORSO_SZ = 0.72;
+
+function torsoRadius(y: number): number {
+  for (let i = 1; i < TORSO_PROFILE.length; i++) {
+    const [r0, y0] = TORSO_PROFILE[i - 1];
+    const [r1, y1] = TORSO_PROFILE[i];
+    if (y <= y1) return r0 + ((r1 - r0) * (y - y0)) / Math.max(1e-6, y1 - y0);
+  }
+  return TORSO_PROFILE[TORSO_PROFILE.length - 1][0];
+}
+
+/** A plane bent onto the front of the torso (w x h, centred at cx, cy from torso centre). */
+function torsoDecal(w: number, h: number, cx: number, cy: number): THREE.BufferGeometry {
+  const geo = new THREE.PlaneGeometry(w, h, 10, 6);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i) + cx;
+    const y = pos.getY(i) + cy;
+    const r = torsoRadius(y);
+    const u = x / (r * TORSO_SX);
+    pos.setXYZ(i, x, y, r * TORSO_SZ * Math.sqrt(Math.max(0.04, 1 - u * u)) + 0.006);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
 function buildGeometries() {
-  const torso = new THREE.CapsuleGeometry(0.19, 0.3, 6, 14);
-  torso.scale(1.18, 1, 0.74);
+  const torso = new THREE.LatheGeometry(
+    TORSO_PROFILE.map(([r, y]) => new THREE.Vector2(r, y)),
+    20,
+  );
+  torso.scale(TORSO_SX, 1, TORSO_SZ);
   const head = new THREE.SphereGeometry(0.125, 18, 14);
   head.scale(0.95, 1.08, 1);
   return {
@@ -904,8 +1567,7 @@ function buildGeometries() {
     torso,
     collar: new THREE.TorusGeometry(0.075, 0.022, 6, 16),
     neck: new THREE.CylinderGeometry(0.055, 0.06, 0.1, 10),
-    head,
-    nose: new THREE.SphereGeometry(0.022, 6, 6),
+    ...faceGeometries(head),
     hairShort: new THREE.SphereGeometry(0.135, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2.05),
     hairAfro: new THREE.SphereGeometry(0.165, 14, 10),
     bun: new THREE.SphereGeometry(0.055, 8, 8),
@@ -913,9 +1575,62 @@ function buildGeometries() {
     upperArm: new THREE.CylinderGeometry(0.052, 0.048, 0.12, 8),
     forearm: new THREE.CylinderGeometry(0.047, 0.04, 0.26, 8),
     hand: new THREE.SphereGeometry(0.048, 8, 6),
-    decal: new THREE.PlaneGeometry(0.24, 0.24),
+    backDecal: torsoDecal(0.3, 0.3, 0, 0.05),
+    chestDecal: torsoDecal(0.28, 0.09, 0, 0.13),
     blob: new THREE.CircleGeometry(0.55, 20).rotateX(-Math.PI / 2),
   };
+}
+
+/** Head parts pre-merged by material, so a detailed face costs three draw calls. */
+function faceGeometries(head: THREE.BufferGeometry) {
+  const at = (geo: THREE.BufferGeometry, x: number, y: number, z: number) => geo.translate(x, y, z);
+  const ear = (side: number) => {
+    const geo = new THREE.SphereGeometry(0.032, 8, 6);
+    geo.scale(0.5, 1, 0.8);
+    return at(geo, side * 0.12, 1.87, -0.005);
+  };
+  const headSkin = mergeGeometries([
+    at(head.clone(), 0, 1.87, 0),
+    at(new THREE.CylinderGeometry(0.055, 0.06, 0.1, 10, 1, true), 0, 1.74, 0),
+    at(new THREE.SphereGeometry(0.022, 6, 6), 0, 1.86, 0.122),
+    ear(-1),
+    ear(1),
+  ])!;
+
+  const eye = (side: number) => at(new THREE.SphereGeometry(0.016, 8, 6), side * 0.043, 1.895, 0.108);
+  const mouth = at(new THREE.BoxGeometry(0.045, 0.009, 0.01), 0, 1.822, 0.117);
+  const face = mergeGeometries([eye(-1), eye(1), mouth])!;
+
+  const brow = (side: number) => {
+    const geo = new THREE.BoxGeometry(0.05, 0.012, 0.014);
+    geo.rotateZ(side * -0.12);
+    return at(geo, side * 0.045, 1.924, 0.112);
+  };
+  const brows = mergeGeometries([brow(-1), brow(1)])!;
+
+  // Lower half of a slightly larger head: reads as a beard at match distance.
+  const beard = new THREE.SphereGeometry(0.131, 14, 8, 0, Math.PI * 2, Math.PI / 1.75, Math.PI / 3);
+  beard.scale(0.95, 1.08, 1);
+  beard.translate(0, 1.87, 0.004);
+
+  return { headSkin, face, brows, beard };
+}
+
+/** Fine tiling noise used as a bump map: blades catch the floodlights. */
+function grassBump(): THREE.Texture {
+  const tex = canvasTexture(256, 256, (ctx) => {
+    const img = ctx.createImageData(256, 256);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = 110 + Math.random() * 120;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+      img.data[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+  });
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(70, 46);
+  return tex;
 }
 
 function clampByte(v: number): number {
@@ -996,13 +1711,45 @@ function ballTexture(): THREE.Texture {
   });
 }
 
-function numberTexture(text: string, ink: string): THREE.Texture {
-  return canvasTexture(128, 128, (ctx) => {
+/** Back of the shirt: full name arched over the number, as on a real kit. */
+function backTexture(name: string, number: string, ink: string): THREE.Texture {
+  return canvasTexture(256, 256, (ctx) => {
     ctx.fillStyle = ink;
-    ctx.font = '900 92px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(text, 64, 70);
+    let size = 40;
+    ctx.font = `800 ${size}px system-ui, sans-serif`;
+    while (size > 14 && ctx.measureText(name).width > 236) {
+      size -= 2;
+      ctx.font = `800 ${size}px system-ui, sans-serif`;
+    }
+    ctx.fillText(name, 128, 30);
+    ctx.font = '900 168px system-ui, sans-serif';
+    ctx.fillText(number, 128, 160);
+  });
+}
+
+/** Front: club crest on one side of the chest, small number on the other. */
+function chestTexture(number: string, ink: string, trim: string): THREE.Texture {
+  return canvasTexture(256, 84, (ctx) => {
+    // Crest: a small shield.
+    ctx.fillStyle = trim;
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(176, 12);
+    ctx.lineTo(212, 12);
+    ctx.lineTo(212, 46);
+    ctx.quadraticCurveTo(212, 66, 194, 76);
+    ctx.quadraticCurveTo(176, 66, 176, 46);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = ink;
+    ctx.font = '900 56px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(number, 72, 46);
   });
 }
 
@@ -1104,33 +1851,15 @@ function boardTexture(): THREE.CanvasTexture {
   });
 }
 
-function crowdTexture(): THREE.CanvasTexture {
-  const shirts = ['#e2e8f0', '#f87171', '#60a5fa', '#fbbf24', '#34d399', '#a78bfa', '#94a3b8', '#f472b6', '#1e293b'];
-  const skins = ['#f1c7a5', '#d9a47c', '#b07a52', '#8a5a3b', '#5c3a24'];
-  return canvasTexture(512, 64, (ctx) => {
-    ctx.fillStyle = '#243044';
-    ctx.fillRect(0, 0, 512, 64);
-    // Seats, then two rows of fans with shoulders and heads.
-    ctx.fillStyle = '#1d4ed8';
-    for (let x = 0; x < 512; x += 8) ctx.fillRect(x + 1, 40, 6, 10);
-    for (let row = 0; row < 2; row++) {
-      for (let x = 0; x < 512; x += 7 + Math.random() * 3) {
-        if (Math.random() < 0.08) continue;
-        const y = 16 + row * 22 + Math.random() * 3;
-        ctx.fillStyle = shirts[Math.floor(Math.random() * shirts.length)];
-        ctx.beginPath();
-        ctx.roundRect(x, y, 7, 11, 3);
-        ctx.fill();
-        ctx.fillStyle = skins[Math.floor(Math.random() * skins.length)];
-        ctx.beginPath();
-        ctx.arc(x + 3.5, y - 2.5, 3, 0, Math.PI * 2);
-        ctx.fill();
-        if (Math.random() < 0.12) {
-          // A raised arm or scarf.
-          ctx.fillStyle = shirts[Math.floor(Math.random() * shirts.length)];
-          ctx.fillRect(x + 5, y - 9, 2, 8);
-        }
-      }
+function seatTexture(): THREE.CanvasTexture {
+  return canvasTexture(256, 32, (ctx) => {
+    ctx.fillStyle = '#1b2433';
+    ctx.fillRect(0, 0, 256, 32);
+    for (let x = 0; x < 256; x += 8) {
+      ctx.fillStyle = Math.random() < 0.1 ? '#1e3a8a' : '#2748a8';
+      ctx.beginPath();
+      ctx.roundRect(x + 1, 6, 6, 18, 2);
+      ctx.fill();
     }
   });
 }
