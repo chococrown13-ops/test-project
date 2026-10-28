@@ -82,7 +82,9 @@
       "narration": [
         "그런데 2025년 종합 분석에서는, 그런 기억 우위가 확인되지 않았대요."
       ],
-      "image_prompt": "S4 scene: the otter looking surprised at two small stacks of index cards of equal height on a desk, holding the yellow notebook. Warm light. No text, no numbers."
+      "image_prompt": "S4 scene: the otter looking surprised at two small stacks of index cards of equal height on a desk, holding the yellow notebook. Warm light. No text, no numbers.",
+      "video": "clips/s4.mp4",
+      "motion": "The otter slowly blinks and tilts its head, looking from one stack of cards to the other."
     },
     {
       "image": "images/s5.jpg",
