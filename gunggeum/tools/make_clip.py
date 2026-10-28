@@ -23,6 +23,7 @@ import base64
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -37,17 +38,28 @@ USD_PER_M = {"video_out": 17.5, "text_out": 9.0, "in": 1.5}
 EST_USD_PER_SEC = {"360p": 0.034, "720p": 0.102, "1080p": 0.152}
 
 
-def post(body):
+def call(url, body=None):
     headers = {"Content-Type": "application/json"}
     key = os.environ.get("GEMINI_API_KEY")
     if key:  # 없으면 클라우드 환경의 API credential 이 프록시에서 붙는다
         headers["x-goog-api-key"] = key
-    req = urllib.request.Request(URL, data=json.dumps(body).encode(), headers=headers)
+    req = urllib.request.Request(url, data=json.dumps(body).encode() if body else None, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=600) as r:
             return json.load(r)
     except urllib.error.HTTPError as e:
         sys.exit(f"HTTP {e.code}: {e.read().decode(errors='replace')[:800]}")
+
+
+def post(body):
+    """백그라운드로 맡기고 끝날 때까지 기다린다 (이어 찍기처럼 오래 걸리는 요청이 한 번에 받으면 502 로 끊김)"""
+    resp = call(URL, dict(body, background=True))
+    for _ in range(90):  # 최대 약 15분
+        if resp.get("status") != "in_progress":
+            return resp
+        time.sleep(10)
+        resp = call(f"{URL}/{resp['id']}")
+    sys.exit(f"15분이 지나도 끝나지 않았어요 (interaction {resp.get('id')}) — 나중에 다시 확인")
 
 
 def cost_of(usage):
