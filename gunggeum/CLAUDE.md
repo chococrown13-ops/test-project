@@ -13,7 +13,7 @@ AI 사무실이 운영하는 쇼츠 채널 「도시의 나이테」입니다. *
 ## 사무실 db (ArtifactData, url = 위 사무실 링크)
 | 컬렉션 | 내용 |
 |---|---|
-| `episodes/<id>` | 현황판 {title, corner, status: 결재 대기/제작 중/업로드 대기/업로드 완료/취소, facts, ceoTodo, link, costUsd} — 새 채널 편은 `N01`… |
+| `episodes/<id>` | 현황판 {title, corner, status: 결재 대기/제작 중/업로드 대기/업로드 완료/취소, facts, ceoTodo, link, costUsd, publish:{title, description, hashtags, pinnedComment, threadsLine, place}} — 새 채널 편은 `N01`… · `publish`는 「📮 업로드 안내실」(플랫폼별 프로필·업로드 설정은 사무실 소스 `app/uploadGuide.ts`) |
 | `reviews/<id>` · `approvals/<id>` | 결재함 기획안 {summary, facts[{verdict, claim, line, source}], scenes[{year, head, sub, src}], checks, estCostUsd} · 대표 결정 {decision, memo, decidedAt} |
 | `files/<id>` | 자료실 {name, episode, kind, parts[asset id], sizeBytes, contentType, from, note, createdAt} — 19MB 넘으면 조각 |
 | `log` | 진행 기록 {at: 실제 UTC 시각, who, text} |

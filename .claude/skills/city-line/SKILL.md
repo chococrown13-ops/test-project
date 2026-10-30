@@ -37,7 +37,7 @@ description: 도시의 나이테 영상 제작 라인. "다음 영상 기획"이
    `ffmpeg -framerate 24 -i frames/%04d.jpg -i music.wav -c:v libx264 -preset slow -crf 24 -maxrate 3.6M -bufsize 7M -pix_fmt yuv420p -c:a aac -b:a 160k -ar 48000 -ac 2 -shortest -movflags +faststart <slug>.mp4` (ffmpeg는 `python3 -c "import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())"`). 15MB 안이어야 자료실에 한 조각으로 올라가요.
 4. 완성본에서 프레임 4장을 뽑아 다시 확인.
 5. 자료실: Artifact 도구 publish(`url`=사무실, `asset: true`, `file_path`=mp4) → `files/<id>` `{name, episode:"N0x", kind:"video", parts:[asset id], sizeBytes, contentType:"video/mp4", from, note, createdAt}`.
-6. `publish.md`(근거 표·제목·설명·고정 댓글·해시태그) 커밋(mp4는 커밋 안 함). `episodes/N0x` → `{status:"업로드 대기", ceoTodo:"자료실에서 영상 받아 올리기 → 'N0x 올렸어'"}`, log 한 줄.
+6. `publish.md`(근거 표·제목·설명·고정 댓글·해시태그) 커밋(mp4는 커밋 안 함). `episodes/N0x` → `{status:"업로드 대기", ceoTodo:"업로드 안내실 보고 4곳에 올리기 → 'N0x 올렸어'", publish:{title, description(출처 포함), hashtags:[주제 태그 먼저, 5개 이내], pinnedComment, threadsLine(질문형 한 줄), place(동네)}}`, log 한 줄. `publish`가 사무실 「📮 업로드 안내실」에 플랫폼별 문구로 떠요(유튜브 해시태그 3개·인스타/틱톡 5개까지 자동으로 자름). 고정 댓글에 아직 결재 안 된 다음 편 주제를 약속하지 않기.
 - 수정 요청이면: 메모대로 plan.md·reviews를 고치고 다시 "결재 대기".
 
 ## C. 올렸어
