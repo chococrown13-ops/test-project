@@ -6,7 +6,7 @@ description: AI 사무실 전략 회의실. 캐릭터·이름·주제·형식·S
 # 전략 회의실 — 종합 검토 회의
 
 비서실장 **오세인**이 회의를 진행하고 결정 메모를 씁니다. 대표(사용자)는 결정만 합니다.
-대상 채널: `gunggeum/` (궁금해달 — AI 쇼츠 팩트체크). 브랜드 `gunggeum/brand.md`, 지난 결정 `gunggeum/decisions.md`.
+대상 채널: `gunggeum/` (도시의 나이테 — 도시의 과거·미래를 코드로 그린 30초 영상). 채널 안내 `gunggeum/CLAUDE.md`, 지난 결정 `gunggeum/decisions.md`, 주제 후보 `gunggeum/topics-city.md`.
 
 ## 참석 부서 (`.claude/agents/strategy-*.md`)
 | 순서 | 부서 · 담당 | 맡는 질문 |
@@ -37,7 +37,7 @@ description: AI 사무실 전략 회의실. 캐릭터·이름·주제·형식·S
 
 ## 결정이 나면 (`전략 결정: <회의id> · <안건id>=<key>, …`)
 - db `strategy/<회의id>` 의 `decisions` 를 확인하고 `gunggeum/decisions.md` 에 날짜·안건·선택·이유를 한 줄씩 추가합니다.
-- 결정에 따라 `gunggeum/brand.md` 등 설정 파일을 고치고, 다음 할 일을 log 에 남깁니다.
+- 결정에 따라 `gunggeum/CLAUDE.md`·`topics-city.md` 등 설정 파일을 고치고, 다음 할 일을 log 에 남깁니다.
 
 ## 지켜야 할 것
 - **0원 원칙**: AI 이미지·영상 생성 API, 유료 도구를 쓰는 선택지는 "유료"로 분명히 표시하고 추천하지 않습니다.

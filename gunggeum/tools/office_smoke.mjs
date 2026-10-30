@@ -81,7 +81,7 @@ try {
     }
     const text = await p.evaluate(() => document.body.innerText);
     check(!/땡그랑|땡이/.test(text), `${vp.label} 이전 채널(땡그랑) 글자 없음`);
-    check(/궁금해달/.test(text), `${vp.label} 궁금해달 이름 보임`);
+    check(/도시의 나이테/.test(text), `${vp.label} 도시의 나이테 이름 보임`);
     const wide = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     check(wide <= 1, `${vp.label} 가로 스크롤 없음`, wide > 1 ? `${wide}px 넘침` : "");
     check(errors.length === 0, `${vp.label} 대시보드 오류 없음`, errors.join(" / "));

@@ -1,6 +1,6 @@
 # 도시의 나이테 (gunggeum/)
 
-AI 사무실이 운영하는 쇼츠 채널 「도시의 나이테」입니다. **도시의 과거·발전 과정·미래**를 **코드로 그린 30초 세로 영상**으로 보여 줘요(2026-10-30 대표 결정, `decisions.md`). 폴더 이름 `gunggeum/`은 이전 채널 「궁금해달」 때 이름 그대로예요.
+AI 사무실이 운영하는 쇼츠 채널 「도시의 나이테」입니다. **도시의 과거·발전 과정·미래**를 **코드로 그린 30초 세로 영상**으로 보여 줘요(2026-10-30 대표 결정, `decisions.md`). 폴더 이름 `gunggeum/`은 예전 이름 그대로예요.
 대표(사용자)는 **결정·결재·업로드만** 합니다. 직접 녹화 없음. 월 예산 한도 약 5만 원이지만 코드 영상은 **제작비 0원**이에요.
 
 - 제작 라인: `.claude/skills/city-line/SKILL.md` (기획 → 결재함 → 코드 렌더 → 자료실) · 주제 후보 `topics-city.md`
@@ -9,7 +9,6 @@ AI 사무실이 운영하는 쇼츠 채널 「도시의 나이테」입니다. *
 - 대표 결정 기록: `decisions.md` · 전략 회의 메모: `strategy/` · 점검 보고서: `checks/` · 조사 보고서: 「조회수·수익 늘리기 조사 보고서」(Claude Docs)
 - 전략 회의: `.claude/skills/strategy-office/SKILL.md` + `.claude/agents/strategy-*.md` · 스튜디오 점검: `.claude/skills/studio-check/SKILL.md` + `.claude/agents/inspect-*.md`
 - AI 사무실 화면(픽셀 오피스): https://claude.ai/artifact/W4ym2MMMzq5snKeKZxRpSi · 화면 원본 저장소 `chococrown13-ops/otter-studio-ai-office` 브랜치 `claude/city-rings-office` (2026-10-30 원래 디자인 그대로 이름·문구만 「도시의 나이테」로. 캐피탈 데스크 레이아웃 시안은 `office/desk-layout-draft.html`에 보관만)
-- 지난 채널: 「궁금해달」(해달 캐릭터, 2026-10-30 중단 — `episodes/`·`brand.md`·`tools/make_*.py`·`.claude/skills/shorts-line/`은 기록으로만 남김), 「땡그랑」(2026-10-25 종료, 커밋 ad79e37의 `ttaeng/`)
 
 ## 사무실 db (ArtifactData, url = 위 사무실 링크)
 | 컬렉션 | 내용 |

@@ -1,9 +1,0 @@
-{
-  "title": "채널 프로필 사진 시안",
-  "image_prompt_prefix": "Use the attached character sheet as the exact reference for the main character: a small chubby sea otter mascot with dark chocolate-brown fur, cream face, round black eyes, blush cheeks, a light sky-blue knitted scarf with a white wavy pattern, and a tiny yellow spiral notebook. Keep the same face, colors and proportions. Soft 3D render. No text, no letters, no numbers, no logos.",
-  "scenes": [
-    { "image": "a_turquoise.png", "image_prompt": "Square 1:1 profile picture. Close-up portrait from the chest up, centered, the otter holding the tiny yellow notebook next to its cheek with a curious happy smile, looking at the viewer. Plain soft turquoise background with a very subtle radial glow, nothing else. The face fills the middle 60% so it reads well when cropped into a small circle." },
-    { "image": "b_yellow.png", "image_prompt": "Square 1:1 profile picture. Close-up portrait from the chest up, centered, the otter peeking over the top of the open tiny yellow notebook with wide curious eyes, one paw holding a short pencil. Plain warm butter-yellow background, nothing else. The face fills the middle 60% so it reads well when cropped into a small circle." },
-    { "image": "c_sea.png", "image_prompt": "Square 1:1 profile picture. Close-up portrait, the otter floating on its back on calm turquoise water at golden hour, head and chest centered, holding the tiny yellow notebook on its belly and smiling at the viewer. Simple soft background, gentle sparkles on the water. The face fills the middle 60% so it reads well when cropped into a small circle." }
-  ]
-}

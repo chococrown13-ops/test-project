@@ -1,63 +1,15 @@
 {
-  "channel": "궁금해달",
+  "channel": "도시의 나이테",
+  "handle": "",
   "monthly_budget_usd": 35,
-  "budget_note": "월 5만 원(약 $35, 1달러≈1,400원) — 2026-10-28 대표 결정. 8주차에 지표가 나아지지 않으면 $21로 되돌림",
-  "per_episode_target_usd": {
-    "info": 1.4,
-    "series": 1.8
+  "budget_note": "월 약 5만 원 한도(2026-10-28). 코드 모션 그래픽은 영상 제작비 0원",
+  "video": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 24,
+    "seconds": 30,
+    "max_mb": 15
   },
-  "images_per_episode": 4,
-  "clips_per_episode": {
-    "info": 2,
-    "series": 3,
-    "note": "정보 편은 시작(S1)·핵심 장면 2개, 해달 연재는 5초 컷 3개를 이어붙인 풀 모션"
-  },
-  "clip": {
-    "model": "gemini-omni-1.1-flash",
-    "resolution": "720p",
-    "seconds": 5,
-    "reference_image": "brand/reference.png"
-  },
-  "image_model": "gemini-3.1-flash-image",
-  "tts": {
-    "engine": "google-cloud-tts",
-    "voice": "ko-KR-Neural2-A",
-    "speaking_rate": 1.08
-  },
-  "video_mode": "auto",
-  "video_mode_note": "auto = Claude 가 API 로 이미지·영상까지 / flow = Google AI Pro 구독 시 대표님이 Flow 에 프롬프트를 붙여 영상 생성 후 자료실에 올림",
-  "topics": {
-    "save": [
-      "돈 받는 제도(지원금·청년 정책)",
-      "직장 돈(퇴직금·연차·실업급여·연말정산)",
-      "가격 해석"
-    ],
-    "view": [
-      "해달 번호 연재(말 없이 표정·상황, 자막 한 줄)"
-    ],
-    "share": [
-      "성격·관계 유형(재미로 보는 유형, 과학 아님)"
-    ],
-    "hold": [
-      "반려동물 먹어도 되나요(대표님 확인 전)",
-      "제미나이 대학생 무료",
-      "직업별 월급",
-      "종목 투자",
-      "건강·의료"
-    ]
-  },
-  "topic_mix": {
-    "save": 0.5,
-    "view": 0.3,
-    "share": 0.2
-  },
-  "test_plan": "12주 시험(2026-10-29 시작). 8주차에 저장·공유 상위 주제 3개를 남기고 비중 재조정. 첫 4주 안에 같은 주제 1쌍을 풀 모션 30초 vs 섞기로 비교",
-  "weekly_plan": {
-    "series_full_motion": 3,
-    "info_video": 2,
-    "cards": 2,
-    "threads": 3,
-    "upload": "영상 1파일을 유튜브 쇼츠·인스타 릴스에 같이, 블로그·틱톡은 4주 보류",
-    "ceo": "결재·업로드만 (Flow 등 대표님 클릭 도구는 쓰지 않음)"
-  }
+  "pipeline": ".claude/skills/city-line/SKILL.md",
+  "topics": "topics-city.md"
 }
