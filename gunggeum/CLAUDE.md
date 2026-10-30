@@ -8,7 +8,7 @@ AI 사무실이 운영하는 쇼츠 채널 「도시의 나이테」입니다. *
 - 채널 프로필 사진: `brand/channel/profile.png`(B 시간 고리, 코드 원본 `profile.html`) · 글꼴 `tools/fonts/`(Pretendard)
 - 대표 결정 기록: `decisions.md` · 전략 회의 메모: `strategy/` · 점검 보고서: `checks/` · 조사 보고서: 「조회수·수익 늘리기 조사 보고서」(Claude Docs)
 - 전략 회의: `.claude/skills/strategy-office/SKILL.md` + `.claude/agents/strategy-*.md` · 스튜디오 점검: `.claude/skills/studio-check/SKILL.md` + `.claude/agents/inspect-*.md`
-- AI 사무실 화면 「도시의 나이테 스튜디오」: https://claude.ai/artifact/W4ym2MMMzq5snKeKZxRpSi · 화면 원본 `office/index.html`(오터스톡 캐피탈 데스크 레이아웃, 바꾸면 같은 주소로 다시 게시)
+- AI 사무실 화면(픽셀 오피스): https://claude.ai/artifact/W4ym2MMMzq5snKeKZxRpSi · 화면 원본 저장소 `chococrown13-ops/otter-studio-ai-office` (2026-10-30 대표 요청으로 원래 디자인 유지. 캐피탈 데스크 레이아웃 시안은 `office/desk-layout-draft.html`에 보관만)
 - 지난 채널: 「궁금해달」(해달 캐릭터, 2026-10-30 중단 — `episodes/`·`brand.md`·`tools/make_*.py`·`.claude/skills/shorts-line/`은 기록으로만 남김), 「땡그랑」(2026-10-25 종료, 커밋 ad79e37의 `ttaeng/`)
 
 ## 사무실 db (ArtifactData, url = 위 사무실 링크)
