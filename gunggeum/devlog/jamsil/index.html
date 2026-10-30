@@ -1,0 +1,188 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}
+canvas{display:block}
+</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// 도시의 나이테 · 원래 ○○이었다 #1 「잠실은 원래 섬이었다」 — render(t) 한 번 = 한 프레임.
+// 단위 km, 원점 = 잠실역 근처. x 동쪽, y 북쪽. 물길 모양은 기록을 바탕으로 단순화한 근사값.
+const W = 1080, H = 1920;
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const lerp=(a,b,u)=>a+(b-a)*u, clamp01=x=>Math.max(0,Math.min(1,x));
+function smooth(a,b,t){const u=clamp01((t-a)/(b-a));return u*u*(3-2*u)}
+function segDist(p,a,b){const dx=b[0]-a[0],dy=b[1]-a[1];let u=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy);u=Math.max(0,Math.min(1,u));return Math.hypot(a[0]+u*dx-p[0],a[1]+u*dy-p[1])}
+function lineInfo(p,L){let best=1e9,bs=0,acc=0;const tot=polyLen(L);for(let i=0;i<L.length-1;i++){const a=L[i],b=L[i+1],dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy);let u=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(l*l);u=Math.max(0,Math.min(1,u));const d=Math.hypot(a[0]+u*dx-p[0],a[1]+u*dy-p[1]);if(d<best){best=d;bs=(acc+u*l)/tot}acc+=l}return[best,bs]}
+function polyLen(L){let s=0;for(let i=0;i<L.length-1;i++)s+=Math.hypot(L[i+1][0]-L[i][0],L[i+1][1]-L[i][1]);return s}
+function inPoly(p,P){let c=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const a=P[i],b=P[j];if((a[1]>p[1])!==(b[1]>p[1])&&p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])c=!c}return c}
+
+// ---------- 지도 ----------
+const HAN_W = [[-9,3.4],[-6.5,2.3],[-4.6,1.75]];                  // 서쪽(공통 본류)
+const HAN_E = [[3.2,2.25],[5,3.0],[7.5,3.9],[10,4.6]];             // 동쪽(공통 본류)
+const SIN = [[-4.6,1.75],[-3,1.85],[-1,1.7],[1,1.9],[3.2,2.25]];   // 신천강(지금 한강)
+const SONG = [[3.2,2.25],[2.4,0.9],[1.5,-0.1],[0.6,-0.55],[-0.4,-0.75],[-1.6,-0.7],[-2.9,-0.35],[-4.0,0.5],[-4.6,1.75]]; // 송파강
+const LAKES = [[-0.25,-0.62,0.42,0.17,-0.15],[0.78,-0.5,0.38,0.16,0.35]];  // 석촌호수 서호·동호 (cx,cy,rx,ry,각도)
+const ISLAND = SIN.concat(SONG.slice(1,-1));
+const PLACE = { stadium:[-2.6,0.95], lotte:[0.42,-0.12], island:[-0.9,0.55] };
+function inLake(x,y){for(const [cx,cy,rx,ry,a] of LAKES){const c=Math.cos(a),s=Math.sin(a),dx=x-cx,dy=y-cy,u=(dx*c+dy*s)/rx,v=(-dx*s+dy*c)/ry;if(u*u+v*v<1)return true}return false}
+
+// ---------- 시간표 ----------
+let T=0, old=0, fillP=0, widen=0, rise=0;
+function setState(t){
+  T=t;
+  old = smooth(3.0,4.8,t);                 // 지금 → 1960년대로 되감기
+  fillP = smooth(11.8,15.2,t);             // 송파강 메우기
+  widen = smooth(15.8,19.0,t);             // 신천강 넓히기
+  rise = smooth(23.6,26.6,t);              // 도시가 다시 생김
+}
+const SAND=[188,170,128], FARM=[96,128,84], LAND=[22,28,44], WATER=[26,58,110], WATER_OLD=[44,86,140];
+function cellState(x,y){
+  // 반환: 0 땅, 1 물
+  if (inLake(x,y)) return 1;
+  const sinW = lerp(lerp(0.55,0.13,old),0.55,widen);
+  const [ds] = lineInfo([x,y],SIN); if (ds<sinW && x>-4.7 && x<3.3) return 1;
+  for (const L of [HAN_W,HAN_E]) { const [d]=lineInfo([x,y],L); if (d<0.55) return 1; }
+  const [dsong, s] = lineInfo([x,y],SONG);
+  if (dsong<0.36 && old>0.02) {
+    const key = Math.min(s,1-s)*2;           // 양 끝(물막이)부터 가운데로 메워짐
+    if (key >= fillP*1.02 || fillP<=0) return old>0.5 ? 1 : (old>key*0.3 ? 1 : 0);
+  }
+  return 0;
+}
+
+// ---------- 건물 ----------
+const R = rng(1971), B=[];
+for(let gx=-7;gx<=8;gx+=0.26)for(let gy=-4;gy<=6;gy+=0.26){
+  const x=gx+(R()-.5)*.14, y=gy+(R()-.5)*.14;
+  let water=false; for(const L of [SIN,HAN_W,HAN_E]){ if(lineInfo([x,y],L)[0]<0.7) water=true; }
+  if (water || inLake(x,y) || Math.hypot((x-PLACE.stadium[0])/0.55,(y-PLACE.stadium[1])/0.35)<1 || Math.hypot(x-PLACE.lotte[0],y-PLACE.lotte[1])<0.2) continue;
+  if (R()>0.8) continue;
+  const near=Math.exp(-((x-0.3)**2+(y+0.2)**2)/4);
+  B.push({x,y,s:.07+R()*.07,h:(.03+R()*R()*.12)*(1+near*1.6),lit:R(),win:R(),island:inPoly([x,y],ISLAND)});
+}
+
+// ---------- 카메라 ----------
+const KEYS=[
+ [0.0, -1.0,-8.5,6.8, 0.0,0.6],
+ [3.0, -2.0,-8.0,6.6, 0.0,0.6],
+ [6.0, -3.5,-6.8,6.0, -0.4,0.7],
+ [11.0, 3.4,-6.0,4.6, 0.4,0.0],
+ [15.4, -4.2,-3.6,4.4, -0.4,1.1],
+ [19.4, 2.6,-3.3,2.3, 0.3,-0.55],
+ [23.4, -1.5,-5.2,3.4, 0.1,0.3],
+ [27.4, 0.6,-8.0,6.2, 0.0,0.6],
+ [30.0, 0.8,-9.0,7.0, 0.0,0.7]];
+function catmull(p0,p1,p2,p3,u){const u2=u*u,u3=u2*u;return .5*((2*p1)+(-p0+p2)*u+(2*p0-5*p1+4*p2-p3)*u2+(-p0+3*p1-3*p2+p3)*u3)}
+function camAt(t){let i=0;while(i<KEYS.length-2&&t>KEYS[i+1][0])i++;const k0=KEYS[Math.max(0,i-1)],k1=KEYS[i],k2=KEYS[i+1],k3=KEYS[Math.min(KEYS.length-1,i+2)];let u=clamp01((t-k1[0])/(k2[0]-k1[0]));u=u*u*(3-2*u)*.35+u*.65;const o=[];for(let j=1;j<6;j++)o.push(catmull(k0[j],k1[j],k2[j],k3[j],u));return o}
+let C,Fv,Rv,Uv;const FOC=W*1.05;
+function setCam(t){const[cx,cy,cz,tx,ty]=camAt(t);C=[cx,cy,cz];let f=[tx-cx,ty-cy,-cz],n=Math.hypot(...f);Fv=f.map(v=>v/n);let r=[Fv[1],-Fv[0],0];n=Math.hypot(...r);Rv=r.map(v=>v/n);Uv=[Rv[1]*Fv[2]-Rv[2]*Fv[1],Rv[2]*Fv[0]-Rv[0]*Fv[2],Rv[0]*Fv[1]-Rv[1]*Fv[0]]}
+function P(x,y,z){const d=[x-C[0],y-C[1],(z||0)-C[2]];const zz=d[0]*Fv[0]+d[1]*Fv[1]+d[2]*Fv[2];if(zz<.08)return null;const xx=d[0]*Rv[0]+d[1]*Rv[1]+d[2]*Rv[2],yy=d[0]*Uv[0]+d[1]*Uv[1]+d[2]*Uv[2];return[W/2+xx/zz*FOC,H*.57-yy/zz*FOC,zz]}
+const mix=(a,b,u)=>a.map((v,i)=>v+(b[i]-v)*u), rgb=(c,a)=>a===undefined?`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`:`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;
+function skyLow(){return mix([22,30,58],[120,104,92],old*(1-rise))}
+function fog(col,z){return mix(col,skyLow(),clamp01((z-3)/26)*.85)}
+function path(p){g.beginPath();g.moveTo(p[0][0],p[0][1]);for(let i=1;i<p.length;i++)g.lineTo(p[i][0],p[i][1])}
+function roundRect(x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+
+// ---------- 그리기 ----------
+function drawSky(){
+  const top=mix([6,9,22],[60,58,70],old*(1-rise));
+  const gr=g.createLinearGradient(0,0,0,H*.6);gr.addColorStop(0,rgb(top));gr.addColorStop(1,rgb(skyLow()));g.fillStyle=gr;g.fillRect(0,0,W,H);
+  const night=1-old*(1-rise); if(night>0.1){const rs=rng(3);g.fillStyle=`rgba(255,255,255,${.5*night})`;for(let i=0;i<120;i++)g.fillRect(rs()*W,rs()*H*.42,2,2)}
+}
+function drawGround(){
+  // 먼 땅
+  for(let x=-16;x<20;x+=2)for(let y=-14;y<18;y+=2){const a=P(x,y),b=P(x+2,y),c=P(x+2,y+2),d=P(x,y+2);if(!a||!b||!c||!d)continue;
+    const land=mix(LAND,[70,74,62],old*(1-rise));g.fillStyle=rgb(fog(land,(a[2]+c[2])/2));path([a,b,c,d]);g.closePath();g.fill()}
+  // 잠실 주변 칸: 물·섬·땅
+  const S=.12;
+  for(let x=-7.2;x<9.5;x+=S)for(let y=-3.4;y<5.6;y+=S){
+    const cx=x+S/2, cy=y+S/2, st=cellState(cx,cy);
+    const isl=inPoly([cx,cy],ISLAND);
+    let col;
+    if(st===1){ col = mix(WATER, WATER_OLD, old*(1-rise)); if(inLake(cx,cy)&&T>19.6&&T<23.6) col=mix(col,[80,200,255],.55*Math.min(smooth(19.6,20.4,T),1-smooth(22.8,23.6,T))); }
+    else if(isl){ const k=old*(1-rise); const farm=((Math.floor(cx*7)+Math.floor(cy*3))%3===0); col=mix(LAND, farm?FARM:SAND, k);
+      const filled = lineInfo([cx,cy],SONG)[0]<0.36; if(filled && fillP>0) col=mix(col,[150,120,80],.0); }
+    else { const k=old*(1-rise); col=mix(LAND,[70,74,62],k); if(lineInfo([cx,cy],SONG)[0]<0.36 && fillP>0 && old>0.5) col=mix(col,[160,128,86],(1-rise)); }
+    const a=P(cx-S/2,cy-S/2),b=P(cx+S/2,cy-S/2),c=P(cx+S/2,cy+S/2),d=P(cx-S/2,cy+S/2);if(!a||!b||!c||!d)continue;
+    g.fillStyle=rgb(fog(col,a[2]));path([a,b,c,d]);g.closePath();g.fill();
+  }
+}
+function prism(b){
+  const k = b.island ? lerp(1-old, 1, rise) : lerp(1-old*0.85, 1, rise);
+  if(k<0.02) return;
+  const h=b.h*k, s=b.s/2, base=[[b.x-s,b.y-s],[b.x+s,b.y-s],[b.x+s,b.y+s],[b.x-s,b.y+s]];
+  const pb=base.map(p=>P(p[0],p[1],0)), pt=base.map(p=>P(p[0],p[1],h)); if(pb.some(v=>!v)||pt.some(v=>!v))return;
+  const z=pb[0][2], body=[34+b.win*16,40+b.win*16,62+b.win*20];
+  for(const [i,j] of [[0,1],[1,2],[2,3],[3,0]]){const mx=(base[i][0]+base[j][0])/2,my=(base[i][1]+base[j][1])/2,ex=base[j][0]-base[i][0],ey=base[j][1]-base[i][1];if(ey*(C[0]-mx)-ex*(C[1]-my)<=0)continue;
+    g.fillStyle=rgb(fog(body.map(v=>v*(i%2?.8:1)),z));path([pb[i],pb[j],pt[j],pt[i]]);g.closePath();g.fill();
+    if(b.lit>.3&&k>.5){const rw=rng((b.x*1000+b.y*77+i)|0);g.fillStyle=rgb(fog([255,214,140],z),.85*k);const n=Math.min(9,2+Math.floor(h*40));for(let q=0;q<n;q++){const u=.15+rw()*.7,v=.1+rw()*.85;g.fillRect(lerp(lerp(pb[i][0],pb[j][0],u),lerp(pt[i][0],pt[j][0],u),v),lerp(lerp(pb[i][1],pb[j][1],u),lerp(pt[i][1],pt[j][1],u),v),Math.max(1.4,.016*FOC/z),Math.max(1.8,.022*FOC/z))}}}
+  g.fillStyle=rgb(fog([52+b.win*20,58+b.win*20,84+b.win*20],z));path(pt);g.closePath();g.fill();
+}
+function drawLandmarks(){
+  const k=lerp(1-old,1,rise); if(k<.02) return;
+  // 잠실종합운동장(주경기장) 고리
+  const [sx,sy]=PLACE.stadium; const ring=[];for(let i=0;i<=36;i++){const a=i/36*Math.PI*2;ring.push(P(sx+Math.cos(a)*.32,sy+Math.sin(a)*.2,.05*k))}
+  if(ring.every(v=>v)){g.strokeStyle=`rgba(230,235,255,${.85*k})`;g.lineWidth=Math.max(3,.06*FOC/ring[0][2]);path(ring);g.stroke()}
+  // 롯데월드타워(높이 과장)
+  const [lx,ly]=PLACE.lotte, h=1.15*k, s=.07; const b0=P(lx-s,ly-s,0),b1=P(lx+s,ly-s,0),t0=P(lx-s*.2,ly-s*.2,h),t1=P(lx+s*.2,ly-s*.2,h),b2=P(lx+s,ly+s,0),t2=P(lx+s*.2,ly+s*.2,h);
+  if(b0&&b1&&t0&&t1&&b2&&t2){g.fillStyle='rgb(92,104,140)';path([b0,b1,t1,t0]);g.closePath();g.fill();g.fillStyle='rgb(70,80,112)';path([b1,b2,t2,t1]);g.closePath();g.fill();
+    const tp=P(lx,ly,h+.1);if(tp){g.fillStyle=`rgba(255,90,90,${k})`;g.beginPath();g.arc(tp[0],tp[1],4,0,7);g.fill()}}
+}
+function drawDams(){
+  const a=Math.min(smooth(11.8,12.3,T),1-smooth(15.0,15.6,T)); if(a<=0)return;
+  for(const s of [0.02,0.98]){ // 송파강 양 끝 물막이
+    const i=s<.5?0:SONG.length-2, p=SONG[s<.5?1:SONG.length-2], q=SONG[s<.5?0:SONG.length-1];
+    const dx=q[0]-p[0],dy=q[1]-p[1],n=Math.hypot(dx,dy),mx=lerp(q[0],p[0],.25),my=lerp(q[1],p[1],.25);
+    const A=P(mx-dy/n*.45,my+dx/n*.45,.02),Bp=P(mx+dy/n*.45,my-dx/n*.45,.02); if(!A||!Bp)continue;
+    g.strokeStyle=`rgba(255,213,74,${a})`;g.lineWidth=12;g.lineCap='round';path([A,Bp]);g.stroke();
+  }
+}
+function label(text,p,z,alpha,accent){const q=P(p[0],p[1],z||.05);if(!q||alpha<=0)return;g.font='800 34px P';const w=g.measureText(text).width+32;
+  g.fillStyle=accent?`rgba(255,213,74,${.95*alpha})`:`rgba(10,14,28,${.78*alpha})`;roundRect(q[0]-w/2,q[1]-70,w,52,26);g.fill();g.fillStyle=accent?`rgba(27,20,48,${alpha})`:`rgba(255,255,255,${alpha})`;g.textAlign='center';g.fillText(text,q[0],q[1]-33);g.textAlign='left';
+  g.strokeStyle=`rgba(255,255,255,${.6*alpha})`;g.lineWidth=2;path([[q[0],q[1]-18],[q[0],q[1]]]);g.stroke()}
+
+// ---------- 자막 ----------
+const STOPS=[
+ {a:5.0,b:11.6,year:'1960년대',head:'한강 한가운데 섬, 잠실도',sub:'북쪽엔 좁은 신천강, 남쪽엔 넓은 송파강',src:'남쪽 송파강이 당시 한강 본류 · 국가기록원·서울신문'},
+ {a:11.8,b:15.6,year:'1971',head:'송파강을 막아 메우다',sub:'4월, 물막이로 섬이 육지에 붙다',src:'1971년 공유수면 매립 착공 · 서울신문 보도'},
+ {a:15.8,b:19.6,year:'1970년대',head:'좁던 신천강을 넓게 파서',sub:'지금의 한강 물길로',src:'잠실지구 종합개발계획 · 국가기록원'},
+ {a:19.8,b:23.6,year:'석촌호수',head:'메우지 않고 남긴 옛 강',sub:'송파강의 한 조각이 호수가 됐어요',src:'남은 송파강 일부가 석촌호수 · 서울신문'},
+ {a:23.8,b:27.6,year:'1978 → 지금',head:'섬은 송파구 한복판이 됐어요',sub:'주경기장도 롯데타워도 옛 섬 위에',src:'1978년 6월 매립 완료 · 서울신문 보도'},
+];
+function fade(t,a,b){return Math.min(smooth(a,a+.45,t),1-smooth(b-.45,b,t))}
+function caption(t){
+  const gr=g.createLinearGradient(0,0,0,660);gr.addColorStop(0,'rgba(0,0,0,.6)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,W,660);
+  const gb=g.createLinearGradient(0,H-380,0,H);gb.addColorStop(0,'rgba(0,0,0,0)');gb.addColorStop(1,'rgba(0,0,0,.62)');g.fillStyle=gb;g.fillRect(0,H-380,W,380);
+  g.font='800 32px P';const tag='도시의 나이테 · 원래 ○○이었다 #1';const tw=g.measureText(tag).width+48;g.fillStyle='rgba(255,213,74,.95)';roundRect(56,72,tw,60,30);g.fill();g.fillStyle='#1b1430';g.fillText(tag,80,113);
+  // 훅
+  const h=fade(t,0,3.6);if(h>0){g.globalAlpha=h;g.textAlign='center';g.fillStyle='#fff';g.font='800 120px P';g.fillText('잠실은',W/2,360);g.fillStyle='#FFD54A';g.fillText('원래 섬이었다',W/2,500);g.textAlign='left';g.globalAlpha=1}
+  // 되감기 연도
+  const rw=fade(t,3.2,5.2);if(rw>0){const y=Math.round(lerp(2026,1965,smooth(3.2,4.8,t)));g.globalAlpha=rw;g.textAlign='center';g.font='800 170px P';g.fillStyle='#FFD54A';g.fillText(String(y),W/2,340);g.font='600 44px P';g.fillStyle='rgba(255,255,255,.9)';g.fillText('시간을 거꾸로 돌리면',W/2,420);g.textAlign='left';g.globalAlpha=1}
+  for(const s of STOPS){const a=fade(t,s.a,s.b);if(a<=0)continue;g.globalAlpha=a;g.textAlign='center';const y0=300+(1-a)*24;
+    g.font='800 130px P';g.fillStyle='#FFD54A';g.fillText(s.year,W/2,y0);g.font='800 68px P';g.fillStyle='#fff';g.fillText(s.head,W/2,y0+100);
+    g.font='600 44px P';g.fillStyle='rgba(255,255,255,.9)';g.fillText(s.sub,W/2,y0+168);g.font='400 30px P';g.fillStyle='rgba(255,255,255,.8)';g.fillText(s.src,W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+  const e=smooth(27.8,28.4,t);if(e>0){g.globalAlpha=e;g.textAlign='center';g.fillStyle='#fff';g.font='800 72px P';g.fillText('다음 편',W/2,300);g.fillStyle='#FFD54A';g.font='800 80px P';g.fillText('여의도는 원래',W/2,400);g.fillText('비행장이었다',W/2,495);
+    g.font='600 42px P';g.fillStyle='rgba(255,255,255,.9)';g.fillText('우리 동네 원래 모습, 댓글로 물어보세요',W/2,580);
+    g.font='400 30px P';g.fillStyle='rgba(255,255,255,.8)';g.fillText('물길·지형은 기록을 바탕으로 단순화한 그림이에요',W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+}
+
+function render(t){
+  setState(t);setCam(t);drawSky();drawGround();drawDams();
+  const list=B.map(b=>({b,d:(b.x-C[0])**2+(b.y-C[1])**2})).sort((p,q)=>q.d-p.d);for(const it of list)prism(it.b);
+  drawLandmarks();
+  label('지금의 잠실',[0.1,0.35],.05,fade(t,0.6,3.2),true);
+  const L1=fade(t,6.0,11.4);label('잠실도',PLACE.island,.05,L1,true);label('신천강',[-1.6,1.78],.05,L1);label('송파강 (당시 본류)',[-1.2,-0.72],.05,L1);
+  const L2=fade(t,12.0,15.4);label('물막이',SONG[1],.05,L2,true);
+  const L3=fade(t,16.2,19.4);label('지금의 한강',[-1.4,1.75],.05,L3,true);
+  const L4=fade(t,20.0,23.4);label('석촌호수',[0.25,-0.56],.05,L4,true);
+  const L5=fade(t,24.4,27.4);label('잠실종합운동장',PLACE.stadium,.12,L5);label('롯데월드타워',PLACE.lotte,1.3,L5);
+  caption(t);
+}
+window.render=render;
+window.ready=document.fonts.load('800 40px P').then(()=>document.fonts.load('600 40px P')).then(()=>document.fonts.load('400 40px P')).then(()=>{render(0);return true});
+</script></body></html>
