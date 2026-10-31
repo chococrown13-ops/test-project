@@ -19,6 +19,7 @@ AI 사무실이 운영하는 쇼츠 채널 「도시의 나이테」입니다. *
 | `log` | 진행 기록 {at: 실제 UTC 시각, who, text} |
 | `requests/<id>` | 버튼 요청 추적 {at, text, kind, by, status: 전달 중→전달됨→진행 중→완료/실패/건너뜀/보류(→멈춤), startedAt, doneAt, result, error} |
 | `strategy/<회의id>` · `checks/<id>` | 전략 회의 메모 · 점검 보고서 |
+| `stats/youtube` | 유튜브 채널 합계 {title, subscribers, views, videos, at} — 편별 숫자는 `episodes/<id>.stats.youtube` {views, likes, comments, url, at} |
 | `locks/<키>` · `handoff/<id>` | 중복 실행 막기 · 푸시 못 한 작업 파일 |
 
 ## 🤖 자동 진행 (사무실 버튼 → 예약 작업 「도시의 나이테 사무실 작업」 → 새 세션)
@@ -33,4 +34,5 @@ AI 사무실이 운영하는 쇼츠 채널 「도시의 나이테」입니다. *
 
 - 요청 끝 `[req:<id>]` → 시작할 때 `requests/<id>` {status:"진행 중", startedAt}, 끝날 때 {status:"완료"|"실패"|"보류", doneAt, result: 대표님이 읽을 한 줄}. 실패해도 반드시 남김.
 - 예약 실행(매일 17:52 KST): 결재 대기 편이 없으면 `다음 영상 기획`, 멈춘 요청 정리, 월요일엔 스튜디오 점검.
+- **유튜브 통계 (예약 실행마다)**: `python3 gunggeum/tools/yt_stats.py > /tmp/yt.json` (공식 YouTube Data API, 읽기 전용, 환경 변수 `YOUTUBE_API_KEY`, 채널은 `studio.config.json`의 `handle`). 키나 핸들이 없으면 조용히 건너뜀. 성공하면 `stats/youtube` set, 업로드 완료 편마다 영상 제목에 `episodes.<id>.title`(또는 `publish.title`)이 들어간 영상을 찾아 `stats.youtube` update — 사무실 현황판에 조회·좋아요·댓글이 떠요. 키 값은 출력·파일·커밋 금지.
 - 업로드·계정 만들기·결제는 하지 않음. 커밋 전 `git pull --rebase`. 보고는 쉬운 한국어로 짧게.
