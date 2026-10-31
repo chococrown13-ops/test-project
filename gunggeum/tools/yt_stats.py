@@ -1,6 +1,8 @@
 """유튜브 공개 통계 읽기 — 내 채널 영상의 조회수·좋아요·댓글 수 (YouTube Data API v3, 읽기 전용).
 
-필요한 것: 환경 변수 YOUTUBE_API_KEY (대표님이 클라우드 환경 설정에 넣음 — 채팅·파일·저장소에 쓰지 않음).
+필요한 것: API 키 — 둘 중 하나 (대표님이 클라우드 환경 설정에 넣음, 채팅·파일·저장소에 쓰지 않음)
+  ① Network secrets: www.googleapis.com 요청에 X-goog-api-key 헤더로 붙음 (이 코드는 키를 몰라도 됨)
+  ② 환경 변수 YOUTUBE_API_KEY
 채널: studio.config.json 의 "handle" (예: "@도시의나이테") 또는 --handle.
 
 쓰기:  python3 tools/yt_stats.py [--handle @이름] [--max 50] > stats.json
@@ -23,7 +25,7 @@ CONFIG = Path(__file__).resolve().parent.parent / "studio.config.json"
 
 
 def call(endpoint: str, key: str, **params) -> dict:
-    query = urllib.parse.urlencode({**params, "key": key})
+    query = urllib.parse.urlencode({**params, **({"key": key} if key else {})})
     try:
         with urllib.request.urlopen(f"{API}{endpoint}?{query}", timeout=20) as r:
             return json.load(r)
@@ -34,6 +36,8 @@ def call(endpoint: str, key: str, **params) -> dict:
             reason = json.load(e)["error"]["errors"][0].get("reason", "")
         except Exception:
             pass
+        if e.code == 403 and not key:
+            sys.exit("API 키가 없어요 — 대표님이 클라우드 환경 설정(Network secrets 또는 YOUTUBE_API_KEY)에 넣어야 해요")
         sys.exit(f"유튜브 API 오류 {e.code} {reason} ({endpoint})")
 
 
@@ -43,9 +47,8 @@ def main() -> None:
     ap.add_argument("--max", type=int, default=50)
     args = ap.parse_args()
 
+    # 환경 변수가 없으면 키 없이 부른다 — Network secrets 가 헤더로 붙여 줄 수 있음
     key = os.environ.get("YOUTUBE_API_KEY", "").strip()
-    if not key:
-        sys.exit("YOUTUBE_API_KEY 가 없어요 — 대표님이 클라우드 환경 설정에 넣어야 해요")
     handle = args.handle or json.loads(CONFIG.read_text()).get("handle", "")
     if not handle:
         sys.exit("채널 핸들이 없어요 — studio.config.json 의 handle 을 채우거나 --handle 로 주세요")
