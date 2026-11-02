@@ -1,0 +1,127 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}
+canvas{display:block}
+</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// 도시의 나이테 · 원래 ○○이었다 #4 「청계천 위에는 원래 고가도로가 있었다」 — render(t) 한 번 = 한 프레임.
+// 위에서 내려다본 단순화한 그림. 개천(가로) → 덮개 → 고가도로 → 철거 → 물길 복원. 모양·폭은 모두 단순화한 근사.
+const W=1080,H=1920,WW=1800,CY=1010;
+const cv=document.getElementById('c'),g=cv.getContext('2d');
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const lerp=(a,b,u)=>a+(b-a)*u,clamp01=x=>Math.max(0,Math.min(1,x));
+function smooth(a,b,t){const u=clamp01((t-a)/(b-a));return u*u*(3-2*u)}
+function roundRect(x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+
+let T=0,covW=0,deckW=0,decW=0,uncW=0,grW=0,hookA=0,hookG=0,cam=0;
+function setState(t){T=t;
+  hookA=t<3.4?1-smooth(1.6,2.8,t):0;
+  hookG=t<3.8?smooth(1.4,2.4,t)*(1-smooth(2.8,3.7,t)):0;
+  covW=WW*smooth(3.5,8.6,t);          // 1958 덮기
+  deckW=WW*smooth(9.4,15.4,t);        // 1967 고가 올리기
+  decW=WW*smooth(16.4,20.4,t);        // 2003 고가 걷기
+  uncW=WW*smooth(21.4,25.2,t);        // 2005 덮개 걷고 물 흐름
+  grW=WW*smooth(21.9,25.7,t);         // 양쪽 풀·나무
+  // 카메라: 그때 움직이는 앞머리를 따라감
+  const fr=[[3.4,9.2,covW],[9.2,16.2,deckW],[16.2,21.0,decW],[21.0,31,uncW]];
+  let c=0;for(const[a,b,f]of fr){if(t>=a&&t<b){c=clamp01((f-520)/(WW-1080-0))*(WW-1080);const k=Math.min(smooth(a,a+.9,t),1);c=lerp(prevCam(a),c,k)}}
+  cam=Math.max(0,Math.min(WW-1080,c));
+}
+function prevCam(a){ // 앞 구간 끝의 카메라 위치(되감기 없이 부드럽게 이어 붙이기)
+  if(a<=3.4)return 0;
+  if(a<=9.2)return Math.max(0,Math.min(WW-1080,WW-1080));
+  return 0;
+}
+// 블록(건물) 고정 배치
+const blocks=[];{const r=rng(9);for(let side=-1;side<=1;side+=2){let x=-20;while(x<WW+40){const w=90+r()*120,h=120+r()*190;blocks.push({x,w,h,side,c:[168+r()*40|0,164+r()*34|0,156+r()*30|0],gap:150+r()*0});x+=w+22+r()*26}}}
+const trees=[];{const r=rng(21);for(let i=0;i<60;i++)trees.push({x:20+i*30+r()*14,side:i%2?1:-1,r:15+r()*9,dy:r()*10})}
+
+function drawWorld(){
+  g.fillStyle='rgb(206,200,188)';g.fillRect(0,-300,W,H+600);
+  g.save();g.translate(-cam,0);
+  // 건물
+  for(const b of blocks){const y=b.side<0?CY-190-b.h:CY+190;g.fillStyle=`rgb(${b.c})`;g.fillRect(b.x,y,b.w,b.h);
+    g.fillStyle='rgba(0,0,0,.08)';g.fillRect(b.x+b.w-8,y,8,b.h);g.fillStyle='rgba(255,255,255,.2)';for(let k=0;k<3;k++)g.fillRect(b.x+14,y+16+k*Math.max(30,b.h/3.3),b.w-28,5)}
+  // 옆길
+  g.fillStyle='rgb(188,184,174)';g.fillRect(0,CY-180,WW,56);g.fillRect(0,CY+124,WW,56);
+  // 개천 바닥(둑)
+  g.fillStyle='rgb(150,140,124)';g.fillRect(0,CY-124,WW,248);
+  // 물
+  const wg=g.createLinearGradient(0,CY-92,0,CY+92);wg.addColorStop(0,'rgb(104,150,176)');wg.addColorStop(1,'rgb(78,128,160)');g.fillStyle=wg;g.fillRect(0,CY-92,WW,184);
+  const rw=rng(4);g.strokeStyle='rgba(255,255,255,.35)';g.lineWidth=4;g.lineCap='round';
+  for(let i=0;i<40;i++){const y=CY-80+rw()*160,sp=40+rw()*50,x=((rw()*WW+T*sp)%(WW+100))-50;g.beginPath();g.moveTo(x,y);g.lineTo(x+44,y);g.stroke()}
+  // 둑 가장자리 돌
+  g.fillStyle='rgb(128,120,108)';g.fillRect(0,CY-100,WW,10);g.fillRect(0,CY+90,WW,10);
+  // 풀·나무(복원 뒤 또는 훅의 오늘 모습)
+  const gAmt=(x)=>clamp01(hookG+((x<grW)?1:0));
+  if(grW>0||hookG>0){g.fillStyle='rgb(112,156,92)';
+    if(hookG>0){g.globalAlpha=hookG;g.fillRect(0,CY-122,WW,30);g.fillRect(0,CY+92,WW,30);g.globalAlpha=1}
+    if(grW>0){g.fillRect(0,CY-122,grW,30);g.fillRect(0,CY+92,grW,30)}
+    for(const t of trees){const a=hookG+((t.x<grW-6)?1:0);if(a<=0)continue;g.globalAlpha=clamp01(a);const y=t.side<0?CY-150+t.dy:CY+150-t.dy;
+      g.fillStyle='rgba(0,0,0,.12)';g.beginPath();g.arc(t.x+5,y+7,t.r,0,7);g.fill();g.fillStyle='rgb(84,138,78)';g.beginPath();g.arc(t.x,y,t.r,0,7);g.fill();g.fillStyle='rgb(112,170,98)';g.beginPath();g.arc(t.x-4,y-4,t.r*.55,0,7);g.fill()}g.globalAlpha=1}
+  // 덮개 길 : [uncW, covW) (훅에서는 전체)
+  const slab=(x0,x1,a)=>{if(x1-x0<=1||a<=0)return;g.globalAlpha=a;g.fillStyle='rgb(168,166,160)';g.fillRect(x0,CY-104,x1-x0,208);
+    g.fillStyle='rgb(150,148,142)';g.fillRect(x0,CY-104,x1-x0,6);g.fillRect(x0,CY+98,x1-x0,6);
+    g.strokeStyle='rgba(255,255,255,.7)';g.lineWidth=5;g.setLineDash([36,30]);g.beginPath();g.moveTo(x0,CY);g.lineTo(x1,CY);g.stroke();g.setLineDash([]);g.globalAlpha=1};
+  if(T<3.4)slab(0,WW,hookA);else slab(Math.min(uncW,covW),covW,1);
+  // 덮개 위 자동차 (고가 없는 곳)
+  const cars=(x0,x1,a,y0,spd,seed)=>{const r=rng(seed);for(let i=0;i<14;i++){const lane=i%2?1:-1,sp=(70+r()*40)*lane*spd,col=['#d9604a','#4a76b8','#e8c34a','#f1f1ec','#5a5f66'][i%5];
+      let x=((r()*WW+T*sp)%WW+WW)%WW;if(x<x0||x>x1)continue;g.globalAlpha=a;g.fillStyle='rgba(0,0,0,.18)';roundRect(x-18+4,y0+lane*26+4-9,40,20,6);g.fill();g.fillStyle=col;roundRect(x-18,y0+lane*26-9,40,20,6);g.fill();g.fillStyle='rgba(255,255,255,.6)';g.fillRect(x+8*Math.sign(lane),y0+lane*26-6,7,12);g.globalAlpha=1}};
+  if(T<3.4)cars(0,WW,hookA,CY,1,33);else cars(Math.min(uncW,covW),Math.max(covW-1,0),1,CY,1,33);
+  // 고가도로 : [decW, deckW) (훅에서는 전체) — 그림자 + 기둥 + 넓은 상판
+  const deck=(x0,x1,a)=>{if(x1-x0<=1||a<=0)return;g.globalAlpha=a;
+    g.fillStyle='rgba(30,30,40,.28)';g.fillRect(x0,CY-58+34,x1-x0,128);
+    g.fillStyle='rgb(88,92,100)';g.fillRect(x0,CY-64,x1-x0,128);
+    g.fillStyle='rgb(112,116,124)';g.fillRect(x0,CY-64,x1-x0,8);g.fillRect(x0,CY+56,x1-x0,8);
+    g.strokeStyle='rgba(255,224,120,.9)';g.lineWidth=4;g.setLineDash([30,26]);g.beginPath();g.moveTo(x0,CY);g.lineTo(x1,CY);g.stroke();g.setLineDash([]);
+    g.fillStyle='rgb(60,64,72)';for(let px=Math.ceil(x0/90)*90;px<x1;px+=90){g.fillRect(px-4,CY-64,8,10);g.fillRect(px-4,CY+54,8,10)}g.globalAlpha=1};
+  if(T<3.4)deck(0,WW,hookA);else deck(Math.min(decW,deckW),deckW,1);
+  if(T<3.4)cars(0,WW,hookA,CY,1.5,77);else cars(Math.min(decW,deckW),Math.max(deckW-1,0),1,CY,1.5,77);
+  // 앞머리 표시(공사 선)
+  const edge=(x,on,col)=>{if(!on)return;g.strokeStyle=col;g.lineWidth=6;g.setLineDash([14,10]);g.beginPath();g.moveTo(x,CY-120);g.lineTo(x,CY+120);g.stroke();g.setLineDash([])};
+  edge(covW,T>3.5&&T<8.6,'rgba(255,213,74,.9)');edge(deckW,T>9.4&&T<15.4,'rgba(255,213,74,.9)');
+  edge(decW,T>16.4&&T<20.4,'rgba(255,255,255,.9)');edge(uncW,T>21.4&&T<25.2,'rgba(255,255,255,.9)');
+  g.restore();
+}
+function label(text,wx,y,alpha,accent){if(alpha<=0)return;const x=wx-cam;g.font='800 34px P';const w=g.measureText(text).width+32;
+  g.fillStyle=accent?`rgba(255,213,74,${.95*alpha})`:`rgba(10,14,28,${.78*alpha})`;roundRect(x-w/2,y-70,w,52,26);g.fill();g.fillStyle=accent?`rgba(27,20,48,${alpha})`:`rgba(255,255,255,${alpha})`;g.textAlign='center';g.fillText(text,x,y-33);g.textAlign='left';
+  g.strokeStyle=`rgba(255,255,255,${.7*alpha})`;g.lineWidth=2;g.beginPath();g.moveTo(x,y-18);g.lineTo(x,y);g.stroke()}
+
+const STOPS=[
+ {a:3.2,b:8.9,year:'1958',head:'흐르던 개천을 덮기 시작',sub:'구간별로 덮고 그 위에 길을 냈다',src:'출처: 서울시설공단'},
+ {a:9.2,b:15.9,year:'1967',head:'덮개 위로 고가도로 착공',sub:'도심을 가로지르는 자동차 길',src:'출처: 서울기록원'},
+ {a:16.2,b:20.9,year:'2003',head:'고가도로 철거 시작',sub:'7월 1일, 복원 공사의 첫걸음',src:'출처: 서울신문'},
+ {a:21.2,b:25.9,year:'2005',head:'47년 만에 물이 다시 흐르다',sub:'10월 1일 · 공사비 3,867억 원(보도)',src:'출처: 서울신문'}];
+function fade(t,a,b){return Math.min(smooth(a,a+.45,t),1-smooth(b-.45,b,t))}
+function caption(t){
+  const gr=g.createLinearGradient(0,0,0,660);gr.addColorStop(0,'rgba(0,0,0,.6)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,W,660);
+  const gb=g.createLinearGradient(0,H-380,0,H);gb.addColorStop(0,'rgba(0,0,0,0)');gb.addColorStop(1,'rgba(0,0,0,.62)');g.fillStyle=gb;g.fillRect(0,H-380,W,380);
+  g.font='800 32px P';const tag='도시의 나이테 · 원래 ○○이었다 #4';const tw=g.measureText(tag).width+48;g.fillStyle='rgba(255,213,74,.95)';roundRect(56,72,tw,60,30);g.fill();g.fillStyle='#1b1430';g.fillText(tag,80,113);
+  const h=fade(t,0,3.2);if(h>0){g.globalAlpha=h;g.textAlign='center';g.fillStyle='#fff';g.font='800 96px P';g.fillText('청계천 위에는',W/2,310);g.fillStyle='#FFD54A';g.font='800 112px P';g.fillText('원래 고가도로가',W/2,430);g.fillText('있었다',W/2,550);g.font='600 44px P';g.fillStyle='rgba(255,255,255,.9)';g.fillText('지금은 물이 흐르는 곳',W/2,626);g.textAlign='left';g.globalAlpha=1}
+  for(const s of STOPS){const a=fade(t,s.a,s.b);if(a<=0)continue;g.globalAlpha=a;g.textAlign='center';const y0=300+(1-a)*24;
+    g.font='800 130px P';g.fillStyle='#FFD54A';g.fillText(s.year,W/2,y0);g.font='800 68px P';g.fillStyle='#fff';g.fillText(s.head,W/2,y0+100);
+    g.font='600 44px P';g.fillStyle='rgba(255,255,255,.9)';g.fillText(s.sub,W/2,y0+168);g.font='400 30px P';g.fillStyle='rgba(255,255,255,.8)';g.fillText(s.src,W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+  const e=smooth(26.4,27.0,t);if(e>0){g.fillStyle=`rgba(10,14,28,${.55*e})`;g.fillRect(0,0,W,H);g.globalAlpha=e;g.textAlign='center';g.fillStyle='#fff';g.font='800 72px P';g.fillText('다음 편도',W/2,820);g.fillStyle='#FFD54A';g.font='800 84px P';g.fillText('「원래 ○○이었다」',W/2,930);
+    g.font='600 44px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('궁금한 동네를 댓글로 알려 주세요',W/2,1030);
+    g.font='400 30px P';g.fillStyle='rgba(255,255,255,.8)';g.fillText('그림은 기록을 바탕으로 단순화한 것이에요',W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+}
+
+function render(t){
+  setState(t);
+  g.save();g.fillStyle='#000';g.fillRect(0,0,W,H);
+  g.translate(0,150);drawWorld();
+  label('덮는 중',covW-90,CY-140,fade(t,4.2,8.6)*(covW>cam+120?1:0));
+  label('고가도로',deckW-90,CY-140,fade(t,10.2,15.2)*(deckW>cam+120?1:0),true);
+  label('철거',decW-90,CY-140,fade(t,17,20.2)*(decW>cam+120?1:0));
+  label('물길',uncW-90,CY-140,fade(t,22,25.2)*(uncW>cam+120?1:0),true);
+  g.restore();
+  caption(t);
+}
+window.render=render;
+window.ready=document.fonts.load('800 40px P').then(()=>document.fonts.load('600 40px P')).then(()=>document.fonts.load('400 40px P')).then(()=>{render(0);return true});
+</script></body></html>
