@@ -1,366 +1,460 @@
 <title>겨울 소원마을</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700&display=swap">
 <style>
-/* 한 화면 게임: 위 마을 바꾸기 · 가운데 픽셀 마을(눌러서 이동) · 아래 행동 버튼. 밤하늘 단일 테마 */
+/* 한 화면 3D 마을: 위 알림 칩 · 가운데 3D 마을(눌러서 걷기) · 아래 메뉴. 겨울밤 단일 테마 */
 :root{
-  --ink:#f4efe6; --ink-soft:#b9c3d6; --panel:#141c2e; --panel-line:#2c3a58;
-  --accent:#ffcf5a; --accent-ink:#1d1405; --danger:#ff8a7a;
-  --font-display:"Jua","Noto Sans KR",system-ui,sans-serif;
-  --font-body:"Noto Sans KR",system-ui,sans-serif;
+  --ink:#f6f2ea; --ink-soft:#c3cbe0; --glass:rgba(14,20,40,.62); --glass-line:rgba(255,255,255,.16);
+  --accent:#ffd27a; --accent-ink:#2a1a04; --danger:#ff9b8c;
+  --font-display:"Jua","Noto Sans KR",system-ui,sans-serif; --font-body:"Noto Sans KR",system-ui,sans-serif;
   color-scheme:dark;
 }
-html,body{height:100%;}
-body{background:#0b1222;color:var(--ink);font-family:var(--font-body);overflow:hidden;touch-action:manipulation;}
-.app{position:relative;height:100%;display:flex;flex-direction:column;max-width:520px;margin:0 auto;}
-.top{display:flex;align-items:center;gap:8px;padding-block:8px;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));}
-.top h1{margin:0;font:400 20px/1.1 var(--font-display);letter-spacing:.01em;flex:1;min-width:0;}
-.top h1 small{display:block;font:400 11px var(--font-body);color:var(--ink-soft);}
-.tabs{display:flex;gap:4px;background:var(--panel);border:1px solid var(--panel-line);border-radius:999px;padding:3px;}
-.tabs button{border:0;background:transparent;color:var(--ink-soft);font:400 14px var(--font-display);padding:7px 12px;border-radius:999px;min-height:36px;cursor:pointer;}
-.tabs button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);}
-.stage{position:relative;flex:1;min-height:0;}
-canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;cursor:pointer;}
-.hud{position:absolute;left:10px;top:8px;font-size:12px;color:var(--ink);background:rgba(10,16,30,.66);padding:4px 9px;border-radius:999px;pointer-events:none;}
-.toast{position:absolute;left:50%;top:44px;transform:translateX(-50%);background:rgba(10,16,30,.86);border:1px solid var(--panel-line);padding:8px 14px;border-radius:12px;font-size:13px;max-width:86%;text-align:center;pointer-events:none;}
-.bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding-block:10px 12px;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));min-height:64px;align-items:center;background:var(--panel);border-top:1px solid var(--panel-line);}
-.bar p{margin:0;color:var(--ink-soft);font-size:13px;text-align:center;}
-.btn{border:0;border-radius:14px;background:var(--accent);color:var(--accent-ink);font:400 16px var(--font-display);padding:10px 16px;min-height:44px;cursor:pointer;}
-.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--panel-line);}
-.btn:focus-visible,.tabs button:focus-visible,.chip:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
-.sheet{position:absolute;inset:auto 0 0 0;background:var(--panel);border-top:1px solid var(--panel-line);border-radius:18px 18px 0 0;padding-block:16px calc(16px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:12px;max-height:72%;overflow:auto;z-index:5;}
-.sheet h2{margin:0;font:400 20px var(--font-display);}
-.sheet p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.5;}
-.chips{display:flex;flex-wrap:wrap;gap:6px;}
-.chip{border:1px solid var(--panel-line);background:transparent;color:var(--ink);border-radius:999px;padding:8px 12px;font:400 13px var(--font-body);min-height:36px;cursor:pointer;}
-.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+html,body{height:100%;margin:0;}
+[hidden]{display:none!important;}
+body{background:#0a1020;color:var(--ink);font-family:var(--font-body);overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;}
+#world{position:fixed;inset:0;}
+#world canvas{display:block;width:100%;height:100%;}
+.labels{position:fixed;inset:0;pointer-events:none;overflow:hidden;}
+.tag{position:absolute;left:0;top:0;background:rgba(20,26,48,.58);color:#fff;font:400 13px var(--font-display);padding:3px 9px;border-radius:999px;white-space:nowrap;}
+.tag.me{background:rgba(255,255,255,.9);color:#2a2238;}
+.tag.me b{color:#8a7fa8;font-weight:400;margin-right:4px;}
+.bubble{position:absolute;left:0;top:0;font-size:28px;line-height:1;}
+.chips{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);display:flex;gap:6px;overflow-x:auto;padding-block:10px;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));scrollbar-width:none;}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;background:var(--glass);border:1px solid var(--glass-line);color:var(--ink);font:400 13px var(--font-body);padding:7px 12px;border-radius:999px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);cursor:pointer;min-height:34px;}
+.chip.hot{border-color:var(--accent);color:var(--accent);}
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 60px);transform:translateX(-50%);background:var(--glass);border:1px solid var(--glass-line);padding:9px 16px;border-radius:999px;font-size:14px;max-width:88%;text-align:center;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+.toast button{margin-left:8px;border:0;background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:4px 10px;font:400 13px var(--font-display);cursor:pointer;}
+.act{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 92px);transform:translateX(-50%);display:flex;gap:8px;width:max-content;max-width:94%;flex-wrap:wrap;justify-content:center;}
+.btn{border:0;border-radius:999px;background:var(--accent);color:var(--accent-ink);font:400 16px var(--font-display);padding:11px 18px;min-height:44px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);}
+.btn.ghost{background:var(--glass);color:var(--ink);border:1px solid var(--glass-line);}
+.menu{position:fixed;left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 12px);display:grid;grid-template-columns:repeat(5,1fr);background:var(--glass);border:1px solid var(--glass-line);border-radius:22px;padding:6px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);max-width:520px;margin:0 auto;}
+.menu button{border:0;background:transparent;color:var(--ink);font:400 12px var(--font-body);display:grid;justify-items:center;gap:3px;padding:6px 2px;min-height:52px;border-radius:16px;cursor:pointer;}
+.menu button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.menu button[aria-pressed="true"]{background:rgba(255,255,255,.14);color:var(--accent);}
+.btn:focus-visible,.menu button:focus-visible,.chip:focus-visible,.pick:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-width:560px;margin:0 auto;background:#141b33;border:1px solid var(--glass-line);border-bottom:0;border-radius:22px 22px 0 0;padding-block:18px calc(18px + env(safe-area-inset-bottom,0px));padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px));display:grid;gap:12px;max-height:74%;overflow:auto;z-index:5;}
+.sheet h2{margin:0;font:400 21px var(--font-display);}
+.sheet p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.55;}
+.picks{display:flex;flex-wrap:wrap;gap:6px;}
+.pick{border:1px solid var(--glass-line);background:transparent;color:var(--ink);border-radius:999px;padding:8px 12px;font:400 14px var(--font-body);min-height:38px;min-width:40px;cursor:pointer;}
+.pick[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+.pick.hat[aria-pressed="true"]{outline:3px solid #fff;outline-offset:2px;}
+.pick.emo{font-size:24px;padding:6px 12px;}
 .sheet label{font-size:13px;color:var(--ink-soft);}
-.sheet input{width:100%;box-sizing:border-box;background:#0b1222;color:var(--ink);border:1px solid var(--panel-line);border-radius:10px;padding:10px 12px;font:400 15px var(--font-body);}
+.sheet input{width:100%;box-sizing:border-box;background:#0a1020;color:var(--ink);border:1px solid var(--glass-line);border-radius:12px;padding:11px 12px;font:400 15px var(--font-body);}
 .row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
 .err{color:var(--danger);font-size:13px;min-height:1em;}
 .list{display:grid;gap:6px;margin:0;padding:0;list-style:none;}
-.list li{background:#0b1222;border:1px solid var(--panel-line);border-radius:10px;padding:8px 10px;font-size:14px;overflow-wrap:anywhere;}
+.list li{background:#0a1020;border:1px solid var(--glass-line);border-radius:12px;padding:9px 11px;font-size:14px;overflow-wrap:anywhere;}
 .list li small{display:block;color:var(--ink-soft);font-size:11px;margin-top:2px;}
-@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+.vbtn{display:grid;gap:2px;text-align:left;border-radius:16px;}
+.vbtn small{font:400 12px var(--font-body);opacity:.8;}
+.hint{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 96px);transform:translateX(-50%);color:var(--ink-soft);font-size:13px;background:var(--glass);padding:6px 12px;border-radius:999px;white-space:nowrap;}
+.fail{position:fixed;inset:0;display:grid;place-items:center;text-align:center;padding:24px;color:var(--ink-soft);}
 </style>
 
-<div class="app">
-  <header class="top">
-    <h1 id="title">산타마을<small id="sub">눌러서 걸어가고, 반짝이는 곳에서 멈춰 보세요</small></h1>
-    <div class="tabs" role="group" aria-label="마을 고르기">
-      <button id="tab-santa" aria-pressed="true">산타마을</button>
-      <button id="tab-sun" aria-pressed="false">해맞이마을</button>
-    </div>
-  </header>
-  <div class="stage" id="stage">
-    <canvas id="cv" aria-label="픽셀 마을. 화면을 누르면 그곳으로 걸어가요"></canvas>
-    <div class="hud" id="hud">혼자 둘러보는 중</div>
-    <div class="toast" id="toast" hidden></div>
-    <div class="sheet" id="sheet" hidden></div>
-  </div>
-  <nav class="bar" id="bar"><p>마을 안 반짝이는 곳으로 걸어가 보세요</p></nav>
-</div>
+<div id="world" aria-label="3D 겨울 마을. 화면을 누르면 그곳으로 걸어가요"></div>
+<div class="labels" id="labels"></div>
+<div class="chips" id="chips"></div>
+<div class="toast" id="toast" hidden></div>
+<div class="hint" id="hint">눌러서 걸어가 보세요</div>
+<div class="act" id="act"></div>
+<nav class="menu" id="menu" aria-label="행동">
+  <button id="m-emote"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5c1 1.3 2.2 2 3.5 2s2.5-.7 3.5-2"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>표정</button>
+  <button id="m-ball"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7"/><path d="M8 11c1-1 3-1.5 4-1M14 15.5c1 0 2-.5 2.5-1.5"/><path d="M17 4l2-2M19 7h3"/></svg>눈덩이</button>
+  <button id="m-sit" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M20 15.5A8 8 0 1 1 9 4a6.5 6.5 0 0 0 11 11.5z"/></svg><span id="m-sit-label">눈멍하기</span></button>
+  <button id="m-wish"><svg viewBox="0 0 24 24"><path d="M12 3l2.4 5 5.6.6-4.2 3.8 1.2 5.6L12 15.2 7 18l1.2-5.6L4 8.6 9.6 8z"/></svg>소원</button>
+  <button id="m-photo"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>사진</button>
+</nav>
+<div class="sheet" id="sheet" hidden></div>
 
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script>
 (() => {
-const cv = document.getElementById("cv"), g = cv.getContext("2d");
+if (!window.THREE) { document.body.insertAdjacentHTML("beforeend", '<div class="fail">3D 화면을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</div>'); return; }
 const $ = (id) => document.getElementById(id);
-const W = 192, WORLD_H = 480;
-let H = 320;
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const store = { get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+const kstNow = () => new Date(Date.now() + 9 * 3600e3);
+const kstDay = () => kstNow().toISOString().slice(0, 10);
+const rnd = (seed) => () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+const hashStr = (s) => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 
 // ---------- 마을 설정 ----------
-const VILLAGES = {
+const HATS = ["#e2483d", "#3d6fe2", "#2fa36b", "#9a5ae2", "#f0a33a", "#e26aa8", "#3fb6c9"];
+const NICKS = ["눈송이", "호빵", "귤", "솜사탕", "별빛", "방울", "털장갑", "코코아", "붕어빵", "군고구마", "포근이", "눈꽃", "말랑", "꼬마전구"];
+const V = {
   santa: {
-    name: "산타마을", sub: "눌러서 걸어가고, 반짝이는 곳에서 멈춰 보세요",
+    name: "산타마을", sit: "눈멍하기", sitMsg: "눈 내리는 걸 멍하니 보는 중",
     presets: ["가족 모두 건강하게", "올해도 수고했어", "합격하게 해 주세요", "내년엔 연애하게", "행복한 크리스마스", "다 잘될 거야"],
-    spots: [
-      { id: "tree", x: 96, y: 168, label: "소원 트리", acts: [["소원 장식 달기", "wish"], ["다른 소원 보기", "list"]] },
-      { id: "mail", x: 154, y: 262, label: "산타 우체통", acts: [["산타에게 편지 쓰기", "letter"]] },
-      { id: "sleigh", x: 142, y: 360, label: "썰매", acts: [["썰매 타기", "ride"]] },
-      { id: "fire", x: 52, y: 372, label: "모닥불", acts: [["불 앞에 앉기", "sit"]] },
-      { id: "house", x: 42, y: 258, label: "굴뚝 집", acts: [["굴뚝에 선물 넣기", "gift"]] },
-    ],
+    spots: [{ id: "tree", x: 0, z: -7, r: 4.2, acts: [["소원 장식 달기", "wish"], ["달린 소원 보기", "list"]] },
+            { id: "mail", x: 5.5, z: -3, r: 2, acts: [["산타에게 편지", "letter"]] }],
+    giftName: "선물",
   },
   sun: {
-    name: "해맞이마을", sub: "12월 31일엔 해넘이, 1월 1일엔 해돋이",
+    name: "해맞이마을", sit: "바다멍", sitMsg: "파도 소리 들으며 쉬는 중",
     presets: ["새해 복 많이 받으세요", "올해는 꼭 이루자", "건강이 최고", "돈 많이 벌게 해 주세요", "가족 모두 행복하게", "작년보다 나은 한 해"],
-    spots: [
-      { id: "deck", x: 96, y: 176, label: "바닷가 전망대", acts: [["해넘이 보기", "sunset"], ["해돋이 보기", "sunrise"]] },
-      { id: "lantern", x: 52, y: 270, label: "풍등 광장", acts: [["소원 풍등 날리기", "wish"], ["다른 소원 보기", "list"]] },
-      { id: "bell", x: 146, y: 262, label: "종각", acts: [["종 치기", "bell"]] },
-      { id: "fire", x: 98, y: 380, label: "모닥불", acts: [["불 앞에 앉기", "sit"]] },
-    ],
+    spots: [{ id: "deck", x: 0, z: -9, r: 3, acts: [["해넘이 보기", "sunset"], ["해돋이 보기", "sunrise"]] },
+            { id: "lantern", x: -7, z: -2, r: 2.8, acts: [["소원 풍등 날리기", "wish"], ["날린 소원 보기", "list"]] },
+            { id: "bell", x: 7, z: -3, r: 2.8, acts: [["종 치기", "bell"]] }],
+    giftName: "복주머니",
   },
 };
-let vk = "santa";
-const V = () => VILLAGES[vk];
+let vk = store.get("village", "santa"); if (!V[vk]) vk = "santa";
 
-// ---------- 상태 ----------
-const me = { x: 96, y: 440, tx: 96, ty: 440, color: ["#e2483d", "#3d7be2", "#36a96b", "#c47be2", "#e2a13d"][Math.floor(Math.random() * 5)], step: 0, sitting: false };
-let cam = 0, near = null, wishes = { santa: [], sun: [] }, peers = [], anim = null, bellSwing = 0, gifts = 0, t0 = performance.now();
-let db = null, room = null, uid = null;
+// ---------- 3D 기본 ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.75));
+renderer.outputEncoding = THREE.sRGBEncoding;
+$("world").append(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
+const hemi = new THREE.HemisphereLight(0x9fb4ff, 0x40406a, 0.75); scene.add(hemi);
+const sunLight = new THREE.DirectionalLight(0xffffff, 0.5); sunLight.position.set(-10, 20, 10); scene.add(sunLight);
+let world = new THREE.Group(); scene.add(world);
+const M = (color, extra = {}) => new THREE.MeshLambertMaterial({ color, ...extra });
+const glowM = (color) => new THREE.MeshBasicMaterial({ color });
+function add(geo, mat, x = 0, y = 0, z = 0, parent = world) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); parent.add(m); return m; }
+const shadowGeo = new THREE.CircleGeometry(0.7, 20), shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false });
+
+// ---------- 캐릭터: 눈사람(산타마을) · 털모자 동글이(해맞이마을) ----------
+function makeAvatar(kind, hat) {
+  const g = new THREE.Group(), white = M(0xf7f9ff), hatM = M(hat);
+  const sh = new THREE.Mesh(shadowGeo, shadowMat); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.02; g.add(sh);
+  const body = new THREE.Group(); g.add(body);
+  if (kind === "santa") {
+    add(new THREE.SphereGeometry(0.62, 20, 16), white, 0, 0.6, 0, body);
+    add(new THREE.SphereGeometry(0.44, 20, 16), white, 0, 1.42, 0, body);
+    add(new THREE.TorusGeometry(0.34, 0.09, 8, 20), hatM, 0, 1.12, 0, body).rotation.x = Math.PI / 2;
+    add(new THREE.CylinderGeometry(0.3, 0.38, 0.32, 16), hatM, 0, 1.82, 0, body);
+    add(new THREE.SphereGeometry(0.09, 10, 8), white, 0, 2.03, 0, body);
+    const nose = add(new THREE.ConeGeometry(0.06, 0.32, 10), M(0xff8a2a), 0, 1.42, 0.5, body); nose.rotation.x = Math.PI / 2;
+    for (const s of [-1, 1]) { add(new THREE.SphereGeometry(0.045, 8, 6), M(0x222233), s * 0.15, 1.53, 0.4, body); const arm = add(new THREE.CylinderGeometry(0.025, 0.03, 0.7, 6), M(0x5a3d2b), s * 0.72, 0.95, 0, body); arm.rotation.z = s * 1.1; }
+  } else {
+    const bodyM = M(new THREE.Color(hat).lerp(new THREE.Color(0xffffff), 0.55));
+    add(new THREE.SphereGeometry(0.72, 22, 18), bodyM, 0, 0.78, 0, body).scale.set(1, 1.06, 1);
+    add(new THREE.SphereGeometry(0.5, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), hatM, 0, 1.2, 0, body);
+    add(new THREE.SphereGeometry(0.13, 10, 8), M(0xffffff), 0, 1.72, 0, body);
+    add(new THREE.TorusGeometry(0.48, 0.08, 8, 22), M(0xffffff), 0, 1.2, 0, body).rotation.x = Math.PI / 2;
+    for (const s of [-1, 1]) { add(new THREE.SphereGeometry(0.055, 8, 6), M(0x2a2233), s * 0.2, 0.95, 0.66, body); add(new THREE.SphereGeometry(0.09, 10, 8), M(0xff9aa8), s * 0.36, 0.82, 0.58, body).scale.set(1, 0.6, 0.5); }
+  }
+  g.userData.body = body;
+  return g;
+}
+
+// ---------- 산타마을 ----------
+const dyn = {};
+function resetDyn() { Object.assign(dyn, { bulbs: [], ornaments: null, lanterns: null, sun: null, sea: null, bell: null, gifts: [], snow: null, fire: [], stars: null, fireLight: null, star: null }); }
+function pines(count, rMin, rMax, seed, snowy) {
+  const r = rnd(seed), cone = new THREE.ConeGeometry(1, 2.4, 7), trunk = new THREE.CylinderGeometry(0.18, 0.22, 0.6, 6);
+  const leaves = new THREE.InstancedMesh(cone, M(snowy ? 0x2d5e4a : 0x2f6b3f), count * 2), top = new THREE.InstancedMesh(cone, M(snowy ? 0xe8eef8 : 0x3b7d4a), count), tr = new THREE.InstancedMesh(trunk, M(0x5a3d2b), count);
+  const o = new THREE.Object3D();
+  for (let i = 0; i < count; i++) {
+    const a = r() * Math.PI * 2, d = rMin + r() * (rMax - rMin), s = 0.8 + r() * 1.3, x = Math.cos(a) * d, z = !snowy && Math.sin(a) < 0 ? Math.abs(Math.sin(a)) * d * 0.6 + 2 : Math.sin(a) * d - 6;
+    o.rotation.set(0, r() * 6, 0);
+    o.position.set(x, 0.3 * s, z); o.scale.set(s, s, s); o.updateMatrix(); tr.setMatrixAt(i, o.matrix);
+    o.position.y = 1.5 * s; o.updateMatrix(); leaves.setMatrixAt(i * 2, o.matrix);
+    o.position.y = 2.5 * s; o.scale.set(s * 0.72, s * 0.8, s * 0.72); o.updateMatrix(); leaves.setMatrixAt(i * 2 + 1, o.matrix);
+    o.position.y = 3.35 * s; o.scale.set(s * 0.42, s * 0.45, s * 0.42); o.updateMatrix(); top.setMatrixAt(i, o.matrix);
+  }
+  world.add(leaves, top, tr);
+}
+function cabin(x, z, rot) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rot; world.add(g);
+  add(new THREE.BoxGeometry(5, 3, 4), M(0x4a3426), 0, 1.5, 0, g);
+  const roof = add(new THREE.ConeGeometry(3.9, 2.2, 4), M(0xf2f6ff), 0, 4.1, 0, g); roof.rotation.y = Math.PI / 4; roof.scale.set(1, 1, 0.82);
+  for (const wx of [-1.4, 1.4]) add(new THREE.PlaneGeometry(0.9, 0.9), glowM(0xffc56a), wx, 1.7, 2.01, g);
+  add(new THREE.PlaneGeometry(0.9, 1.7), M(0x2a1a10), 0, 0.85, 2.01, g);
+  add(new THREE.PlaneGeometry(0.7, 0.7), glowM(0xffd88a), 0, 3.9, 1.62, g);
+  const pl = new THREE.PointLight(0xffb45a, 0.9, 9, 2); pl.position.set(0, 1.6, 3); g.add(pl);
+}
+function lamp(x, z) {
+  add(new THREE.CylinderGeometry(0.07, 0.09, 2.6, 8), M(0x22252e), x, 1.3, z);
+  add(new THREE.BoxGeometry(0.42, 0.5, 0.42), glowM(0xffe2a0), x, 2.75, z);
+  add(new THREE.ConeGeometry(0.34, 0.3, 4), M(0x22252e), x, 3.15, z).rotation.y = Math.PI / 4;
+}
+function stars(color) {
+  const N = 300, p = new Float32Array(N * 3), r = rnd(5);
+  for (let i = 0; i < N; i++) { const a = r() * Math.PI * 2, e = 0.15 + r() * 1.2; p[i * 3] = Math.cos(a) * 150 * Math.cos(e); p[i * 3 + 1] = 150 * Math.sin(e); p[i * 3 + 2] = Math.sin(a) * 150 * Math.cos(e); }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(p, 3));
+  dyn.stars = new THREE.Points(g, new THREE.PointsMaterial({ color, size: 0.9, fog: false, transparent: true })); world.add(dyn.stars);
+}
+// 마을 장식 인형 (이름표 없음 — 방문자가 아님)
+function decor(kind, list) { list.forEach(([x, z, r], i) => { const a = makeAvatar(kind, HATS[(i * 3 + 1) % HATS.length]); a.position.set(x, 0, z); a.rotation.y = r; a.scale.setScalar(0.92); world.add(a); }); }
+function fireAt(x, z) {
+  for (let i = 0; i < 6; i++) { const l = add(new THREE.CylinderGeometry(0.08, 0.1, 1.2, 6), M(0x5a3d2b), x, 0.15, z); l.rotation.z = Math.PI / 2; l.rotation.y = i / 6 * Math.PI; }
+  for (let i = 0; i < 3; i++) { const f = add(new THREE.ConeGeometry(0.32 - i * 0.07, 0.9 - i * 0.15, 8), glowM([0xff6a2a, 0xffa43e, 0xffe27a][i]), x, 0.55, z); f.userData.ph = i; dyn.fire.push(f); }
+  const pl = new THREE.PointLight(0xff9a40, 1.3, 10, 2); pl.position.set(x, 1, z); world.add(pl); dyn.fireLight = pl;
+}
+function buildSanta() {
+  scene.background = new THREE.Color(0x101a3a); scene.fog = new THREE.Fog(0x1a2448, 22, 70);
+  hemi.color.set(0x9fb4ff); hemi.groundColor.set(0x505078); hemi.intensity = 0.8; sunLight.intensity = 0.35; sunLight.color.set(0xb8c8ff); sunLight.position.set(-10, 20, 10);
+  add(new THREE.CircleGeometry(80, 48), M(0xe6ecf8)).rotation.x = -Math.PI / 2;
+  add(new THREE.RingGeometry(3.8, 6.4, 40), M(0xd4dcec), 0, 0.01, -7).rotation.x = -Math.PI / 2;
+  [[-30, -45, 16, 22], [5, -55, 22, 30], [34, -46, 15, 20]].forEach(([x, z, r, h]) => { add(new THREE.ConeGeometry(r, h, 6), M(0x2c3558), x, h / 2, z); add(new THREE.ConeGeometry(r * 0.38, h * 0.38, 6), M(0xf0f4ff), x, h * 0.81, z); });
+  pines(110, 18, 40, 7, true);
+  cabin(-10, -15, 0.25); cabin(0, -18, 0); cabin(10, -15, -0.25);
+  [[-6, -1], [6, -1], [-6.5, -11], [6.5, -11], [-3, 3], [3, 3]].forEach(([x, z]) => lamp(x, z));
+  // 소원 트리
+  const tz = -7;
+  add(new THREE.CylinderGeometry(0.35, 0.45, 1.2, 10), M(0x5a3d2b), 0, 0.6, tz);
+  [[2.6, 2.6, 1.9], [2.1, 2.3, 3.3], [1.55, 2, 4.55], [1.0, 1.6, 5.6]].forEach(([r, h, y]) => add(new THREE.ConeGeometry(r, h, 14), M(0x1f5a3c), 0, y, tz));
+  dyn.star = add(new THREE.OctahedronGeometry(0.42), glowM(0xffd65a), 0, 6.75, tz);
+  const cols = [0xff5a5a, 0xffd65a, 0x6ad1ff, 0xff9bd2, 0xb6ff6a, 0xffffff], bulbGeo = new THREE.SphereGeometry(0.09, 8, 6), r = rnd(3);
+  for (let i = 0; i < 90; i++) {
+    const y = 1.2 + r() * 5, rad = (2.6 - (y - 1.2) * 0.42) * 0.98, a = r() * Math.PI * 2;
+    const m = add(bulbGeo, new THREE.MeshBasicMaterial({ color: cols[i % cols.length] }), Math.cos(a) * rad, y, tz + Math.sin(a) * rad);
+    m.userData.base = new THREE.Color(cols[i % cols.length]); m.userData.ph = r() * 6; dyn.bulbs.push(m);
+  }
+  const tl = new THREE.PointLight(0xffd8a0, 1.2, 14, 2); tl.position.set(0, 3, tz + 3); world.add(tl);
+  dyn.ornaments = new THREE.Group(); world.add(dyn.ornaments);
+  // 우체통
+  add(new THREE.BoxGeometry(0.7, 1.0, 0.6), M(0xd8323a), 5.5, 1.2, -3); add(new THREE.CylinderGeometry(0.06, 0.06, 0.7, 6), M(0x333333), 5.5, 0.35, -3);
+  add(new THREE.CylinderGeometry(0.35, 0.35, 0.7, 12, 1, false, 0, Math.PI), M(0xb02830), 5.5, 1.7, -3).rotation.z = Math.PI / 2;
+  fireAt(-6, 4);
+  decor("santa", [[-3.5, -3, 0.4], [3.2, -2.4, -0.5], [-8, -6, 0.9], [8.5, -7, -0.9], [-4.5, -11.5, 0.2], [4.8, -12, -0.2], [-9, 1, 1.2], [9.5, 0, -1.3]]);
+  // 눈
+  const N = reduce ? 500 : 1600, pos = new Float32Array(N * 3), rr = rnd(11);
+  for (let i = 0; i < N; i++) { pos[i * 3] = (rr() - 0.5) * 60; pos[i * 3 + 1] = rr() * 22; pos[i * 3 + 2] = (rr() - 0.5) * 60 - 6; }
+  const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  dyn.snow = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 0.12, transparent: true, opacity: 0.9 })); world.add(dyn.snow);
+  stars(0xe8eeff);
+}
+
+// ---------- 해맞이마을 ----------
+function buildSun() {
+  scene.fog = new THREE.Fog(0x1a2448, 40, 140);
+  add(new THREE.PlaneGeometry(120, 70), M(0x6f9a5c), 0, 0, 22).rotation.x = -Math.PI / 2;
+  add(new THREE.PlaneGeometry(120, 6), M(0xe3cd98), 0, 0.01, -10.5).rotation.x = -Math.PI / 2;
+  dyn.sea = add(new THREE.PlaneGeometry(400, 240), M(0x2f5f9a), 0, -0.05, -133); dyn.sea.rotation.x = -Math.PI / 2;
+  dyn.sun = add(new THREE.SphereGeometry(5, 28, 20), new THREE.MeshBasicMaterial({ color: 0xffb04a, fog: false }), 0, 6, -150);
+  [[-26, 14, 10], [24, 18, 12], [0, 34, 14]].forEach(([x, z, r]) => add(new THREE.SphereGeometry(r, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2), M(0x5f8a4e), x, -1, z));
+  pines(40, 22, 34, 9, false);
+  // 전망대
+  add(new THREE.BoxGeometry(6, 0.3, 3), M(0x8a5a36), 0, 0.6, -10);
+  for (const [x, z] of [[-2.8, -11.3], [2.8, -11.3], [-2.8, -8.7], [2.8, -8.7]]) add(new THREE.CylinderGeometry(0.1, 0.1, 1.6, 6), M(0x6b4428), x, 1.1, z);
+  add(new THREE.BoxGeometry(6, 0.12, 0.12), M(0x6b4428), 0, 1.7, -11.4);
+  // 풍등 광장
+  add(new THREE.CircleGeometry(3, 28), M(0xd9c6a0), -7, 0.02, -2).rotation.x = -Math.PI / 2;
+  for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2, x = -7 + Math.cos(a) * 2.2, z = -2 + Math.sin(a) * 2.2; add(new THREE.CylinderGeometry(0.28, 0.2, 0.5, 10), glowM(0xffa64a), x, 1.6, z); add(new THREE.CylinderGeometry(0.04, 0.04, 1.4, 6), M(0x5a3d2b), x, 0.7, z); }
+  // 종각
+  const bg = new THREE.Group(); bg.position.set(7, 0, -3); world.add(bg);
+  for (const [x, z] of [[-1.4, -1.4], [1.4, -1.4], [-1.4, 1.4], [1.4, 1.4]]) add(new THREE.CylinderGeometry(0.14, 0.16, 3.2, 8), M(0x8b2f2f), x, 1.6, z, bg);
+  add(new THREE.ConeGeometry(2.9, 1.4, 4), M(0x3c4a3a), 0, 3.9, 0, bg).rotation.y = Math.PI / 4;
+  const bell = new THREE.Group(); bell.position.set(0, 3.1, 0); bg.add(bell);
+  add(new THREE.CylinderGeometry(0.55, 0.8, 1.4, 16, 1, true), M(0xb8873a, { side: THREE.DoubleSide }), 0, -0.7, 0, bell); dyn.bell = bell;
+  // 집
+  for (const [x, z, r] of [[-12, 8, 0.4], [12, 9, -0.4], [-4, 14, 0.1]]) {
+    const hs = new THREE.Group(); hs.position.set(x, 0, z); hs.rotation.y = r; world.add(hs);
+    add(new THREE.BoxGeometry(4.2, 2.2, 3), M(0xeae0cc), 0, 1.1, 0, hs);
+    const rf = add(new THREE.ConeGeometry(3.4, 1.4, 4), M(0x34455a), 0, 2.9, 0, hs); rf.rotation.y = Math.PI / 4; rf.scale.set(1.15, 1, 0.8);
+    add(new THREE.PlaneGeometry(0.8, 0.8), glowM(0xffd38a), -1, 1.3, 1.51, hs); add(new THREE.PlaneGeometry(0.8, 0.8), glowM(0xffd38a), 1, 1.3, 1.51, hs);
+  }
+  fireAt(0, 4);
+  decor("sun", [[-2, -9.6, Math.PI], [2.2, -9.4, Math.PI], [-1.6, 5.6, 2.6], [1.8, 5.4, -2.6]]);
+  dyn.lanterns = new THREE.Group(); world.add(dyn.lanterns);
+  stars(0xffffff);
+}
+// 해 위치: 평소엔 한국 시간, 전망대에서는 해넘이·해돋이 장면
+let sunAnim = null;
+function sunPhase(t) {
+  if (sunAnim) { const p = Math.min(1, (t - sunAnim.t) / 9), up = sunAnim.kind === "sunrise" ? p : 1 - p; if (t - sunAnim.t > 13) sunAnim = null; return up; }
+  const n = kstNow(), hh = n.getUTCHours() + n.getUTCMinutes() / 60;
+  if (hh < 6.5 || hh > 18.5) return -0.3; if (hh < 8) return (hh - 6.5) / 1.5; if (hh > 17) return (18.5 - hh) / 1.5; return 1;
+}
+const SKY = { night: new THREE.Color(0x0e1636), glow: new THREE.Color(0xf08a5a), day: new THREE.Color(0x8ec3f0) };
+function updateSun(t) {
+  const up = sunPhase(t), u = Math.max(0, Math.min(1, up));
+  dyn.sun.position.y = -6 + up * 36; dyn.sun.material.color.set(u > 0.7 ? 0xfff1c0 : 0xffa04a);
+  const sky = u < 0.35 ? SKY.night.clone().lerp(SKY.glow, u / 0.35) : SKY.glow.clone().lerp(SKY.day, (u - 0.35) / 0.65);
+  scene.background = sky; scene.fog.color.copy(sky);
+  hemi.intensity = 0.45 + u * 0.6; hemi.color.copy(sky.clone().lerp(new THREE.Color(0xffffff), 0.4)); hemi.groundColor.set(0x3a4a3a);
+  sunLight.intensity = 0.15 + u * 0.7; sunLight.color.set(u < 0.5 ? 0xffb070 : 0xffffff); sunLight.position.set(0, 10 + u * 20, -30);
+  dyn.sea.material.color.set(u < 0.2 ? 0x16264e : u < 0.6 ? 0x6a5a8a : 0x2f72b0);
+  if (dyn.stars) dyn.stars.material.opacity = Math.max(0, 1 - u * 2.5);
+  if (dyn.fireLight) dyn.fireLight.intensity = 1.6 - u;
+}
+
+// ---------- 모두의 소원 ----------
+let wishes = { santa: [], sun: [] };
+function renderOrnaments() {
+  const list = wishes[vk];
+  if (vk === "santa" && dyn.ornaments) {
+    dyn.ornaments.clear();
+    const cols = [0xff4d6d, 0xffc94d, 0x4dc3ff, 0xc17dff, 0x7dffb0], geo = new THREE.SphereGeometry(0.17, 12, 10);
+    list.slice(0, 80).forEach((w, i) => {
+      const hh = hashStr(w.id || i), r = rnd(hh), y = 1.3 + r() * 4.4, rad = (2.6 - (y - 1.2) * 0.42) + 0.05, a = r() * Math.PI * 2, c = cols[hh % cols.length];
+      add(geo, new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: 0.4 }), Math.cos(a) * rad, y, -7 + Math.sin(a) * rad, dyn.ornaments);
+    });
+  }
+  if (vk === "sun" && dyn.lanterns) {
+    dyn.lanterns.clear(); const geo = new THREE.CylinderGeometry(0.3, 0.22, 0.55, 10);
+    list.slice(0, 60).forEach((w, i) => { const m = add(geo, new THREE.MeshBasicMaterial({ color: 0xffa64a }), 0, 0, 0, dyn.lanterns); m.userData.h = hashStr(w.id || i); });
+  }
+  renderChips();
+}
+
+// ---------- 나와 다른 사람 ----------
+const me = { x: 0, z: 6, tx: 0, tz: 6, rot: Math.PI, nick: store.get("nick", null), hat: store.get("hat", Math.floor(Math.random() * HATS.length)), sit: false, emo: "", emoAt: 0 };
+let meObj = null;
+const others = new Map(); // peer -> {obj, data}
+function spawnMe() { if (meObj) world.remove(meObj); meObj = makeAvatar(vk, HATS[me.hat % HATS.length]); meObj.position.set(me.x, 0, me.z); world.add(meObj); }
+
+// ---------- 오늘의 선물 ----------
+const giftKey = () => "gifts-" + vk + "-" + kstDay();
+const giftCount = () => store.get(giftKey(), []).length;
+function placeGifts() {
+  dyn.gifts = []; const got = store.get(giftKey(), []), r = rnd(hashStr(vk + kstDay()));
+  for (let i = 0; i < 5; i++) {
+    const a = r() * Math.PI * 2, d = 5 + r() * 9, x = Math.cos(a) * d, z = Math.sin(a) * d - 3;
+    if (got.includes(i) || Math.hypot(x, z + 7) < 3.5) continue;
+    const g = new THREE.Group(); g.position.set(x, 0, z); world.add(g);
+    if (vk === "santa") { add(new THREE.BoxGeometry(0.6, 0.5, 0.6), M(HATS[i % HATS.length]), 0, 0.3, 0, g); add(new THREE.BoxGeometry(0.64, 0.1, 0.18), M(0xffe27a), 0, 0.56, 0, g); add(new THREE.BoxGeometry(0.18, 0.1, 0.64), M(0xffe27a), 0, 0.56, 0, g); }
+    else { add(new THREE.SphereGeometry(0.34, 14, 10), M(0xd8323a), 0, 0.34, 0, g); add(new THREE.CylinderGeometry(0.12, 0.2, 0.2, 10), M(0xd8323a), 0, 0.72, 0, g); add(new THREE.TorusGeometry(0.13, 0.04, 6, 14), M(0xffd65a), 0, 0.64, 0, g).rotation.x = Math.PI / 2; }
+    g.userData.i = i; dyn.gifts.push(g);
+  }
+}
+
+// ---------- 마을 만들기 ----------
+function build() {
+  scene.remove(world); world.traverse((o) => o.geometry?.dispose?.()); world = new THREE.Group(); scene.add(world); resetDyn();
+  others.forEach((o) => (o.obj = null)); labels.textContent = "";
+  vk === "santa" ? buildSanta() : buildSun();
+  me.x = me.tx = 0; me.z = me.tz = 6; me.rot = Math.PI; setSit(false, true); sunAnim = null;
+  spawnMe(); placeGifts(); renderOrnaments(); store.set("village", vk);
+}
+
+// ---------- 화면: 칩 · 이름표 · 버튼 ----------
+function dday(m, d) { const n = kstNow(), y = n.getUTCFullYear(), today = Date.UTC(y, n.getUTCMonth(), n.getUTCDate()); let tgt = Date.UTC(y, m - 1, d); if (tgt < today) tgt = Date.UTC(y + 1, m - 1, d); return Math.round((tgt - today) / 864e5); }
+function renderChips() {
+  const c = $("chips"); c.textContent = "";
+  const chip = (txt, fn, hot) => { const b = document.createElement("button"); b.className = "chip" + (hot ? " hot" : ""); b.textContent = txt; b.addEventListener("click", fn || (() => {})); c.append(b); };
+  chip(`${V[vk].name} ▾`, openVillage, true);
+  const hh = kstNow().getUTCHours();
+  if (vk === "santa") { const dd = dday(12, 25); chip(dd === 0 ? "메리 크리스마스!" : `크리스마스 D-${dd}`); chip(hh >= 20 || hh < 2 ? "트리 점등 중" : "매일 밤 8시 트리 점등식"); }
+  else { const dd = dday(1, 1); chip(dd === 0 ? "새해 복 많이 받으세요" : `새해 D-${dd}`); chip("12월 31일 해넘이 · 1월 1일 해돋이"); }
+  chip(`오늘의 ${V[vk].giftName} ${giftCount()}/5`);
+  chip(`${vk === "santa" ? "트리 소원" : "하늘의 풍등"} ${wishes[vk].length}개`, openList);
+}
+const labels = $("labels"), tmpV = new THREE.Vector3();
+function tagFor(key, html, cls) { let el = labels.querySelector(`[data-k="${key}"]`); if (!el) { el = document.createElement("div"); el.dataset.k = key; el.className = cls; labels.append(el); } if (el._h !== html) { el._h = html; el.innerHTML = html; } return el; }
+function placeTag(el, obj, y) {
+  if (!el._h) { el.style.display = "none"; return; }
+  tmpV.set(obj.position.x, y, obj.position.z).project(camera);
+  const vis = tmpV.z < 1 && Math.abs(tmpV.x) < 1.2 && Math.abs(tmpV.y) < 1.2; el.style.display = vis ? "" : "none";
+  if (vis) el.style.transform = `translate(${(tmpV.x + 1) / 2 * innerWidth}px,${(1 - tmpV.y) / 2 * innerHeight}px) translate(-50%,-100%)`;
+}
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+let near = null, lastAct = null, hintDone = false;
+function renderAct() {
+  const key = near ? vk + near.id : "";
+  if (key === lastAct) return; lastAct = key;
+  const box = $("act"); box.textContent = ""; $("hint").hidden = !!near || hintDone;
+  if (!near) return;
+  near.acts.forEach(([label, act], i) => { const b = document.createElement("button"); b.className = "btn" + (i ? " ghost" : ""); b.textContent = label; b.addEventListener("click", () => doAct(act)); box.append(b); });
+}
+function toast(msg, ms = 2800, action) {
+  const el = $("toast"); el.textContent = msg;
+  if (action) { const b = document.createElement("button"); b.textContent = action[0]; b.addEventListener("click", action[1]); el.append(b); }
+  el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (el.hidden = true), ms);
+}
 
 // ---------- 소리 (첫 터치 뒤에만) ----------
 let ac = null;
 function audio() { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === "suspended") ac.resume(); } catch { ac = null; } return ac; }
-function tone(freq, dur, type = "sine", vol = 0.15, delay = 0) {
-  const a = audio(); if (!a) return;
-  const o = a.createOscillator(), v = a.createGain(), t = a.currentTime + delay;
-  o.type = type; o.frequency.value = freq; v.gain.setValueAtTime(vol, t); v.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(v).connect(a.destination); o.start(t); o.stop(t + dur);
-}
-const sfx = {
-  bell: () => { tone(196, 3.2, "sine", 0.22); tone(392, 2.4, "sine", 0.08); tone(588, 1.6, "triangle", 0.03); },
-  jingle: () => [0, .12, .24, .48, .6, .72].forEach((d, i) => tone(i % 3 === 2 ? 1568 : 1318, 0.18, "triangle", 0.06, d)),
-  whoosh: () => [0, .08, .16].forEach((d, i) => tone(520 + i * 160, 0.5, "sine", 0.04, d)),
-  pop: () => tone(880, 0.15, "triangle", 0.08),
-};
+function tone(f, d, type = "sine", v = 0.14, delay = 0) { const a = audio(); if (!a) return; const o = a.createOscillator(), g = a.createGain(), t = a.currentTime + delay; o.type = type; o.frequency.value = f; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(g).connect(a.destination); o.start(t); o.stop(t + d); }
+const sfx = { bell: () => { tone(196, 3.4, "sine", 0.22); tone(392, 2.4, "sine", 0.08); tone(590, 1.4, "triangle", 0.03); }, pop: () => tone(880, 0.15, "triangle", 0.08), chime: () => [0, .1, .2].forEach((d, i) => tone([1046, 1318, 1568][i], 0.4, "sine", 0.07, d)), whoosh: () => [0, .08, .16].forEach((d, i) => tone(500 + i * 170, 0.5, "sine", 0.04, d)), hit: () => tone(180, 0.12, "triangle", 0.12) };
 
-// ---------- 글 거르기: 욕설·연락처·주소 ----------
-const BAD = ["씨발", "시발", "ㅅㅂ", "병신", "ㅄ", "좆", "개새", "새끼", "fuck", "섹스", "자살", "죽어", "엿먹"];
-function clean(s) {
-  s = (s || "").replace(/\s+/g, " ").trim().slice(0, 20);
-  if (!s) return { ok: true, text: "" };
-  const low = s.toLowerCase();
-  if (BAD.some((w) => low.includes(w))) return { ok: false, why: "고운 말로 다시 써 주세요." };
-  if (/\d{3,}|https?:|www\.|@|\.com|카톡|오픈채팅/i.test(s)) return { ok: false, why: "연락처·주소·링크는 남길 수 없어요." };
-  return { ok: true, text: s };
-}
-
-// ---------- 그리기 도구 ----------
-const R = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y - cam), w, h); };
-function hash(s) { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return (h >>> 0); }
-
-function person(x, y, color, frame, sit, tag) {
-  y = Math.round(y); x = Math.round(x);
-  R(x - 3, y - 1, 7, 2, "rgba(0,0,0,.25)");
-  const by = sit ? y - 6 : y - 8;
-  if (!sit) { R(x - 2, y - 3, 2, 3, "#2b2f45"); R(x + 1, y - 3 + (frame ? 1 : 0), 2, 3 - (frame ? 1 : 0), "#2b2f45"); }
-  R(x - 3, by, 7, 5, color); // 몸
-  R(x - 2, by - 5, 5, 5, "#f2c9a0"); // 얼굴
-  R(x - 1, by - 3, 1, 1, "#2b2230"); R(x + 1, by - 3, 1, 1, "#2b2230");
-  if (vk === "santa") { R(x - 3, by - 7, 7, 2, "#d8323a"); R(x - 3, by - 6, 7, 1, "#fff"); R(x + 3, by - 8, 2, 2, "#fff"); }
-  else { R(x - 3, by - 6, 7, 2, color); R(x - 2, by - 7, 5, 1, color); }
-  if (tag) { g.font = "6px sans-serif"; g.textAlign = "center"; g.fillStyle = "rgba(10,16,30,.7)"; const w = g.measureText(tag).width + 4; g.fillRect(x - w / 2, by - 15 - cam, w, 7); g.fillStyle = "#fff"; g.fillText(tag, x, by - 9.6 - cam); }
-}
-
-function glow(sp, t) {
-  const a = 0.35 + 0.25 * Math.sin(t * 4 + sp.x);
-  g.fillStyle = `rgba(255,214,110,${a})`;
-  for (let i = 0; i < 4; i++) { const ang = t * 1.5 + i * Math.PI / 2; g.fillRect(Math.round(sp.x + Math.cos(ang) * 10), Math.round(sp.y - 6 + Math.sin(ang) * 4 - cam), 1, 1); }
-}
-
-// ---------- 산타마을 ----------
-const snow = Array.from({ length: reduce ? 30 : 90 }, (_, i) => ({ x: (i * 37) % W, y: (i * 53) % WORLD_H, s: 0.4 + (i % 5) * 0.15 }));
-function drawSanta(t) {
-  for (let y = 0; y < 70; y += 2) R(0, y, W, 2, `rgb(${14 + y / 3},${22 + y / 2},${48 + y})`);
-  for (let i = 0; i < 40; i++) { const sx = (i * 47) % W, sy = (i * 29) % 60; if ((t * 2 + i) % 7 > 1) R(sx, sy, 1, 1, "#dfe8ff"); }
-  g.fillStyle = "#f6f0d6"; g.beginPath(); g.arc(156, 20 - cam, 6, 0, 7); g.fill(); g.fillStyle = "rgb(18,27,54)"; g.beginPath(); g.arc(159, 18 - cam, 5, 0, 7); g.fill(); // 초승달
-  R(0, 70, W, WORLD_H - 70, "#e9f0f7");
-  for (let i = 0; i < 60; i++) R((i * 61) % W, 80 + ((i * 97) % (WORLD_H - 90)), 3, 1, "#d3deeb");
-  R(84, 70, 24, WORLD_H - 70, "#dde6f0"); // 눈길
-  for (let i = 0; i < 9; i++) { const px = 12 + i * 21; R(px, 92, 3, 8, "#5a3d2b"); R(px - 3, 86, 9, 7, "#2f7a4f"); R(px - 2, 84, 7, 3, "#fff"); }
-  // 소원 트리
-  const tx = 96, ty = 168;
-  R(tx - 2, ty - 4, 5, 8, "#6b4428");
-  for (let l = 0; l < 6; l++) { const w = 10 + l * 7, yy = ty - 60 + l * 9; R(tx - w / 2, yy, w, 10, l % 2 ? "#2d7a4c" : "#286f45"); R(tx - w / 2, yy + 8, w, 1, "#fff"); }
-  const star = 0.6 + 0.4 * Math.sin(t * 3);
-  R(tx - 2, ty - 66, 5, 5, `rgba(255,214,90,${star})`); R(tx, ty - 68, 1, 9, "#ffd65a"); R(tx - 4, ty - 64, 9, 1, "#ffd65a");
-  const cols = ["#ff5a5a", "#ffd65a", "#6ad1ff", "#ff9bd2", "#b6ff6a", "#ffffff"];
-  wishes.santa.slice(0, 60).forEach((w, i) => {
-    const h = hash(w.id || i), l = h % 6, wl = 10 + l * 7, yy = ty - 57 + l * 9 + ((h >> 4) % 6);
-    const xx = tx - wl / 2 + 2 + ((h >> 8) % Math.max(1, wl - 4));
-    const blink = 0.55 + 0.45 * Math.sin(t * 2 + i);
-    g.globalAlpha = blink; R(xx, yy, 2, 2, cols[(h >> 12) % cols.length]); g.globalAlpha = 1;
-  });
-  // 굴뚝 집
-  R(22, 236, 40, 24, "#b9573f"); R(18, 226, 48, 12, "#7b3a2d"); R(18, 224, 48, 3, "#fff"); R(48, 212, 7, 14, "#7b3a2d"); R(47, 210, 9, 3, "#fff");
-  R(38, 246, 8, 14, "#3a2417"); R(26, 242, 8, 7, "#ffd88a"); R(52, 242, 7, 7, "#ffd88a");
-  for (let i = 0; i < 3; i++) { const sy = 204 - ((t * 8 + i * 6) % 18); R(51 + Math.sin(t + i) * 2, sy, 2, 2, "rgba(220,220,230,.7)"); }
-  // 우체통
-  R(150, 252, 9, 12, "#d8323a"); R(149, 250, 11, 3, "#a8242b"); R(152, 256, 5, 1, "#3a1010"); R(153, 264, 3, 8, "#5a3d2b");
-  // 썰매
-  if (!(anim && anim.kind === "ride")) drawSleigh(142, 360);
-  // 모닥불
-  drawFire(52, 372, t);
-  // 눈
-  snow.forEach((f) => { f.y += f.s; f.x += Math.sin((f.y + f.x) / 20) * 0.2; if (f.y > WORLD_H) { f.y = 0; f.x = Math.random() * W; } R(f.x, f.y, 1, 1, "#ffffff"); });
-}
-function drawSleigh(x, y) {
-  R(x - 12, y - 6, 20, 7, "#c9302c"); R(x - 14, y - 10, 5, 8, "#c9302c"); R(x - 12, y + 1, 22, 1, "#e0b04a"); R(x + 8, y - 1, 3, 2, "#e0b04a");
-  R(x + 14, y - 8, 8, 5, "#8a5a3a"); R(x + 20, y - 11, 3, 4, "#8a5a3a"); R(x + 21, y - 12, 1, 1, "#ff3b3b"); R(x + 15, y - 3, 1, 4, "#5a3d2b"); R(x + 20, y - 3, 1, 4, "#5a3d2b");
-}
-function drawFire(x, y, t) {
-  R(x - 8, y + 2, 16, 3, "#6b4428");
-  for (let i = 0; i < 5; i++) { const h = 4 + ((Math.sin(t * 9 + i * 1.7) + 1) * 3) | 0; R(x - 5 + i * 2, y + 2 - h, 2, h, i % 2 ? "#ffb23e" : "#ff6a2a"); }
-  R(x - 1, y - 6 - (Math.sin(t * 7) + 1) * 2, 2, 2, "#ffe37a");
-}
-
-// ---------- 해맞이마을 ----------
-function skyFor(phase) {
-  // phase: 0 밤 · 1 해 뜨기/지기 · 2 낮
-  if (phase === 2) return [[120, 186, 236], [184, 222, 246]];
-  if (phase === 1) return [[60, 58, 120], [252, 150, 90]];
-  return [[12, 18, 44], [36, 44, 90]];
-}
-function sunState(t) {
-  if (anim && (anim.kind === "sunset" || anim.kind === "sunrise")) {
-    const p = Math.min(1, (t - anim.t) / 7);
-    const up = anim.kind === "sunrise" ? p : 1 - p;
-    return { y: 80 - up * 46, phase: up > 0.15 ? 1 : 0, glow: 1 - Math.abs(up - 0.4) };
-  }
-  const h = new Date(Date.now() + 9 * 3600e3).getUTCHours(); // 한국 시간
-  if (h >= 7 && h < 17) return { y: 24, phase: 2, glow: 0 };
-  if (h === 6 || h === 17) return { y: 60, phase: 1, glow: 0.8 };
-  return { y: 999, phase: 0, glow: 0 };
-}
-function drawSun(t) {
-  const s = sunState(t), [a, b] = skyFor(s.phase);
-  for (let y = 0; y < 74; y += 2) { const u = y / 74; R(0, y, W, 2, `rgb(${a[0] + (b[0] - a[0]) * u | 0},${a[1] + (b[1] - a[1]) * u | 0},${a[2] + (b[2] - a[2]) * u | 0})`); }
-  if (s.phase === 0) for (let i = 0; i < 36; i++) if ((t * 2 + i) % 6 > 1) R((i * 53) % W, (i * 31) % 64, 1, 1, "#e8eeff");
-  if (s.y < 90) { R(84, s.y - 6, 24, 12, s.phase === 2 ? "#fff2b0" : "#ffb347"); R(86, s.y - 8, 20, 16, s.phase === 2 ? "#fff2b0" : "#ffb347"); R(88, s.y - 10, 16, 20, s.phase === 2 ? "#fff6c8" : "#ff9a3c"); }
-  // 바다 (해가 수평선 아래로 가려짐)
-  for (let y = 74; y < 128; y += 2) R(0, y, W, 2, s.phase === 0 ? `rgb(18,${30 + (y - 74) / 3 | 0},${66 + (y - 74) / 2 | 0})` : s.phase === 1 ? `rgb(${70 - (y - 74) / 2 | 0},${70 + (y - 74) / 4 | 0},${120 + (y - 74) / 3 | 0})` : `rgb(46,${120 + (y - 74) / 3 | 0},${180 + (y - 74) / 4 | 0})`);
-  if (s.y < 90 && s.phase !== 2) for (let i = 0; i < 8; i++) R(90 + Math.sin(t * 2 + i) * 4, 78 + i * 5, 12 - i, 1, "rgba(255,170,80,.7)");
-  for (let i = 0; i < 10; i++) R(((i * 41 + t * 6) % (W + 20)) - 10, 90 + (i * 7) % 34, 6, 1, "rgba(255,255,255,.35)");
-  R(0, 128, W, 26, "#e6cf9c"); for (let i = 0; i < 30; i++) R((i * 31) % W, 130 + (i * 13) % 22, 1, 1, "#cdb27a");
-  R(0, 154, W, WORLD_H - 154, "#7fae6a"); for (let i = 0; i < 70; i++) R((i * 43) % W, 160 + (i * 89) % (WORLD_H - 170), 2, 1, "#6b9a58");
-  R(84, 154, 24, WORLD_H - 154, "#c9b48a");
-  // 풍등 (모두의 소원) — 하늘로 천천히
-  wishes.sun.slice(0, 50).forEach((w, i) => {
-    const h = hash(w.id || i), sp = 0.6 + (h % 10) / 20;
-    const yy = 70 - ((t * sp * 3 + (h % 70)) % 74), xx = 8 + (h >> 5) % (W - 16) + Math.sin(t * 0.8 + i) * 2;
-    R(xx, yy, 3, 4, "#ffb347"); R(xx + 1, yy + 1, 1, 2, "#fff1a8");
-  });
-  // 전망대
-  R(80, 162, 32, 3, "#7a5233"); R(82, 165, 2, 14, "#5a3a22"); R(108, 165, 2, 14, "#5a3a22"); R(80, 158, 32, 1, "#7a5233"); R(80, 158, 1, 4, "#7a5233"); R(111, 158, 1, 4, "#7a5233");
-  // 풍등 광장
-  R(30, 262, 44, 18, "#d9c4a0"); for (let i = 0; i < 4; i++) { const lx = 36 + i * 10, ly = 256 + Math.sin(t * 2 + i) * 1.5; R(lx, ly, 4, 5, "#ff9a3c"); R(lx + 1, ly + 1, 2, 3, "#ffe08a"); }
-  // 종각
-  R(130, 236, 32, 4, "#8b2f2f"); R(128, 234, 36, 3, "#5b1f1f"); R(132, 240, 2, 26, "#6b3a22"); R(158, 240, 2, 26, "#6b3a22");
-  const sw = Math.sin(bellSwing * 10) * bellSwing * 3;
-  R(141 + sw, 242, 10, 12, "#b8873a"); R(139 + sw, 252, 14, 3, "#9a6e2a"); R(145 + sw, 241, 2, 2, "#5b1f1f");
-  drawFire(98, 380, t);
-  // 집 두 채
-  [[24, 330], [150, 320]].forEach(([hx, hy]) => { R(hx, hy, 26, 18, "#e8ddc8"); R(hx - 3, hy - 9, 32, 10, "#3f5f7a"); R(hx + 10, hy + 7, 6, 11, "#6b4428"); R(hx + 3, hy + 5, 5, 5, "#ffd88a"); });
-}
-
-// ---------- 그리기 루프 ----------
-function resize() {
-  const r = $("stage").getBoundingClientRect();
-  H = Math.max(260, Math.min(420, Math.round(W * r.height / Math.max(1, r.width))));
-  cv.width = W; cv.height = H;
-}
-function frame(now) {
-  const t = (now - t0) / 1000, dt = Math.min(0.05, (frame.last ? now - frame.last : 16) / 1000); frame.last = now;
-  bellSwing = Math.max(0, bellSwing - dt * 0.6);
-  // 이동
-  if (!me.sitting && !(anim && anim.kind === "ride")) {
-    const dx = me.tx - me.x, dy = me.ty - me.y, d = Math.hypot(dx, dy);
-    if (d > 0.6) { const s = Math.min(d, 46 * dt); me.x += dx / d * s; me.y += dy / d * s; me.step += s; sendPresence(); }
-  }
-  // 썰매 타기: 하늘 위로 한 바퀴
-  let rider = null;
-  if (anim && anim.kind === "ride") {
-    const p = (t - anim.t) / 5;
-    if (p >= 1) { anim = null; me.x = me.tx = 142; me.y = me.ty = 376; }
-    else { rider = { x: -20 + p * (W + 40), y: 40 - Math.sin(p * Math.PI) * 14 + (1 - Math.sin(p * Math.PI)) * 20 }; }
-  }
-  if (anim && (anim.kind === "sunset" || anim.kind === "sunrise") && t - anim.t > 9) anim = null;
-  const target = rider ? 0 : me.y - H * 0.62;
-  cam += (Math.max(0, Math.min(WORLD_H - H, target)) - cam) * 0.12;
-  g.clearRect(0, 0, W, H);
-  vk === "santa" ? drawSanta(t) : drawSun(t);
-  if (rider) { g.save(); drawSleigh(rider.x, rider.y + cam * 0); person(rider.x - 6, rider.y - 3, me.color, 0, true, ""); g.restore(); }
-  near = null;
-  for (const sp of V().spots) { const d = Math.hypot(sp.x - me.x, sp.y - me.y); if (d < 34 && (!near || d < near.d)) near = { ...sp, d }; if (!rider) glow(sp, t); }
-  const people = peers.filter((p) => p.v === vk).map((p) => ({ ...p, tag: "" }));
-  if (!rider) people.push({ x: me.x, y: me.y, c: me.color, s: me.sitting, me: true, tag: "나" });
-  people.sort((a, b) => a.y - b.y).forEach((p) => person(p.x, p.y, p.c, p.me ? (Math.floor(me.step / 4) % 2) : 0, p.s, p.tag));
-  updateBar();
-  requestAnimationFrame(frame);
-}
-
-// ---------- 화면 조작 ----------
-cv.addEventListener("pointerdown", (e) => {
-  audio();
-  if (!$("sheet").hidden) return;
-  const r = cv.getBoundingClientRect();
-  me.sitting = false;
-  const wx = (e.clientX - r.left) / r.width * W, wy = (e.clientY - r.top) / r.height * H + cam;
-  // 반짝이는 곳을 누르면 그 앞까지 걸어감
-  const hit = V().spots.find((sp) => Math.hypot(sp.x - wx, sp.y - 8 - wy) < 22);
-  me.tx = hit ? hit.x : Math.max(6, Math.min(W - 6, wx));
-  me.ty = hit ? Math.min(WORLD_H - 6, hit.y + 16) : Math.max(150, Math.min(WORLD_H - 6, wy));
-});
-addEventListener("keydown", (e) => {
-  if (!$("sheet").hidden || e.target.tagName === "INPUT") return;
-  const k = { ArrowUp: [0, -14], ArrowDown: [0, 14], ArrowLeft: [-14, 0], ArrowRight: [14, 0] }[e.key];
-  if (!k) return; e.preventDefault(); me.sitting = false;
-  me.tx = Math.max(6, Math.min(W - 6, me.x + k[0])); me.ty = Math.max(150, Math.min(WORLD_H - 6, me.y + k[1]));
-});
-
-let lastBar = "";
-function updateBar() {
-  const key = near ? vk + near.id + me.sitting : "none" + vk;
-  if (key === lastBar) return; lastBar = key;
-  const bar = $("bar"); bar.textContent = "";
-  if (!near) { const p = document.createElement("p"); p.textContent = "마을 안 반짝이는 곳으로 걸어가 보세요"; bar.append(p); return; }
-  near.acts.forEach(([label, act], i) => {
-    const b = document.createElement("button"); b.className = "btn" + (i ? " ghost" : ""); b.textContent = label;
-    b.addEventListener("click", () => doAct(act)); bar.append(b);
-  });
-}
-function toast(msg, ms = 2600) { const el = $("toast"); el.textContent = msg; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (el.hidden = true), ms); }
-
+// ---------- 행동 ----------
+const clock = new THREE.Clock();
+let camMode = "follow", bellSwing = 0, bells = 0;
 function doAct(act) {
   audio();
-  const now = (performance.now() - t0) / 1000;
   if (act === "wish") return openWish();
   if (act === "list") return openList();
   if (act === "letter") return openLetter();
-  if (act === "ride") { anim = { kind: "ride", t: now }; sfx.jingle(); toast("썰매를 타고 마을 위를 날아요"); return; }
-  if (act === "sit") { me.sitting = !me.sitting; me.tx = me.x; me.ty = me.y; sendPresence(); toast(me.sitting ? "타닥타닥, 잠깐 쉬어 가요" : "다시 일어났어요"); lastBar = ""; return; }
-  if (act === "gift") { gifts++; sfx.pop(); toast(`굴뚝에 선물을 넣었어요 (${gifts}개)`); return; }
-  if (act === "sunset" || act === "sunrise") { anim = { kind: act, t: now }; toast(act === "sunset" ? "해가 바다 너머로 넘어가요" : "새해 첫 해가 떠올라요", 4000); return; }
-  if (act === "bell") { ringBell(true); return; }
+  if (act === "sunset" || act === "sunrise") { sunAnim = { kind: act, t: clock.elapsedTime }; camMode = "sea"; toast(act === "sunset" ? "해가 바다 너머로 넘어가요" : "새해 첫 해가 떠올라요", 5000); return; }
+  if (act === "bell") return ringBell(true);
 }
-let bells = 0;
-function ringBell(mine) {
-  bellSwing = 1; sfx.bell();
-  if (mine) { bells++; toast(`댕— 종을 ${bells}번 쳤어요`); room?.emit("bell", { v: "sun" }).catch(() => {}); }
+function ringBell(mine) { bellSwing = 1; sfx.bell(); if (mine) { bells++; toast(`댕— 종을 ${bells}번 쳤어요`); room?.emit("bell", {}).catch(() => {}); } }
+function setSit(on, quiet) {
+  me.sit = on; $("m-sit").setAttribute("aria-pressed", String(on)); $("m-sit-label").textContent = V[vk].sit;
+  camMode = on ? "relax" : "follow"; if (on) { me.tx = me.x; me.tz = me.z; if (!quiet) toast(V[vk].sitMsg, 2400); } sendPresence(true);
+}
+$("m-sit").addEventListener("click", () => { audio(); setSit(!me.sit); });
+$("m-wish").addEventListener("click", () => { audio(); openWish(); });
+$("m-emote").addEventListener("click", () => { audio(); openEmote(); });
+$("m-ball").addEventListener("click", () => { audio(); throwBall(); });
+$("m-photo").addEventListener("click", takePhoto);
+
+// 눈덩이: 가까운 사람에게, 없으면 앞으로
+const balls = [], ballGeo = new THREE.SphereGeometry(0.2, 12, 10), ballMat = M(0xffffff);
+function launch(fx, fz, tx, tz, from, mine) { balls.push({ m: add(ballGeo, ballMat, fx, 1.4, fz), fx, fz, tx, tz, t0: clock.elapsedTime, from, mine }); }
+function throwBall(target) {
+  let best = target || null;
+  if (!best) others.forEach((o) => { if (!o.obj || o.data.v !== vk) return; const d = Math.hypot(o.data.x - me.x, o.data.z - me.z); if (d < 14 && (!best || d < best.d)) best = { d, x: o.data.x, z: o.data.z }; });
+  const tx = best ? best.x : me.x + Math.sin(me.rot) * 7, tz = best ? best.z : me.z + Math.cos(me.rot) * 7;
+  if (best) me.rot = Math.atan2(tx - me.x, tz - me.z);
+  launch(me.x, me.z, tx, tz, me.nick, true); sfx.whoosh();
+  room?.emit("ball", { fx: me.x, fz: me.z, tx, tz, n: me.nick, v: vk }).catch(() => {});
+}
+function updateBalls(t) {
+  for (let i = balls.length - 1; i >= 0; i--) {
+    const b = balls[i], p = Math.min(1, (t - b.t0) / 0.8);
+    b.m.position.set(b.fx + (b.tx - b.fx) * p, 1.4 + Math.sin(p * Math.PI) * 2.2 - p * 0.6, b.fz + (b.tz - b.fz) * p);
+    if (p >= 1) {
+      world.remove(b.m); balls.splice(i, 1); sfx.hit();
+      if (!b.mine && Math.hypot(b.tx - me.x, b.tz - me.z) < 1.3) { const back = { x: b.fx, z: b.fz }; toast(`${b.from}님의 눈덩이에 맞았어요!`, 3500, ["되던지기", () => throwBall(back)]); }
+    }
+  }
 }
 
-// ---------- 소원 쓰기 ----------
-function sheet(build) {
-  const el = $("sheet"); el.textContent = ""; build(el); el.hidden = false;
-  el.querySelector("button, input")?.focus();
-}
-function closeSheet() { $("sheet").hidden = true; }
+// ---------- 아래 창 ----------
 function h(tag, props = {}, kids = []) { const e = Object.assign(document.createElement(tag), props); kids.forEach((k) => e.append(k)); return e; }
-
-function openWish() {
-  const isSanta = vk === "santa";
-  let pick = V().presets[0];
+function sheet(fill) { const el = $("sheet"); el.textContent = ""; fill(el); el.hidden = false; el.querySelector("button, input")?.focus(); }
+function closeSheet() { $("sheet").hidden = true; }
+const BAD = ["씨발", "시발", "ㅅㅂ", "병신", "ㅄ", "좆", "개새", "새끼", "fuck", "섹스", "자살", "죽어", "엿먹", "꺼져"];
+function clean(s, max = 20) {
+  s = String(s || "").replace(/\s+/g, " ").trim().slice(0, max);
+  if (!s) return { ok: true, text: "" };
+  if (BAD.some((w) => s.toLowerCase().includes(w))) return { ok: false, why: "고운 말로 다시 써 주세요." };
+  if (/\d{3,}|https?:|www\.|@|\.com|카톡|오픈채팅|텔레그램/i.test(s)) return { ok: false, why: "연락처·주소·링크는 남길 수 없어요." };
+  return { ok: true, text: s };
+}
+function openNick(first) {
+  let pickHat = me.hat;
   sheet((el) => {
-    el.append(h("h2", { textContent: isSanta ? "소원 트리에 장식 달기" : "소원 풍등 날리기" }));
-    el.append(h("p", { textContent: isSanta ? "고른 소원이 트리 위 반짝이는 장식 하나가 돼요. 마을에 온 사람 모두에게 보여요." : "풍등이 바다 위 하늘로 올라가요. 마을에 온 사람 모두에게 보여요." }));
-    const chips = h("div", { className: "chips" });
-    V().presets.forEach((p) => { const c = h("button", { className: "chip", textContent: p }); c.setAttribute("aria-pressed", String(p === pick)); c.addEventListener("click", () => { pick = p; chips.querySelectorAll(".chip").forEach((x) => x.setAttribute("aria-pressed", String(x.textContent === p))); }); chips.append(c); });
-    el.append(chips);
-    const inp = h("input", { id: "wish-extra", maxLength: 20, placeholder: "한마디 더 (20자, 선택)" });
-    el.append(h("label", { htmlFor: "wish-extra", textContent: "한마디 더 붙이기" }), inp);
-    const err = h("p", { className: "err" }); el.append(err);
+    el.append(h("h2", { textContent: first ? "겨울 소원마을에 오신 걸 환영해요" : "이름과 모자 바꾸기" }), h("p", { textContent: "머리 위에 보일 이름이에요. 실명이나 연락처는 쓰지 마세요." }));
+    const inp = h("input", { id: "nick-input", maxLength: 8, value: me.nick || NICKS[Math.floor(Math.random() * NICKS.length)] });
+    const hats = h("div", { className: "picks" });
+    HATS.forEach((c, i) => { const b = h("button", { className: "pick hat" }); b.setAttribute("aria-label", `모자 색 ${i + 1}`); b.style.background = c; b.setAttribute("aria-pressed", String(i === pickHat)); b.addEventListener("click", () => { pickHat = i; hats.querySelectorAll(".pick").forEach((x, k) => x.setAttribute("aria-pressed", String(k === i))); }); hats.append(b); });
+    const err = h("p", { className: "err" });
+    el.append(h("label", { htmlFor: "nick-input", textContent: "이름 (8자)" }), inp, h("label", { textContent: "모자 색" }), hats, err);
+    const ok = h("button", { className: "btn", textContent: first ? "마을로 들어가기" : "바꾸기" });
+    ok.addEventListener("click", () => { const c = clean(inp.value, 8); if (!c.ok || !c.text) { err.textContent = c.why || "이름을 써 주세요."; return; } me.nick = c.text; me.hat = pickHat; store.set("nick", me.nick); store.set("hat", me.hat); spawnMe(); sendPresence(true); closeSheet(); audio(); sfx.chime(); });
+    el.append(h("div", { className: "row" }, [ok]));
+  });
+}
+function openEmote() {
+  sheet((el) => {
+    el.append(h("h2", { textContent: "표정 짓기" }));
+    const row = h("div", { className: "picks" });
+    ["😊", "😆", "🥰", "🥶", "😴", "👋", "🎉", "🙏"].forEach((e) => { const b = h("button", { className: "pick emo", textContent: e }); b.addEventListener("click", () => { me.emo = e; me.emoAt = Date.now(); sendPresence(true); closeSheet(); sfx.pop(); }); row.append(b); });
+    el.append(row, h("div", { className: "row" }, [h("button", { className: "btn ghost", textContent: "이름·모자 바꾸기", onclick: () => openNick(false) }), h("button", { className: "btn ghost", textContent: "닫기", onclick: closeSheet })]));
+  });
+}
+function openWish() {
+  const isSanta = vk === "santa"; let pick = V[vk].presets[0];
+  sheet((el) => {
+    el.append(h("h2", { textContent: isSanta ? "소원 트리에 장식 달기" : "소원 풍등 날리기" }), h("p", { textContent: isSanta ? "고른 소원이 트리의 반짝이는 장식이 돼요. 마을에 온 사람 모두에게 보여요." : "풍등이 바다 위 하늘로 올라가요. 마을에 온 사람 모두에게 보여요." }));
+    const picks = h("div", { className: "picks" });
+    V[vk].presets.forEach((p) => { const b = h("button", { className: "pick", textContent: p }); b.setAttribute("aria-pressed", String(p === pick)); b.addEventListener("click", () => { pick = p; picks.querySelectorAll(".pick").forEach((x) => x.setAttribute("aria-pressed", String(x.textContent === p))); }); picks.append(b); });
+    const inp = h("input", { id: "wish-extra", maxLength: 20, placeholder: "한마디 더 (20자, 선택)" }), err = h("p", { className: "err" });
+    el.append(picks, h("label", { htmlFor: "wish-extra", textContent: "한마디 더 붙이기" }), inp, err);
     const ok = h("button", { className: "btn", textContent: isSanta ? "장식 달기" : "풍등 날리기" });
-    ok.addEventListener("click", async () => {
-      const c = clean(inp.value); if (!c.ok) { err.textContent = c.why; return; }
-      ok.disabled = true;
-      const w = { preset: pick, text: c.text, at: new Date().toISOString() };
-      await saveWish(w); closeSheet(); isSanta ? sfx.pop() : sfx.whoosh();
-      toast(isSanta ? "트리에 장식이 하나 늘었어요" : "풍등이 하늘로 올라가요");
-    });
+    ok.addEventListener("click", async () => { const c = clean(inp.value); if (!c.ok) { err.textContent = c.why; return; } ok.disabled = true; await saveWish({ preset: pick, text: c.text, at: new Date().toISOString() }); closeSheet(); isSanta ? sfx.chime() : sfx.whoosh(); toast(isSanta ? "트리에 장식이 하나 늘었어요" : "풍등이 하늘로 올라가요"); });
     el.append(h("div", { className: "row" }, [h("button", { className: "btn ghost", textContent: "닫기", onclick: closeSheet }), ok]));
   });
 }
@@ -370,78 +464,145 @@ function openList() {
     el.append(h("h2", { textContent: vk === "santa" ? `트리에 달린 소원 ${list.length}개` : `하늘의 풍등 ${list.length}개` }));
     if (!list.length) el.append(h("p", { textContent: "아직 아무도 없어요. 첫 소원을 남겨 보세요." }));
     const ul = h("ul", { className: "list" });
-    list.slice(0, 40).forEach((w) => ul.append(h("li", {}, [document.createTextNode(w.preset + (w.text ? ` · ${w.text}` : "")), h("small", { textContent: new Date(w.at).toLocaleDateString("ko-KR", { month: "long", day: "numeric" }) })])));
+    list.slice(0, 50).forEach((w) => ul.append(h("li", {}, [document.createTextNode(w.preset + (w.text ? ` · ${w.text}` : "")), h("small", { textContent: new Date(w.at).toLocaleDateString("ko-KR", { month: "long", day: "numeric" }) })])));
     el.append(ul, h("div", { className: "row" }, [h("button", { className: "btn", textContent: "닫기", onclick: closeSheet })]));
   });
 }
 function openLetter() {
   sheet((el) => {
     el.append(h("h2", { textContent: "산타에게 편지 쓰기" }), h("p", { textContent: "편지는 나만 볼 수 있게 보관돼요. 다른 방문자에게는 보이지 않아요." }));
-    const inp = h("input", { id: "letter-text", maxLength: 60, placeholder: "산타 할아버지, 올해 저는…" });
-    const err = h("p", { className: "err" });
+    const inp = h("input", { id: "letter-text", maxLength: 60, placeholder: "산타 할아버지, 올해 저는…" }), err = h("p", { className: "err" });
     el.append(h("label", { htmlFor: "letter-text", textContent: "편지 (60자)" }), inp, err);
     const ok = h("button", { className: "btn", textContent: "우체통에 넣기" });
-    ok.addEventListener("click", async () => {
-      const text = inp.value.trim().slice(0, 60); if (!text) { err.textContent = "한 줄이라도 써 주세요."; return; }
-      try { if (db && uid) await db.collection("data/users/" + uid).doc("santa-letter").set({ text, at: new Date().toISOString() }); else localStorage.setItem("santa-letter", text); } catch {}
-      closeSheet(); sfx.pop(); toast("편지가 산타에게 날아갔어요");
-    });
+    ok.addEventListener("click", async () => { const text = inp.value.trim().slice(0, 60); if (!text) { err.textContent = "한 줄이라도 써 주세요."; return; } try { if (db && uid) await db.collection("data/users/" + uid).doc("santa-letter").set({ text, at: new Date().toISOString() }); else store.set("santa-letter", text); } catch {} closeSheet(); sfx.chime(); toast("편지가 산타에게 날아갔어요"); });
     el.append(h("div", { className: "row" }, [h("button", { className: "btn ghost", textContent: "닫기", onclick: closeSheet }), ok]));
   });
 }
+function openVillage() {
+  sheet((el) => {
+    el.append(h("h2", { textContent: "어느 마을로 갈까요?" }));
+    [["santa", "산타마을", "눈 내리는 밤, 소원 트리와 통나무집"], ["sun", "해맞이마을", "바닷가 전망대, 풍등과 제야의 종"]].forEach(([k, n, d]) => {
+      const b = h("button", { className: "btn vbtn" + (k === vk ? "" : " ghost") }, [document.createTextNode(n), h("small", { textContent: d })]);
+      b.addEventListener("click", () => { closeSheet(); if (k !== vk) { vk = k; build(); sendPresence(true); } }); el.append(b);
+    });
+    el.append(h("div", { className: "row" }, [h("button", { className: "btn ghost", textContent: "닫기", onclick: closeSheet })]));
+  });
+}
 async function saveWish(w) {
-  if (db && uid) {
-    try { await db.collection(vk).doc(uid).set(w); return; } catch { toast("저장하지 못했어요. 이 기기에서만 보여요."); }
-  }
-  const local = { ...w, id: "local-" + Date.now() };
-  wishes[vk] = [local, ...wishes[vk]];
-  try { localStorage.setItem("wish-" + vk, JSON.stringify(local)); } catch {}
+  if (db && uid) { try { await db.collection(vk).doc(uid).set(w); return; } catch { toast("저장하지 못했어요. 이 기기에서만 보여요."); } }
+  const local = { ...w, id: "local-" + Date.now() }; wishes[vk] = [local, ...wishes[vk].filter((x) => !String(x.id).startsWith("local-"))]; store.set("wish-" + vk, local); renderOrnaments();
+}
+let downloads = null;
+function takePhoto() {
+  audio(); sfx.pop(); renderer.render(scene, camera);
+  renderer.domElement.toBlob(async (blob) => {
+    if (!blob) return;
+    try { if (downloads) { await downloads.save({ filename: `${V[vk].name}-${kstDay()}.png`, data: blob }); toast("사진을 저장했어요"); } else toast("여기서는 사진 저장이 안 돼요. 화면 캡처를 써 주세요."); } catch { toast("사진 저장을 취소했어요"); }
+  }, "image/png");
 }
 
-// ---------- 마을 바꾸기 ----------
-function setVillage(k) {
-  vk = k; closeSheet(); anim = null; me.sitting = false; me.x = me.tx = 96; me.y = me.ty = 440; cam = WORLD_H;
-  $("title").firstChild.textContent = V().name; $("sub").textContent = V().sub;
-  $("tab-santa").setAttribute("aria-pressed", String(k === "santa")); $("tab-sun").setAttribute("aria-pressed", String(k === "sun"));
-  lastBar = ""; sendPresence(true);
-}
-$("tab-santa").addEventListener("click", () => setVillage("santa"));
-$("tab-sun").addEventListener("click", () => setVillage("sun"));
+// ---------- 걷기 ----------
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); let down = null;
+renderer.domElement.addEventListener("pointerdown", (e) => { down = { x: e.clientX, y: e.clientY }; audio(); });
+renderer.domElement.addEventListener("pointerup", (e) => {
+  if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 12 || !$("sheet").hidden) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
+  const p = new THREE.Vector3(); if (!ray.ray.intersectPlane(groundPlane, p)) return;
+  if (me.sit) setSit(false); if (camMode === "sea") camMode = "follow";
+  me.tx = Math.max(-22, Math.min(22, p.x)); me.tz = Math.max(vk === "sun" ? -11 : -16, Math.min(16, p.z)); hintDone = true; $("hint").hidden = true;
+});
+const keys = new Set(); addEventListener("keydown", (e) => { if (e.target.tagName === "INPUT") return; keys.add(e.key); }); addEventListener("keyup", (e) => keys.delete(e.key));
 
-// ---------- 함께 있기 (실시간) ----------
-let lastSent = 0;
+// ---------- 같이 있기 (실시간) ----------
+let db = null, room = null, uid = null, lastSent = 0;
 function sendPresence(force) {
-  if (!room) return; const n = performance.now(); if (!force && n - lastSent < 150) return; lastSent = n;
-  room.presence({ v: vk, x: Math.round(me.x), y: Math.round(me.y), c: me.color, s: me.sitting }).catch(() => {});
+  if (!room || !me.nick) return; const n = performance.now(); if (!force && n - lastSent < 120) return; lastSent = n;
+  room.presence({ v: vk, x: +me.x.toFixed(2), z: +me.z.toFixed(2), r: +me.rot.toFixed(2), n: me.nick, h: me.hat, s: me.sit, e: me.emo, et: me.emoAt }).catch(() => {});
 }
-function renderHud() {
-  const here = peers.filter((p) => p.v === vk).length;
-  $("hud").textContent = room ? (here ? `지금 ${here + 1}명이 함께 있어요` : "지금은 나 혼자 있어요") : "혼자 둘러보는 중";
+const EMOS = ["😊", "😆", "🥰", "🥶", "😴", "👋", "🎉", "🙏"];
+function validP(p) { return p && (p.v === "santa" || p.v === "sun") && Number.isFinite(p.x) && Number.isFinite(p.z) && typeof p.n === "string"; }
+function syncPeers(list) {
+  const seen = new Set();
+  for (const pe of list) {
+    if (pe.isMe || pe.kind !== "viewer" || !validP(pe.presence)) continue; seen.add(pe.peer);
+    const p = pe.presence, o = others.get(pe.peer) || { obj: null }; others.set(pe.peer, o);
+    o.data = { v: p.v, x: Math.max(-30, Math.min(30, p.x)), z: Math.max(-30, Math.min(30, p.z)), r: Number(p.r) || 0, h: (p.h | 0) % HATS.length, s: !!p.s, n: clean(p.n, 8).ok ? clean(p.n, 8).text || "방문자" : "방문자", e: EMOS.includes(p.e) ? p.e : "", et: Number(p.et) || 0 };
+  }
+  for (const [k, o] of others) if (!seen.has(k)) { if (o.obj) world.remove(o.obj); labels.querySelector(`[data-k="p${k}"]`)?.remove(); labels.querySelector(`[data-k="e${k}"]`)?.remove(); others.delete(k); }
 }
-function valid(p) { return p && typeof p.x === "number" && typeof p.y === "number" && /^#[0-9a-f]{6}$/i.test(p.c || "") && (p.v === "santa" || p.v === "sun"); }
 
-// 저장해 둔 내 소원(로그인 안 된 미리보기용)
-for (const k of ["santa", "sun"]) { try { const l = JSON.parse(localStorage.getItem("wish-" + k) || "null"); if (l) wishes[k] = [l]; } catch {} }
+// ---------- 그리기 루프 ----------
+const camPos = new THREE.Vector3(0, 8, 18), look = new THREE.Vector3(0, 1, 4);
+function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.fov = camera.aspect < 0.75 ? 58 : 46; camera.updateProjectionMatrix(); }
+addEventListener("resize", resize);
+function loop() {
+  const dt = Math.min(0.05, clock.getDelta()), t = clock.elapsedTime;
+  if (keys.size && !me.sit) { const k = (a) => keys.has(a) ? 1 : 0; const kx = (k("ArrowRight") || k("d")) - (k("ArrowLeft") || k("a")), kz = (k("ArrowDown") || k("s")) - (k("ArrowUp") || k("w")); if (kx || kz) { me.tx = me.x + kx * 1.5; me.tz = me.z + kz * 1.5; } }
+  const dx = me.tx - me.x, dz = me.tz - me.z, d = Math.hypot(dx, dz), walking = d > 0.05 && !me.sit;
+  if (walking) { const s = Math.min(d, 3.4 * dt); me.x += dx / d * s; me.z += dz / d * s; me.rot = Math.atan2(dx, dz); sendPresence(); }
+  if (meObj) {
+    meObj.position.set(me.x, 0, me.z);
+    let dr = me.rot - meObj.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); meObj.rotation.y += dr * 0.2;
+    const b = meObj.userData.body; b.position.y = walking ? Math.abs(Math.sin(t * 10)) * 0.12 : me.sit ? -0.2 : Math.sin(t * 2) * 0.02; b.rotation.z = walking ? Math.sin(t * 10) * 0.08 : 0;
+  }
+  others.forEach((o, k) => {
+    const p = o.data; if (!p) return;
+    if (p.v !== vk) { if (o.obj) { world.remove(o.obj); o.obj = null; } return; }
+    if (!o.obj || o.obj.userData.hat !== p.h) { if (o.obj) world.remove(o.obj); o.obj = makeAvatar(vk, HATS[p.h]); o.obj.userData.hat = p.h; o.obj.position.set(p.x, 0, p.z); world.add(o.obj); }
+    const ox = o.obj.position.x, oz = o.obj.position.z; o.obj.position.x += (p.x - ox) * 0.15; o.obj.position.z += (p.z - oz) * 0.15; o.obj.rotation.y = p.r;
+    o.obj.userData.body.position.y = Math.hypot(p.x - ox, p.z - oz) > 0.03 ? Math.abs(Math.sin(t * 10 + k.length)) * 0.12 : p.s ? -0.2 : 0;
+  });
+  near = null; for (const sp of V[vk].spots) { const dd = Math.hypot(sp.x - me.x, sp.z - me.z); if (dd < sp.r && (!near || dd < near.d)) near = { ...sp, d: dd }; } renderAct();
+  for (let i = dyn.gifts.length - 1; i >= 0; i--) {
+    const gft = dyn.gifts[i]; gft.rotation.y += dt * 1.2; gft.position.y = 0.15 + Math.sin(t * 3 + i) * 0.12;
+    if (Math.hypot(gft.position.x - me.x, gft.position.z - me.z) < 1.1) { world.remove(gft); dyn.gifts.splice(i, 1); const got = store.get(giftKey(), []); got.push(gft.userData.i); store.set(giftKey(), got); sfx.chime(); toast(`오늘의 ${V[vk].giftName}를 찾았어요! ${got.length}/5`); renderChips(); }
+  }
+  if (vk === "santa") {
+    const hh = kstNow().getUTCHours(), lit = hh >= 20 || hh < 2 ? 1 : 0.6;
+    dyn.bulbs.forEach((b) => { const k = (0.55 + 0.45 * Math.sin(t * 2.4 + b.userData.ph)) * lit; b.material.color.copy(b.userData.base).multiplyScalar(0.35 + k); });
+    if (dyn.star) { dyn.star.rotation.y += dt; dyn.star.scale.setScalar(1 + Math.sin(t * 3) * 0.08); }
+    if (dyn.snow) { const a = dyn.snow.geometry.attributes.position; for (let i = 0; i < a.count; i++) { let y = a.getY(i) - dt * (me.sit ? 1.6 : 1.1); if (y < 0) y += 22; a.setY(i, y); } a.needsUpdate = true; }
+  } else {
+    updateSun(t);
+    bellSwing = Math.max(0, bellSwing - dt * 0.4); if (dyn.bell) dyn.bell.rotation.x = Math.sin(t * 6) * bellSwing * 0.35;
+    if (dyn.lanterns) dyn.lanterns.children.forEach((m, i) => { const hs = m.userData.h, sp = 0.35 + (hs % 10) / 30, cyc = (t * sp + (hs % 100) / 10) % 14; m.position.set(-7 + ((hs >> 4) % 24 - 12) * 0.25 + Math.sin(t * 0.6 + i) * 0.6 + cyc * (((hs >> 9) % 7) - 3) * 0.35, 1.8 + cyc * 1.7, -2 - cyc * 4.2); m.material.color.setHSL(0.08, 1, 0.55 + Math.sin(t * 3 + i) * 0.08); });
+  }
+  dyn.fire.forEach((f) => { f.scale.y = 0.85 + Math.sin(t * 12 + f.userData.ph * 2) * 0.18; f.rotation.y += dt * 2; });
+  updateBalls(t);
+  // 카메라: 뒤에서 내려다보기 · 멍때리기 · 바다 보기
+  let want, lookAt;
+  if (camMode === "relax") { want = new THREE.Vector3(me.x + Math.sin(t * 0.15) * 1.2, 1.8, me.z + 4); lookAt = new THREE.Vector3(me.x, vk === "santa" ? 7 : 3, me.z - 14); }
+  else if (camMode === "sea") { want = new THREE.Vector3(me.x, 5, me.z + 9); lookAt = new THREE.Vector3(0, 3, -70); }
+  else { want = new THREE.Vector3(me.x, 7.5, me.z + 11); lookAt = new THREE.Vector3(me.x, 1.2, me.z - 2); }
+  camPos.lerp(want, 0.06); look.lerp(lookAt, 0.08); camera.position.copy(camPos); camera.lookAt(look);
+  renderer.render(scene, camera);
+  if (meObj) { placeTag(tagFor("me", `<b>나</b>${esc(me.nick || "")}`, "tag me"), meObj, 2.5); placeTag(tagFor("emo-me", me.emo && Date.now() - me.emoAt < 4000 ? me.emo : "", "bubble"), meObj, 3.3); }
+  others.forEach((o, k) => { if (!o.obj) return; placeTag(tagFor("p" + k, esc(o.data.n), "tag"), o.obj, 2.5); placeTag(tagFor("e" + k, o.data.e && Date.now() - o.data.et < 4000 ? o.data.e : "", "bubble"), o.obj, 3.3); });
+  requestAnimationFrame(loop);
+}
+
+// 로그인 안 된 미리보기에서도 내 소원은 이 기기에 보이게
+for (const k of ["santa", "sun"]) { const l = store.get("wish-" + k, null); if (l) wishes[k] = [l]; }
+resetDyn(); resize(); build(); requestAnimationFrame(loop);
+if (!me.nick) setTimeout(() => openNick(true), 400);
 
 (async () => {
   if (!window.claude?.use) return;
   try {
-    const [dbNs, roomNs, userNs] = await Promise.all([claude.use("db"), claude.use("room"), claude.use("user")]);
-    db = dbNs; room = roomNs; uid = userNs ? await userNs.id() : null;
-    if (db) for (const k of ["santa", "sun"]) {
-      db.collection(k).orderBy("at", "desc").limit(200).onSnapshot((snap) => {
-        wishes[k] = snap.docs.map((d) => ({ id: d.id, ...(d.data() || {}) })).filter((w) => typeof w.preset === "string" && V().presets && VILLAGES[k].presets.includes(w.preset)).map((w) => ({ ...w, text: clean(w.text).ok ? clean(w.text).text : "" }));
-      }, () => {});
-    }
+    const [dbNs, roomNs, userNs, dlNs] = await Promise.all([claude.use("db"), claude.use("room"), claude.use("user"), claude.use("downloads")]);
+    db = dbNs; room = roomNs; downloads = dlNs; uid = userNs ? await userNs.id() : null;
+    if (db) for (const k of ["santa", "sun"]) db.collection(k).orderBy("at", "desc").limit(200).onSnapshot((snap) => {
+      wishes[k] = snap.docs.map((d) => ({ id: d.id, ...(d.data() || {}) })).filter((w) => V[k].presets.includes(w.preset) && typeof w.at === "string").map((w) => ({ ...w, text: clean(w.text).ok ? clean(w.text).text : "" }));
+      if (k === vk) renderOrnaments();
+    }, () => {});
     if (room) {
-      room.onPeers((ch) => { peers = ch.peers.filter((p) => !p.isMe && valid(p.presence)).map((p) => ({ ...p.presence })); renderHud(); });
+      room.onPeers((ch) => syncPeers(ch.peers));
       room.on("bell", (m) => { if (!m.sameTab && vk === "sun") ringBell(false); });
-      sendPresence(true); renderHud();
+      room.on("ball", (m) => { const d = m.data || {}; if (m.sameTab || d.v !== vk || ![d.fx, d.fz, d.tx, d.tz].every(Number.isFinite)) return; launch(d.fx, d.fz, d.tx, d.tz, clean(d.n, 8).text || "누군가", false); });
+      sendPresence(true);
     }
   } catch {}
 })();
-
-addEventListener("resize", resize);
-resize(); requestAnimationFrame(frame);
 })();
 </script>

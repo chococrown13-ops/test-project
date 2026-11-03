@@ -1,0 +1,447 @@
+<title>겨울 소원마을</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700&display=swap">
+<style>
+/* 한 화면 게임: 위 마을 바꾸기 · 가운데 픽셀 마을(눌러서 이동) · 아래 행동 버튼. 밤하늘 단일 테마 */
+:root{
+  --ink:#f4efe6; --ink-soft:#b9c3d6; --panel:#141c2e; --panel-line:#2c3a58;
+  --accent:#ffcf5a; --accent-ink:#1d1405; --danger:#ff8a7a;
+  --font-display:"Jua","Noto Sans KR",system-ui,sans-serif;
+  --font-body:"Noto Sans KR",system-ui,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%;}
+body{background:#0b1222;color:var(--ink);font-family:var(--font-body);overflow:hidden;touch-action:manipulation;}
+.app{position:relative;height:100%;display:flex;flex-direction:column;max-width:520px;margin:0 auto;}
+.top{display:flex;align-items:center;gap:8px;padding-block:8px;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));}
+.top h1{margin:0;font:400 20px/1.1 var(--font-display);letter-spacing:.01em;flex:1;min-width:0;}
+.top h1 small{display:block;font:400 11px var(--font-body);color:var(--ink-soft);}
+.tabs{display:flex;gap:4px;background:var(--panel);border:1px solid var(--panel-line);border-radius:999px;padding:3px;}
+.tabs button{border:0;background:transparent;color:var(--ink-soft);font:400 14px var(--font-display);padding:7px 12px;border-radius:999px;min-height:36px;cursor:pointer;}
+.tabs button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);}
+.stage{position:relative;flex:1;min-height:0;}
+canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;cursor:pointer;}
+.hud{position:absolute;left:10px;top:8px;font-size:12px;color:var(--ink);background:rgba(10,16,30,.66);padding:4px 9px;border-radius:999px;pointer-events:none;}
+.toast{position:absolute;left:50%;top:44px;transform:translateX(-50%);background:rgba(10,16,30,.86);border:1px solid var(--panel-line);padding:8px 14px;border-radius:12px;font-size:13px;max-width:86%;text-align:center;pointer-events:none;}
+.bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding-block:10px 12px;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));min-height:64px;align-items:center;background:var(--panel);border-top:1px solid var(--panel-line);}
+.bar p{margin:0;color:var(--ink-soft);font-size:13px;text-align:center;}
+.btn{border:0;border-radius:14px;background:var(--accent);color:var(--accent-ink);font:400 16px var(--font-display);padding:10px 16px;min-height:44px;cursor:pointer;}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--panel-line);}
+.btn:focus-visible,.tabs button:focus-visible,.chip:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+.sheet{position:absolute;inset:auto 0 0 0;background:var(--panel);border-top:1px solid var(--panel-line);border-radius:18px 18px 0 0;padding-block:16px calc(16px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:12px;max-height:72%;overflow:auto;z-index:5;}
+.sheet h2{margin:0;font:400 20px var(--font-display);}
+.sheet p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.5;}
+.chips{display:flex;flex-wrap:wrap;gap:6px;}
+.chip{border:1px solid var(--panel-line);background:transparent;color:var(--ink);border-radius:999px;padding:8px 12px;font:400 13px var(--font-body);min-height:36px;cursor:pointer;}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+.sheet label{font-size:13px;color:var(--ink-soft);}
+.sheet input{width:100%;box-sizing:border-box;background:#0b1222;color:var(--ink);border:1px solid var(--panel-line);border-radius:10px;padding:10px 12px;font:400 15px var(--font-body);}
+.row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
+.err{color:var(--danger);font-size:13px;min-height:1em;}
+.list{display:grid;gap:6px;margin:0;padding:0;list-style:none;}
+.list li{background:#0b1222;border:1px solid var(--panel-line);border-radius:10px;padding:8px 10px;font-size:14px;overflow-wrap:anywhere;}
+.list li small{display:block;color:var(--ink-soft);font-size:11px;margin-top:2px;}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <h1 id="title">산타마을<small id="sub">눌러서 걸어가고, 반짝이는 곳에서 멈춰 보세요</small></h1>
+    <div class="tabs" role="group" aria-label="마을 고르기">
+      <button id="tab-santa" aria-pressed="true">산타마을</button>
+      <button id="tab-sun" aria-pressed="false">해맞이마을</button>
+    </div>
+  </header>
+  <div class="stage" id="stage">
+    <canvas id="cv" aria-label="픽셀 마을. 화면을 누르면 그곳으로 걸어가요"></canvas>
+    <div class="hud" id="hud">혼자 둘러보는 중</div>
+    <div class="toast" id="toast" hidden></div>
+    <div class="sheet" id="sheet" hidden></div>
+  </div>
+  <nav class="bar" id="bar"><p>마을 안 반짝이는 곳으로 걸어가 보세요</p></nav>
+</div>
+
+<script>
+(() => {
+const cv = document.getElementById("cv"), g = cv.getContext("2d");
+const $ = (id) => document.getElementById(id);
+const W = 192, WORLD_H = 480;
+let H = 320;
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ---------- 마을 설정 ----------
+const VILLAGES = {
+  santa: {
+    name: "산타마을", sub: "눌러서 걸어가고, 반짝이는 곳에서 멈춰 보세요",
+    presets: ["가족 모두 건강하게", "올해도 수고했어", "합격하게 해 주세요", "내년엔 연애하게", "행복한 크리스마스", "다 잘될 거야"],
+    spots: [
+      { id: "tree", x: 96, y: 168, label: "소원 트리", acts: [["소원 장식 달기", "wish"], ["다른 소원 보기", "list"]] },
+      { id: "mail", x: 154, y: 262, label: "산타 우체통", acts: [["산타에게 편지 쓰기", "letter"]] },
+      { id: "sleigh", x: 142, y: 360, label: "썰매", acts: [["썰매 타기", "ride"]] },
+      { id: "fire", x: 52, y: 372, label: "모닥불", acts: [["불 앞에 앉기", "sit"]] },
+      { id: "house", x: 42, y: 258, label: "굴뚝 집", acts: [["굴뚝에 선물 넣기", "gift"]] },
+    ],
+  },
+  sun: {
+    name: "해맞이마을", sub: "12월 31일엔 해넘이, 1월 1일엔 해돋이",
+    presets: ["새해 복 많이 받으세요", "올해는 꼭 이루자", "건강이 최고", "돈 많이 벌게 해 주세요", "가족 모두 행복하게", "작년보다 나은 한 해"],
+    spots: [
+      { id: "deck", x: 96, y: 176, label: "바닷가 전망대", acts: [["해넘이 보기", "sunset"], ["해돋이 보기", "sunrise"]] },
+      { id: "lantern", x: 52, y: 270, label: "풍등 광장", acts: [["소원 풍등 날리기", "wish"], ["다른 소원 보기", "list"]] },
+      { id: "bell", x: 146, y: 262, label: "종각", acts: [["종 치기", "bell"]] },
+      { id: "fire", x: 98, y: 380, label: "모닥불", acts: [["불 앞에 앉기", "sit"]] },
+    ],
+  },
+};
+let vk = "santa";
+const V = () => VILLAGES[vk];
+
+// ---------- 상태 ----------
+const me = { x: 96, y: 440, tx: 96, ty: 440, color: ["#e2483d", "#3d7be2", "#36a96b", "#c47be2", "#e2a13d"][Math.floor(Math.random() * 5)], step: 0, sitting: false };
+let cam = 0, near = null, wishes = { santa: [], sun: [] }, peers = [], anim = null, bellSwing = 0, gifts = 0, t0 = performance.now();
+let db = null, room = null, uid = null;
+
+// ---------- 소리 (첫 터치 뒤에만) ----------
+let ac = null;
+function audio() { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === "suspended") ac.resume(); } catch { ac = null; } return ac; }
+function tone(freq, dur, type = "sine", vol = 0.15, delay = 0) {
+  const a = audio(); if (!a) return;
+  const o = a.createOscillator(), v = a.createGain(), t = a.currentTime + delay;
+  o.type = type; o.frequency.value = freq; v.gain.setValueAtTime(vol, t); v.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(v).connect(a.destination); o.start(t); o.stop(t + dur);
+}
+const sfx = {
+  bell: () => { tone(196, 3.2, "sine", 0.22); tone(392, 2.4, "sine", 0.08); tone(588, 1.6, "triangle", 0.03); },
+  jingle: () => [0, .12, .24, .48, .6, .72].forEach((d, i) => tone(i % 3 === 2 ? 1568 : 1318, 0.18, "triangle", 0.06, d)),
+  whoosh: () => [0, .08, .16].forEach((d, i) => tone(520 + i * 160, 0.5, "sine", 0.04, d)),
+  pop: () => tone(880, 0.15, "triangle", 0.08),
+};
+
+// ---------- 글 거르기: 욕설·연락처·주소 ----------
+const BAD = ["씨발", "시발", "ㅅㅂ", "병신", "ㅄ", "좆", "개새", "새끼", "fuck", "섹스", "자살", "죽어", "엿먹"];
+function clean(s) {
+  s = (s || "").replace(/\s+/g, " ").trim().slice(0, 20);
+  if (!s) return { ok: true, text: "" };
+  const low = s.toLowerCase();
+  if (BAD.some((w) => low.includes(w))) return { ok: false, why: "고운 말로 다시 써 주세요." };
+  if (/\d{3,}|https?:|www\.|@|\.com|카톡|오픈채팅/i.test(s)) return { ok: false, why: "연락처·주소·링크는 남길 수 없어요." };
+  return { ok: true, text: s };
+}
+
+// ---------- 그리기 도구 ----------
+const R = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y - cam), w, h); };
+function hash(s) { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return (h >>> 0); }
+
+function person(x, y, color, frame, sit, tag) {
+  y = Math.round(y); x = Math.round(x);
+  R(x - 3, y - 1, 7, 2, "rgba(0,0,0,.25)");
+  const by = sit ? y - 6 : y - 8;
+  if (!sit) { R(x - 2, y - 3, 2, 3, "#2b2f45"); R(x + 1, y - 3 + (frame ? 1 : 0), 2, 3 - (frame ? 1 : 0), "#2b2f45"); }
+  R(x - 3, by, 7, 5, color); // 몸
+  R(x - 2, by - 5, 5, 5, "#f2c9a0"); // 얼굴
+  R(x - 1, by - 3, 1, 1, "#2b2230"); R(x + 1, by - 3, 1, 1, "#2b2230");
+  if (vk === "santa") { R(x - 3, by - 7, 7, 2, "#d8323a"); R(x - 3, by - 6, 7, 1, "#fff"); R(x + 3, by - 8, 2, 2, "#fff"); }
+  else { R(x - 3, by - 6, 7, 2, color); R(x - 2, by - 7, 5, 1, color); }
+  if (tag) { g.font = "6px sans-serif"; g.textAlign = "center"; g.fillStyle = "rgba(10,16,30,.7)"; const w = g.measureText(tag).width + 4; g.fillRect(x - w / 2, by - 15 - cam, w, 7); g.fillStyle = "#fff"; g.fillText(tag, x, by - 9.6 - cam); }
+}
+
+function glow(sp, t) {
+  const a = 0.35 + 0.25 * Math.sin(t * 4 + sp.x);
+  g.fillStyle = `rgba(255,214,110,${a})`;
+  for (let i = 0; i < 4; i++) { const ang = t * 1.5 + i * Math.PI / 2; g.fillRect(Math.round(sp.x + Math.cos(ang) * 10), Math.round(sp.y - 6 + Math.sin(ang) * 4 - cam), 1, 1); }
+}
+
+// ---------- 산타마을 ----------
+const snow = Array.from({ length: reduce ? 30 : 90 }, (_, i) => ({ x: (i * 37) % W, y: (i * 53) % WORLD_H, s: 0.4 + (i % 5) * 0.15 }));
+function drawSanta(t) {
+  for (let y = 0; y < 70; y += 2) R(0, y, W, 2, `rgb(${14 + y / 3},${22 + y / 2},${48 + y})`);
+  for (let i = 0; i < 40; i++) { const sx = (i * 47) % W, sy = (i * 29) % 60; if ((t * 2 + i) % 7 > 1) R(sx, sy, 1, 1, "#dfe8ff"); }
+  g.fillStyle = "#f6f0d6"; g.beginPath(); g.arc(156, 20 - cam, 6, 0, 7); g.fill(); g.fillStyle = "rgb(18,27,54)"; g.beginPath(); g.arc(159, 18 - cam, 5, 0, 7); g.fill(); // 초승달
+  R(0, 70, W, WORLD_H - 70, "#e9f0f7");
+  for (let i = 0; i < 60; i++) R((i * 61) % W, 80 + ((i * 97) % (WORLD_H - 90)), 3, 1, "#d3deeb");
+  R(84, 70, 24, WORLD_H - 70, "#dde6f0"); // 눈길
+  for (let i = 0; i < 9; i++) { const px = 12 + i * 21; R(px, 92, 3, 8, "#5a3d2b"); R(px - 3, 86, 9, 7, "#2f7a4f"); R(px - 2, 84, 7, 3, "#fff"); }
+  // 소원 트리
+  const tx = 96, ty = 168;
+  R(tx - 2, ty - 4, 5, 8, "#6b4428");
+  for (let l = 0; l < 6; l++) { const w = 10 + l * 7, yy = ty - 60 + l * 9; R(tx - w / 2, yy, w, 10, l % 2 ? "#2d7a4c" : "#286f45"); R(tx - w / 2, yy + 8, w, 1, "#fff"); }
+  const star = 0.6 + 0.4 * Math.sin(t * 3);
+  R(tx - 2, ty - 66, 5, 5, `rgba(255,214,90,${star})`); R(tx, ty - 68, 1, 9, "#ffd65a"); R(tx - 4, ty - 64, 9, 1, "#ffd65a");
+  const cols = ["#ff5a5a", "#ffd65a", "#6ad1ff", "#ff9bd2", "#b6ff6a", "#ffffff"];
+  wishes.santa.slice(0, 60).forEach((w, i) => {
+    const h = hash(w.id || i), l = h % 6, wl = 10 + l * 7, yy = ty - 57 + l * 9 + ((h >> 4) % 6);
+    const xx = tx - wl / 2 + 2 + ((h >> 8) % Math.max(1, wl - 4));
+    const blink = 0.55 + 0.45 * Math.sin(t * 2 + i);
+    g.globalAlpha = blink; R(xx, yy, 2, 2, cols[(h >> 12) % cols.length]); g.globalAlpha = 1;
+  });
+  // 굴뚝 집
+  R(22, 236, 40, 24, "#b9573f"); R(18, 226, 48, 12, "#7b3a2d"); R(18, 224, 48, 3, "#fff"); R(48, 212, 7, 14, "#7b3a2d"); R(47, 210, 9, 3, "#fff");
+  R(38, 246, 8, 14, "#3a2417"); R(26, 242, 8, 7, "#ffd88a"); R(52, 242, 7, 7, "#ffd88a");
+  for (let i = 0; i < 3; i++) { const sy = 204 - ((t * 8 + i * 6) % 18); R(51 + Math.sin(t + i) * 2, sy, 2, 2, "rgba(220,220,230,.7)"); }
+  // 우체통
+  R(150, 252, 9, 12, "#d8323a"); R(149, 250, 11, 3, "#a8242b"); R(152, 256, 5, 1, "#3a1010"); R(153, 264, 3, 8, "#5a3d2b");
+  // 썰매
+  if (!(anim && anim.kind === "ride")) drawSleigh(142, 360);
+  // 모닥불
+  drawFire(52, 372, t);
+  // 눈
+  snow.forEach((f) => { f.y += f.s; f.x += Math.sin((f.y + f.x) / 20) * 0.2; if (f.y > WORLD_H) { f.y = 0; f.x = Math.random() * W; } R(f.x, f.y, 1, 1, "#ffffff"); });
+}
+function drawSleigh(x, y) {
+  R(x - 12, y - 6, 20, 7, "#c9302c"); R(x - 14, y - 10, 5, 8, "#c9302c"); R(x - 12, y + 1, 22, 1, "#e0b04a"); R(x + 8, y - 1, 3, 2, "#e0b04a");
+  R(x + 14, y - 8, 8, 5, "#8a5a3a"); R(x + 20, y - 11, 3, 4, "#8a5a3a"); R(x + 21, y - 12, 1, 1, "#ff3b3b"); R(x + 15, y - 3, 1, 4, "#5a3d2b"); R(x + 20, y - 3, 1, 4, "#5a3d2b");
+}
+function drawFire(x, y, t) {
+  R(x - 8, y + 2, 16, 3, "#6b4428");
+  for (let i = 0; i < 5; i++) { const h = 4 + ((Math.sin(t * 9 + i * 1.7) + 1) * 3) | 0; R(x - 5 + i * 2, y + 2 - h, 2, h, i % 2 ? "#ffb23e" : "#ff6a2a"); }
+  R(x - 1, y - 6 - (Math.sin(t * 7) + 1) * 2, 2, 2, "#ffe37a");
+}
+
+// ---------- 해맞이마을 ----------
+function skyFor(phase) {
+  // phase: 0 밤 · 1 해 뜨기/지기 · 2 낮
+  if (phase === 2) return [[120, 186, 236], [184, 222, 246]];
+  if (phase === 1) return [[60, 58, 120], [252, 150, 90]];
+  return [[12, 18, 44], [36, 44, 90]];
+}
+function sunState(t) {
+  if (anim && (anim.kind === "sunset" || anim.kind === "sunrise")) {
+    const p = Math.min(1, (t - anim.t) / 7);
+    const up = anim.kind === "sunrise" ? p : 1 - p;
+    return { y: 80 - up * 46, phase: up > 0.15 ? 1 : 0, glow: 1 - Math.abs(up - 0.4) };
+  }
+  const h = new Date(Date.now() + 9 * 3600e3).getUTCHours(); // 한국 시간
+  if (h >= 7 && h < 17) return { y: 24, phase: 2, glow: 0 };
+  if (h === 6 || h === 17) return { y: 60, phase: 1, glow: 0.8 };
+  return { y: 999, phase: 0, glow: 0 };
+}
+function drawSun(t) {
+  const s = sunState(t), [a, b] = skyFor(s.phase);
+  for (let y = 0; y < 74; y += 2) { const u = y / 74; R(0, y, W, 2, `rgb(${a[0] + (b[0] - a[0]) * u | 0},${a[1] + (b[1] - a[1]) * u | 0},${a[2] + (b[2] - a[2]) * u | 0})`); }
+  if (s.phase === 0) for (let i = 0; i < 36; i++) if ((t * 2 + i) % 6 > 1) R((i * 53) % W, (i * 31) % 64, 1, 1, "#e8eeff");
+  if (s.y < 90) { R(84, s.y - 6, 24, 12, s.phase === 2 ? "#fff2b0" : "#ffb347"); R(86, s.y - 8, 20, 16, s.phase === 2 ? "#fff2b0" : "#ffb347"); R(88, s.y - 10, 16, 20, s.phase === 2 ? "#fff6c8" : "#ff9a3c"); }
+  // 바다 (해가 수평선 아래로 가려짐)
+  for (let y = 74; y < 128; y += 2) R(0, y, W, 2, s.phase === 0 ? `rgb(18,${30 + (y - 74) / 3 | 0},${66 + (y - 74) / 2 | 0})` : s.phase === 1 ? `rgb(${70 - (y - 74) / 2 | 0},${70 + (y - 74) / 4 | 0},${120 + (y - 74) / 3 | 0})` : `rgb(46,${120 + (y - 74) / 3 | 0},${180 + (y - 74) / 4 | 0})`);
+  if (s.y < 90 && s.phase !== 2) for (let i = 0; i < 8; i++) R(90 + Math.sin(t * 2 + i) * 4, 78 + i * 5, 12 - i, 1, "rgba(255,170,80,.7)");
+  for (let i = 0; i < 10; i++) R(((i * 41 + t * 6) % (W + 20)) - 10, 90 + (i * 7) % 34, 6, 1, "rgba(255,255,255,.35)");
+  R(0, 128, W, 26, "#e6cf9c"); for (let i = 0; i < 30; i++) R((i * 31) % W, 130 + (i * 13) % 22, 1, 1, "#cdb27a");
+  R(0, 154, W, WORLD_H - 154, "#7fae6a"); for (let i = 0; i < 70; i++) R((i * 43) % W, 160 + (i * 89) % (WORLD_H - 170), 2, 1, "#6b9a58");
+  R(84, 154, 24, WORLD_H - 154, "#c9b48a");
+  // 풍등 (모두의 소원) — 하늘로 천천히
+  wishes.sun.slice(0, 50).forEach((w, i) => {
+    const h = hash(w.id || i), sp = 0.6 + (h % 10) / 20;
+    const yy = 70 - ((t * sp * 3 + (h % 70)) % 74), xx = 8 + (h >> 5) % (W - 16) + Math.sin(t * 0.8 + i) * 2;
+    R(xx, yy, 3, 4, "#ffb347"); R(xx + 1, yy + 1, 1, 2, "#fff1a8");
+  });
+  // 전망대
+  R(80, 162, 32, 3, "#7a5233"); R(82, 165, 2, 14, "#5a3a22"); R(108, 165, 2, 14, "#5a3a22"); R(80, 158, 32, 1, "#7a5233"); R(80, 158, 1, 4, "#7a5233"); R(111, 158, 1, 4, "#7a5233");
+  // 풍등 광장
+  R(30, 262, 44, 18, "#d9c4a0"); for (let i = 0; i < 4; i++) { const lx = 36 + i * 10, ly = 256 + Math.sin(t * 2 + i) * 1.5; R(lx, ly, 4, 5, "#ff9a3c"); R(lx + 1, ly + 1, 2, 3, "#ffe08a"); }
+  // 종각
+  R(130, 236, 32, 4, "#8b2f2f"); R(128, 234, 36, 3, "#5b1f1f"); R(132, 240, 2, 26, "#6b3a22"); R(158, 240, 2, 26, "#6b3a22");
+  const sw = Math.sin(bellSwing * 10) * bellSwing * 3;
+  R(141 + sw, 242, 10, 12, "#b8873a"); R(139 + sw, 252, 14, 3, "#9a6e2a"); R(145 + sw, 241, 2, 2, "#5b1f1f");
+  drawFire(98, 380, t);
+  // 집 두 채
+  [[24, 330], [150, 320]].forEach(([hx, hy]) => { R(hx, hy, 26, 18, "#e8ddc8"); R(hx - 3, hy - 9, 32, 10, "#3f5f7a"); R(hx + 10, hy + 7, 6, 11, "#6b4428"); R(hx + 3, hy + 5, 5, 5, "#ffd88a"); });
+}
+
+// ---------- 그리기 루프 ----------
+function resize() {
+  const r = $("stage").getBoundingClientRect();
+  H = Math.max(260, Math.min(420, Math.round(W * r.height / Math.max(1, r.width))));
+  cv.width = W; cv.height = H;
+}
+function frame(now) {
+  const t = (now - t0) / 1000, dt = Math.min(0.05, (frame.last ? now - frame.last : 16) / 1000); frame.last = now;
+  bellSwing = Math.max(0, bellSwing - dt * 0.6);
+  // 이동
+  if (!me.sitting && !(anim && anim.kind === "ride")) {
+    const dx = me.tx - me.x, dy = me.ty - me.y, d = Math.hypot(dx, dy);
+    if (d > 0.6) { const s = Math.min(d, 46 * dt); me.x += dx / d * s; me.y += dy / d * s; me.step += s; sendPresence(); }
+  }
+  // 썰매 타기: 하늘 위로 한 바퀴
+  let rider = null;
+  if (anim && anim.kind === "ride") {
+    const p = (t - anim.t) / 5;
+    if (p >= 1) { anim = null; me.x = me.tx = 142; me.y = me.ty = 376; }
+    else { rider = { x: -20 + p * (W + 40), y: 40 - Math.sin(p * Math.PI) * 14 + (1 - Math.sin(p * Math.PI)) * 20 }; }
+  }
+  if (anim && (anim.kind === "sunset" || anim.kind === "sunrise") && t - anim.t > 9) anim = null;
+  const target = rider ? 0 : me.y - H * 0.62;
+  cam += (Math.max(0, Math.min(WORLD_H - H, target)) - cam) * 0.12;
+  g.clearRect(0, 0, W, H);
+  vk === "santa" ? drawSanta(t) : drawSun(t);
+  if (rider) { g.save(); drawSleigh(rider.x, rider.y + cam * 0); person(rider.x - 6, rider.y - 3, me.color, 0, true, ""); g.restore(); }
+  near = null;
+  for (const sp of V().spots) { const d = Math.hypot(sp.x - me.x, sp.y - me.y); if (d < 34 && (!near || d < near.d)) near = { ...sp, d }; if (!rider) glow(sp, t); }
+  const people = peers.filter((p) => p.v === vk).map((p) => ({ ...p, tag: "" }));
+  if (!rider) people.push({ x: me.x, y: me.y, c: me.color, s: me.sitting, me: true, tag: "나" });
+  people.sort((a, b) => a.y - b.y).forEach((p) => person(p.x, p.y, p.c, p.me ? (Math.floor(me.step / 4) % 2) : 0, p.s, p.tag));
+  updateBar();
+  requestAnimationFrame(frame);
+}
+
+// ---------- 화면 조작 ----------
+cv.addEventListener("pointerdown", (e) => {
+  audio();
+  if (!$("sheet").hidden) return;
+  const r = cv.getBoundingClientRect();
+  me.sitting = false;
+  const wx = (e.clientX - r.left) / r.width * W, wy = (e.clientY - r.top) / r.height * H + cam;
+  // 반짝이는 곳을 누르면 그 앞까지 걸어감
+  const hit = V().spots.find((sp) => Math.hypot(sp.x - wx, sp.y - 8 - wy) < 22);
+  me.tx = hit ? hit.x : Math.max(6, Math.min(W - 6, wx));
+  me.ty = hit ? Math.min(WORLD_H - 6, hit.y + 16) : Math.max(150, Math.min(WORLD_H - 6, wy));
+});
+addEventListener("keydown", (e) => {
+  if (!$("sheet").hidden || e.target.tagName === "INPUT") return;
+  const k = { ArrowUp: [0, -14], ArrowDown: [0, 14], ArrowLeft: [-14, 0], ArrowRight: [14, 0] }[e.key];
+  if (!k) return; e.preventDefault(); me.sitting = false;
+  me.tx = Math.max(6, Math.min(W - 6, me.x + k[0])); me.ty = Math.max(150, Math.min(WORLD_H - 6, me.y + k[1]));
+});
+
+let lastBar = "";
+function updateBar() {
+  const key = near ? vk + near.id + me.sitting : "none" + vk;
+  if (key === lastBar) return; lastBar = key;
+  const bar = $("bar"); bar.textContent = "";
+  if (!near) { const p = document.createElement("p"); p.textContent = "마을 안 반짝이는 곳으로 걸어가 보세요"; bar.append(p); return; }
+  near.acts.forEach(([label, act], i) => {
+    const b = document.createElement("button"); b.className = "btn" + (i ? " ghost" : ""); b.textContent = label;
+    b.addEventListener("click", () => doAct(act)); bar.append(b);
+  });
+}
+function toast(msg, ms = 2600) { const el = $("toast"); el.textContent = msg; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (el.hidden = true), ms); }
+
+function doAct(act) {
+  audio();
+  const now = (performance.now() - t0) / 1000;
+  if (act === "wish") return openWish();
+  if (act === "list") return openList();
+  if (act === "letter") return openLetter();
+  if (act === "ride") { anim = { kind: "ride", t: now }; sfx.jingle(); toast("썰매를 타고 마을 위를 날아요"); return; }
+  if (act === "sit") { me.sitting = !me.sitting; me.tx = me.x; me.ty = me.y; sendPresence(); toast(me.sitting ? "타닥타닥, 잠깐 쉬어 가요" : "다시 일어났어요"); lastBar = ""; return; }
+  if (act === "gift") { gifts++; sfx.pop(); toast(`굴뚝에 선물을 넣었어요 (${gifts}개)`); return; }
+  if (act === "sunset" || act === "sunrise") { anim = { kind: act, t: now }; toast(act === "sunset" ? "해가 바다 너머로 넘어가요" : "새해 첫 해가 떠올라요", 4000); return; }
+  if (act === "bell") { ringBell(true); return; }
+}
+let bells = 0;
+function ringBell(mine) {
+  bellSwing = 1; sfx.bell();
+  if (mine) { bells++; toast(`댕— 종을 ${bells}번 쳤어요`); room?.emit("bell", { v: "sun" }).catch(() => {}); }
+}
+
+// ---------- 소원 쓰기 ----------
+function sheet(build) {
+  const el = $("sheet"); el.textContent = ""; build(el); el.hidden = false;
+  el.querySelector("button, input")?.focus();
+}
+function closeSheet() { $("sheet").hidden = true; }
+function h(tag, props = {}, kids = []) { const e = Object.assign(document.createElement(tag), props); kids.forEach((k) => e.append(k)); return e; }
+
+function openWish() {
+  const isSanta = vk === "santa";
+  let pick = V().presets[0];
+  sheet((el) => {
+    el.append(h("h2", { textContent: isSanta ? "소원 트리에 장식 달기" : "소원 풍등 날리기" }));
+    el.append(h("p", { textContent: isSanta ? "고른 소원이 트리 위 반짝이는 장식 하나가 돼요. 마을에 온 사람 모두에게 보여요." : "풍등이 바다 위 하늘로 올라가요. 마을에 온 사람 모두에게 보여요." }));
+    const chips = h("div", { className: "chips" });
+    V().presets.forEach((p) => { const c = h("button", { className: "chip", textContent: p }); c.setAttribute("aria-pressed", String(p === pick)); c.addEventListener("click", () => { pick = p; chips.querySelectorAll(".chip").forEach((x) => x.setAttribute("aria-pressed", String(x.textContent === p))); }); chips.append(c); });
+    el.append(chips);
+    const inp = h("input", { id: "wish-extra", maxLength: 20, placeholder: "한마디 더 (20자, 선택)" });
+    el.append(h("label", { htmlFor: "wish-extra", textContent: "한마디 더 붙이기" }), inp);
+    const err = h("p", { className: "err" }); el.append(err);
+    const ok = h("button", { className: "btn", textContent: isSanta ? "장식 달기" : "풍등 날리기" });
+    ok.addEventListener("click", async () => {
+      const c = clean(inp.value); if (!c.ok) { err.textContent = c.why; return; }
+      ok.disabled = true;
+      const w = { preset: pick, text: c.text, at: new Date().toISOString() };
+      await saveWish(w); closeSheet(); isSanta ? sfx.pop() : sfx.whoosh();
+      toast(isSanta ? "트리에 장식이 하나 늘었어요" : "풍등이 하늘로 올라가요");
+    });
+    el.append(h("div", { className: "row" }, [h("button", { className: "btn ghost", textContent: "닫기", onclick: closeSheet }), ok]));
+  });
+}
+function openList() {
+  const list = wishes[vk];
+  sheet((el) => {
+    el.append(h("h2", { textContent: vk === "santa" ? `트리에 달린 소원 ${list.length}개` : `하늘의 풍등 ${list.length}개` }));
+    if (!list.length) el.append(h("p", { textContent: "아직 아무도 없어요. 첫 소원을 남겨 보세요." }));
+    const ul = h("ul", { className: "list" });
+    list.slice(0, 40).forEach((w) => ul.append(h("li", {}, [document.createTextNode(w.preset + (w.text ? ` · ${w.text}` : "")), h("small", { textContent: new Date(w.at).toLocaleDateString("ko-KR", { month: "long", day: "numeric" }) })])));
+    el.append(ul, h("div", { className: "row" }, [h("button", { className: "btn", textContent: "닫기", onclick: closeSheet })]));
+  });
+}
+function openLetter() {
+  sheet((el) => {
+    el.append(h("h2", { textContent: "산타에게 편지 쓰기" }), h("p", { textContent: "편지는 나만 볼 수 있게 보관돼요. 다른 방문자에게는 보이지 않아요." }));
+    const inp = h("input", { id: "letter-text", maxLength: 60, placeholder: "산타 할아버지, 올해 저는…" });
+    const err = h("p", { className: "err" });
+    el.append(h("label", { htmlFor: "letter-text", textContent: "편지 (60자)" }), inp, err);
+    const ok = h("button", { className: "btn", textContent: "우체통에 넣기" });
+    ok.addEventListener("click", async () => {
+      const text = inp.value.trim().slice(0, 60); if (!text) { err.textContent = "한 줄이라도 써 주세요."; return; }
+      try { if (db && uid) await db.collection("data/users/" + uid).doc("santa-letter").set({ text, at: new Date().toISOString() }); else localStorage.setItem("santa-letter", text); } catch {}
+      closeSheet(); sfx.pop(); toast("편지가 산타에게 날아갔어요");
+    });
+    el.append(h("div", { className: "row" }, [h("button", { className: "btn ghost", textContent: "닫기", onclick: closeSheet }), ok]));
+  });
+}
+async function saveWish(w) {
+  if (db && uid) {
+    try { await db.collection(vk).doc(uid).set(w); return; } catch { toast("저장하지 못했어요. 이 기기에서만 보여요."); }
+  }
+  const local = { ...w, id: "local-" + Date.now() };
+  wishes[vk] = [local, ...wishes[vk]];
+  try { localStorage.setItem("wish-" + vk, JSON.stringify(local)); } catch {}
+}
+
+// ---------- 마을 바꾸기 ----------
+function setVillage(k) {
+  vk = k; closeSheet(); anim = null; me.sitting = false; me.x = me.tx = 96; me.y = me.ty = 440; cam = WORLD_H;
+  $("title").firstChild.textContent = V().name; $("sub").textContent = V().sub;
+  $("tab-santa").setAttribute("aria-pressed", String(k === "santa")); $("tab-sun").setAttribute("aria-pressed", String(k === "sun"));
+  lastBar = ""; sendPresence(true);
+}
+$("tab-santa").addEventListener("click", () => setVillage("santa"));
+$("tab-sun").addEventListener("click", () => setVillage("sun"));
+
+// ---------- 함께 있기 (실시간) ----------
+let lastSent = 0;
+function sendPresence(force) {
+  if (!room) return; const n = performance.now(); if (!force && n - lastSent < 150) return; lastSent = n;
+  room.presence({ v: vk, x: Math.round(me.x), y: Math.round(me.y), c: me.color, s: me.sitting }).catch(() => {});
+}
+function renderHud() {
+  const here = peers.filter((p) => p.v === vk).length;
+  $("hud").textContent = room ? (here ? `지금 ${here + 1}명이 함께 있어요` : "지금은 나 혼자 있어요") : "혼자 둘러보는 중";
+}
+function valid(p) { return p && typeof p.x === "number" && typeof p.y === "number" && /^#[0-9a-f]{6}$/i.test(p.c || "") && (p.v === "santa" || p.v === "sun"); }
+
+// 저장해 둔 내 소원(로그인 안 된 미리보기용)
+for (const k of ["santa", "sun"]) { try { const l = JSON.parse(localStorage.getItem("wish-" + k) || "null"); if (l) wishes[k] = [l]; } catch {} }
+
+(async () => {
+  if (!window.claude?.use) return;
+  try {
+    const [dbNs, roomNs, userNs] = await Promise.all([claude.use("db"), claude.use("room"), claude.use("user")]);
+    db = dbNs; room = roomNs; uid = userNs ? await userNs.id() : null;
+    if (db) for (const k of ["santa", "sun"]) {
+      db.collection(k).orderBy("at", "desc").limit(200).onSnapshot((snap) => {
+        wishes[k] = snap.docs.map((d) => ({ id: d.id, ...(d.data() || {}) })).filter((w) => typeof w.preset === "string" && V().presets && VILLAGES[k].presets.includes(w.preset)).map((w) => ({ ...w, text: clean(w.text).ok ? clean(w.text).text : "" }));
+      }, () => {});
+    }
+    if (room) {
+      room.onPeers((ch) => { peers = ch.peers.filter((p) => !p.isMe && valid(p.presence)).map((p) => ({ ...p.presence })); renderHud(); });
+      room.on("bell", (m) => { if (!m.sameTab && vk === "sun") ringBell(false); });
+      sendPresence(true); renderHud();
+    }
+  } catch {}
+})();
+
+addEventListener("resize", resize);
+resize(); requestAnimationFrame(frame);
+})();
+</script>
