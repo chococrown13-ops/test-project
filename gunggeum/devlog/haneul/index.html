@@ -1,0 +1,153 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}
+canvas{display:block}
+</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// 도시의 나이테 · 원래 ○○이었다 #3 「하늘공원은 원래 쓰레기 산이었다」 — render(t) 한 번 = 한 프레임.
+// 옆에서 본 단순화한 단면. 쌓였다가(갈색→회색) 흙으로 덮이고(초록) 억새가 자란다. 모양·높이는 모두 단순화한 근사.
+const W=1080,H=1920;
+const cv=document.getElementById('c'),g=cv.getContext('2d');
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const lerp=(a,b,u)=>a+(b-a)*u,clamp01=x=>Math.max(0,Math.min(1,x));
+function smooth(a,b,t){const u=clamp01((t-a)/(b-a));return u*u*(3-2*u)}
+const mix=(a,b,u)=>a.map((v,i)=>v+(b[i]-v)*u),rgb=(c,a)=>a===undefined?`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`:`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;
+function roundRect(x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+
+// ---------- 월드 ----------
+const GY=1330;                       // 땅(섬) 윗면
+const ISL_L=170, ISL_R=930;          // 섬 좌우 끝
+const PEAKS=[{x:400,h:470,w:170},{x:700,h:400,w:150}];
+let T=0,kA=0,kB=0,c1=0,c2=0,reed=0,hook=0;
+function setState(t){T=t;
+  hook=t<3.4?1-smooth(1.8,3.0,t):0;
+  kA=lerp(smooth(9.4,16.4,t),1,hook);
+  kB=lerp(smooth(12,19.4,t),1,hook);
+  c1=lerp(smooth(21.4,24,t),1,hook);      // 흙 덮기
+  c2=lerp(smooth(23.4,26,t),1,hook);      // 초록
+  reed=lerp(smooth(26.2,28.6,t),1,hook);  // 억새
+}
+function hAt(x){ // 쓰레기 산 높이
+  let h=0;const ks=[kA,kB];
+  PEAKS.forEach((p,i)=>{const d=(x-p.x)/p.w;h+=p.h*ks[i]*Math.exp(-d*d*1.3)});
+  const edge=Math.min(x-ISL_L,ISL_R-x);return h*smooth(0,60,edge)}
+function topY(x){return GY-hAt(x)}
+function sky(){ // 맑은 하늘 → 뿌연 회색 → 다시 맑게
+  const dull=smooth(9,14,T)*(1-smooth(22,26,T))*(1-hook);
+  const a=mix([128,196,236],[176,172,160],dull),b=mix([220,238,248],[212,204,188],dull);
+  const gr=g.createLinearGradient(0,0,0,GY);gr.addColorStop(0,rgb(a));gr.addColorStop(1,rgb(b));g.fillStyle=gr;g.fillRect(0,0,W,GY+40)}
+
+// ---------- 그리기 ----------
+function drawWorld(){
+  sky();
+  // 구름
+  const rc=rng(3);for(let i=0;i<5;i++){const x=((rc()*1500+T*12*(0.6+rc()))%1500)-200,y=690+rc()*150,s=.7+rc()*.8;g.fillStyle='rgba(255,255,255,.55)';
+    for(const[dx,dy,r]of[[0,0,48],[50,-14,40],[-48,6,34],[92,8,30]]){g.beginPath();g.arc(x+dx*s,y+dy*s,r*s,0,7);g.fill()}}
+  // 물(한강) : 섬 좌우, 아래쪽까지
+  g.fillStyle=rgb(mix([66,142,196],[96,120,120],smooth(10,15,T)*(1-smooth(22,26,T))*(1-hook)));g.fillRect(0,GY+40,W,H);
+  g.fillRect(0,GY+10,ISL_L,40);g.fillRect(ISL_R,GY+10,W-ISL_R,40);
+  const rw=rng(11);g.strokeStyle='rgba(255,255,255,.35)';g.lineWidth=4;
+  for(let i=0;i<40;i++){const x=rw()*W,y=GY+90+rw()*470,ph=(T*26+rw()*300)%60;g.beginPath();g.moveTo(x+ph,y);g.lineTo(x+ph+50,y);g.stroke()}
+  // 둑(오른쪽, 육지와 이어짐)
+  const dk=smooth(4.2,6.2,T)+hook;const dkA=clamp01(dk);
+  g.fillStyle='rgb(172,150,118)';g.fillRect(ISL_R-6,GY+10,W-ISL_R+6,H);
+  g.globalAlpha=dkA;g.fillStyle='rgb(150,146,138)';g.beginPath();g.moveTo(ISL_R-20,GY+60);g.lineTo(ISL_R+10,GY+2);g.lineTo(W,GY+2);g.lineTo(W,GY+60);g.fill();g.globalAlpha=1;
+  // 섬(땅 단면)
+  g.fillStyle='rgb(176,150,108)';g.beginPath();g.moveTo(ISL_L-40,GY+70);g.quadraticCurveTo(ISL_L-30,GY+6,ISL_L+30,GY);g.lineTo(ISL_R,GY);g.lineTo(ISL_R+20,GY+70);g.closePath();g.fill();
+  g.fillStyle='rgb(136,166,98)';g.fillRect(ISL_L+10,GY-8,ISL_R-ISL_L-10,12);
+  // 옛 섬 풍경: 나무·풀 (쓰레기가 쌓이기 전)
+  const old=(1-smooth(9.2,11,T))*(1-hook);
+  if(old>0.01){const r=rng(31);g.globalAlpha=old;for(let i=0;i<22;i++){const x=ISL_L+50+r()*(ISL_R-ISL_L-100),h=40+r()*50;
+    if(r()<.35){g.fillStyle='rgb(96,70,48)';g.fillRect(x-4,GY-h,8,h);g.fillStyle='rgb(84,150,84)';g.beginPath();g.arc(x,GY-h-14,26+r()*10,0,7);g.fill()}
+    else{g.strokeStyle='rgb(120,170,92)';g.lineWidth=4;for(let k=-2;k<=2;k++){g.beginPath();g.moveTo(x+k*5,GY);g.lineTo(x+k*9+Math.sin(T*2+i)*4,GY-26-r()*14);g.stroke()}}}g.globalAlpha=1}
+  // 쓰레기 산
+  if(kA>0.005||kB>0.005){
+    const xs=[];for(let x=ISL_L;x<=ISL_R;x+=6)xs.push(x);
+    g.save();g.beginPath();g.moveTo(ISL_L,GY);for(const x of xs)g.lineTo(x,topY(x));g.lineTo(ISL_R,GY);g.closePath();g.clip();
+    g.fillStyle='rgb(128,104,78)';g.fillRect(0,0,W,H);
+    // 켜켜이 쌓인 층(갈색·회색·진한 색)
+    const bands=[[116,92,68],[150,146,138],[98,84,66],[170,148,112],[120,122,126],[88,74,60]];
+    for(let y=GY,i=0;y>GY-520;y-=26,i++){g.fillStyle=rgb(bands[i%bands.length],.9);g.beginPath();g.moveTo(0,y);for(let x=0;x<=W;x+=40)g.lineTo(x,y+Math.sin(x*.02+i)*7);g.lineTo(W,y-26);g.lineTo(0,y-26);g.closePath();g.fill()}
+    // 쓰레기 알갱이
+    const rt=rng(41);for(let i=0;i<420;i++){const x=ISL_L+rt()*(ISL_R-ISL_L),y=GY-rt()*520;if(y<topY(x))continue;
+      g.fillStyle=['#d6c9a4','#8aa0b0','#c0705a','#e8e4da','#5a5a60','#b09a50'][i%6];g.fillRect(x,y,5+rt()*9,4+rt()*6)}
+    g.restore();
+    // 윗면 선(덮이기 전): 어두운 테두리
+    g.strokeStyle='rgba(60,48,38,.75)';g.lineWidth=5;g.lineJoin='round';g.beginPath();g.moveTo(ISL_L,GY);for(const x of xs)g.lineTo(x,topY(x));g.lineTo(ISL_R,GY);g.stroke();
+    // 흙 덮기(진한 흙색 → 초록)
+    if(c1>0){const n=Math.floor(xs.length*c1);g.lineCap='round';g.lineJoin='round';g.strokeStyle='rgb(92,68,46)';g.lineWidth=26;g.beginPath();for(let i=0;i<=n&&i<xs.length;i++){const x=xs[i],y=topY(x)+4;i?g.lineTo(x,y):g.moveTo(x,y)}g.stroke()}
+    if(c2>0){const n=Math.floor(xs.length*c2);g.strokeStyle='rgb(112,162,84)';g.lineWidth=20;g.beginPath();for(let i=0;i<=n&&i<xs.length;i++){const x=xs[i],y=topY(x)-4;i?g.lineTo(x,y):g.moveTo(x,y)}g.stroke()}
+  }
+  // 가스 뽑는 관 + 침출수 모으는 관 (안정화 사업)
+  const pipe=smooth(21.6,23.2,T)*(1-smooth(26.5,27.8,T))*(1-hook);
+  if(pipe>0){g.globalAlpha=pipe;
+    for(const px of [330,470,640,760]){const ty=topY(px);g.strokeStyle='rgb(70,76,90)';g.lineWidth=8;g.beginPath();g.moveTo(px,GY-30);g.lineTo(px,ty-70);g.stroke();
+      for(let i=0;i<4;i++){const u=((T*.5+i/4+px*.003)%1);g.fillStyle=`rgba(255,255,255,${.8*(1-u)})`;g.beginPath();g.arc(px+Math.sin(u*9+i)*10,ty-70-u*130,8+u*8,0,7);g.fill()}}
+    g.strokeStyle='rgb(70,76,90)';g.lineWidth=8;g.beginPath();g.moveTo(ISL_L+30,GY+30);g.lineTo(ISL_R-30,GY+30);g.stroke();
+    for(let i=0;i<9;i++){const u=((T*.35+i/9)%1);g.fillStyle='rgb(88,170,214)';g.beginPath();g.arc(ISL_R-30-u*(ISL_R-ISL_L-60),GY+30,6,0,7);g.fill()}
+    g.globalAlpha=1}
+  // 억새(은빛 이삭)
+  if(reed>0.01){const rr=rng(77);for(let i=0;i<150;i++){const x=ISL_L+30+rr()*(ISL_R-ISL_L-60),by=topY(x)-8;if(rr()>reed)continue;const h=(40+rr()*50)*reed,sw=Math.sin(T*1.8+i*.7)*10*reed;
+    g.strokeStyle='rgb(222,214,186)';g.lineWidth=3;g.beginPath();g.moveTo(x,by);g.quadraticCurveTo(x+sw*.4,by-h*.6,x+sw,by-h);g.stroke();
+    g.fillStyle='rgba(246,240,222,.95)';g.beginPath();g.ellipse(x+sw,by-h-8,4,13,sw*.03,0,7);g.fill()}}
+}
+function truck(x,y,dir,tip){ // 쓰레기 트럭(단순화)
+  g.save();g.translate(x,y);g.scale(dir,1);g.fillStyle='rgb(60,110,150)';g.fillRect(-46,-40,56,30);g.fillStyle='rgb(220,90,70)';g.fillRect(10,-52,36,42);
+  g.save();g.translate(-46,-40);g.rotate(-tip*.5);g.fillStyle='rgb(90,150,120)';g.fillRect(0,-22,58,24);g.restore();
+  g.fillStyle='#222';for(const wx of[-28,0,32]){g.beginPath();g.arc(wx,-8,10,0,7);g.fill()}g.restore()}
+function drawActors(){
+  if(T>=9.8&&T<16.8){const a=smooth(9.8,10.6,T)*(1-smooth(15.6,16.8,T));g.globalAlpha=a;
+    for(let i=0;i<3;i++){const u=((T-9.8)*.11+i/3)%1;const x=lerp(ISL_L+60,PEAKS[i%2].x+(i%2?60:-60),Math.min(1,u*1.6)),tip=smooth(.62,.8,u)*(1-smooth(.9,1,u));
+      truck(x,topY(x)+2,1,tip);if(tip>.1){const rd=rng(i+5);for(let k=0;k<6;k++){g.fillStyle=['#d6c9a4','#8aa0b0','#c0705a'][k%3];g.fillRect(x+20+rd()*30,topY(x)-20+tip*18+rd()*16,8,8)}}}
+    g.globalAlpha=1}
+  // 1993 매립 끝: 트럭이 떠나감 + 표지 없음. 산 두 개 위에 숫자 표시
+}
+function label(text,x,y,alpha,accent){if(alpha<=0)return;g.font='800 34px P';const w=g.measureText(text).width+32;
+  g.fillStyle=accent?`rgba(255,213,74,${.95*alpha})`:`rgba(10,14,28,${.78*alpha})`;roundRect(x-w/2,y-70,w,52,26);g.fill();g.fillStyle=accent?`rgba(27,20,48,${alpha})`:`rgba(255,255,255,${alpha})`;g.textAlign='center';g.fillText(text,x,y-33);g.textAlign='left';
+  g.strokeStyle=`rgba(255,255,255,${.7*alpha})`;g.lineWidth=2;g.beginPath();g.moveTo(x,y-18);g.lineTo(x,y);g.stroke()}
+
+// ---------- 자막 ----------
+const STOPS=[
+ {a:3.2,b:8.9,year:'옛 모습',head:'한강 가의 섬 난지도',sub:'둑으로 육지와 이어졌다',src:'출처: 서울시'},
+ {a:9.2,b:15.9,year:'1978',head:'서울의 쓰레기가 모이기 시작',sub:'15년 동안 쌓였다',src:'출처: 서울시 미디어허브'},
+ {a:16.2,b:20.9,year:'1993',head:'쓰레기 산이 두 개 생기다',sub:'이 해 매립이 끝났다',src:'출처: 서울시 미디어허브'},
+ {a:21.2,b:25.9,year:'이후',head:'흙을 덮고 가스를 뽑다',sub:'침출수·가스를 처리하는 안정화 사업',src:'출처: 서울시'},
+ {a:26.2,b:28.8,year:'2002',head:'월드컵공원 개장',sub:'산 두 개는 하늘공원·노을공원',src:'출처: 서울시 미디어허브'}];
+function fade(t,a,b){return Math.min(smooth(a,a+.45,t),1-smooth(b-.45,b,t))}
+function caption(t){
+  const gr=g.createLinearGradient(0,0,0,660);gr.addColorStop(0,'rgba(0,0,0,.6)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,W,660);
+  const gb=g.createLinearGradient(0,H-380,0,H);gb.addColorStop(0,'rgba(0,0,0,0)');gb.addColorStop(1,'rgba(0,0,0,.62)');g.fillStyle=gb;g.fillRect(0,H-380,W,380);
+  g.font='800 32px P';const tag='도시의 나이테 · 원래 ○○이었다 #3';const tw=g.measureText(tag).width+48;g.fillStyle='rgba(255,213,74,.95)';roundRect(56,72,tw,60,30);g.fill();g.fillStyle='#1b1430';g.fillText(tag,80,113);
+  const h=fade(t,0,3.2);if(h>0){g.globalAlpha=h;g.textAlign='center';g.fillStyle='#fff';g.font='800 100px P';g.fillText('하늘공원,',W/2,360);g.fillStyle='#FFD54A';g.font='800 112px P';g.fillText('원래 쓰레기 산이었다',W/2,500);g.font='600 44px P';g.fillStyle='rgba(255,255,255,.9)';g.fillText('지금은 억새가 흔들리는 곳',W/2,584);g.textAlign='left';g.globalAlpha=1}
+  for(const s of STOPS){const a=fade(t,s.a,s.b);if(a<=0)continue;g.globalAlpha=a;g.textAlign='center';const y0=300+(1-a)*24;
+    g.font='800 130px P';g.fillStyle='#FFD54A';g.fillText(s.year,W/2,y0);g.font='800 68px P';g.fillStyle='#fff';g.fillText(s.head,W/2,y0+100);
+    if(s.sub){g.font='600 44px P';g.fillStyle='rgba(255,255,255,.9)';g.fillText(s.sub,W/2,y0+168)}g.font='400 30px P';g.fillStyle='rgba(255,255,255,.8)';g.fillText(s.src,W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+  const e=smooth(28.6,29.2,t);if(e>0){g.fillStyle=`rgba(10,14,28,${.55*e})`;g.fillRect(0,0,W,H);g.globalAlpha=e;g.textAlign='center';g.fillStyle='#fff';g.font='800 72px P';g.fillText('다음 편도',W/2,820);g.fillStyle='#FFD54A';g.font='800 84px P';g.fillText('「원래 ○○이었다」',W/2,930);
+    g.font='600 44px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('궁금한 동네를 댓글로 알려 주세요',W/2,1030);
+    g.font='400 30px P';g.fillStyle='rgba(255,255,255,.8)';g.fillText('그림은 기록을 바탕으로 단순화한 것이에요',W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+}
+
+function render(t){
+  setState(t);
+  const z=1+.05*smooth(0,30,t);
+  g.save();g.fillStyle='#000';g.fillRect(0,0,W,H);
+  g.translate(W/2,GY-200);g.scale(z,z);g.translate(-W/2,-(GY-200)+ -40*smooth(0,30,t)*0);
+  drawWorld();drawActors();
+  label('한강',90,GY+170,fade(t,4,8.6));
+  label('둑',1000,GY-10,fade(t,5,8.6)*0);
+  label('산 하나',PEAKS[0].x,topY(PEAKS[0].x)-20,fade(t,16.3,18.4)*0);
+  label('산 두 개',(PEAKS[0].x+PEAKS[1].x)/2,Math.min(topY(PEAKS[0].x),topY(PEAKS[1].x))-60,fade(t,17.2,20.8)*kB,true);
+  label('가스 관',640,topY(640)-60,fade(t,22.2,25.6),false);
+  label('하늘공원',PEAKS[0].x,topY(PEAKS[0].x)-110,fade(t,26.6,28.6),true);
+  label('노을공원',PEAKS[1].x,topY(PEAKS[1].x)-110,fade(t,26.6,28.6),true);
+  g.restore();
+  caption(t);
+}
+window.render=render;
+window.ready=document.fonts.load('800 40px P').then(()=>document.fonts.load('600 40px P')).then(()=>document.fonts.load('400 40px P')).then(()=>{render(0);return true});
+</script></body></html>

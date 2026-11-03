@@ -1,0 +1,13 @@
+{
+  "name": "winter-wish-village",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "node --check worker/index.js && node --check public/rules.js && node --check public/game.js"
+  },
+  "devDependencies": {
+    "wrangler": "4.40.0"
+  },
+  "type": "module"
+}

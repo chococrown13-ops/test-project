@@ -1,0 +1,168 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}
+canvas{display:block}
+</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// 도시의 나이테 · 원래 ○○이었다 #2 「여의도는 원래 비행장이었다」 — render(t) 한 번 = 한 프레임.
+// 위에서 내려다본 단순화 지도. 섬의 긴 쪽이 세로, 카메라는 활주로를 따라 이동. 모양·위치는 모두 단순화한 근사.
+const W=1080,H=1920;
+const cv=document.getElementById('c'),g=cv.getContext('2d');
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const lerp=(a,b,u)=>a+(b-a)*u,clamp01=x=>Math.max(0,Math.min(1,x));
+function smooth(a,b,t){const u=clamp01((t-a)/(b-a));return u*u*(3-2*u)}
+const mix=(a,b,u)=>a.map((v,i)=>v+(b[i]-v)*u),rgb=(c,a)=>a===undefined?`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`:`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;
+function roundRect(x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+
+// ---------- 월드(세로가 긴 섬) ----------
+const CX=540, RY0=250, RY1=1700;            // 활주로(=훗날 광장·공원) 양 끝 y
+function islandPts(grow){const p=[];for(let i=0;i<72;i++){const a=i/72*Math.PI*2,s=Math.sin(a),c=Math.cos(a);
+  const wob=1+.05*Math.sin(a*3+1)+.03*Math.sin(a*7);
+  const rx=215*wob*(1-.18*Math.abs(s)**2)+grow, ry=780*wob+grow;p.push([CX+c*rx*1.0, 975+s*ry])}return p}
+const ISL=islandPts(0), SHORE=islandPts(14), DIKE=islandPts(34);
+function poly(P){g.beginPath();g.moveTo(P[0][0],P[0][1]);for(let i=1;i<P.length;i++)g.lineTo(P[i][0],P[i][1]);g.closePath()}
+function inIsl(x,y){let c=false;for(let i=0,j=ISL.length-1;i<ISL.length;j=i++){const a=ISL[i],b=ISL[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])c=!c}return c}
+const BAM={x:CX-330,y:330,r:62};            // 밤섬(단순화한 위치)
+
+// 건물 자리(활주로·광장·공원 띠는 비움)
+const R=rng(1999),BLD=[];
+for(let i=0;i<900&&BLD.length<150;i++){const x=CX+(R()-.5)*470,y=240+R()*1480;
+  if(Math.abs(x-CX)<92||!inIsl(x,y)||!inIsl(x-14,y-14)||!inIsl(x+14,y+14))continue;
+  if(BLD.some(b=>Math.hypot(b.x-x,b.y-y)<44))continue;
+  BLD.push({x,y,w:22+R()*20,h:22+R()*20,t:R(),hh:10+R()*38,k:BLD.length/150})}
+const HANGAR=[];for(let i=0;i<5;i++)HANGAR.push({x:CX+130+(i%2)*6,y:560+i*130,w:70,h:46});
+
+// ---------- 시간표 ----------
+let T=0,e49=0,blast=0,dike=0,plaza=0,park=0,towers=0;
+function setState(t){T=t;
+  e49=smooth(9.2,10.4,t);                  // 공군기지: 격납고·전투기
+  blast=smooth(15.6,16.6,t);               // 밤섬 폭파
+  dike=smooth(17.2,20.4,t);                // 윤중제(둑) 쌓기
+  plaza=smooth(22.4,25.2,t);               // 활주로 → 광장
+  park=smooth(26.2,28.4,t);                // 공원
+  towers=smooth(17.5,29,t);                // 개발
+}
+const WATER_A=[[70,150,205],[58,92,150],[52,86,120],[44,96,124]];
+function waterCol(){ // 하늘색 → 노을 → 초록빛
+  const a=smooth(8,11,T),b=smooth(14,17,T),c=smooth(24,28,T);
+  let col=mix([76,160,214],[198,120,90],a); col=mix(col,[92,86,120],b); return mix(col,[48,132,150],c)}
+function landCol(){const a=smooth(8,11,T),b=smooth(14,17,T);let col=mix([212,190,138],[200,150,104],a);col=mix(col,[178,150,118],b);return mix(col,[116,150,98],park*.55)}
+function skyTint(){return mix([255,255,255],[255,170,110],smooth(8,11,T)*(1-smooth(18,22,T))*.22+0)}
+
+// ---------- 카메라 ----------
+const KEYS=[ // t, 중심x, 중심y, 배율
+ [0,540,1250,1.55],[3,540,760,1.55],[3.4,560,1330,1.9],[8.5,540,820,1.9],
+ [9,540,1000,1.7],[14.6,540,1000,1.5],
+ [15.4,400,420,1.7],[20.4,540,1000,.98],[21.4,540,1000,.98],
+ [22,540,1050,1.4],[26,540,1050,1.4],[30,540,980,.96]];
+function cam(t){let i=0;while(i<KEYS.length-2&&t>KEYS[i+1][0])i++;const a=KEYS[i],b=KEYS[i+1];let u=clamp01((t-a[0])/(b[0]-a[0]));u=u*u*(3-2*u);return[lerp(a[1],b[1],u),lerp(a[2],b[2],u),lerp(a[3],b[3],u)]}
+let CZ=1,CCX=540,CCY=1000;
+function toScr(x,y){return[W/2+(x-CCX)*CZ,H*.56+(y-CCY)*CZ]}
+
+// ---------- 그리기 ----------
+function plane(x,y,ang,sc,col,lift){ // 위에서 본 비행기, lift: 이륙하면 커지고 그림자가 멀어짐
+  const s=sc*(1+lift*.9);
+  if(lift>0){g.save();g.translate(x+lift*34,y+lift*52);g.rotate(ang);g.scale(sc,sc);g.fillStyle='rgba(0,0,0,.25)';acPath();g.fill();g.restore()}
+  g.save();g.translate(x,y);g.rotate(ang);g.scale(s,s);g.fillStyle=col;acPath();g.fill();g.restore()}
+function acPath(){g.beginPath();g.moveTo(0,-34);g.lineTo(5,-10);g.lineTo(40,6);g.lineTo(40,14);g.lineTo(5,6);g.lineTo(4,24);g.lineTo(16,32);g.lineTo(16,38);g.lineTo(0,34);g.lineTo(-16,38);g.lineTo(-16,32);g.lineTo(-4,24);g.lineTo(-5,6);g.lineTo(-40,14);g.lineTo(-40,6);g.lineTo(-5,-10);g.closePath()}
+function drawWorld(){
+  // 물
+  const wc=waterCol();g.fillStyle=rgb(wc);g.fillRect(-1200,-800,3600,3600);
+  const rw=rng(11);g.strokeStyle=rgb(mix(wc,[255,255,255],.35),.45);g.lineWidth=3;
+  for(let i=0;i<90;i++){const x=-600+rw()*2300,y=-200+rw()*2400,l=40+rw()*60,ph=(T*30+rw()*200)%160-80;g.beginPath();g.moveTo(x,y+ph);g.lineTo(x+4,y+ph+l);g.stroke()}
+  // 밤섬 (폭파 전 바위섬 → 폭파 뒤 작은 흔적)
+  const bsz=1-blast*.8;
+  g.fillStyle=rgb(mix([140,126,100],[96,92,84],blast));g.beginPath();g.ellipse(BAM.x,BAM.y,BAM.r*bsz,BAM.r*.8*bsz,.4,0,7);g.fill();
+  if(bsz>.4){g.fillStyle='rgba(80,120,70,.8)';g.beginPath();g.ellipse(BAM.x-8,BAM.y-4,BAM.r*.5*bsz,BAM.r*.35*bsz,.4,0,7);g.fill()}
+  // 윤중제(둑): 섬 둘레를 따라 시계 방향으로 쌓임
+  if(dike>0){const n=Math.floor(DIKE.length*dike);g.strokeStyle='rgb(150,146,138)';g.lineWidth=16;g.lineJoin='round';g.beginPath();for(let i=0;i<=n;i++){const p=DIKE[i%DIKE.length];i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])}g.stroke();
+    g.strokeStyle='rgb(196,192,184)';g.lineWidth=5;g.stroke()}
+  // 섬
+  g.fillStyle=rgb(mix(landCol(),[240,224,170],.5));poly(SHORE);g.fill();
+  g.fillStyle=rgb(landCol());poly(ISL);g.fill();
+  // 활주로 → 광장 → 공원
+  const rwA=1-plaza;
+  if(rwA>0){g.globalAlpha=rwA;g.fillStyle='rgb(62,64,72)';roundRect(CX-26,RY0,52,RY1-RY0,6);g.fill();
+    g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=4;g.setLineDash([34,26]);g.beginPath();g.moveTo(CX,RY0+20);g.lineTo(CX,RY1-20);g.stroke();g.setLineDash([]);
+    g.fillStyle='rgb(88,90,98)';roundRect(CX+26,980,120,60,6);g.fill();g.globalAlpha=1}   // 주기장(비행기 세우는 곳)
+  if(plaza>0){const w=lerp(52,190,plaza);g.fillStyle=rgb(mix([150,148,142],[104,148,92],park),plaza);roundRect(CX-w/2,RY0-10,w,RY1-RY0+20,18);g.fill();
+    if(park>0){const rp=rng(7);for(let i=0;i<150;i++){const x=CX+(rp()-.5)*(w-24),y=RY0+10+rp()*(RY1-RY0-20);g.fillStyle=`rgba(${40+rp()*30|0},${100+rp()*50|0},${50+rp()*30|0},${park})`;g.beginPath();g.arc(x,y,7+rp()*9,0,7);g.fill()}
+      g.strokeStyle=`rgba(226,214,180,${park})`;g.lineWidth=8;g.beginPath();g.moveTo(CX-30,RY0+60);g.bezierCurveTo(CX+40,700,CX-50,1100,CX+20,RY1-60);g.stroke();
+      g.fillStyle=`rgba(70,150,200,${park})`;g.beginPath();g.ellipse(CX+10,980,34,70,.1,0,7);g.fill()}}
+  // 비행장 시설
+  if(e49>0){for(const h of HANGAR){g.globalAlpha=e49;g.fillStyle='rgb(120,114,108)';g.fillRect(h.x,h.y,h.w,h.h);g.fillStyle='rgb(150,144,136)';g.fillRect(h.x,h.y,h.w,12);g.globalAlpha=1}}
+  // 건물(개발): 둑이 쌓일수록 둘레부터 올라옴
+  for(const b of BLD){const k=smooth(0,.5,towers*1.5-b.k*.9);if(towers<=0||k<=0.03)continue;const h=b.hh*k;
+    g.fillStyle='rgba(0,0,0,.22)';g.fillRect(b.x+h*.35,b.y+h*.45,b.w,b.h);
+    g.fillStyle=rgb(mix([150,160,176],[200,208,220],b.t));g.fillRect(b.x,b.y,b.w,b.h);g.fillStyle=rgb(mix([110,120,140],[160,170,190],b.t));g.fillRect(b.x+3,b.y+3,b.w-6,b.h-6)}
+}
+function drawActors(){
+  // 훅~일제강점기: 활주로 위 비행기
+  const hook=smooth(0.3,2.9,T);                     // 훅: 이륙
+  if(T<3.4){const py=lerp(1560,RY0+40,hook*hook*.7+hook*.3);plane(CX,py,0,.9,'rgb(240,240,248)',smooth(1.6,2.9,T))}
+  // 1922: 안창남 비행기 + 구경꾼
+  if(T>=3.2&&T<9.6){const a=smooth(3.4,4.4,T)*(1-smooth(8.6,9.6,T));
+    const ph=(T-3.4)*.5;g.globalAlpha=a;plane(CX+Math.sin(ph*2)*150,820+Math.cos(ph*2)*210,Math.atan2(Math.cos(ph*2)*-1,Math.sin(ph*2)*1.4)+Math.PI/2*0,1.0,'rgb(250,240,214)',.7);
+    const rc=rng(5);const cr=smooth(4,7,T);for(let i=0;i<340;i++){const side=rc()<.5?-1:1,x=CX+side*(40+rc()*95),y=RY0+80+rc()*(RY1-RY0-160);if(i/340>cr)continue;g.fillStyle=`rgba(${60+rc()*50|0},${50+rc()*30|0},${40+rc()*30|0},.95)`;g.beginPath();g.arc(x,y,3.4,0,7);g.fill()}
+    g.globalAlpha=1}
+  // 1949~: 전투기·수송기 세워 둠 + 이륙
+  if(T>=9&&T<22.4){const a=smooth(9.2,10.4,T)*(1-smooth(20.8,22,T));g.globalAlpha=a;
+    for(let i=0;i<5;i++)plane(CX+95+(i%2)*6,610+i*130,Math.PI/2,.55,'rgb(120,126,138)',0);
+    const tk=((T-10)*.12)%1;if(T>10)plane(CX,lerp(1600,300,tk),0,.8,'rgb(160,168,184)',smooth(.4,.9,tk));
+    g.globalAlpha=1}
+  // 1968 폭파: 번쩍 + 돌 날아오기
+  if(T>=15.6&&T<20.6){const bt=T-16;if(bt>=0&&bt<1.2){const f=1-bt/1.2;g.fillStyle=`rgba(255,220,140,${f*.8})`;g.beginPath();g.arc(BAM.x,BAM.y,40+bt*220,0,7);g.fill();g.strokeStyle=`rgba(255,255,255,${f})`;g.lineWidth=6;g.beginPath();g.arc(BAM.x,BAM.y,30+bt*300,0,7);g.stroke()}
+    const rs=rng(21);for(let i=0;i<46;i++){const u=smooth(16.6+rs()*1.2,18.8+rs()*1.4,T);if(u<=0||u>=1)continue;const k=Math.floor(rs()*DIKE.length),tgt=DIKE[k];const x=lerp(BAM.x,tgt[0],u),y=lerp(BAM.y,tgt[1],u)-Math.sin(u*Math.PI)*90;g.fillStyle='rgb(168,162,150)';g.fillRect(x-6,y-6,12,12)}}
+  // 1971 폐쇄: 활주로 위 X
+  if(T>=21.4&&T<24){const a=smooth(21.4,22,T)*(1-smooth(23,24,T));g.globalAlpha=a;g.strokeStyle='rgb(255,92,92)';g.lineWidth=18;g.lineCap='round';
+    for(const y of [560,900,1240]){g.beginPath();g.moveTo(CX-70,y-70);g.lineTo(CX+70,y+70);g.moveTo(CX+70,y-70);g.lineTo(CX-70,y+70);g.stroke()}g.globalAlpha=1}
+}
+function label(text,x,y,alpha,accent){if(alpha<=0)return;const q=toScr(x,y);g.font='800 34px P';const w=g.measureText(text).width+32;
+  g.fillStyle=accent?`rgba(255,213,74,${.95*alpha})`:`rgba(10,14,28,${.78*alpha})`;roundRect(q[0]-w/2,q[1]-70,w,52,26);g.fill();g.fillStyle=accent?`rgba(27,20,48,${alpha})`:`rgba(255,255,255,${alpha})`;g.textAlign='center';g.fillText(text,q[0],q[1]-33);g.textAlign='left';
+  g.strokeStyle=`rgba(255,255,255,${.7*alpha})`;g.lineWidth=2;g.beginPath();g.moveTo(q[0],q[1]-18);g.lineTo(q[0],q[1]);g.stroke()}
+
+// ---------- 자막 ----------
+const STOPS=[
+ {a:3.2,b:8.9,year:'일제강점기',head:'한강 모래섬에 비행장',sub:'1922 안창남 비행에 약 5만 명이 모였다(보도)',src:'출처: 경향신문, 서울시'},
+ {a:9.2,b:14.9,year:'1949',head:'공군기지가 된 여의도',sub:'민간 항공은 김포로 옮겨 갔다',src:'출처: 서울시 서울이야기'},
+ {a:15.2,b:21,year:'1968',head:'밤섬 돌로 둑을 쌓다',sub:'윤중제 축조, 개발이 시작됐다',src:'출처: 서울신문(서울미래유산)'},
+ {a:21.2,b:26,year:'1971',head:'비행장이 문을 닫다',sub:'활주로 자리는 광장이 됐다',src:'출처: 서울시, 서울기록원'},
+ {a:26.2,b:28.8,year:'1999',head:'여의도공원 개장',sub:'',src:'출처: 서울시'}];
+function fade(t,a,b){return Math.min(smooth(a,a+.45,t),1-smooth(b-.45,b,t))}
+function caption(t){
+  const gr=g.createLinearGradient(0,0,0,660);gr.addColorStop(0,'rgba(0,0,0,.6)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,W,660);
+  const gb=g.createLinearGradient(0,H-380,0,H);gb.addColorStop(0,'rgba(0,0,0,0)');gb.addColorStop(1,'rgba(0,0,0,.62)');g.fillStyle=gb;g.fillRect(0,H-380,W,380);
+  g.font='800 32px P';const tag='도시의 나이테 · 원래 ○○이었다 #2';const tw=g.measureText(tag).width+48;g.fillStyle='rgba(255,213,74,.95)';roundRect(56,72,tw,60,30);g.fill();g.fillStyle='#1b1430';g.fillText(tag,80,113);
+  const h=fade(t,0,3.2);if(h>0){g.globalAlpha=h;g.textAlign='center';g.fillStyle='#fff';g.font='800 100px P';g.fillText('여의도공원 자리',W/2,360);g.fillStyle='#FFD54A';g.font='800 120px P';g.fillText('원래 활주로였다',W/2,500);g.font='600 44px P';g.fillStyle='rgba(255,255,255,.9)';g.fillText('비행기가 뜨고 내리던 곳',W/2,584);g.textAlign='left';g.globalAlpha=1}
+  for(const s of STOPS){const a=fade(t,s.a,s.b);if(a<=0)continue;g.globalAlpha=a;g.textAlign='center';const y0=300+(1-a)*24;
+    g.font='800 130px P';g.fillStyle='#FFD54A';g.fillText(s.year,W/2,y0);g.font='800 68px P';g.fillStyle='#fff';g.fillText(s.head,W/2,y0+100);
+    if(s.sub){g.font='600 44px P';g.fillStyle='rgba(255,255,255,.9)';g.fillText(s.sub,W/2,y0+168)}g.font='400 30px P';g.fillStyle='rgba(255,255,255,.8)';g.fillText(s.src,W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+  const e=smooth(29.0,29.5,t)*0+smooth(28.6,29.2,t);if(e>0){g.fillStyle=`rgba(10,14,28,${.55*e})`;g.fillRect(0,0,W,H);g.globalAlpha=e;g.textAlign='center';g.fillStyle='#fff';g.font='800 72px P';g.fillText('다음 편도',W/2,820);g.fillStyle='#FFD54A';g.font='800 84px P';g.fillText('「원래 ○○이었다」',W/2,930);
+    g.font='600 44px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('궁금한 동네를 댓글로 알려 주세요',W/2,1030);
+    g.font='400 30px P';g.fillStyle='rgba(255,255,255,.8)';g.fillText('지도는 기록을 바탕으로 단순화한 그림이에요',W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+}
+
+function render(t){
+  setState(t);[CCX,CCY,CZ]=cam(t);
+  g.save();g.fillStyle='#000';g.fillRect(0,0,W,H);
+  g.translate(W/2,H*.56);g.scale(CZ,CZ);g.translate(-CCX,-CCY);
+  drawWorld();drawActors();g.restore();
+  const tint=skyTint();g.fillStyle=rgb(tint,0);
+  
+  label('안창남 비행',CX+0,560,fade(t,4.2,8.6)*0,true);
+  label('활주로',CX,1500,fade(t,4,8.6));
+  label('공군기지',CX+110,1000,fade(t,9.8,14.6),true);
+  label('밤섬',BAM.x,BAM.y-40,fade(t,15.2,17.2),true);
+  label('윤중제',CX+215,1250,fade(t,19,20.6));
+  label('활주로 자리 → 광장',CX,1450,fade(t,23.4,26)*0);
+  label('여의도공원',CX,1500,fade(t,26.6,28.6),true);
+  caption(t);
+}
+window.render=render;
+window.ready=document.fonts.load('800 40px P').then(()=>document.fonts.load('600 40px P')).then(()=>document.fonts.load('400 40px P')).then(()=>{render(0);return true});
+</script></body></html>

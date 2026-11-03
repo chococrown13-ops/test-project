@@ -1,0 +1,74 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:800;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}
+</style></head>
+<body><canvas id="c" width="1080" height="1080"></canvas>
+<script>
+// 프로필 사진 후보 3개 — 영상과 같은 색(밤 남색·금색·보라 노선·하늘색)
+const S = 1080, g = document.getElementById('c').getContext('2d');
+const NAVY = '#0b1224', NAVY2 = '#1a2550', GOLD = '#FFD54A', VIOLET = '#b996ff', CYAN = '#5fd8f0';
+function bg(){ const gr = g.createRadialGradient(S/2, S*0.35, 50, S/2, S/2, S*0.75); gr.addColorStop(0, NAVY2); gr.addColorStop(1, NAVY); g.fillStyle = gr; g.fillRect(0, 0, S, S); }
+function rr(x,y,w,h,r){ g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath(); }
+
+// A. 시대가 쌓인 탑: 기와지붕(과거) → 아파트(현재) → 빛나는 첨탑(미래)
+function drawA(){
+  bg();
+  const cx = S/2;
+  // 강
+  g.fillStyle = '#16346a'; g.beginPath(); g.ellipse(cx, 905, 430, 70, 0, 0, Math.PI*2); g.fill();
+  g.strokeStyle = 'rgba(120,170,230,0.6)'; g.lineWidth = 6; g.beginPath(); g.ellipse(cx, 905, 430, 70, 0, Math.PI*1.05, Math.PI*1.95); g.stroke();
+  // 1층: 한옥 지붕
+  g.fillStyle = '#3b2a22'; rr(cx-230, 760, 460, 120, 8); g.fill();
+  g.fillStyle = '#6a6f8c'; g.beginPath(); g.moveTo(cx-310, 735); g.quadraticCurveTo(cx-240, 760, cx-200, 700); g.lineTo(cx+200, 700); g.quadraticCurveTo(cx+240, 760, cx+310, 735); g.quadraticCurveTo(cx+250, 720, cx+215, 690); g.lineTo(cx-215, 690); g.quadraticCurveTo(cx-250, 720, cx-310, 735); g.closePath(); g.fill();
+  g.fillStyle = '#4c516b'; rr(cx-200, 700, 400, 60, 4); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,0.18)'; g.lineWidth = 4; for (let x = -190; x <= 190; x += 30) { g.beginPath(); g.moveTo(cx+x, 702); g.lineTo(cx+x, 756); g.stroke(); }
+  g.fillStyle = 'rgba(255,214,140,0.9)'; for (const x of [-150,-60,30,120]) { rr(cx+x, 790, 50, 60, 6); g.fill(); }
+  // 2층: 아파트
+  g.fillStyle = '#3a4566'; rr(cx-170, 470, 340, 220, 6); g.fill();
+  g.fillStyle = 'rgba(255,214,140,0.85)';
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) if ((r*7+c*3)%5) { rr(cx-145+c*50, 495+r*48, 30, 26, 4); g.fill(); }
+  // 3층: 미래 첨탑
+  g.fillStyle = '#5a6aa0'; g.beginPath(); g.moveTo(cx-110, 470); g.lineTo(cx-40, 230); g.lineTo(cx+40, 230); g.lineTo(cx+110, 470); g.closePath(); g.fill();
+  g.fillStyle = CYAN; for (let k = 0; k < 5; k++) { g.globalAlpha = 0.9 - k*0.12; rr(cx-80+k*14, 430-k*45, 160-k*28, 16, 8); g.fill(); } g.globalAlpha = 1;
+  g.strokeStyle = GOLD; g.lineWidth = 10; g.beginPath(); g.moveTo(cx, 230); g.lineTo(cx, 120); g.stroke();
+  g.fillStyle = GOLD; g.beginPath(); g.arc(cx, 112, 22, 0, 7); g.fill();
+  g.fillStyle = 'rgba(255,213,74,0.25)'; g.beginPath(); g.arc(cx, 112, 60, 0, 7); g.fill();
+}
+
+// B. 시간 고리: 원형 시계판 = 연도, 안에 스카이라인, 금색 바늘이 미래를 가리킴
+function drawB(){
+  bg();
+  const cx = S/2, cy = S/2;
+  g.strokeStyle = 'rgba(255,255,255,0.12)'; g.lineWidth = 30; g.beginPath(); g.arc(cx, cy, 400, 0, 7); g.stroke();
+  const a0 = -Math.PI*0.5, a1 = a0 + Math.PI*1.55;
+  const gr = g.createLinearGradient(cx-400, cy, cx+400, cy); gr.addColorStop(0, '#6b5bd6'); gr.addColorStop(1, GOLD);
+  g.strokeStyle = gr; g.lineWidth = 30; g.lineCap = 'round'; g.beginPath(); g.arc(cx, cy, 400, a0, a1); g.stroke();
+  for (let i = 0; i < 12; i++) { const a = a0 + i*Math.PI/6; g.fillStyle = 'rgba(255,255,255,0.5)'; g.beginPath(); g.arc(cx+Math.cos(a)*400, cy+Math.sin(a)*400, 7, 0, 7); g.fill(); }
+  g.fillStyle = GOLD; g.beginPath(); g.arc(cx+Math.cos(a1)*400, cy+Math.sin(a1)*400, 30, 0, 7); g.fill();
+  // 스카이라인
+  g.save(); g.beginPath(); g.arc(cx, cy, 340, 0, 7); g.clip();
+  g.fillStyle = '#16346a'; g.fillRect(0, cy+130, S, 300);
+  const hs = [120,220,160,300,190,380,250,170,280,140,210,110];
+  hs.forEach((h, i) => { const x = cx-330+i*56; g.fillStyle = i===5 ? '#6878b0' : '#334068'; g.fillRect(x, cy+130-h, 48, h);
+    g.fillStyle = 'rgba(255,214,140,0.85)'; for (let y = cy+150-h; y < cy+110; y += 34) if ((x+y)%3) g.fillRect(x+10, y, 10, 14); });
+  g.fillStyle = CYAN; g.fillRect(cx-330+5*56+20, cy+130-380-60, 8, 60);
+  g.restore();
+}
+
+// C. 글자형: "도시" + 한강 곡선과 연도 점
+function drawC(){
+  bg();
+  const cx = S/2;
+  g.strokeStyle = CYAN; g.lineWidth = 26; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(120, 760); g.bezierCurveTo(330, 640, 470, 860, 640, 760); g.bezierCurveTo(780, 680, 880, 720, 960, 680); g.stroke();
+  const pts = [[200,712],[420,770],[640,760],[880,705]]; const cols = ['#8a7fd6','#a59af0',VIOLET,GOLD];
+  pts.forEach((p,i)=>{ g.fillStyle = cols[i]; g.beginPath(); g.arc(p[0], p[1], i===3?38:26, 0, 7); g.fill(); });
+  g.fillStyle = '#fff'; g.font = '800 300px P'; g.textAlign = 'center'; g.fillText('도시', cx, 560);
+  g.fillStyle = GOLD; g.font = '800 92px P'; g.fillText('→ 2056', cx+40, 930);
+}
+
+window.draw = (k) => { g.clearRect(0,0,S,S); ({A:drawA,B:drawB,C:drawC})[k](); return document.getElementById('c').toDataURL('image/png'); };
+window.ready = document.fonts.load('800 40px P');
+</script></body></html>

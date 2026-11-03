@@ -1,0 +1,66 @@
+# 겨울 소원마을 공개판을 Cloudflare 에 올립니다 (사무실 화면·오터스톡과 같은 방식).
+# village/ 안의 파일이 바뀌어 이 브랜치에 올라가면 알아서 다시 올라갑니다.
+#
+# 처음 한 번만 준비하세요 (GitHub 이 저장소 → Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN    Cloudflare → My Profile → API Tokens 에서 만든 토큰 (템플릿: "Edit Cloudflare Workers")
+#   CLOUDFLARE_ACCOUNT_ID   Cloudflare 화면 주소에 들어 있는 계정 ID (영문·숫자 32자)
+# 오터스톡 저장소에 넣은 것과 같은 값을 그대로 넣으면 됩니다.
+#
+# 올라간 주소: https://winter-wish-village.<내 하위도메인>.workers.dev
+
+name: 소원마을 배포
+
+on:
+  push:
+    branches: [claude/sns-account-strategy-h9eu1q, main]
+    paths: ["village/**", ".github/workflows/village-deploy.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: village-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: village
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: village/package-lock.json
+      - run: npm ci
+      - name: 코드 문법 확인
+        run: node --check worker/index.js && node --check public/rules.js
+      - name: 비밀값 확인
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || fail "CLOUDFLARE_API_TOKEN 이 비어 있습니다. 오터스톡 저장소에 넣은 것과 같은 토큰을 이 저장소(test-project) Secrets 에도 넣어주세요."
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || fail "CLOUDFLARE_ACCOUNT_ID 가 비어 있습니다."
+          [ "${#CLOUDFLARE_ACCOUNT_ID}" -eq 32 ] || fail "CLOUDFLARE_ACCOUNT_ID 가 32자가 아닙니다 (지금 ${#CLOUDFLARE_ACCOUNT_ID}자)."
+          echo "비밀값 모양 확인 완료."
+      - name: 올리기
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
+      - name: 공개 주소 확인
+        run: |
+          U=https://winter-wish-village.chococrown13.workers.dev
+          sleep 5
+          curl -fsS "$U/" | grep -q "겨울 소원마을" && echo "화면 OK"
+          curl -fsS -o /dev/null "$U/vendor/three-0.149.0.min.js" && echo "3D 도구 OK"
+          curl -fsS -o /dev/null "$U/game.js" && echo "미니게임 OK"
+          curl -fsS "$U/api/stats" && echo " ← 서버 OK"
+          T=$(curl -fsS -X POST "$U/api/hello" -H 'content-type: application/json' -d '{}' | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).token))')
+          [ ${#T} -eq 40 ] && echo "방문자 만들기 OK"
+          curl -fsS -X POST "$U/api/game/start" -H 'content-type: application/json' -d "{\"token\":\"$T\"}" | grep -q gid && echo "미니게임 시작 OK"
+          curl -fsS "$U/api/room?v=santa" && echo " ← 방 배정 OK"

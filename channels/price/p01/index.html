@@ -1,0 +1,160 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}
+canvas{display:block}
+</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// 그때 그 가격 퀴즈 #1 — render(t) 한 번 = 한 프레임 (30초). 문제 3개, 각 8초: 문제 → 보기 → 3초 → 정답 도장 → 지금 값
+// 가격 근거: publish.md (국가기록원·서울시·한국물가정보·한국소비자원 참가격 보도)
+const W = 1080, H = 1920;
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const smooth = (a, b, t) => { const u = clamp01((t - a) / (b - a)); return u * u * (3 - 2 * u); };
+const back = u => { const c = 1.7; return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2); };
+const pop = (a, d, t) => { const u = clamp01((t - a) / d); return u <= 0 ? 0 : back(u); };
+
+const PAPER = '#f3e6cc', PAPER_D = '#e6d3ae', INK = '#2b2118', RED = '#c8372d', GREEN = '#2f7d55', MUST = '#d9a23a', SOFT = '#8a7558';
+const Q = [
+  { year: '1963년', item: '라면 한 봉지', icon: 'ramen', ch: ['10원', '50원', '100원'], ans: 0,
+    now: '그때 버스 기본요금(5원)의 2배', src: '삼양라면 첫 출시 · 국가기록원·언론 보도' },
+  { year: '1970년', item: '짜장면 한 그릇', icon: 'bowl', ch: ['30원', '100원', '500원'], ans: 1,
+    now: '지금 서울 평균 7,500원 (2025년 1월)', src: '한국물가정보 조사 · 한국소비자원 참가격 보도' },
+  { year: '1974년', item: '지하철 기본요금', icon: 'ticket', ch: ['300원', '100원', '30원'], ans: 2,
+    now: '지금 1,550원 (2025년 6월부터, 교통카드)', src: '1호선 개통 · 국가기록원·서울시' },
+];
+const T0 = 3, SEG = 8;
+
+function round(x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+function text(s, x, y, size, color, weight = 800, align = 'center') { g.font = `${weight} ${size}px P`; g.textAlign = align; g.textBaseline = 'middle'; g.fillStyle = color; g.fillText(s, x, y); }
+function fit(s, max, size, weight = 800) { g.font = `${weight} ${size}px P`; const w = g.measureText(s).width; return w > max ? size * max / w : size; }
+
+function bg(t) {
+  g.fillStyle = PAPER; g.fillRect(0, 0, W, H);
+  // 종이 결
+  for (let i = 0; i < 260; i++) { const x = (i * 211) % W, y = (i * 389) % H; g.fillStyle = i % 2 ? 'rgba(120,90,50,.05)' : 'rgba(255,255,255,.18)'; g.fillRect(x, y, 3 + (i % 4), 2); }
+  // 위아래 줄무늬 띠 (옛날 영수증 느낌)
+  for (let x = 0; x < W; x += 60) { g.fillStyle = (x / 60) % 2 ? RED : '#f8efdc'; g.fillRect(x, 0, 60, 26); g.fillRect(x, H - 26, 60, 26); }
+}
+
+// 물건 그림 (코드로 그림)
+function icon(kind, cx, cy, s, t) {
+  g.save(); g.translate(cx, cy); g.scale(s, s); g.rotate(Math.sin(t * 2) * 0.03);
+  g.lineWidth = 8; g.strokeStyle = INK; g.lineJoin = 'round';
+  if (kind === 'ramen') {
+    round(-150, -110, 300, 220, 26); g.fillStyle = '#e9473a'; g.fill(); g.stroke();
+    g.fillStyle = '#fff3d6'; g.beginPath(); g.ellipse(0, 10, 105, 62, 0, 0, 7); g.fill(); g.stroke();
+    g.strokeStyle = '#d9a23a'; g.lineWidth = 7; for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(-80 + i * 32, -20); for (let k = 0; k < 5; k++) g.quadraticCurveTo(-64 + i * 32, -8 + k * 12, -80 + i * 32, 4 + k * 12); g.stroke(); }
+    g.fillStyle = '#fff'; g.font = '800 34px P'; g.textAlign = 'center'; g.fillText('라면', 0, -78);
+  } else if (kind === 'bowl') {
+    g.fillStyle = '#fff'; g.beginPath(); g.ellipse(0, -20, 170, 46, 0, 0, 7); g.fill(); g.stroke();
+    g.fillStyle = '#3a2415'; g.beginPath(); g.ellipse(0, -24, 140, 32, 0, 0, 7); g.fill();
+    g.fillStyle = '#5a3820'; for (let i = 0; i < 9; i++) { g.beginPath(); g.arc(-90 + i * 22, -26 + Math.sin(i) * 8, 9, 0, 7); g.fill(); }
+    g.fillStyle = '#7ec46a'; g.fillRect(-30, -40, 60, 10);
+    g.fillStyle = '#fff'; g.beginPath(); g.moveTo(-170, -20); g.quadraticCurveTo(-150, 110, 0, 120); g.quadraticCurveTo(150, 110, 170, -20); g.fill(); g.stroke();
+    g.strokeStyle = RED; g.lineWidth = 8; g.beginPath(); g.moveTo(-120, 40); g.lineTo(120, 40); g.stroke();
+    g.strokeStyle = INK; g.lineWidth = 9; g.beginPath(); g.moveTo(80, -150); g.lineTo(20, -30); g.moveTo(110, -140); g.lineTo(46, -28); g.stroke();
+    for (let i = 0; i < 3; i++) { g.strokeStyle = 'rgba(80,60,40,.35)'; g.lineWidth = 6; g.beginPath(); const yy = -100 - ((t * 40 + i * 30) % 60); g.moveTo(-50 + i * 50, yy + 40); g.quadraticCurveTo(-30 + i * 50, yy + 20, -50 + i * 50, yy); g.stroke(); }
+  } else {
+    round(-200, -90, 400, 180, 18); g.fillStyle = '#f7f1e1'; g.fill(); g.stroke();
+    g.fillStyle = '#2e6db5'; g.fillRect(-200, -90, 400, 52); g.strokeRect(-200, -90, 400, 180);
+    g.fillStyle = '#fff'; g.font = '800 34px P'; g.textAlign = 'center'; g.fillText('승 차 권', 0, -54);
+    g.fillStyle = INK; g.font = '800 30px P'; g.fillText('서울역 ↔ 청량리', 0, 10); g.font = '600 26px P'; g.fillText('1974', 0, 56);
+    g.setLineDash([10, 10]); g.beginPath(); g.moveTo(130, -38); g.lineTo(130, 90); g.stroke(); g.setLineDash([]);
+  }
+  g.restore();
+}
+
+function choice(i, label, x, y, w, h, t, a, state) {
+  const p = pop(a + i * 0.12, 0.4, t); if (p <= 0) return;
+  g.save(); g.translate(x + w / 2, y + h / 2); g.scale(p, p); g.translate(-(x + w / 2), -(y + h / 2));
+  g.globalAlpha = state === 'wrong' ? 0.35 : 1;
+  round(x, y + 10, w, h, 34); g.fillStyle = PAPER_D; g.fill();
+  round(x, y, w, h, 34); g.fillStyle = state === 'right' ? GREEN : '#fffaf0'; g.fill(); g.lineWidth = 7; g.strokeStyle = INK; g.stroke();
+  text('ABC'[i], x + 70, y + h / 2 + 2, 60, state === 'right' ? '#fff' : SOFT);
+  text(label, x + w / 2 + 30, y + h / 2 + 4, 88, state === 'right' ? '#fff' : INK);
+  g.restore();
+}
+
+function stamp(x, y, t, a) {
+  const u = clamp01((t - a) / 0.25); if (u <= 0) return;
+  const s = 1.6 - 0.6 * u;
+  g.save(); g.translate(x, y); g.rotate(-0.2); g.scale(s, s); g.globalAlpha = u;
+  g.fillStyle = 'rgba(255,250,240,.94)'; g.beginPath(); g.arc(0, 0, 105, 0, 7); g.fill();
+  g.lineWidth = 12; g.strokeStyle = RED; g.beginPath(); g.arc(0, 0, 105, 0, 7); g.stroke();
+  g.lineWidth = 4; g.beginPath(); g.arc(0, 0, 88, 0, 7); g.stroke();
+  text('정답', 0, 4, 70, RED); g.restore();
+}
+
+function timer(t, a) {
+  if (t < a || t > a + 3.1) return;
+  const u = clamp01((t - a) / 3), w = 760, x = (W - w) / 2, y = 1700;
+  round(x, y, w, 34, 17); g.fillStyle = PAPER_D; g.fill();
+  round(x, y, w * (1 - u), 34, 17); g.fillStyle = MUST; g.fill();
+  text(String(Math.max(1, 3 - Math.floor(t - a))), W / 2, y - 60, 80, INK);
+}
+
+function render(t) {
+  bg(t);
+  round(170, 90, 740, 130, 65); g.fillStyle = INK; g.fill();
+  text('그때 그 가격', W / 2, 158, 74, PAPER);
+  if (t < T0) {
+    const p = pop(0.1, 0.6, t);
+    g.save(); g.translate(W / 2, 760); g.scale(p, p);
+    text('엄마 아빠는', 0, -150, 110, INK); text('다 맞힌다는', 0, 0, 110, INK);
+    round(-400, 90, 800, 190, 40); g.fillStyle = RED; g.fill(); text('옛날 물가 퀴즈', 0, 188, 110, '#fff');
+    g.restore();
+    icon('ramen', 270, 1420, 0.8, t); icon('bowl', 540, 1500, 0.75, t + 1); icon('ticket', 820, 1400, 0.6, t + 2);
+  }
+  for (let i = 0; i < 3; i++) {
+    const a = T0 + i * SEG; if (t < a || t >= a + SEG) continue;
+    const lt = t - a, q = Q[i], reveal = lt > 4.3;
+    text(`${i + 1} / 3`, W / 2, 290, 54, SOFT, 600);
+    const qp = pop(a, 0.45, t);
+    g.save(); g.translate(W / 2, 420); g.scale(qp, qp);
+    text(q.year, 0, -10, 120, RED); text(q.item + '는?', 0, 120, fit(q.item + '는?', 900, 96), INK); g.restore();
+    icon(q.icon, W / 2, 760, 0.95, t);
+    q.ch.forEach((c, k) => choice(k, c, 140, 960 + k * 190, 800, 160, t, a + 0.6, reveal ? (k === q.ans ? 'right' : 'wrong') : ''));
+    timer(t, a + 1.2);
+    if (reveal) {
+      stamp(860, 960 + q.ans * 190 + 80, t, a + 4.3);
+      const np = pop(a + 5.0, 0.4, t);
+      if (np > 0) {
+        g.save(); g.translate(W / 2, 1610); g.scale(np, np);
+        round(-460, -70, 920, 140, 30); g.fillStyle = INK; g.fill();
+        text(q.now, 0, 2, fit(q.now, 860, 58), PAPER, 800); g.restore();
+        text(q.src, W / 2, 1745, 32, SOFT, 600);
+      }
+    }
+    const fl = 1 - smooth(a, a + 0.22, t); if (fl > 0) { g.fillStyle = `rgba(255,250,235,${fl})`; g.fillRect(0, 0, W, H); }
+  }
+  if (t >= T0 + 3 * SEG) {
+    const p = pop(T0 + 3 * SEG, 0.5, t);
+    g.save(); g.translate(W / 2, 760); g.scale(p, p);
+    text('몇 개 맞혔어요?', 0, -150, 104, INK);
+    round(-300, -40, 600, 200, 40); g.fillStyle = RED; g.fill(); text('○ / 3', 0, 64, 130, '#fff');
+    text('댓글로 알려 주세요', 0, 270, 82, INK);
+    g.restore();
+    text('다음엔 어떤 물건 값이 궁금하세요?', W / 2, 1300, 54, SOFT, 600);
+    icon('ramen', 270, 1560, 0.6, t); icon('bowl', 540, 1620, 0.55, t + 1); icon('ticket', 820, 1540, 0.45, t + 2);
+  }
+}
+// 썸네일
+function thumb({ lines, kicker, channel }) {
+  bg(0);
+  round(240, 200, 600, 110, 55); g.fillStyle = INK; g.fill(); text(kicker, W / 2, 257, 52, PAPER);
+  lines.forEach((l, i) => text(l, W / 2, 470 + i * 180, fit(l, 940, 160), i ? RED : INK));
+  icon('bowl', W / 2, 1060, 1.4, 0.3);
+  round(190, 1290, 700, 200, 40); g.fillStyle = INK; g.fill(); text('1970년 짜장면 ?원', W / 2, 1392, fit('1970년 짜장면 ?원', 640, 76), PAPER);
+  icon('ramen', 230, 1680, 0.6, 0.2); icon('ticket', 850, 1680, 0.5, 0.5);
+  text(channel, W / 2, 1790, 46, SOFT, 600);
+}
+window.thumb = thumb;
+window.render = render;
+window.ready = document.fonts.load('800 40px P').then(() => document.fonts.load('600 40px P')).then(() => { render(0); return true; });
+</script>
+</body></html>

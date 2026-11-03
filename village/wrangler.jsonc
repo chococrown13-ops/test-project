@@ -1,0 +1,16 @@
+{
+  // 겨울 소원마을 공개판. 올라간 주소: https://winter-wish-village.<내 하위도메인>.workers.dev
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "winter-wish-village",
+  "main": "worker/index.js",
+  "compatibility_date": "2025-09-01",
+  "assets": { "directory": "public", "binding": "ASSETS" },
+  "durable_objects": {
+    "bindings": [
+      { "name": "HUB", "class_name": "Hub" },
+      { "name": "ROOM", "class_name": "Room" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Hub", "Room"] }],
+  "observability": { "enabled": true }
+}

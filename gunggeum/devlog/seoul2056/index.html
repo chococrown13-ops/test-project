@@ -1,0 +1,294 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}
+canvas{display:block}
+</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// 「2056년 서울」 — 모든 장면을 시간 t(초)의 함수로 그린다. render(t) 한 번 = 한 프레임.
+// 단위: km. x = 동쪽, y = 북쪽, z = 위. 한강 모양·지명 위치는 단순화한 근사값.
+const W = 1080, H = 1920, DUR = 30;
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+
+// ---------- 난수(고정 시드) ----------
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const R = rng(2056);
+
+// ---------- 지도 ----------
+const RIVER = [[-6,10.5],[-2,9.5],[2,8.2],[5,7.4],[8,6.3],[10.5,5.0],[12.5,4.3],[14.5,4.0],[16.5,4.4],[18.5,5.2],[20.5,5.6],[22.5,4.8],[24,3.8],[25.5,3.6],[27,4.4],[29,5.6],[31,6.2],[34,6.6],[40,7.2]];
+const RIVER_HALF = 0.5;
+const PLACE = {
+  seoulStn:[14.0,8.6], gwanghwamun:[14.3,10.6], namsan:[15.4,8.3], samsung:[23.3,2.2], suseo:[25.2,-1.2],
+  lotte:[25.4,2.6], gimpo:[4.0,5.0], yeouido:[11.3,3.5], yongsan:[14.3,6.4], noryangjin:[13.6,3.4],
+  yeongdeungpo:[10.9,2.0], guro:[8.6,0.6], gasan:[8.9,-1.6], seoksu:[9.3,-4.6], gangnam:[21.0,1.8]
+};
+const GTX = [[-2,17],[4,14.6],[8.5,12.6],[11.5,10.2],PLACE.seoulStn,[17.5,6.2],[20.5,4.2],PLACE.samsung,[24.3,0.6],PLACE.suseo,[26,-7]];
+const RAIL = [[14.6,11.6],PLACE.seoulStn,PLACE.yongsan,[13.9,5.0],PLACE.noryangjin,[12.2,2.6],PLACE.yeongdeungpo,PLACE.guro,PLACE.gasan,PLACE.seoksu,[9.4,-8]];
+const VERT = { gimpo:PLACE.gimpo, yeouido:[11.0,3.3], jamsil:[25.9,3.0], suseo:[25.6,-0.9] };
+
+function segDist(p, a, b) { const dx=b[0]-a[0], dy=b[1]-a[1]; let u=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy); u=Math.max(0,Math.min(1,u)); const x=a[0]+u*dx-p[0], y=a[1]+u*dy-p[1]; return Math.hypot(x,y); }
+function lineDist(p, L) { let d=1e9; for (let i=0;i<L.length-1;i++) d=Math.min(d,segDist(p,L[i],L[i+1])); return d; }
+function lerp(a,b,u){return a+(b-a)*u}
+function clamp01(x){return Math.max(0,Math.min(1,x))}
+function smooth(a,b,t){const u=clamp01((t-a)/(b-a));return u*u*(3-2*u)}
+function polyLen(L){let s=0;for(let i=0;i<L.length-1;i++)s+=Math.hypot(L[i+1][0]-L[i][0],L[i+1][1]-L[i][1]);return s}
+function polyAt(L, s){ for(let i=0;i<L.length-1;i++){const l=Math.hypot(L[i+1][0]-L[i][0],L[i+1][1]-L[i][1]); if(s<=l){const u=s/l;return [lerp(L[i][0],L[i+1][0],u),lerp(L[i][1],L[i+1][1],u)]} s-=l;} return L[L.length-1]; }
+function polyPart(L, frac){ const tot=polyLen(L)*frac, out=[L[0]]; let s=0; for(let i=0;i<L.length-1;i++){const l=Math.hypot(L[i+1][0]-L[i][0],L[i+1][1]-L[i][1]); if(s+l>=tot){out.push(polyAt(L,tot));return out} out.push(L[i+1]); s+=l;} return out; }
+// 촘촘하게 나눈 선(투영할 때 카메라 뒤로 넘어가는 구간을 끊기 쉽게)
+function densify(L, step){ const out=[]; const tot=polyLen(L); for(let s=0;s<=tot;s+=step) out.push(polyAt(L,s)); out.push(L[L.length-1]); return out; }
+
+// 강 양쪽 둑 선
+const RIVER_D = densify(RIVER, 0.35);
+function offsetLine(L, off){ return L.map((p,i)=>{ const a=L[Math.max(0,i-1)], b=L[Math.min(L.length-1,i+1)]; const dx=b[0]-a[0], dy=b[1]-a[1], n=Math.hypot(dx,dy)||1; return [p[0]-dy/n*off, p[1]+dx/n*off]; }); }
+const BANK_N = offsetLine(RIVER_D, RIVER_HALF), BANK_S = offsetLine(RIVER_D, -RIVER_HALF);
+const ROAD_N = offsetLine(RIVER_D, RIVER_HALF+0.12), ROAD_S = offsetLine(RIVER_D, -RIVER_HALF-0.12);
+
+// ---------- 건물 ----------
+const CENTERS = [[11.3,3.4,2.2],[14.5,10.3,1.8],[21.0,1.8,2.4],[25.2,2.6,1.6],[19.5,6.5,0.9],[8.8,0.0,0.8]];
+const B = [];
+for (let gx=-3; gx<=33; gx+=0.40) for (let gy=-6; gy<=17; gy+=0.40) {
+  const x = gx + (R()-0.5)*0.22, y = gy + (R()-0.5)*0.22;
+  const dr = lineDist([x,y], RIVER);
+  if (dr < RIVER_HALF+0.28) continue;
+  if (Math.hypot(x-15.3,y-8.1) < 0.75) continue;           // 남산
+  if (Math.hypot(x-4.0,y-5.0) < 1.1) continue;             // 김포공항
+  if (Math.hypot(x-11.3,y-3.5) < 0.35) continue;           // 여의도 공원 자리
+  const railD = lineDist([x,y], RAIL);
+  if (railD < 0.16) continue;
+  let boost = 0; for (const c of CENTERS) boost += c[2]*Math.exp(-((x-c[0])**2+(y-c[1])**2)/3.2);
+  const edge = Math.min(1, Math.max(0, 1 - (Math.abs(x-15)-15)/4)) * Math.min(1, Math.max(0, 1-(Math.abs(y-5.5)-10)/3));
+  if (R() > 0.35 + 0.65*edge) continue;
+  const s = 0.10 + R()*0.12;
+  let h = (0.035 + R()*R()*0.16) * (1 + boost*0.9);
+  const riverside = dr < 1.7 && x > 8.5 && x < 28 && R() < 0.55;
+  const grow = riverside ? 2.2 + R()*2.6 : 1;
+  B.push({x, y, s, h, grow, riverside, lit: R(), win: R(), solarK: R(), nearRail: railD < 0.9});
+}
+B.push({x:PLACE.lotte[0], y:PLACE.lotte[1], s:0.13, h:0.95, grow:1, riverside:false, lit:1, win:0.9, solarK:0.5, lotte:true});
+
+// ---------- 카메라 ----------
+// [시각, 카메라 x, y, z, 바라보는 x, y]
+const KEYS = [
+  [0.0, 16,-9.0,10.5, 16,7.0],
+  [3.0, 15,-4.0, 7.0, 16,6.5],
+  [5.2, 19.5,-6.0, 7.5, 20.0,5.0],
+  [7.4, 16,-4.0, 5.0, 16,4.5],
+  [9.4, 10,-1.8, 2.6, 11.6,4.0],
+  [11.4, 8.4,-1.6, 2.3, 10.8,3.2],
+  [13.4, 6.6,-4.8, 2.6, 10.6,1.2],
+  [15.6, 9.0,-2.6, 2.2, 13.0,3.4],
+  [18.0, 13.0, 1.6, 0.95, 18.5,5.6],
+  [20.2, 19.5, 2.3, 1.05, 24.5,4.0],
+  [22.4, 27.5,-3.5, 3.0, 23.5,2.6],
+  [24.6, 26.0,-6.5, 5.5, 21.0,3.5],
+  [27.6, 18.0,-11.0,10.0, 16.5,5.5],
+  [30.0, 16.5,-13.0,12.0, 16.5,5.5]
+];
+function catmull(p0,p1,p2,p3,u){const u2=u*u,u3=u2*u;return 0.5*((2*p1)+(-p0+p2)*u+(2*p0-5*p1+4*p2-p3)*u2+(-p0+3*p1-3*p2+p3)*u3)}
+function camAt(t){
+  let i=0; while(i<KEYS.length-2 && t>KEYS[i+1][0]) i++;
+  const k0=KEYS[Math.max(0,i-1)], k1=KEYS[i], k2=KEYS[i+1], k3=KEYS[Math.min(KEYS.length-1,i+2)];
+  let u=clamp01((t-k1[0])/(k2[0]-k1[0])); u = u*u*(3-2*u)*0.35 + u*0.65;
+  const o=[]; for(let j=1;j<6;j++) o.push(catmull(k0[j],k1[j],k2[j],k3[j],u));
+  return o;
+}
+let C, Fv, Rv, Uv; const FOC = W*1.05;
+function setCam(t){
+  const [cx,cy,cz,tx,ty] = camAt(t); C=[cx,cy,cz];
+  let f=[tx-cx,ty-cy,-cz]; let n=Math.hypot(...f); Fv=f.map(v=>v/n);
+  let r=[Fv[1],-Fv[0],0]; n=Math.hypot(...r); Rv=r.map(v=>v/n);
+  Uv=[Rv[1]*Fv[2]-Rv[2]*Fv[1], Rv[2]*Fv[0]-Rv[0]*Fv[2], Rv[0]*Fv[1]-Rv[1]*Fv[0]];
+}
+function P(x,y,z){ const d=[x-C[0],y-C[1],(z||0)-C[2]]; const zz=d[0]*Fv[0]+d[1]*Fv[1]+d[2]*Fv[2]; if(zz<0.08) return null;
+  const xx=d[0]*Rv[0]+d[1]*Rv[1]+d[2]*Rv[2], yy=d[0]*Uv[0]+d[1]*Uv[1]+d[2]*Uv[2]; return [W/2+xx/zz*FOC, H*0.56-yy/zz*FOC, zz]; }
+
+// ---------- 색 ----------
+function mix(a,b,u){return a.map((v,i)=>v+(b[i]-v)*u)}
+function rgb(c,a){return a===undefined?`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`:`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`}
+let dawn = 0;  // 0 = 밤, 1 = 새벽
+function skyTop(){return mix([6,9,22],[58,74,128],dawn)}
+function skyLow(){return mix([22,30,58],[246,170,120],dawn)}
+function landCol(){return mix([12,17,30],[34,40,58],dawn)}
+function fog(col, z){ const u = clamp01((z-4)/34); return mix(col, skyLow(), u*0.85); }
+
+// ---------- 그리기 ----------
+function path(pts){ g.beginPath(); g.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) g.lineTo(pts[i][0],pts[i][1]); }
+function strokeWorld(L, z, style, width, dash){
+  g.save(); g.strokeStyle=style; g.lineWidth=width; g.lineCap='round'; g.lineJoin='round'; if(dash) g.setLineDash(dash.arr), g.lineDashOffset=dash.off||0;
+  let run=[]; const flush=()=>{ if(run.length>1){ path(run); g.stroke(); } run=[]; };
+  for(const p of L){ const q=P(p[0],p[1],z); if(q) run.push(q); else flush(); } flush(); g.restore();
+}
+
+function drawSky(){
+  const gr=g.createLinearGradient(0,0,0,H*0.62); gr.addColorStop(0,rgb(skyTop())); gr.addColorStop(1,rgb(skyLow()));
+  g.fillStyle=gr; g.fillRect(0,0,W,H);
+  if (dawn < 0.6) { const rs=rng(7); g.fillStyle=`rgba(255,255,255,${0.55*(1-dawn/0.6)})`; for(let i=0;i<140;i++){ g.fillRect(rs()*W, rs()*H*0.45, 2, 2); } }
+}
+function drawGround(){
+  const lc = landCol();
+  for(let x=-14;x<48;x+=2) for(let y=-24;y<34;y+=2){
+    const a=P(x,y), b=P(x+2,y), c=P(x+2,y+2), d=P(x,y+2); if(!a||!b||!c||!d) continue;
+    const z=(a[2]+c[2])/2; g.fillStyle=rgb(fog(lc,z)); path([a,b,c,d]); g.closePath(); g.fill();
+  }
+  // 강
+  const water = mix([20,44,86],[90,120,170],dawn);
+  for(let i=0;i<RIVER_D.length-1;i++){
+    const a=P(...BANK_N[i]), b=P(...BANK_N[i+1]), c=P(...BANK_S[i+1]), d=P(...BANK_S[i]); if(!a||!b||!c||!d) continue;
+    g.fillStyle=rgb(fog(water,(a[2]+c[2])/2)); path([a,b,c,d]); g.closePath(); g.fill();
+  }
+  strokeWorld(BANK_N,0,`rgba(120,170,230,${0.35+0.2*dawn})`,2);
+  strokeWorld(BANK_S,0,`rgba(120,170,230,${0.35+0.2*dawn})`,2);
+  // 남산 숲
+  const nm=P(15.3,8.1); if(nm){ g.fillStyle=rgb(fog(mix([16,40,30],[50,90,60],dawn),nm[2])); g.beginPath(); g.ellipse(nm[0],nm[1],Math.max(4,0.8*FOC/nm[2]),Math.max(2,0.35*FOC/nm[2]),0,0,Math.PI*2); g.fill(); }
+}
+
+let T = 0;
+function drawRoadsAndCars(evK){
+  strokeWorld(ROAD_N,0,'rgba(255,170,90,0.22)',2); strokeWorld(ROAD_S,0,'rgba(255,170,90,0.22)',2);
+  const roads=[ROAD_N,ROAD_S]; const rc=rng(11);
+  for(let r=0;r<2;r++){ const L=roads[r], len=polyLen(L);
+    for(let i=0;i<70;i++){ const sp=0.35+rc()*0.35, s=((rc()*len + (r?1:-1)*T*sp) % len + len) % len;
+      const p=polyAt(L,s); const q=P(p[0],p[1],0.004); if(!q) continue;
+      const ev = rc() < evK; const col = ev ? [110,255,170] : (r? [255,90,70]:[255,240,210]);
+      const sz=Math.max(1.5, 0.028*FOC/q[2]); g.fillStyle=rgb(col,0.95); g.fillRect(q[0]-sz/2,q[1]-sz/2,sz,sz);
+    }
+  }
+}
+
+function drawRail(t){
+  const under = smooth(11.8,13.6,t), park = smooth(12.6,14.8,t);
+  if (park>0){ strokeWorld(polyPart(RAIL,park), 0.002, `rgba(90,230,140,${0.9})`, 10); strokeWorld(polyPart(RAIL,park), 0.002, `rgba(90,230,140,0.25)`, 26); }
+  if (under<1){ strokeWorld(RAIL,0.003,`rgba(255,190,110,${0.9*(1-under)})`,4); }
+  if (under>0){ strokeWorld(RAIL,0,`rgba(255,190,110,${0.5*under})`,3,{arr:[8,12],off:-t*30}); }
+}
+
+function drawGTX(t){
+  const k = smooth(3.4,6.2,t); if(k<=0) return;
+  const part = polyPart(densify(GTX,0.3), k);
+  strokeWorld(part,0,'rgba(140,90,255,0.25)',16);
+  strokeWorld(part,0,'rgba(190,150,255,0.95)',4,{arr:[18,10],off:-t*60});
+  for(const st of [PLACE.seoulStn,PLACE.samsung,PLACE.suseo]){ const q=P(st[0],st[1],0); if(!q) continue; const pulse=0.5+0.5*Math.sin(t*5);
+    g.fillStyle=`rgba(210,180,255,${0.35*k})`; g.beginPath(); g.arc(q[0],q[1],10+10*pulse,0,7); g.fill();
+    g.fillStyle=`rgba(240,225,255,${k})`; g.beginPath(); g.arc(q[0],q[1],6,0,7); g.fill(); }
+}
+
+function prism(b, t, solarU, towerU){
+  const h = b.h * (b.riverside ? lerp(1,b.grow,towerU) : 1), s=b.s/2;
+  const base=[[b.x-s,b.y-s],[b.x+s,b.y-s],[b.x+s,b.y+s],[b.x-s,b.y+s]];
+  const pb=base.map(p=>P(p[0],p[1],0)), pt=base.map(p=>P(p[0],p[1],h)); if(pb.some(v=>!v)||pt.some(v=>!v)) return;
+  const z=pb[0][2];
+  const body = b.lotte ? [70,80,105] : [34+b.win*16, 40+b.win*16, 62+b.win*20];
+  const faces=[[0,1],[1,2],[2,3],[3,0]];
+  for(const [i,j] of faces){
+    const mx=(base[i][0]+base[j][0])/2, my=(base[i][1]+base[j][1])/2; const ex=base[j][0]-base[i][0], ey=base[j][1]-base[i][1];
+    const nx=ey, ny=-ex; if(nx*(C[0]-mx)+ny*(C[1]-my)<=0) continue;
+    const shade = (i%2? 0.8:1.0);
+    g.fillStyle=rgb(fog(body.map(v=>v*shade),z)); path([pb[i],pb[j],pt[j],pt[i]]); g.closePath(); g.fill();
+    // 창문 불빛
+    const lit = (1-dawn*0.7);
+    if (lit>0.1 && b.lit>0.25){ const rw=rng((b.x*1000+b.y*77+i)|0); const n=Math.min(12, 3+Math.floor(h*30));
+      const warm = b.riverside && towerU>0.5 ? [200,225,255] : [255,214,140];
+      g.fillStyle=rgb(fog(warm,z),0.85*lit);
+      for(let k=0;k<n;k++){ const u=0.15+rw()*0.7, v=0.1+rw()*0.85; const qx=lerp(lerp(pb[i][0],pb[j][0],u),lerp(pt[i][0],pt[j][0],u),v), qy=lerp(lerp(pb[i][1],pb[j][1],u),lerp(pt[i][1],pt[j][1],u),v);
+        const sz=Math.max(1.4, 0.016*FOC/z); g.fillRect(qx,qy,sz,sz*1.4); } }
+  }
+  // 지붕(2050: 태양광으로 바뀜)
+  const on = solarU > b.solarK;
+  const roof = on ? [40,190,230] : [52+b.win*20,58+b.win*20,84+b.win*20];
+  g.fillStyle=rgb(fog(roof,z), on?0.95:1); path(pt); g.closePath(); g.fill();
+  if (b.lotte){ const tp=P(b.x,b.y,h+0.12); if(tp){ g.strokeStyle='rgba(200,220,255,0.9)'; g.lineWidth=2; path([pt[0],tp]); g.stroke(); g.fillStyle='rgba(255,90,90,0.9)'; g.beginPath(); g.arc(tp[0],tp[1],3,0,7); g.fill(); } }
+}
+
+function drawNamsanTower(){
+  const a=P(15.4,8.3,0.12), b=P(15.4,8.3,0.62); if(!a||!b) return;
+  g.strokeStyle='rgba(220,230,255,0.85)'; g.lineWidth=Math.max(2,0.03*FOC/a[2]); path([a,b]); g.stroke();
+  g.fillStyle='rgba(255,220,150,0.95)'; g.beginPath(); g.arc(b[0],b[1]+8,Math.max(3,0.04*FOC/b[2]),0,7); g.fill();
+}
+
+function drawUAM(t){
+  const k = smooth(7.3,8.6,t); if(k<=0) return;
+  const routes=[[VERT.gimpo,VERT.yeouido],[VERT.yeouido,VERT.jamsil],[VERT.jamsil,VERT.suseo],[VERT.yeouido,PLACE.gwanghwamun]];
+  for(const v of Object.values(VERT)){ const q=P(v[0],v[1],0.02); if(!q) continue; g.strokeStyle=`rgba(120,230,255,${0.8*k})`; g.lineWidth=3; g.beginPath(); g.ellipse(q[0],q[1],Math.max(6,0.12*FOC/q[2]),Math.max(3,0.05*FOC/q[2]),0,0,7); g.stroke(); }
+  routes.forEach((r,ri)=>{ for(let n=0;n<2;n++){
+    let u=((t-7.3)*0.11 + ri*0.27 + n*0.5)%1; const alt=0.25+0.25*Math.sin(Math.PI*u);
+    const x=lerp(r[0][0],r[1][0],u), y=lerp(r[0][1],r[1][1],u); const q=P(x,y,alt); if(!q) continue;
+    // 꼬리
+    const tail=[]; for(let m=0;m<8;m++){ const uu=Math.max(0,u-m*0.012); const qq=P(lerp(r[0][0],r[1][0],uu),lerp(r[0][1],r[1][1],uu),0.25+0.25*Math.sin(Math.PI*uu)); if(qq) tail.push(qq); }
+    if(tail.length>1){ g.strokeStyle=`rgba(120,230,255,${0.6*k})`; g.lineWidth=4; path(tail); g.stroke(); }
+    const sz=Math.max(8,0.07*FOC/q[2]); g.fillStyle=`rgba(230,250,255,${k})`; g.beginPath(); g.arc(q[0],q[1],sz,0,7); g.fill();
+    g.fillStyle=`rgba(120,230,255,${0.3*k})`; g.beginPath(); g.arc(q[0],q[1],sz*2.6,0,7); g.fill();
+  }});
+}
+
+function label(text, p, z, alpha){
+  const q=P(p[0],p[1],z||0.05); if(!q||alpha<=0) return;
+  g.font='600 30px P'; const w=g.measureText(text).width+28;
+  g.fillStyle=`rgba(10,14,28,${0.72*alpha})`; roundRect(q[0]-w/2,q[1]-62,w,46,23); g.fill();
+  g.fillStyle=`rgba(255,255,255,${alpha})`; g.textAlign='center'; g.fillText(text,q[0],q[1]-29); g.textAlign='left';
+  g.strokeStyle=`rgba(255,255,255,${0.6*alpha})`; g.lineWidth=2; path([[q[0],q[1]-16],[q[0],q[1]]]); g.stroke();
+}
+function roundRect(x,y,w,h,r){ g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath(); }
+
+// ---------- 자막 ----------
+const STOPS = [
+  {a:3.2, b:7.2, year:'2028', head:'GTX-A 끝까지 연결', sub:'파주에서 화성 동탄까지 한 번에', src:'국토교통부 전 구간 개통 목표 2028년 하반기'},
+  {a:7.4, b:11.4, year:'2030', head:'하늘을 나는 택시', sub:'판교 → 광화문 15분이 목표', src:'서울시 도심항공교통 비전(2024) · 2030년 상용화 목표'},
+  {a:11.6, b:15.6, year:'2034', head:'기찻길은 땅 밑으로', sub:'그 위에는 긴 공원', src:'서울시 철도 지하화 구상(2024) · 목표 연도는 미확정'},
+  {a:15.8, b:20.2, year:'2040', head:'층수 제한 풀린 한강변', sub:'35층 일괄 규제 삭제', src:'2040 서울도시기본계획(2023년 확정)'},
+  {a:20.4, b:24.6, year:'2050', head:'탄소중립 서울', sub:'지붕엔 태양광, 도로엔 전기차', src:'서울시 탄소중립 계획 · 2050년 목표'},
+  {a:24.8, b:28.2, year:'2056', head:'그런데 사람은 줄어요', sub:'', src:'통계청 장래인구추계(중위) · 2022년 942만 → 2052년 793만'},
+];
+function fadeIn(t,a,b){ return Math.min(smooth(a,a+0.45,t), 1-smooth(b-0.45,b,t)); }
+function caption(t){
+  // 위쪽 어둡게(글씨가 잘 보이게)
+  const gr=g.createLinearGradient(0,0,0,640); gr.addColorStop(0,'rgba(0,0,0,0.55)'); gr.addColorStop(1,'rgba(0,0,0,0)'); g.fillStyle=gr; g.fillRect(0,0,W,640);
+  const gb=g.createLinearGradient(0,H-360,0,H); gb.addColorStop(0,'rgba(0,0,0,0)'); gb.addColorStop(1,'rgba(0,0,0,0.6)'); g.fillStyle=gb; g.fillRect(0,H-360,W,360);
+  // 꼬리표
+  g.font='800 34px P'; g.fillStyle='rgba(255,213,74,0.95)'; roundRect(56,72,268,62,31); g.fill(); g.fillStyle='#1b1430'; g.fillText('30년 뒤 서울',84,115);
+  // 처음 훅
+  const h=fadeIn(t,0,3.2); if(h>0){ g.globalAlpha=h; g.fillStyle='#fff'; g.font='800 84px P'; g.textAlign='center';
+    g.fillText('30년 뒤 서울,',W/2,330); g.fillText('발표된 계획만',W/2,430); g.fillText('따라가 봤어요',W/2,530); g.textAlign='left'; g.globalAlpha=1; }
+  for(const s of STOPS){ const a=fadeIn(t,s.a,s.b); if(a<=0) continue; g.globalAlpha=a; g.textAlign='center';
+    const y0 = 300 + (1-a)*24;
+    g.font='800 150px P'; g.fillStyle='#FFD54A'; g.fillText(s.year,W/2,y0);
+    g.font='800 70px P'; g.fillStyle='#fff'; g.fillText(s.head,W/2,y0+105);
+    if(s.sub){ g.font='600 46px P'; g.fillStyle='rgba(255,255,255,0.88)'; g.fillText(s.sub,W/2,y0+175); }
+    g.font='400 30px P'; g.fillStyle='rgba(255,255,255,0.8)'; g.fillText(s.src,W/2,H-150);
+    g.textAlign='left'; g.globalAlpha=1; }
+  // 인구 숫자
+  const pk = fadeIn(t,25.0,28.2); if(pk>0){ const u=smooth(25.4,27.4,t); const pop=Math.round(lerp(942,793,u));
+    g.globalAlpha=pk; g.textAlign='center'; g.font='800 120px P'; g.fillStyle='#fff'; g.fillText(`${pop}만 명`,W/2,610);
+    g.font='600 40px P'; g.fillStyle='rgba(255,255,255,0.85)'; g.fillText(u<1?'2022년 → 2052년 (추계)':'2052년 추계 · 30년 새 149만 명 감소',W/2,680); g.textAlign='left'; g.globalAlpha=1; }
+  // 끝
+  const e=smooth(28.0,28.6,t); if(e>0){ g.globalAlpha=e; g.textAlign='center'; g.fillStyle='#fff'; g.font='800 76px P';
+    g.fillText('30년 뒤, 당신은',W/2,360); g.fillText('서울 어디에 있을까요?',W/2,460);
+    g.font='400 30px P'; g.fillStyle='rgba(255,255,255,0.8)'; g.fillText('계획·목표·추계 기준이라 바뀔 수 있어요 · 지도는 단순화',W/2,H-150);
+    g.textAlign='left'; g.globalAlpha=1; }
+}
+
+// ---------- 한 프레임 ----------
+function render(t){
+  T=t; setCam(t); dawn = smooth(24.5,29.5,t);
+  drawSky(); drawGround();
+  drawRoadsAndCars(smooth(20.6,22.6,t));
+  const solarU = smooth(20.6,23.4,t)*1.02, towerU = smooth(16.0,18.6,t);
+  const list = B.map(b=>({b, d:(b.x-C[0])**2+(b.y-C[1])**2})).sort((p,q)=>q.d-p.d);
+  for(const it of list) prism(it.b, t, solarU, towerU);
+  drawNamsanTower();
+  drawRail(t);
+  drawGTX(t);
+  drawUAM(t);
+  // 지명
+  const L1=fadeIn(t,3.6,7.0); label('서울역',PLACE.seoulStn,0.05,L1); label('삼성',PLACE.samsung,0.05,L1); label('수서',PLACE.suseo,0.05,L1);
+  const L2=fadeIn(t,7.8,11.2); label('여의도',VERT.yeouido,0.06,L2); label('김포공항',VERT.gimpo,0.06,L2);
+  const L3=fadeIn(t,12.0,15.4); label('영등포',PLACE.yeongdeungpo,0.05,L3); label('구로',PLACE.guro,0.05,L3);
+  const L5=fadeIn(t,20.8,24.4); label('잠실',PLACE.lotte,0.98,L5);
+  caption(t);
+}
+window.render = render;
+window.ready = document.fonts.load('800 40px P').then(()=>document.fonts.load('600 40px P')).then(()=>document.fonts.load('400 40px P')).then(()=>{ render(0); return true; });
+</script></body></html>
