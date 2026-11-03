@@ -3,7 +3,8 @@
 // - Room(마을마다 여러 개, 방 하나 40명): 지금 있는 사람 위치·표정 · 눈덩이 · 종소리 (실시간 WebSocket)
 // 아이템 뽑기는 서버에서만 한다 (확률을 바꿔 치기 못 하게).
 import { DurableObject } from "cloudflare:workers";
-import { ITEMS, SLOTS, RATES, GOLD_RATES, DUPE_FRAG, FRAG_COST, GIFTS_PER_DAY, cleanText, nickKey } from "../public/rules.js";
+import { ITEMS, SLOTS, RATES, GOLD_RATES, DUPE_FRAG, FRAG_COST, GIFTS_PER_DAY, LIMITED, GAME_DAILY_FRAG, cleanText, nickKey } from "../public/rules.js";
+import { replay, TPS, MAX_TICKS, W as GAME_W } from "../public/game.js";
 
 const ROOM_CAP = 40;
 const VILLAGES = ["santa", "sun"];
@@ -13,6 +14,8 @@ const PRESETS = {
 };
 const kst = () => new Date(Date.now() + 9 * 3600e3);
 const kstDay = () => kst().toISOString().slice(0, 10);
+// 주간 순위는 한국 시간 월요일 0시에 새로 시작. 주 이름 = 그 주 월요일 날짜
+const weekOf = (ms) => { const d = new Date(ms + 9 * 3600e3), dow = (d.getUTCDay() + 6) % 7; return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - dow)).toISOString().slice(0, 10); };
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
 const hex = (n) => [...crypto.getRandomValues(new Uint8Array(n))].map((b) => b.toString(16).padStart(2, "0")).join("");
 const CODE_ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -29,7 +32,8 @@ export default {
       return env.ROOM.get(env.ROOM.idFromName(room)).fetch(request);
     }
     if (url.pathname.startsWith("/api/")) {
-      if (request.method === "POST" && Number(request.headers.get("content-length") || 0) > 4096) return json({ error: "too_big" }, 413);
+      const limit = url.pathname === "/api/game/end" ? 24000 : 4096;
+      if (request.method === "POST" && Number(request.headers.get("content-length") || 0) > limit) return json({ error: "too_big" }, 413);
       return hub(env).fetch(request);
     }
     return env.ASSETS.fetch(request);
@@ -47,6 +51,11 @@ export class Hub extends DurableObject {
       CREATE TABLE IF NOT EXISTS letters (uid TEXT PRIMARY KEY, text TEXT, at TEXT);
       CREATE TABLE IF NOT EXISTS visits (day TEXT PRIMARY KEY, n INTEGER DEFAULT 0);
       CREATE TABLE IF NOT EXISTS rooms (room TEXT PRIMARY KEY, n INTEGER DEFAULT 0, at INTEGER);
+      CREATE TABLE IF NOT EXISTS games (gid TEXT PRIMARY KEY, uid TEXT, seed INTEGER, started INTEGER, done INTEGER DEFAULT 0);
+      CREATE TABLE IF NOT EXISTS scores (week TEXT, uid TEXT, best INTEGER, at INTEGER, PRIMARY KEY (week, uid));
+      CREATE TABLE IF NOT EXISTS plays (uid TEXT, day TEXT, n INTEGER DEFAULT 0, PRIMARY KEY (uid, day));
+      CREATE TABLE IF NOT EXISTS rewards (uid TEXT, week TEXT, item TEXT, PRIMARY KEY (uid, week));
+      CREATE INDEX IF NOT EXISTS scores_rank ON scores (week, best DESC);
     `);
     this.tries = new Map(); // 이어하기 코드 마구 넣기 막기 (IP별)
   }
@@ -54,6 +63,24 @@ export class Hub extends DurableObject {
   user(token) {
     if (typeof token !== "string" || !/^[0-9a-f]{40}$/.test(token)) return null;
     return this.sql.exec("SELECT * FROM users WHERE token = ?", token).toArray()[0] || null;
+  }
+  rankOf(week, uid) {
+    const me = this.sql.exec("SELECT best FROM scores WHERE week = ? AND uid = ?", week, uid).toArray()[0];
+    if (!me) return null;
+    const ahead = this.sql.exec("SELECT COUNT(*) AS c FROM scores WHERE week = ? AND (best > ? OR (best = ? AND at < (SELECT at FROM scores WHERE week = ? AND uid = ?)))", week, me.best, me.best, week, uid).one().c;
+    return { rank: ahead + 1, best: me.best };
+  }
+  // 지난주 순위 보상 (1등 · 2~10등 한정 아이템) — 그 사람이 다음에 들어올 때 한 번 줌
+  weeklyReward(u) {
+    const last = weekOf(Date.now() - 7 * 864e5);
+    if (this.sql.exec("SELECT 1 FROM rewards WHERE uid = ? AND week = ?", u.uid, last).toArray().length) return null;
+    const r = this.rankOf(last, u.uid);
+    if (!r || r.rank > 10) return null;
+    const [sl, i] = r.rank === 1 ? LIMITED.champion : LIMITED.top10, owned = new Set(JSON.parse(u.owned));
+    owned.add(sl + ":" + i);
+    this.sql.exec("UPDATE users SET owned = ? WHERE token = ?", JSON.stringify([...owned]), u.token);
+    this.sql.exec("INSERT INTO rewards (uid, week, item) VALUES (?, ?, ?)", u.uid, last, sl + ":" + i);
+    return { week: last, rank: r.rank, sl, i, name: ITEMS[sl][i][0] };
   }
   profile(u) {
     const day = kstDay();
@@ -83,7 +110,17 @@ export class Hub extends DurableObject {
         this.sql.exec("INSERT INTO visits (day, n) VALUES (?, 1) ON CONFLICT(day) DO UPDATE SET n = n + 1", day);
         u = this.user(u.token);
       }
-      return json({ token: u.token, profile: this.profile(u) });
+      const reward = u.nick ? this.weeklyReward(u) : null;
+      if (reward) u = this.user(u.token);
+      return json({ token: u.token, profile: this.profile(u), reward });
+    }
+
+    if (path === "rank") { // 이번 주 순위 20등까지
+      const week = weekOf(Date.now());
+      const top = this.sql.exec("SELECT u.nick AS nick, s.best AS best FROM scores s JOIN users u ON u.uid = s.uid WHERE s.week = ? ORDER BY s.best DESC, s.at ASC LIMIT 20", week).toArray();
+      const players = this.sql.exec("SELECT COUNT(*) AS c FROM scores WHERE week = ?", week).one().c;
+      const mine = this.user(body.token);
+      return json({ week, top, players, me: mine ? this.rankOf(week, mine.uid) : null });
     }
 
     if (path === "room") { // 사람이 있는 방부터 채우고, 다 차면 새 방
@@ -167,9 +204,36 @@ export class Hub extends DurableObject {
       return json({ item, profile: this.profile(this.user(u.token)) });
     }
 
-    if (path === "exchange") { // 눈송이 조각 30개 → 원하는 아이템
+    if (path === "game/start") {
+      const recent = this.sql.exec("SELECT COUNT(*) AS c FROM games WHERE uid = ? AND started > ?", u.uid, Date.now() - 3600e3).one().c;
+      if (recent >= 80) return json({ error: "too_many", why: "잠깐 쉬었다가 다시 해 주세요." }, 429);
+      this.sql.exec("DELETE FROM games WHERE uid = ? AND done = 0", u.uid); // 끝내지 않은 판은 버림
+      const gid = hex(8), seed = crypto.getRandomValues(new Uint32Array(1))[0] || 1;
+      this.sql.exec("INSERT INTO games (gid, uid, seed, started) VALUES (?, ?, ?, ?)", gid, u.uid, seed, Date.now());
+      return json({ gid, seed });
+    }
+
+    if (path === "game/end") { // 손가락 기록으로 서버가 판을 다시 돌려 점수를 정함
+      const g = this.sql.exec("SELECT * FROM games WHERE gid = ? AND uid = ? AND done = 0", String(body.gid || ""), u.uid).toArray()[0];
+      if (!g) return json({ error: "no_game" }, 404);
+      this.sql.exec("UPDATE games SET done = 1 WHERE gid = ?", g.gid);
+      const inputs = Array.isArray(body.inputs) ? body.inputs.slice(0, MAX_TICKS).map((v) => Math.max(0, Math.min(GAME_W, v | 0))) : [];
+      const res = replay(g.seed, inputs);
+      const elapsed = (Date.now() - g.started) / 1000;
+      if (!res.over || res.ticks / TPS > elapsed + 2) return json({ error: "bad_game", why: "이번 판은 기록되지 않았어요." }, 409);
+      const week = weekOf(Date.now()), old = this.sql.exec("SELECT best FROM scores WHERE week = ? AND uid = ?", week, u.uid).toArray()[0];
+      const isBest = !old || res.score > old.best;
+      if (isBest) this.sql.exec("INSERT INTO scores (week, uid, best, at) VALUES (?, ?, ?, ?) ON CONFLICT(week, uid) DO UPDATE SET best = excluded.best, at = excluded.at", week, u.uid, res.score, Date.now());
+      this.sql.exec("INSERT INTO plays (uid, day, n) VALUES (?, ?, 1) ON CONFLICT(uid, day) DO UPDATE SET n = n + 1", u.uid, day);
+      const n = this.sql.exec("SELECT n FROM plays WHERE uid = ? AND day = ?", u.uid, day).one().n;
+      const frag = n <= GAME_DAILY_FRAG ? 1 : 0;
+      if (frag) this.sql.exec("UPDATE users SET frag = frag + 1 WHERE token = ?", u.token);
+      return json({ score: res.score, gifts: res.gifts, seconds: Math.round(res.ticks / TPS), isBest, frag, playsLeft: Math.max(0, GAME_DAILY_FRAG - n), rank: this.rankOf(week, u.uid), profile: this.profile(this.user(u.token)) });
+    }
+
+    if (path === "exchange") { // 눈송이 조각 30개 → 원하는 아이템 (한정은 안 됨)
       const sl = String(body.sl || ""), i = body.i | 0;
-      if (!ITEMS[sl] || i <= 0 || i >= ITEMS[sl].length) return json({ error: "bad_item" }, 400);
+      if (!ITEMS[sl] || i <= 0 || i >= ITEMS[sl].length || ITEMS[sl][i][1] === 3) return json({ error: "bad_item" }, 400);
       const owned = new Set(JSON.parse(u.owned));
       if (owned.has(sl + ":" + i)) return json({ error: "owned" }, 409);
       if (u.frag < FRAG_COST) return json({ error: "not_enough" }, 409);

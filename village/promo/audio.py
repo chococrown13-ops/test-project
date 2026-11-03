@@ -67,7 +67,7 @@ for rep in range(4):
         if off + b0 * beat < 28.3:
             hit(off + b0 * beat, note(n), 0.9, 0.09, 0.55, 0.5)
 # 장면 바뀔 때 반짝 소리
-for s0 in (3.2, 7, 11.5, 16, 19.2, 28.5):
+for s0 in (3.2, 7, 11.5, 16, 21, 28.5):
     for k, n in enumerate((86, 90, 93)):
         hit(s0 + k * 0.06, note(n), 0.5, 0.05, 0.3 + 0.2 * k, 0.6)
 

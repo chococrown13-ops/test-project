@@ -4,8 +4,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>겨울 소원마을</title>
 <meta name="description" content="눈사람이 되어 산타마을·해맞이마을을 걸어 다니며 소원을 달고 눈덩이를 던지는 3D 마을. 매일 밤 8시 트리 점등식.">
-<meta property="og:title" content="겨울 소원마을 — 눈사람이 되어 놀러 오세요">
-<meta property="og:description" content="매일 밤 8시 트리 점등식 · 오늘의 선물 · 소원 풍등">
+<meta property="og:title" content="미리 열린 겨울 소원마을 — 눈사람이 되어 놀러 오세요">
+<meta property="og:description" content="눈덩이 피하기 주간 1등 한정 왕관 · 매일 밤 8시 트리 점등식 · 오늘의 선물">
 <meta property="og:image" content="/og.png">
 <meta name="theme-color" content="#101a3a">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700&display=swap">
@@ -60,6 +60,18 @@ body{background:#0a1020;color:var(--ink);font-family:var(--font-body);overflow:h
 .vbtn{display:grid;gap:2px;text-align:left;border-radius:16px;}
 .vbtn small{font:400 12px var(--font-body);opacity:.8;}
 .hint{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 96px);transform:translateX(-50%);color:var(--ink-soft);font-size:13px;background:var(--glass);padding:6px 12px;border-radius:999px;white-space:nowrap;}
+#game{position:fixed;inset:0;z-index:8;background:#0b1430;display:grid;place-items:center;touch-action:none;}
+#game canvas{width:min(100vw,62.5vh);height:min(160vw,100vh);display:block;touch-action:none;}
+.ghud{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 12px);display:flex;justify-content:space-between;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));font:400 22px var(--font-display);color:#fff;pointer-events:none;text-shadow:0 2px 0 rgba(0,0,0,.4);}
+.gpanel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,420px);box-sizing:border-box;background:#141b33;border:1px solid var(--glass-line);border-radius:22px;padding:22px;display:grid;gap:12px;text-align:center;}
+.gpanel h2{margin:0;font:400 26px var(--font-display);}
+.gpanel p{margin:0;color:var(--ink-soft);font-size:14px;line-height:1.55;}
+.gpanel .big{font:400 54px var(--font-display);color:var(--accent);line-height:1;}
+.gpanel .row{justify-content:center;}
+.rank{display:grid;gap:4px;margin:0;padding:0;list-style:none;text-align:left;max-height:46vh;overflow:auto;}
+.rank li{display:grid;grid-template-columns:2.2em minmax(0,1fr) auto;gap:8px;padding:7px 10px;border-radius:10px;background:#0b1430;font-size:14px;font-variant-numeric:tabular-nums;}
+.rank li.me{outline:2px solid var(--accent);}
+.rank b{color:var(--accent);font-weight:400;font-family:var(--font-display);}
 .fail{position:fixed;inset:0;display:grid;place-items:center;text-align:center;padding:24px;color:var(--ink-soft);}
 </style>
 </head><body>
@@ -78,10 +90,12 @@ body{background:#0a1020;color:var(--ink);font-family:var(--font-body);overflow:h
   <button id="m-photo"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>사진</button>
 </nav>
 <div class="sheet" id="sheet" hidden></div>
+<div id="game" hidden><canvas id="gcv" width="750" height="1200" aria-label="눈덩이 피하기 게임판. 손가락을 좌우로 움직여 피하세요"></canvas><div class="ghud"><span id="g-lives"></span><span id="g-score"></span></div><div class="gpanel" id="gpanel" hidden></div></div>
 
 <script src="/vendor/three-0.149.0.min.js"></script>
 <script type="module">
-import { SLOTS, ITEMS, RARE_NAME, GIFTS_PER_DAY, FRAG_COST, cleanText as clean } from "./rules.js";
+import { SLOTS, ITEMS, RARE_NAME, GIFTS_PER_DAY, FRAG_COST, GAME_DAILY_FRAG, cleanText as clean } from "./rules.js";
+import { newGame, step as gameStep, score as gameScore, TPS, MAX_TICKS, W as GW, H as GH, PLAYER_Y, PLAYER_R } from "./game.js";
 (() => {
 if (!window.THREE) { document.body.insertAdjacentHTML("beforeend", '<div class="fail">3D 화면을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</div>'); return; }
 const $ = (id) => document.getElementById(id);
@@ -100,7 +114,8 @@ const V = {
     name: "산타마을", sit: "눈멍하기", sitMsg: "눈 내리는 걸 멍하니 보는 중",
     presets: ["가족 모두 건강하게", "올해도 수고했어", "합격하게 해 주세요", "내년엔 연애하게", "행복한 크리스마스", "다 잘될 거야"],
     spots: [{ id: "tree", x: 0, z: -7, r: 4.2, acts: [["소원 장식 달기", "wish"], ["달린 소원 보기", "list"]] },
-            { id: "mail", x: 5.5, z: -3, r: 2, acts: [["산타에게 편지", "letter"]] }],
+            { id: "mail", x: 5.5, z: -3, r: 2, acts: [["산타에게 편지", "letter"]] },
+            { id: "arena", x: -9.5, z: -4.5, r: 2.6, acts: [["눈덩이 피하기", "game"], ["이번 주 순위", "rank"]] }],
     giftName: "선물",
   },
   sun: {
@@ -193,6 +208,11 @@ function makeAvatar(kind, hat, look = DEFAULT_LOOK) {
   } else if (look.h === 3) {
     const band = add(new THREE.TorusGeometry(headR * 0.98, 0.04, 6, 24, Math.PI), M(0x8a6bd8), 0, headY, 0, body); band.rotation.y = Math.PI / 2;
     for (const sx of [-1, 1]) add(new THREE.SphereGeometry(0.16, 12, 10), M(0xff9ec8), sx * headR * 0.98, headY, 0, body);
+  } else if (look.h === 7) { // 눈싸움왕 왕관 (주간 1등 한정)
+    const ice = new THREE.MeshLambertMaterial({ color: 0xbfe6ff, emissive: 0x2a5a8a });
+    add(new THREE.CylinderGeometry(headR * 0.6, headR * 0.62, 0.2, 16, 1, true), ice, 0, topY, 0, body);
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; add(new THREE.ConeGeometry(0.06, i % 2 ? 0.2 : 0.32, 6), ice, Math.cos(a) * headR * 0.6, topY + (i % 2 ? 0.18 : 0.24), Math.sin(a) * headR * 0.6, body); }
+    add(new THREE.OctahedronGeometry(0.09), new THREE.MeshBasicMaterial({ color: 0xffffff }), 0, topY + 0.06, headR * 0.62, body);
   } else if (look.h === 4) {
     const gold = new THREE.MeshLambertMaterial({ color: 0xffd04a, emissive: 0x6a4a00 });
     add(new THREE.CylinderGeometry(headR * 0.55, headR * 0.55, 0.16, 16, 1, true), gold, 0, topY - 0.02, 0, body);
@@ -233,6 +253,7 @@ function makeAvatar(kind, hat, look = DEFAULT_LOOK) {
   if (look.d === 2) { add(new THREE.BoxGeometry(0.26, 0.22, 0.26), M(0x3fb66b), hx, hy - 0.2, 0.12, body); add(new THREE.BoxGeometry(0.28, 0.05, 0.08), M(0xffe27a), hx, hy - 0.08, 0.12, body); }
   if (look.d === 3) { add(new THREE.CylinderGeometry(0.006, 0.006, 1.0, 4), M(0xdddddd), hx, hy + 0.4, 0, body); const bl = add(new THREE.SphereGeometry(0.22, 14, 12), new THREE.MeshLambertMaterial({ color: 0xff3a6a, emissive: 0x4a0010 }), hx, hy + 1.0, 0, body); bl.scale.set(1, 1.1, 0.8); }
   if (look.d === 4) add(new THREE.SphereGeometry(0.17, 12, 10), white, hx, hy - 0.12, 0.1, body);
+  if (look.d === 6) add(new THREE.SphereGeometry(0.19, 14, 12), new THREE.MeshLambertMaterial({ color: 0xffd04a, emissive: 0x7a5200 }), hx, hy - 0.1, 0.1, body);
   if (look.d === 5) { add(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 6), M(0xf2e6c0), hx, hy + 0.2, 0.05, body); const st = add(new THREE.OctahedronGeometry(0.14), new THREE.MeshBasicMaterial({ color: 0xffe060 }), hx, hy + 0.66, 0.05, body); st.userData.spin = true; }
   g.userData.body = body;
   return g;
@@ -275,6 +296,14 @@ function stars(color) {
   const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(p, 3));
   dyn.stars = new THREE.Points(g, new THREE.PointsMaterial({ color, size: 0.9, fog: false, transparent: true })); world.add(dyn.stars);
 }
+// 눈싸움장: 나무 팻말 + 눈덩이 더미
+function arena(x, z) {
+  add(new THREE.CylinderGeometry(0.08, 0.1, 1.6, 6), M(0x6b4428), x - 0.9, 0.8, z - 1.2);
+  add(new THREE.CylinderGeometry(0.08, 0.1, 1.6, 6), M(0x6b4428), x + 0.9, 0.8, z - 1.2);
+  add(new THREE.BoxGeometry(2.4, 0.9, 0.12), M(0x8a5a36), x, 1.55, z - 1.2);
+  add(new THREE.PlaneGeometry(2.1, 0.6), glowM(0xffe2a0), x, 1.55, z - 1.13);
+  const r = rnd(77); for (let i = 0; i < 7; i++) add(new THREE.SphereGeometry(0.22 + r() * 0.1, 10, 8), M(0xffffff), x + (r() - 0.5) * 1.6, 0.22, z + 0.4 + (r() - 0.5) * 0.8);
+}
 // 마을 장식 인형 (이름표 없음 — 방문자가 아님)
 function decor(kind, list) { const rr = rnd(42); list.forEach(([x, z, r], i) => { const look = {}; SLOTS.forEach(([sl]) => (look[sl] = rr() < 0.55 ? 0 : Math.floor(rr() * ITEMS[sl].length))); if (look.a === 4) look.a = 0; const a = makeAvatar(kind, HATS[(i * 3 + 1) % HATS.length], look); a.position.set(x, 0, z); a.rotation.y = r; a.scale.setScalar(0.92); world.add(a); }); }
 function fireAt(x, z) {
@@ -308,7 +337,8 @@ function buildSanta() {
   add(new THREE.BoxGeometry(0.7, 1.0, 0.6), M(0xd8323a), 5.5, 1.2, -3); add(new THREE.CylinderGeometry(0.06, 0.06, 0.7, 6), M(0x333333), 5.5, 0.35, -3);
   add(new THREE.CylinderGeometry(0.35, 0.35, 0.7, 12, 1, false, 0, Math.PI), M(0xb02830), 5.5, 1.7, -3).rotation.z = Math.PI / 2;
   fireAt(-6, 4);
-  decor("santa", [[-3.5, -3, 0.4], [3.2, -2.4, -0.5], [-8, -6, 0.9], [8.5, -7, -0.9], [-4.5, -11.5, 0.2], [4.8, -12, -0.2], [-9, 1, 1.2], [9.5, 0, -1.3]]);
+  arena(-9.5, -4.5);
+  decor("santa", [[-3.5, -3, 0.4], [3.2, -2.4, -0.5], [-12.5, 1.5, 1.4], [8.5, -7, -0.9], [-4.5, -11.5, 0.2], [4.8, -12, -0.2], [-9, 1, 1.2], [9.5, 0, -1.3]]);
   // 눈
   const N = reduce ? 500 : 1600, pos = new Float32Array(N * 3), rr = rnd(11);
   for (let i = 0; i < N; i++) { pos[i * 3] = (rr() - 0.5) * 60; pos[i * 3 + 1] = rr() * 22; pos[i * 3 + 2] = (rr() - 0.5) * 60 - 6; }
@@ -449,8 +479,9 @@ function openWardrobe() {
       el.append(h("label", { textContent: label }));
       const row = h("div", { className: "picks" });
       ITEMS[sl].forEach(([name, r], i) => {
-        const have = owned.has(sl + ":" + i), canSwap = !have && (profile?.frag || 0) >= FRAG_COST;
-        const b = h("button", { className: "pick", textContent: have ? name + (r ? (r === 2 ? " ✦✦" : " ✦") : "") : canSwap ? `${name} · 조각 ${FRAG_COST}` : "?" });
+        const have = owned.has(sl + ":" + i), canSwap = !have && r < 3 && (profile?.frag || 0) >= FRAG_COST;
+        const mark = r === 3 ? " 🏆" : r === 2 ? " ✦✦" : r ? " ✦" : "";
+        const b = h("button", { className: "pick", textContent: have ? name + mark : r === 3 ? `🏆 ${name}(주간 순위 한정)` : canSwap ? `${name} · 조각 ${FRAG_COST}` : "?" });
         b.disabled = !have && !canSwap; if (!have && !canSwap) b.setAttribute("aria-label", "아직 없는 아이템");
         b.setAttribute("aria-pressed", String(me.look[sl] === i));
         b.addEventListener("click", async () => {
@@ -488,6 +519,7 @@ function build() {
 
 // ---------- 화면: 칩 · 이름표 · 버튼 ----------
 function dday(m, d) { const n = kstNow(), y = n.getUTCFullYear(), today = Date.UTC(y, n.getUTCMonth(), n.getUTCDate()); let tgt = Date.UTC(y, m - 1, d); if (tgt < today) tgt = Date.UTC(y + 1, m - 1, d); return Math.round((tgt - today) / 864e5); }
+let rankTop = null;
 function renderChips() {
   const here = 1 + [...others.values()].filter((o) => o.data?.v === vk).length;
   const c = $("chips"); c.textContent = "";
@@ -498,13 +530,14 @@ function renderChips() {
   else { const dd = dday(1, 1); chip(dd === 0 ? "새해 복 많이 받으세요" : `새해 D-${dd}`); chip("12월 31일 해넘이 · 1월 1일 해돋이"); }
   chip(`오늘의 ${V[vk].giftName} ${giftCount()}/${GIFTS_PER_DAY}`, openWardrobe);
   chip(here > 1 ? `지금 이 마을 ${here}명` : "지금 이 마을엔 나 혼자", null);
+  chip(rankTop ? `☃ 눈덩이 피하기 · 이번 주 1등 ${rankTop.nick} ${rankTop.best}점` : "☃ 눈덩이 피하기 · 이번 주 1등 도전!", () => openGame(), true);
   if (profile) chip(`연속 방문 ${profile.streak}일`);
   chip(`내 옷장 ${owned.size}/${itemTotal}`, openWardrobe);
   chip(`${vk === "santa" ? "트리 소원" : "하늘의 풍등"} ${wishTotal[vk] || wishes[vk].length}개`, openList);
 }
 const labels = $("labels"), tmpV = new THREE.Vector3();
 // 홍보 영상 촬영용(?capture): 땅 위 좌표 → 화면 좌표
-if (location.search.includes("capture")) setTimeout(() => { window.__me = me; window.__gifts = () => dyn.gifts.map((g) => [g.position.x, g.position.z, g.userData.slot]); }, 0);
+if (location.search.includes("capture")) setTimeout(() => { window.__closeGame = closeGame; window.__me = me; window.__gifts = () => dyn.gifts.map((g) => [g.position.x, g.position.z, g.userData.slot]); }, 0);
 if (location.search.includes("capture")) window.__toScreen = (x, z) => { const v = new THREE.Vector3(x, 0, z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; };
 function tagFor(key, html, cls) { let el = labels.querySelector(`[data-k="${key}"]`); if (!el) { el = document.createElement("div"); el.dataset.k = key; el.className = cls; labels.append(el); } if (el._h !== html) { el._h = html; el.innerHTML = html; } return el; }
 function placeTag(el, obj, y) {
@@ -543,6 +576,8 @@ function doAct(act) {
   if (act === "wish") return openWish();
   if (act === "list") return openList();
   if (act === "letter") return openLetter();
+  if (act === "game") return openGame();
+  if (act === "rank") return openGame("rank");
   if (act === "sunset" || act === "sunrise") { sunAnim = { kind: act, t: clock.elapsedTime }; camMode = "sea"; toast(act === "sunset" ? "해가 바다 너머로 넘어가요" : "새해 첫 해가 떠올라요", 5000); return; }
   if (act === "bell") return ringBell(true);
 }
@@ -587,7 +622,7 @@ function closeSheet() { $("sheet").hidden = true; }
 function openNick(first) {
   let pickHat = me.hat;
   sheet((el) => {
-    el.append(h("h2", { textContent: first ? "겨울 소원마을에 오신 걸 환영해요" : "이름과 모자 바꾸기" }), h("p", { textContent: "머리 위에 보일 이름이에요. 다른 사람과 같은 이름은 쓸 수 없어요. 실명이나 연락처는 쓰지 마세요." }));
+    el.append(h("h2", { textContent: first ? "미리 열린 겨울 소원마을에 오신 걸 환영해요" : "이름과 모자 바꾸기" }), h("p", { textContent: "머리 위에 보일 이름이에요. 다른 사람과 같은 이름은 쓸 수 없어요. 실명이나 연락처는 쓰지 마세요." }));
     const inp = h("input", { id: "nick-input", maxLength: 8, value: me.nick || NICKS[Math.floor(Math.random() * NICKS.length)] + Math.floor(10 + Math.random() * 89) });
     const hats = h("div", { className: "picks" });
     HATS.forEach((c, i) => { const b = h("button", { className: "pick hat" }); b.setAttribute("aria-label", `모자 색 ${i + 1}`); b.style.background = c; b.setAttribute("aria-pressed", String(i === pickHat)); b.addEventListener("click", () => { pickHat = i; hats.querySelectorAll(".pick").forEach((x, k) => x.setAttribute("aria-pressed", String(k === i))); }); hats.append(b); });
@@ -730,6 +765,7 @@ function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.asp
 addEventListener("resize", resize);
 function loop() {
   const dt = Math.min(0.05, clock.getDelta()), t = clock.elapsedTime;
+  if (gameOn) { requestAnimationFrame(loop); return; } // 미니게임 중엔 마을을 멈춤
   if (keys.size && !me.sit) { const k = (a) => keys.has(a) ? 1 : 0; const kx = (k("ArrowRight") || k("d")) - (k("ArrowLeft") || k("a")), kz = (k("ArrowDown") || k("s")) - (k("ArrowUp") || k("w")); if (kx || kz) { me.tx = me.x + kx * 1.5; me.tz = me.z + kz * 1.5; } }
   const dx = me.tx - me.x, dz = me.tz - me.z, d = Math.hypot(dx, dz), walking = d > 0.05 && !me.sit;
   if (walking) { const s = Math.min(d, 3.4 * dt); me.x += dx / d * s; me.z += dz / d * s; me.rot = Math.atan2(dx, dz); sendPresence(); }
@@ -776,15 +812,112 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
+// ---------- 미니게임: 눈덩이 피하기 ----------
+// 규칙은 game.js (서버도 같은 걸로 다시 돌려 점수를 정함). 화면은 손가락 위치만 기록해서 보냄.
+let gameOn = false, gRun = null;
+const gcv = $("gcv"), gg = gcv.getContext("2d");
+async function loadRank() { try { const r = await api("rank", {}); rankTop = r.top[0] || null; renderChips(); return r; } catch { return null; } }
+function gPanel(fill) { const el = $("gpanel"); el.textContent = ""; fill(el); el.hidden = false; el.querySelector("button")?.focus(); }
+function closeGame() { gameOn = false; gRun = null; $("game").hidden = true; $("gpanel").hidden = true; renderChips(); }
+async function openGame(view) {
+  audio(); closeSheet(); gameOn = true; $("game").hidden = false; $("g-lives").textContent = ""; $("g-score").textContent = "";
+  drawGame(null);
+  if (view === "rank") return showRank();
+  const r = await loadRank();
+  gPanel((el) => {
+    el.append(h("h2", { textContent: "눈덩이 피하기" }), h("p", { textContent: "손가락(또는 ← →)으로 눈사람을 움직여 떨어지는 눈덩이를 피하세요. 목숨 3개, 선물을 받으면 +50점. 버틴 만큼 점수가 올라요." }));
+    el.append(h("p", { textContent: `이번 주 순위는 월요일 0시에 새로 시작해요. 주간 1등은 「눈싸움왕 왕관」, 2~10등은 「황금 눈덩이」 한정 꾸미기를 받아요. 하루 처음 ${GAME_DAILY_FRAG}판은 판마다 눈송이 조각 1개.` }));
+    if (r?.me) el.append(h("p", { textContent: `이번 주 내 최고 ${r.me.best}점 · ${r.me.rank}등 / ${r.players}명` }));
+    el.append(h("div", { className: "row" }, [h("button", { className: "btn ghost", textContent: "마을로", onclick: closeGame }), h("button", { className: "btn ghost", textContent: "순위 보기", onclick: showRank }), h("button", { className: "btn", textContent: "시작", onclick: startGame })]));
+  });
+}
+async function showRank() {
+  const r = await loadRank();
+  gPanel((el) => {
+    el.append(h("h2", { textContent: "이번 주 순위" }), h("p", { textContent: r ? `${r.week} 주 · ${r.players}명 참가` : "순위를 불러오지 못했어요." }));
+    const ol = h("ol", { className: "rank" });
+    (r?.top || []).forEach((x, i) => { const li = h("li", {}, [h("b", { textContent: String(i + 1) }), h("span", { textContent: x.nick }), h("span", { textContent: x.best + "점" })]); if (x.nick === me.nick) li.className = "me"; ol.append(li); });
+    if (r && !r.top.length) el.append(h("p", { textContent: "아직 아무도 없어요. 첫 1등이 되어 보세요!" }));
+    el.append(ol);
+    if (r?.me && r.me.rank > 20) el.append(h("p", { textContent: `내 순위 ${r.me.rank}등 · ${r.me.best}점` }));
+    el.append(h("div", { className: "row" }, [h("button", { className: "btn ghost", textContent: "마을로", onclick: closeGame }), h("button", { className: "btn", textContent: "한 판 하기", onclick: startGame })]));
+  });
+}
+async function startGame() {
+  $("gpanel").hidden = true;
+  let start; try { start = await api("game/start", {}); } catch (e) { gPanel((el) => { el.append(h("h2", { textContent: "지금은 시작할 수 없어요" }), h("p", { textContent: e.data?.why || "잠시 뒤 다시 해 주세요." }), h("div", { className: "row" }, [h("button", { className: "btn", textContent: "마을로", onclick: closeGame })])); }); return; }
+  const run = { g: newGame(start.seed), gid: start.gid, inputs: [], target: GW / 2, acc: 0, last: performance.now(), flash: 0 };
+  gRun = run; requestAnimationFrame(gameFrame);
+}
+function pointerToGame(e) { const r = gcv.getBoundingClientRect(); return Math.round((e.clientX - r.left) / r.width * GW); }
+gcv.addEventListener("pointerdown", (e) => { if (gRun) { gRun.target = pointerToGame(e); gcv.setPointerCapture?.(e.pointerId); } });
+gcv.addEventListener("pointermove", (e) => { if (gRun && (e.buttons || e.pointerType !== "mouse")) gRun.target = pointerToGame(e); });
+gcv.addEventListener("mousemove", (e) => { if (gRun) gRun.target = pointerToGame(e); });
+function gameFrame(now) {
+  const run = gRun; if (!run || !gameOn) return;
+  if (keys.has("ArrowLeft") || keys.has("a")) run.target = Math.max(0, run.target - 22);
+  if (keys.has("ArrowRight") || keys.has("d")) run.target = Math.min(GW, run.target + 22);
+  run.acc += Math.min(250, now - run.last); run.last = now;
+  const dtk = 1000 / TPS;
+  while (run.acc >= dtk && !run.g.over) {
+    run.acc -= dtk; run.inputs.push(run.target | 0); gameStep(run.g, run.target);
+    if (run.g.hit) { sfx.hit(); run.flash = 8; } if (run.g.got) sfx.chime();
+  }
+  drawGame(run, run.acc / dtk);
+  $("g-lives").textContent = "❤️".repeat(Math.max(0, run.g.lives)) + "🤍".repeat(3 - Math.max(0, run.g.lives));
+  $("g-score").textContent = `${gameScore(run.g)}점`;
+  if (run.g.over) { finishGame(run); return; }
+  requestAnimationFrame(gameFrame);
+}
+async function finishGame(run) {
+  gRun = null; run.flash = 0; drawGame(run);
+  let res = null; try { res = await api("game/end", { gid: run.gid, inputs: run.inputs }); useProfile(res.profile); } catch {}
+  loadRank();
+  gPanel((el) => {
+    el.append(h("h2", { textContent: run.g.tick >= MAX_TICKS ? "끝까지 버텼어요!" : "눈덩이에 맞았어요" }));
+    el.append(h("div", { className: "big", textContent: `${res ? res.score : gameScore(run.g)}점` }));
+    if (res) {
+      el.append(h("p", { textContent: `${res.seconds}초 버팀 · 선물 ${res.gifts}개${res.isBest ? " · 이번 주 내 최고 기록!" : ""}` }));
+      if (res.rank) el.append(h("p", { textContent: `이번 주 ${res.rank.rank}등 (최고 ${res.rank.best}점)` }));
+      el.append(h("p", { textContent: res.frag ? `눈송이 조각 +1 (오늘 남은 보상 ${res.playsLeft}판)` : "오늘 조각 보상은 다 받았어요. 순위 도전은 계속할 수 있어요." }));
+    } else el.append(h("p", { textContent: "이번 판은 기록하지 못했어요. 연결을 확인하고 다시 해 주세요." }));
+    el.append(h("div", { className: "row" }, [h("button", { className: "btn ghost", textContent: "마을로", onclick: closeGame }), h("button", { className: "btn ghost", textContent: "순위 보기", onclick: showRank }), h("button", { className: "btn", textContent: "다시 하기", onclick: startGame })]));
+  });
+}
+function drawGame(run, a = 0) {
+  const cw = gcv.width, ch = gcv.height, k = cw / GW;
+  const sky = gg.createLinearGradient(0, 0, 0, ch); sky.addColorStop(0, "#0e1a44"); sky.addColorStop(0.75, "#2a3a74"); sky.addColorStop(1, "#dfe8f6");
+  gg.fillStyle = sky; gg.fillRect(0, 0, cw, ch);
+  gg.fillStyle = "#eef3fb"; gg.fillRect(0, (PLAYER_Y + 40) * k, cw, ch);
+  for (let i = 0; i < 40; i++) { gg.fillStyle = "rgba(255,255,255,.5)"; gg.fillRect((i * 97) % cw, ((i * 53 + (run ? run.g.tick * (1 + i % 3) : 0)) % (ch * 0.8)), 2, 2); }
+  if (!run) return;
+  const g = run.g, lerp = (p, c) => p + (c - p) * a;
+  for (const p of g.presents) { const x = lerp(p.px || p.x, p.x) * k, y = lerp(p.py || p.y, p.y) * k, r = p.r * k; gg.fillStyle = "#e2483d"; gg.fillRect(x - r * 0.8, y - r * 0.7, r * 1.6, r * 1.4); gg.fillStyle = "#ffe27a"; gg.fillRect(x - r * 0.15, y - r * 0.7, r * 0.3, r * 1.4); gg.fillRect(x - r * 0.8, y - r * 0.12, r * 1.6, r * 0.24); }
+  for (const b of g.balls) { const x = lerp(b.px || b.x, b.x) * k, y = lerp(b.py || b.y, b.y) * k, r = b.r * k; gg.fillStyle = "#ffffff"; gg.beginPath(); gg.arc(x, y, r, 0, 7); gg.fill(); gg.fillStyle = "rgba(150,170,210,.45)"; gg.beginPath(); gg.arc(x + r * 0.25, y + r * 0.25, r * 0.7, 0, 7); gg.fill(); gg.fillStyle = "#fff"; gg.beginPath(); gg.arc(x - r * 0.25, y - r * 0.25, r * 0.4, 0, 7); gg.fill(); }
+  // 눈사람
+  const px = g.x * k, py = PLAYER_Y * k, pr = PLAYER_R * k;
+  if (!(g.inv > 0 && g.inv % 4 < 2)) {
+    gg.fillStyle = "rgba(0,0,0,.15)"; gg.beginPath(); gg.ellipse(px, py + pr * 0.95, pr * 0.9, pr * 0.22, 0, 0, 7); gg.fill();
+    gg.fillStyle = "#fff"; gg.beginPath(); gg.arc(px, py + pr * 0.2, pr * 0.78, 0, 7); gg.fill(); gg.beginPath(); gg.arc(px, py - pr * 0.75, pr * 0.55, 0, 7); gg.fill();
+    gg.fillStyle = HATS[me.hat % HATS.length]; gg.fillRect(px - pr * 0.45, py - pr * 1.45, pr * 0.9, pr * 0.35); gg.fillRect(px - pr * 0.55, py - pr * 0.35, pr * 1.1, pr * 0.16);
+    gg.fillStyle = "#222"; gg.fillRect(px - pr * 0.22, py - pr * 0.85, pr * 0.1, pr * 0.1); gg.fillRect(px + pr * 0.12, py - pr * 0.85, pr * 0.1, pr * 0.1);
+    gg.fillStyle = "#ff8a2a"; gg.beginPath(); gg.moveTo(px, py - pr * 0.72); gg.lineTo(px + pr * 0.4, py - pr * 0.64); gg.lineTo(px, py - pr * 0.6); gg.fill();
+  }
+  if (run.flash > 0) { gg.fillStyle = `rgba(255,120,120,${run.flash / 20})`; gg.fillRect(0, 0, cw, ch); run.flash--; }
+}
+
 // ---------- 시작 ----------
 async function boot() {
-  try { const r = await api("hello", {}); token = r.token; store.set("vtoken", token); useProfile(r.profile); }
+  try {
+    const r = await api("hello", {}); token = r.token; store.set("vtoken", token); useProfile(r.profile);
+    if (r.reward) setTimeout(() => sheet((el) => { el.append(h("h2", { textContent: `지난주 눈덩이 피하기 ${r.reward.rank}등!` }), h("p", { textContent: `주간 순위 한정 「${r.reward.name}」를 받았어요. 꾸미기에서 써 보세요.` }), h("div", { className: "row" }, [h("button", { className: "btn", textContent: "써 보기", onclick: () => { me.look[r.reward.sl] = r.reward.i; saveLook(); closeSheet(); } })])); }), 800);
+  }
   catch { toast("마을 서버에 연결하지 못했어요. 잠시 뒤 새로고침해 주세요.", 6000); return; }
   spawnMe(); placeGiftsAgain();
   if (!me.nick) openNick(true); else connectRoom();
 }
 resetDyn(); resize(); build(); requestAnimationFrame(loop);
-boot(); loadWishes("santa"); loadWishes("sun");
+boot().then(loadRank); loadWishes("santa"); loadWishes("sun");
 setInterval(() => loadWishes(vk), 30000);
 // 자정(한국 시간)이 지나면 선물 새로
 let bootDay = kstDay(); setInterval(() => { if (kstDay() !== bootDay) { bootDay = kstDay(); boot(); } renderChips(); }, 60000);

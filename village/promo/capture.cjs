@@ -4,8 +4,8 @@
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
 const fs = require("fs"), path = require("path");
 const OUT = process.argv[2], FPS = 24, N = 30 * FPS, URL = "http://127.0.0.1:8787/?capture";
-// 12월 1일 밤 9시 반(한국 시간) — 트리 점등 중
-const BASE = Date.UTC(2026, 11, 1, 12, 30);
+// 11월 3일 밤 9시 반(한국 시간) — 트리 점등 중
+const BASE = Date.UTC(2026, 10, 3, 12, 30);
 const rnd = (seed) => () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
 const hashStr = (s) => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 function giftPos(v, day) { const r = rnd(hashStr(v + day)), out = []; for (let i = 0; i < 3; i++) { let x, z; do { const a = r() * Math.PI * 2, d = 5 + r() * 9; x = Math.cos(a) * d; z = Math.sin(a) * d - 3; } while (Math.hypot(x, z + 7) < 3.5); out.push({ x, z }); } return out; }
@@ -14,8 +14,8 @@ const CAPS = [
   [3.2, 7, "눈사람이 되어<br>마을을 걸어 다녀요"],
   [7, 11.5, "트리에 소원을 달면<br>반짝이 장식이 돼요"],
   [11.5, 16, "선물을 열면<br>꾸미기 아이템이 랜덤으로"],
-  [16, 19.2, "친구한테 눈덩이도 던지고"],
-  [19.2, 28.5, "해맞이마을에선<br>새해 첫 해돋이"],
+  [16, 21, "미니게임 「눈덩이 피하기」<br>주간 1등은 한정 왕관"],
+  [21, 28.5, "해맞이마을에선<br>새해 첫 해돋이"],
 ];
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
@@ -28,10 +28,10 @@ const CAPS = [
     window.__vt = 0; const realNow = Date.now.bind(Date);
     performance.now = () => window.__vt; Date.now = () => BASE + window.__vt;
     const RD = Date; window.Date = class extends RD { constructor(...a) { if (a.length) super(...a); else super(BASE + window.__vt); } static now() { return BASE + window.__vt; } };
-    window.requestAnimationFrame = (cb) => { window.__raf = cb; return 1; };
+    window.__rafs = []; window.requestAnimationFrame = (cb) => { window.__rafs.push(cb); return window.__rafs.length; };
     const st = window.setTimeout.bind(window), q = [];
     window.setTimeout = (fn, ms = 0, ...a) => { if (ms >= 300) { q.push({ at: window.__vt + ms, fn: () => fn(...a) }); return 1e6 + q.length; } return st(fn, ms, ...a); };
-    window.__step = (ms) => { window.__vt += ms; for (let i = q.length - 1; i >= 0; i--) if (q[i].at <= window.__vt) { const f = q.splice(i, 1)[0]; try { f.fn(); } catch {} } const f = window.__raf; window.__raf = null; f && f(window.__vt); };
+    window.__step = (ms) => { window.__vt += ms; for (let i = q.length - 1; i >= 0; i--) if (q[i].at <= window.__vt) { const f = q.splice(i, 1)[0]; try { f.fn(); } catch {} } const fs = window.__rafs; window.__rafs = []; fs.forEach((f) => f(window.__vt)); };
   }, BASE);
   await p.goto(URL); await p.waitForTimeout(1500);
   for (let i = 0; i < 20; i++) await p.evaluate(() => window.__step(16));
@@ -45,7 +45,7 @@ const CAPS = [
   await p.addStyleTag({ content: `@font-face{font-family:Pretendard;font-weight:800;src:url(data:font/otf;base64,${font})}@font-face{font-family:Pretendard;font-weight:600;src:url(data:font/otf;base64,${font})}` });
   await p.evaluate(() => { const d = document.createElement("div"); d.id = "cap"; document.body.append(d); });
   for (let i = 0; i < 30; i++) await p.evaluate(() => window.__step(1000 / 24));
-  const day = "2026-12-01", gifts = giftPos("santa", day);
+  const day = "2026-11-03", gifts = giftPos("santa", day);
   // 화면 좌표로 바꾸기
   const toScreen = (x, z) => p.evaluate(([x, z]) => window.__toScreen ? window.__toScreen(x, z) : null, [x, z]);
   const walkTo = (x, z) => p.evaluate(([x, z]) => { window.__me.tx = x; window.__me.tz = z; }, [x, z]);
@@ -59,12 +59,12 @@ const CAPS = [
     [9.4, () => p.click("#sheet .btn:not(.ghost)", T)],
     [11.6, () => walkTo(g0.x, g0.z)],
     [14.8, () => p.click("text=바로 써 보기", T).catch(() => p.click("#sheet .btn", T))],
-    [16.0, () => p.click("#m-ball", T)],
-    [17.0, () => p.click("#m-ball", T)],
-    [18.0, () => p.click("#m-ball", T)],
-    [19.2, async () => { await p.click(".chip.hot", T); await p.waitForTimeout(200); await p.click("text=해맞이마을", T); }],
-    [19.8, () => tapWorld(0, -8.4)],
-    [24.4, () => p.click("text=해돋이 보기", T)],
+    [15.8, () => p.click("text=눈덩이 피하기 · 이번 주", T)],
+    [16.6, () => p.click('#gpanel button:text-is("시작")', T)],
+    ...[17.0, 17.5, 18.0, 18.5, 19.0, 19.5, 20.0, 20.5].map((tt, i) => [tt, () => p.mouse.move(540 * (i % 2 ? 0.22 : 0.78) / 2 + 135, 860, { steps: 3 })]),
+    [21.0, async () => { await p.evaluate(() => window.__closeGame()); await p.click(".chip.hot", T); await p.waitForTimeout(200); await p.click("text=해맞이마을", T); }],
+    [21.6, () => tapWorld(0, -8.4)],
+    [25.8, () => p.click("text=해돋이 보기", T)],
   ];
   let ei = 0;
   for (let f = 0; f < N; f++) {
@@ -74,7 +74,7 @@ const CAPS = [
     await p.evaluate(([html, end]) => {
       document.getElementById("cap").innerHTML = html || "";
       let ec = document.getElementById("endcard");
-      if (end && !ec) { ec = document.createElement("div"); ec.id = "endcard"; ec.innerHTML = "겨울 소원마을<small>12월 1일 문 열어요 · 매일 밤 8시 트리 점등식<br>링크는 프로필에</small>"; document.body.append(ec); }
+      if (end && !ec) { ec = document.createElement("div"); ec.id = "endcard"; ec.innerHTML = "겨울 소원마을<small>지금 미리 열렸어요 · 매일 밤 8시 트리 점등식<br>눈덩이 피하기 1등은 한정 왕관 · 링크는 프로필에</small>"; document.body.append(ec); }
     }, [cap ? cap[2] : "", t >= 28.5]);
     await p.evaluate(() => window.__step(1000 / 24));
     await p.screenshot({ path: path.join(OUT, String(f).padStart(4, "0") + ".jpg"), type: "jpeg", quality: 86 });
