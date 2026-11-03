@@ -1,0 +1,142 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}
+canvas{display:block}
+</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// 도시의 나이테 · 원래 ○○이었다 #5 「서울숲은 원래 경마장이었다」 — render(t) 한 번 = 한 프레임.
+// 고정 시점(위에서 내려다봄)에서 타원 경주로가 생겼다가 숲으로 채워지는 단순화한 그림. 모양·위치는 모두 근사.
+const W=1080,H=1920;
+const cv=document.getElementById('c'),g=cv.getContext('2d');
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const lerp=(a,b,u)=>a+(b-a)*u,clamp01=x=>Math.max(0,Math.min(1,x));
+function smooth(a,b,t){const u=clamp01((t-a)/(b-a));return u*u*(3-2*u)}
+const mix=(a,b,u)=>a.map((v,i)=>v+(b[i]-v)*u),rgb=(c,a)=>a===undefined?`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`:`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;
+function roundRect(x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+function fade(t,a,b){return Math.min(smooth(a,a+.45,t),1-smooth(b-.45,b,t))}
+
+// ---------- 월드 ----------
+const CX=540,CY=1010;               // 경주로 중심
+const ORX=400,ORY=560,IRX=250,IRY=410; // 바깥·안쪽 타원
+let T=0,plant=0,track=0,stand=0,empty=0,forest=0,pond=0;
+function setState(t){T=t;
+  plant=smooth(3.2,4.4,t)*(1-smooth(8.4,9.4,t)); // 1908 정수장 (경주로가 생기며 사라짐)
+  track=smooth(9.2,11.2,t)*(1-smooth(19.2,20.8,t)*.0); // 1954 경주로
+  stand=smooth(10.4,11.4,t)*(1-smooth(19.4,21,t)); // 관중석
+  empty=smooth(16.4,19.4,t);        // 1989 말이 떠남
+  forest=smooth(21.2,25.6,t);       // 2005 숲
+  pond=smooth(23.5,25.5,t);
+}
+function landCol(){const a=smooth(9,11,T),b=smooth(16,20,T);let c=mix([214,196,150],[190,170,120],a);c=mix(c,[160,160,120],b*.6);return mix(c,[118,160,100],forest*.75)}
+function ellipsePath(rx,ry){g.beginPath();g.ellipse(CX,CY,rx,ry,0,0,Math.PI*2)}
+
+// ---------- 그리기 ----------
+function drawWorld(){
+  g.fillStyle=rgb(landCol());g.fillRect(0,0,W,H);
+  // 한강(오른쪽 아래에서 위로 휘는 물길)
+  g.fillStyle='rgb(64,128,186)';g.beginPath();g.moveTo(W,0);g.lineTo(W,H);g.lineTo(930,H);g.bezierCurveTo(960,1500,900,1100,960,820);g.bezierCurveTo(1010,560,930,300,960,0);g.closePath();g.fill();
+  g.strokeStyle='rgba(255,255,255,.35)';g.lineWidth=3;const rw=rng(3);
+  for(let i=0;i<24;i++){const x=950+rw()*120,y=rw()*H,ph=(T*26+rw()*100)%90;g.beginPath();g.moveTo(x,y+ph);g.lineTo(x+4,y+ph+36);g.stroke()}
+  // 샛강/작은 물줄기(왼쪽 아래)
+  // 1908 정수장: 건물 + 둥근 물탱크
+  if(plant>0){g.globalAlpha=plant;
+    g.fillStyle='rgb(150,140,128)';g.fillRect(560,1160,170,100);g.fillStyle='rgb(176,166,152)';g.fillRect(560,1160,170,26);
+    g.fillStyle='rgb(88,150,200)';g.beginPath();g.arc(470,1300,66,0,7);g.fill();g.strokeStyle='rgb(220,230,240)';g.lineWidth=10;g.stroke();
+    g.fillStyle='rgb(88,150,200)';g.beginPath();g.arc(640,1380,56,0,7);g.fill();g.stroke();
+    g.strokeStyle='rgb(70,120,170)';g.lineWidth=14;g.beginPath();g.moveTo(900,1260);g.lineTo(730,1220);g.moveTo(900,1380);g.lineTo(700,1380);g.stroke();
+    g.globalAlpha=1}
+  // 1954 경주로 (타원 띠: 갈색 흙길 + 안쪽 잔디)
+  if(track>0){g.globalAlpha=track;
+    ellipsePath(ORX+26,ORY+26);g.fillStyle='rgb(206,190,140)';g.fill();
+    ellipsePath(ORX,ORY);g.fillStyle='rgb(170,122,78)';g.fill();
+    ellipsePath(IRX,IRY);g.fillStyle=rgb(mix([126,168,92],[110,160,96],forest));g.fill();
+    g.strokeStyle='rgba(255,255,255,.8)';g.lineWidth=5;ellipsePath(ORX-6,ORY-6);g.stroke();ellipsePath(IRX+6,IRY+6);g.stroke();
+    g.globalAlpha=1}
+  // 결승선·관중석(오른쪽 곧은 구간 바깥)
+  if(stand>0){g.globalAlpha=stand;
+    g.fillStyle='rgb(120,118,128)';roundRect(CX-ORX-120,CY-110,96,300,12);g.fill();
+    g.fillStyle='rgb(168,166,176)';roundRect(CX-ORX-120,CY-110,34,300,12);g.fill();
+    for(let i=0;i<9;i++){g.fillStyle=['#e66','#fc6','#6ac','#fff'][i%4];g.fillRect(CX-ORX-70,CY-90+i*32,14,14)}
+    g.fillStyle='#fff';g.fillRect(CX-ORX-14,CY-6,40,12);
+    g.globalAlpha=1}
+  // 2005 숲: 경주로 자리가 초록·산책로로
+  if(forest>0){
+    ellipsePath(ORX,ORY);ellipsePath(IRX,IRY); // 길 띠를 산책로 색으로
+    g.save();g.globalAlpha=forest*.9;g.fillStyle='rgb(150,170,110)';ellipsePath(ORX+26,ORY+26);g.fill();g.restore();
+    g.save();g.globalAlpha=forest;
+    g.strokeStyle='rgb(228,214,176)';g.lineWidth=18;ellipsePath((ORX+IRX)/2,(ORY+IRY)/2);g.stroke();g.restore();
+    const rt=rng(77);
+    for(let i=0;i<260;i++){const a=rt()*Math.PI*2,rr=Math.sqrt(rt()),ex=(ORX+60)*rr,ey=(ORY+60)*rr,x=CX+Math.cos(a)*ex,y=CY+Math.sin(a)*ey;
+      const dd=Math.abs(Math.hypot((x-CX)/((ORX+IRX)/2),(y-CY)/((ORY+IRY)/2))-1); if(dd<.07)continue;
+      const k=smooth(0,.55,forest*1.45-rt()*.75);if(k<=0.02)continue;const r=(14+rt()*20)*k;
+      g.fillStyle=`rgba(0,0,0,.18)`;g.beginPath();g.arc(x+6,y+8,r,0,7);g.fill();
+      g.fillStyle=`rgb(${38+rt()*34|0},${104+rt()*54|0},${52+rt()*30|0})`;g.beginPath();g.arc(x,y,r,0,7);g.fill()}
+    if(pond>0){g.globalAlpha=pond;g.fillStyle='rgb(88,160,206)';g.beginPath();g.ellipse(CX-10,CY+60,100,64,.3,0,7);g.fill();g.strokeStyle='rgba(255,255,255,.55)';g.lineWidth=4;g.stroke();g.globalAlpha=1}
+  }
+}
+// 말: 경주로를 도는 점(몸통 타원 + 머리)
+function horse(x,y,ang,col){g.save();g.translate(x,y);g.rotate(ang);g.fillStyle='rgba(0,0,0,.22)';g.beginPath();g.ellipse(3,6,22,10,0,0,7);g.fill();
+  g.fillStyle=col;g.beginPath();g.ellipse(0,0,22,10,0,0,7);g.fill();g.beginPath();g.ellipse(24,-3,9,6,-.3,0,7);g.fill();
+  g.fillStyle='#ffd54a';g.beginPath();g.arc(-4,0,6,0,7);g.fill();g.restore()}
+function drawActors(){
+  // 훅: 숲 위에서 산책길을 천천히 걷는 점들 (0~3초)
+  if(T<3.6){const a=1-smooth(2.6,3.6,T);g.globalAlpha=a;
+    // 훅 장면은 숲 상태로 시작: 초록으로 덮음
+    g.restore();g.save();
+    g.globalAlpha=a;g.fillStyle='rgb(118,160,100)';g.fillRect(0,0,W,H);
+    const rt=rng(77);for(let i=0;i<220;i++){const x=rt()*900,y=rt()*H,r=16+rt()*26;g.fillStyle=`rgb(${38+rt()*34|0},${104+rt()*54|0},${52+rt()*30|0})`;g.beginPath();g.arc(x,y,r,0,7);g.fill()}
+    g.strokeStyle='rgb(228,214,176)';g.lineWidth=18;ellipsePath((ORX+IRX)/2,(ORY+IRY)/2);g.stroke();
+    g.fillStyle='rgb(64,128,186)';g.fillRect(950,0,130,H);
+    for(let i=0;i<8;i++){const th=T*.6+i*.8,x=CX+Math.cos(th)*(ORX+IRX)/2,y=CY+Math.sin(th)*(ORY+IRY)/2;g.fillStyle=['#e66','#6ac','#fc6','#fff'][i%4];g.beginPath();g.arc(x,y,9,0,7);g.fill()}
+    g.globalAlpha=1}
+  // 1954~1989: 말들이 경주로를 돌다가 과천 쪽(아래 왼쪽)으로 떠남
+  if(T>=11&&T<19.6){const cols=['#7a4a2a','#2a2a2e','#9a6a3a','#5a3a22','#c89a5a'];
+    const lv=smooth(16.8,19.4,T);
+    for(let i=0;i<5;i++){const th=(T-11)*(1.5-.05*i)+i*.55;
+      if(lv<=0){const x=CX+Math.cos(th)*(ORX+IRX)/2,y=CY+Math.sin(th)*(ORY+IRY)/2;horse(x,y,th+Math.PI/2,cols[i])}
+      else{const th0=th-lv*0,x0=CX+Math.cos(th0)*(ORX+IRX)/2,y0=CY+Math.sin(th0)*(ORY+IRY)/2;const tx=-80-i*30,ty=H-200+i*20+60;
+        const x=lerp(x0,tx,lv),y=lerp(y0,ty,lv);horse(x,y,Math.atan2(ty-y0,tx-x0),cols[i])}}}
+}
+function label(text,x,y,alpha,accent){if(alpha<=0)return;g.font='800 34px P';const w=g.measureText(text).width+32;
+  g.fillStyle=accent?`rgba(255,213,74,${.95*alpha})`:`rgba(10,14,28,${.78*alpha})`;roundRect(x-w/2,y-70,w,52,26);g.fill();g.fillStyle=accent?`rgba(27,20,48,${alpha})`:`rgba(255,255,255,${alpha})`;g.textAlign='center';g.fillText(text,x,y-33);g.textAlign='left';
+  g.strokeStyle=`rgba(255,255,255,${.7*alpha})`;g.lineWidth=2;g.beginPath();g.moveTo(x,y-18);g.lineTo(x,y);g.stroke()}
+
+// ---------- 자막 ----------
+const STOPS=[
+ {a:3.2,b:8.9,year:'1908',head:'뚝섬에 우리나라 첫 정수장',sub:'수돗물을 처음 만들던 곳',src:'출처: 서울시 미디어허브'},
+ {a:9.2,b:15.9,year:'1954',head:'뚝섬 경마장 개장',sub:'5월 8일, 말이 달리는 타원 경주로',src:'출처: 서울시 미디어허브'},
+ {a:16.2,b:20.9,year:'1989',head:'경마장이 과천으로 옮겨 가다',sub:'8월, 한국마사회 이전',src:'출처: 서울시 미디어허브'},
+ {a:21.2,b:26,year:'2005',head:'서울숲 문을 열다',sub:'6월, 경주로 자리에 숲과 광장',src:'출처: 서울시 미디어허브'}];
+function caption(t){
+  const gr=g.createLinearGradient(0,0,0,660);gr.addColorStop(0,'rgba(0,0,0,.62)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,W,660);
+  const gb=g.createLinearGradient(0,H-380,0,H);gb.addColorStop(0,'rgba(0,0,0,0)');gb.addColorStop(1,'rgba(0,0,0,.62)');g.fillStyle=gb;g.fillRect(0,H-380,W,380);
+  g.font='800 32px P';const tag='도시의 나이테 · 원래 ○○이었다 #5';const tw=g.measureText(tag).width+48;g.fillStyle='rgba(255,213,74,.95)';roundRect(56,72,tw,60,30);g.fill();g.fillStyle='#1b1430';g.fillText(tag,80,113);
+  const h=fade(t,0,3.2);if(h>0){g.globalAlpha=h;g.textAlign='center';g.fillStyle='#fff';g.font='800 100px P';g.fillText('서울숲 자리는',W/2,360);g.fillStyle='#FFD54A';g.font='800 120px P';g.fillText('원래 경마장이었다',W/2,500);g.font='600 44px P';g.fillStyle='rgba(255,255,255,.9)';g.fillText('지금은 나무가 가득한 곳',W/2,584);g.textAlign='left';g.globalAlpha=1}
+  for(const s of STOPS){const a=fade(t,s.a,s.b);if(a<=0)continue;g.globalAlpha=a;g.textAlign='center';const y0=300+(1-a)*24;
+    g.font='800 130px P';g.fillStyle='#FFD54A';g.fillText(s.year,W/2,y0);g.font='800 68px P';g.fillStyle='#fff';g.fillText(s.head,W/2,y0+100);
+    g.font='600 44px P';g.fillStyle='rgba(255,255,255,.9)';g.fillText(s.sub,W/2,y0+168);g.font='400 30px P';g.fillStyle='rgba(255,255,255,.85)';g.fillText(s.src,W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+  const e=smooth(26.4,27.2,t);if(e>0){g.fillStyle=`rgba(10,14,28,${.6*e})`;g.fillRect(0,0,W,H);g.globalAlpha=e;g.textAlign='center';g.fillStyle='#fff';g.font='800 72px P';g.fillText('다음 편도',W/2,820);g.fillStyle='#FFD54A';g.font='800 84px P';g.fillText('「원래 ○○이었다」',W/2,930);
+    g.font='600 44px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('궁금한 동네를 댓글로 알려 주세요',W/2,1030);
+    g.font='400 30px P';g.fillStyle='rgba(255,255,255,.85)';g.fillText('지도는 기록을 바탕으로 단순화한 그림이에요',W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+}
+function render(t){
+  setState(t);
+  const z=lerp(1.0,1.06,t/30);
+  g.save();g.fillStyle='#000';g.fillRect(0,0,W,H);
+  g.translate(W/2,H*.52);g.scale(z,z);g.translate(-W/2,-H*.52);
+  drawWorld();drawActors();g.restore();
+  label('정수장',640,1150,fade(t,4,8.4)*1);
+  label('경주로',CX+ORX-40,CY-ORY+120,fade(t,11.4,16),true);
+  label('관중석',CX-ORX-72,CY-130,fade(t,11.6,16)*1);
+  label('과천으로',200,H-330,fade(t,17.4,20.6),true);
+  label('서울숲',CX,CY-ORY+10,fade(t,25,27),true);
+  caption(t);
+}
+window.render=render;
+window.ready=document.fonts.load('800 40px P').then(()=>document.fonts.load('600 40px P')).then(()=>document.fonts.load('400 40px P')).then(()=>{render(0);return true});
+</script></body></html>
