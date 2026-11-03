@@ -52,3 +52,15 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy
+      - name: 공개 주소 확인
+        run: |
+          U=https://winter-wish-village.chococrown13.workers.dev
+          sleep 5
+          curl -fsS "$U/" | grep -q "겨울 소원마을" && echo "화면 OK"
+          curl -fsS -o /dev/null "$U/vendor/three-0.149.0.min.js" && echo "3D 도구 OK"
+          curl -fsS -o /dev/null "$U/game.js" && echo "미니게임 OK"
+          curl -fsS "$U/api/stats" && echo " ← 서버 OK"
+          T=$(curl -fsS -X POST "$U/api/hello" -H 'content-type: application/json' -d '{}' | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).token))')
+          [ ${#T} -eq 40 ] && echo "방문자 만들기 OK"
+          curl -fsS -X POST "$U/api/game/start" -H 'content-type: application/json' -d "{\"token\":\"$T\"}" | grep -q gid && echo "미니게임 시작 OK"
+          curl -fsS "$U/api/room?v=santa" && echo " ← 방 배정 OK"
