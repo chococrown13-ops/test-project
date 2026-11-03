@@ -12,6 +12,7 @@
 - 한계: claude.ai 아티팩트는 로그인한 사람만 소원 저장·같이 있기가 됨. **누구나 들어오는 공개판은 Cloudflare(Workers + Durable Objects)로 옮겨야 함** — 다음 단계.
 
 ## 공개판 (Cloudflare) — 2026-11-03
+- **공개 주소: https://winter-wish-village.chococrown13.workers.dev** (2026-11-03 첫 배포 성공. 배포마다 GitHub Actions가 화면·3D 도구·미니게임·서버·방문자 만들기·게임 시작·방 배정을 실제 주소로 확인)
 - 구조: `public/index.html`(화면) · `public/rules.js`(아이템·확률·글 거르기, 서버와 같이 씀) · `worker/index.js`(서버) · `wrangler.jsonc`
   - Hub(Durable Object 하나): 방문자 토큰 · **닉네임 중복 금지**(띄어쓰기·대소문자 무시, 나쁜 말·운영자 사칭 막음) · 옷장(아이템·조각)·오늘의 선물·소원·편지·방문자 수·방 배정
   - Room(방 하나 40명, 다 차면 다음 방): 위치·표정·꾸미기·눈덩이·종 실시간. 이름은 서버가 붙임(사칭 불가)
