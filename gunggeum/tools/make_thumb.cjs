@@ -1,12 +1,13 @@
 // 썸네일(커버) 만들기 — 편 폴더의 index.html 장면 한 컷 위에 큰 제목을 얹어 1080×1920 JPG 로 저장.
-// 사용법: node tools/make_thumb.cjs <편 폴더> <초> "<제목 1줄>|<제목 2줄>" "<작은 머리말>" <출력.jpg>
+// 사용법: node tools/make_thumb.cjs <편 폴더> <초> "<제목 1줄>|<제목 2줄>" "<작은 머리말>" <출력.jpg> ["<채널 이름>"]
 // 예:     node tools/make_thumb.cjs devlog/jamsil 11.7 "잠실은 원래|섬이었다" "원래 ○○이었다 #1" jamsil_thumb.jpg
+// 편 페이지에 window.thumb({t, lines, kicker, channel}) 이 있으면 기본 덧칠 대신 그걸 그린다.
 // 글자는 가운데 1080×1440(인스타 격자 3:4)·1080×1080(정사각) 안에 들어가게 둔다 — 어느 플랫폼에서 잘려도 제목이 보임.
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
 const fs = require("fs"), path = require("path");
 
 (async () => {
-  const [dir, t, title, kicker, out] = process.argv.slice(2);
+  const [dir, t, title, kicker, out, channel = "도시의 나이테"] = process.argv.slice(2);
   if (!out) {
     console.error('사용법: node make_thumb.cjs <편 폴더> <초> "<1줄>|<2줄>" "<머리말>" <출력.jpg>');
     process.exit(1);
@@ -16,9 +17,11 @@ const fs = require("fs"), path = require("path");
   page.on("pageerror", (e) => { console.error("pageerror", e.message); process.exit(1); });
   await page.goto("file://" + path.resolve(dir, "index.html"));
   await page.evaluate(() => window.ready);
-  const url = await page.evaluate(({ t, lines, kicker }) => {
-    window.render(t);
+  const url = await page.evaluate(({ t, lines, kicker, channel }) => {
     const c = document.getElementById("c"), g = c.getContext("2d");
+    // 편 페이지에 전용 썸네일(window.thumb)이 있으면 그걸 씀 (밝은 화면 등 기본 덧칠이 안 어울릴 때)
+    if (window.thumb) { window.thumb({ t, lines, kicker, channel }); return c.toDataURL("image/jpeg", 0.92); }
+    window.render(t);
     const W = c.width, H = c.height;
     // 위아래를 어둡게 해서 글자가 지도 위에서도 읽히게
     let gr = g.createLinearGradient(0, 0, 0, H);
@@ -59,9 +62,9 @@ const fs = require("fs"), path = require("path");
     // 채널 이름
     g.font = "600 44px P";
     g.fillStyle = "rgba(255,255,255,0.92)";
-    g.fillText("도시의 나이테", W / 2, 1600);
+    g.fillText(channel, W / 2, 1600);
     return c.toDataURL("image/jpeg", 0.92);
-  }, { t: Number(t), lines: title.split("|"), kicker });
+  }, { t: Number(t), lines: title.split("|"), kicker, channel });
   fs.writeFileSync(out, Buffer.from(url.split(",")[1], "base64"));
   await browser.close();
   console.log("saved", out);

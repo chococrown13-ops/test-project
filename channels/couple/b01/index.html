@@ -1,0 +1,157 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}
+canvas{display:block}
+</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// 커플 밸런스 게임 #1 — render(t) 한 번 = 한 프레임 (30초). 질문 3개, 각 8초: 등장 → 3초 고민 타이머 → "댓글로!"
+const W = 1080, H = 1920;
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const smooth = (a, b, t) => { const u = clamp01((t - a) / (b - a)); return u * u * (3 - 2 * u); };
+const back = u => { const c = 1.7; return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2); };
+const pop = (a, d, t) => { const u = clamp01((t - a) / d); return u <= 0 ? 0 : back(u); };
+
+const PINK = '#ff6f91', PINK_D = '#e0486f', BLUE = '#5b8cff', BLUE_D = '#3d6be0', CREAM = '#fff7ef', INK = '#2a1f2d';
+const Q = [
+  { a: ['매일 데이트', '연락은 하루 1번'], b: ['하루 종일 연락', '데이트는 한 달 1번'] },
+  { a: ['내 폰을 애인이', '마음대로 보기'], b: ['애인 폰은', '평생 못 보기'] },
+  { a: ['기념일 다 챙기는', '무뚝뚝한 애인'], b: ['기념일 다 까먹는', '매일 다정한 애인'] },
+];
+const T0 = 3, SEG = 8;
+
+function round(x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+function text(s, x, y, size, color, weight = 800, stroke) {
+  g.font = `${weight} ${size}px P`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (stroke) { g.lineWidth = size * 0.16; g.lineJoin = 'round'; g.strokeStyle = stroke; g.strokeText(s, x, y); }
+  g.fillStyle = color; g.fillText(s, x, y);
+}
+// 동글이 캐릭터 (분홍·파랑) — 표정: 0 기본, 1 고민, 2 놀람
+function blob(x, y, s, color, dark, face, t, tilt = 0) {
+  g.save(); g.translate(x, y); g.rotate(tilt); g.scale(s, s);
+  const sq = 1 + 0.04 * Math.sin(t * 6);
+  g.fillStyle = 'rgba(0,0,0,.12)'; g.beginPath(); g.ellipse(0, 118, 92, 16, 0, 0, 7); g.fill();
+  g.fillStyle = color; g.beginPath(); g.ellipse(0, 20, 110 / sq, 100 * sq, 0, 0, 7); g.fill();
+  g.lineWidth = 10; g.strokeStyle = dark; g.stroke();
+  g.fillStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.ellipse(-46, -30, 22, 14, -0.6, 0, 7); g.fill();
+  g.fillStyle = INK;
+  const blink = (Math.sin(t * 2.3) > 0.97) ? 0.15 : 1;
+  if (face === 2) { g.beginPath(); g.arc(-34, 10, 14, 0, 7); g.arc(34, 10, 14, 0, 7); g.fill(); g.beginPath(); g.ellipse(0, 52, 14, 18, 0, 0, 7); g.fill(); }
+  else {
+    g.beginPath(); g.ellipse(-34, 10, 11, 14 * blink, 0, 0, 7); g.ellipse(34, 10, 11, 14 * blink, 0, 0, 7); g.fill();
+    g.lineWidth = 8; g.strokeStyle = INK; g.lineCap = 'round'; g.beginPath();
+    if (face === 1) { g.moveTo(-18, 50); g.lineTo(18, 44); } else { g.arc(0, 38, 20, 0.2, Math.PI - 0.2); }
+    g.stroke();
+  }
+  g.fillStyle = 'rgba(255,120,140,.55)'; g.beginPath(); g.ellipse(-62, 36, 16, 9, 0, 0, 7); g.ellipse(62, 36, 16, 9, 0, 0, 7); g.fill();
+  if (face === 1) { g.fillStyle = '#8fd3ff'; g.beginPath(); g.moveTo(84, -40); g.quadraticCurveTo(100, -10, 84, -2); g.quadraticCurveTo(70, -10, 84, -40); g.fill(); }
+  g.restore();
+}
+function heart(x, y, s, c) { g.save(); g.translate(x, y); g.scale(s, s); g.fillStyle = c; g.beginPath(); g.moveTo(0, 30); g.bezierCurveTo(-60, -10, -30, -60, 0, -28); g.bezierCurveTo(30, -60, 60, -10, 0, 30); g.fill(); g.restore(); }
+
+function bg(t) {
+  g.fillStyle = CREAM; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 18; i++) {
+    const x = (i * 197) % W, y = (H + 200) - ((t * 60 + i * 173) % (H + 400));
+    g.globalAlpha = 0.18; heart(x, y, 0.6 + (i % 3) * 0.25, i % 2 ? PINK : BLUE); g.globalAlpha = 1;
+  }
+}
+
+function fit(s, max, size) { g.font = `800 ${size}px P`; const w = g.measureText(s).width; return w > max ? size * max / w : size; }
+function card(side, lines, t, a0, picked) {
+  const top = side === 'a', x = 90, w = 900, h = 400, y = top ? 470 : 1010;
+  const p = pop(a0 + (top ? 0 : 0.18), 0.5, t);
+  if (p <= 0) return;
+  g.save(); g.translate(x + w / 2, y + h / 2); g.scale(p, p);
+  const pulse = picked ? 1 + 0.025 * Math.sin(t * 14) : 1; g.scale(pulse, pulse);
+  g.translate(-(x + w / 2), -(y + h / 2));
+  round(x, y + 16, w, h, 56); g.fillStyle = top ? PINK_D : BLUE_D; g.fill();
+  round(x, y, w, h, 56); g.fillStyle = top ? PINK : BLUE; g.fill();
+  g.fillStyle = 'rgba(255,255,255,.22)'; g.beginPath(); g.arc(x + 110, y + h / 2, 70, 0, 7); g.fill();
+  text(top ? 'A' : 'B', x + 110, y + h / 2 + 6, 110, '#fff', 800);
+  lines.forEach((l, i) => text(l, x + 520, y + h / 2 - 60 + i * 120, fit(l, 640, 96), '#fff', 800));
+  g.restore();
+}
+
+function timer(t, a) {
+  const u = clamp01((t - a) / 3);
+  if (t < a || t > a + 3.4) return;
+  const cx = W / 2, cy = 1560, r = 92;
+  g.lineWidth = 22; g.strokeStyle = '#eadfd3'; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.stroke();
+  g.strokeStyle = INK; g.lineCap = 'round'; g.beginPath(); g.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - u)); g.stroke();
+  g.fillStyle = '#fff'; g.beginPath(); g.arc(cx, cy, r - 16, 0, 7); g.fill();
+  const n = Math.max(1, 3 - Math.floor((t - a)));
+  text(t - a < 3 ? String(n) : '!', cx, cy + 6, 110, INK, 800);
+}
+
+function render(t) {
+  bg(t);
+  // 위 제목 띠
+  round(140, 150, 800, 150, 75); g.fillStyle = INK; g.fill();
+  text('커플 밸런스 게임', W / 2, 228, 76, '#fff', 800);
+  // 0~3초: 훅
+  if (t < T0) {
+    const p = pop(0.1, 0.6, t);
+    g.save(); g.translate(W / 2, 800); g.scale(p, p);
+    text('3초 안에', 0, -90, 120, INK, 800); text('골라야 해!', 0, 70, 150, PINK, 800, '#fff'); g.restore();
+    blob(330, 1430, 1.2, PINK, PINK_D, 2, t, -0.1); blob(750, 1430, 1.2, BLUE, BLUE_D, 2, t + 1, 0.1);
+    heart(W / 2, 1300 - Math.sin(t * 5) * 20, 1.3, '#ff3d6e');
+  }
+  // 질문 3개
+  for (let i = 0; i < 3; i++) {
+    const a = T0 + i * SEG; if (t < a || t >= a + SEG) continue;
+    const lt = t - a;
+    text(`${i + 1} / 3`, W / 2, 380, 58, '#9b8a8f', 600);
+    card('a', Q[i].a, t, a + 0.15, lt > 4.2);
+    card('b', Q[i].b, t, a + 0.15, lt > 4.2);
+    const vp = pop(a + 0.5, 0.4, t);
+    if (vp > 0) { g.save(); g.translate(W / 2, 948); g.scale(vp, vp); g.fillStyle = INK; g.beginPath(); g.arc(0, 0, 76, 0, 7); g.fill(); text('VS', 0, 4, 74, '#fff', 800); g.restore(); }
+    timer(t, a + 1.2);
+    const face = lt < 1.2 ? 0 : lt < 4.2 ? 1 : 2;
+    blob(190, 1700, 0.8, PINK, PINK_D, face, t, Math.sin(t * 3) * 0.05);
+    blob(890, 1700, 0.8, BLUE, BLUE_D, face, t + 2, -Math.sin(t * 3) * 0.05);
+    if (lt > 4.3) {
+      const p = pop(a + 4.3, 0.4, t);
+      g.save(); g.translate(W / 2, 1560); g.scale(p, p);
+      round(-330, -70, 660, 140, 70); g.fillStyle = '#fff'; g.fill(); g.lineWidth = 8; g.strokeStyle = INK; g.stroke();
+      text('A? B? 댓글로!', 0, 4, 70, INK, 800); g.restore();
+    }
+    // 화면 바뀔 때 하얀 번쩍
+    const fl = 1 - smooth(a, a + 0.25, t); if (fl > 0) { g.fillStyle = `rgba(255,255,255,${fl})`; g.fillRect(0, 0, W, H); }
+  }
+  // 끝 화면 27~30초
+  if (t >= T0 + 3 * SEG) {
+    const p = pop(T0 + 3 * SEG, 0.5, t);
+    g.save(); g.translate(W / 2, 820); g.scale(p, p);
+    text('3개 다 골랐어?', 0, -120, 100, INK, 800);
+    text('댓글에', 0, 30, 90, INK, 800);
+    round(-300, 110, 600, 170, 40); g.fillStyle = PINK; g.fill();
+    text('AAB', 0, 200, 130, '#fff', 800);
+    text('처럼 남겨 줘', 0, 370, 90, INK, 800);
+    g.restore();
+    blob(330, 1500, 1.1, PINK, PINK_D, 0, t, -0.15); blob(750, 1500, 1.1, BLUE, BLUE_D, 0, t + 1, 0.15);
+    heart(W / 2, 1380 - Math.abs(Math.sin(t * 4)) * 40, 1.1, '#ff3d6e');
+    text('애인한테도 보내서 비교해 봐', W / 2, 1760, 54, '#7b6a70', 600);
+  }
+}
+// 썸네일: 밝은 바탕 위 큰 제목 + 오늘의 A/B 맛보기
+function thumb({ lines, kicker, channel }) {
+  bg(1.3);
+  round(240, 250, 600, 110, 55); g.fillStyle = INK; g.fill(); text(kicker, W / 2, 307, 54, '#fff', 800);
+  lines.forEach((l, i) => text(l, W / 2, 500 + i * 180, fit(l, 940, 160), i ? PINK : INK, 800, '#fff'));
+  g.save(); g.translate(0, 480); g.scale(1, 0.8);
+  card('a', Q[1].a, 9, 0, false); card('b', Q[1].b, 9, 0, false); g.restore();
+  g.fillStyle = INK; g.beginPath(); g.arc(W / 2, 480 + 948 * 0.8, 70, 0, 7); g.fill(); text('VS', W / 2, 484 + 948 * 0.8, 68, '#fff', 800);
+  blob(170, 1740, 0.7, PINK, PINK_D, 1, 0.4, 0.05); blob(910, 1740, 0.7, BLUE, BLUE_D, 1, 2.4, -0.05);
+  text(channel, W / 2, 1790, 48, '#7b6a70', 600);
+}
+window.thumb = thumb;
+window.render = render;
+window.ready = document.fonts.load('800 40px P').then(() => document.fonts.load('600 40px P')).then(() => { render(0); return true; });
+</script>
+</body></html>

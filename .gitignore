@@ -21,3 +21,4 @@ gunggeum/**/__pycache__/
 gunggeum/cards/*/out/
 gunggeum/devlog/*/*.mp4
 gunggeum/devlog/*/*_thumb.jpg
+channels/*/*/*.mp4
