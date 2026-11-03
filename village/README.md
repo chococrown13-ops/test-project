@@ -1,4 +1,4 @@
-# 겨울 소원마을 (산타마을 · 해맞이마을) — 3D 시범판
+# 겨울 소원마을 (산타마을 · 해맞이마을)
 
 - 미리보기: https://claude.ai/artifact/W3qSR6uWCQ4SkxhecJEitT (claude.ai 아티팩트, 지금은 대표님만 열림)
 - 한 파일(`index.html`)에 두 마을. three.js 0.149(jsDelivr) 3D, 눌러서 걷기, 가까이 가면 행동 버튼. 처음 2D 픽셀판은 `pixel-2d.html`에 보관.
@@ -10,3 +10,14 @@
 - 같이 있기: claude.ai `room`(지금 있는 사람 위치·이름·모자·표정, 이벤트 `ball`·`bell`) · 소원 저장: `db` `santa/<사람>` · `sun/<사람>` (한 사람당 마을마다 소원 1개, 다시 쓰면 바뀜) · 편지: `data/users/<사람>/santa-letter`(본인만)
 - 글 거르기: 정해진 문구 + 한마디 20자. 욕설·숫자 3개 이상(연락처)·링크는 막음.
 - 한계: claude.ai 아티팩트는 로그인한 사람만 소원 저장·같이 있기가 됨. **누구나 들어오는 공개판은 Cloudflare(Workers + Durable Objects)로 옮겨야 함** — 다음 단계.
+
+## 공개판 (Cloudflare) — 2026-11-03
+- 구조: `public/index.html`(화면) · `public/rules.js`(아이템·확률·글 거르기, 서버와 같이 씀) · `worker/index.js`(서버) · `wrangler.jsonc`
+  - Hub(Durable Object 하나): 방문자 토큰 · **닉네임 중복 금지**(띄어쓰기·대소문자 무시, 나쁜 말·운영자 사칭 막음) · 옷장(아이템·조각)·오늘의 선물·소원·편지·방문자 수·방 배정
+  - Room(방 하나 40명, 다 차면 다음 방): 위치·표정·꾸미기·눈덩이·종 실시간. 이름은 서버가 붙임(사칭 불가)
+- **아이템은 서버에서 뽑고 저장** → 나갔다 들어와도 남음(기기에 저장된 토큰으로 찾음). 브라우저 기록을 지우거나 기기를 바꾸면 옷장의 「이어하기 코드」(10자)로 불러옴
+- 확률(2026-11-03 시뮬레이션 `rules.js`): 마을마다 하루 3개, 흔함 72%·귀함 24%·아주 귀함 4%, 밤 8시대 황금 선물(귀함 60%·아주 귀함 40%), 다 가진 희귀도가 나오면 눈송이 조각(1·2·4개), 조각 30개 → 원하는 아이템. 아이템 33개(기본 6 포함) → 두 마을 매일이면 약 11일, 한 마을이면 약 17일에 다 모음
+- 3D 그림 도구는 `public/vendor/three-0.149.0.min.js`(MIT, 라이선스 같이 둠) — 외부 CDN 없이 뜸
+- 로컬 실행: `cd village && npm install && npx wrangler dev` → http://127.0.0.1:8787
+- 배포: `.github/workflows/village-deploy.yml` (저장소 Secrets `CLOUDFLARE_API_TOKEN`·`CLOUDFLARE_ACCOUNT_ID` 필요). 사람이 몰리면 Cloudflare Workers 유료(월 $5) 필요할 수 있음
+- 확인한 것(로컬 wrangler dev): 닉네임 중복·나쁜 말 막힘, 선물 중복·황금 선물 시간 제한, 두 사람이 서로 보임, 눈덩이 맞음 알림, 새로고침 뒤 이름·옷장 유지
