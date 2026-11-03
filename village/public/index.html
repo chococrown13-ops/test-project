@@ -503,6 +503,9 @@ function renderChips() {
   chip(`${vk === "santa" ? "트리 소원" : "하늘의 풍등"} ${wishTotal[vk] || wishes[vk].length}개`, openList);
 }
 const labels = $("labels"), tmpV = new THREE.Vector3();
+// 홍보 영상 촬영용(?capture): 땅 위 좌표 → 화면 좌표
+if (location.search.includes("capture")) setTimeout(() => { window.__me = me; window.__gifts = () => dyn.gifts.map((g) => [g.position.x, g.position.z, g.userData.slot]); }, 0);
+if (location.search.includes("capture")) window.__toScreen = (x, z) => { const v = new THREE.Vector3(x, 0, z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; };
 function tagFor(key, html, cls) { let el = labels.querySelector(`[data-k="${key}"]`); if (!el) { el = document.createElement("div"); el.dataset.k = key; el.className = cls; labels.append(el); } if (el._h !== html) { el._h = html; el.innerHTML = html; } return el; }
 function placeTag(el, obj, y) {
   if (!el._h) { el.style.display = "none"; return; }
