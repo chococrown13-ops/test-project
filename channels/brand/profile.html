@@ -1,0 +1,48 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:800;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}
+@font-face{font-family:P;font-weight:600;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-SemiBold.otf)}
+html,body{margin:0;background:#000}canvas{display:block}
+</style></head>
+<body><canvas id="c" width="1080" height="1080"></canvas>
+<script>
+// 30초 채널 프로필 사진 — 원으로 잘려도 보이게 가운데에 크게. ?v=hanpan | seungbu | golla
+const g = document.getElementById("c").getContext("2d"), W = 1080, C = W / 2;
+const v = new URLSearchParams(location.search).get("v") || "hanpan";
+const INK = "#231a2e", YEL = "#ffd23f", PINK = "#ff6f91", BLUE = "#5b8cff", CREAM = "#fff7ef";
+function stopwatch(ring, fill, face, frac) {
+  // 버튼
+  g.fillStyle = ring; g.fillRect(C - 60, 128, 120, 60); g.beginPath(); g.roundRect(C - 90, 96, 180, 52, 26); g.fill();
+  g.save(); g.translate(C + 250, 250); g.rotate(0.78); g.beginPath(); g.roundRect(-34, -40, 68, 70, 18); g.fill(); g.restore();
+  // 몸통
+  g.fillStyle = ring; g.beginPath(); g.arc(C, 580, 380, 0, 7); g.fill();
+  g.fillStyle = face; g.beginPath(); g.arc(C, 580, 318, 0, 7); g.fill();
+  // 남은 시간 부채꼴
+  g.fillStyle = fill; g.beginPath(); g.moveTo(C, 580); g.arc(C, 580, 318, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac); g.closePath(); g.fill();
+  g.fillStyle = face; g.beginPath(); g.arc(C, 580, 250, 0, 7); g.fill();
+  // 눈금
+  g.strokeStyle = ring; g.lineWidth = 14; g.lineCap = "round";
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, r1 = i % 3 ? 292 : 276; g.beginPath(); g.moveTo(C + Math.cos(a) * r1, 580 + Math.sin(a) * r1); g.lineTo(C + Math.cos(a) * 308, 580 + Math.sin(a) * 308); g.stroke(); }
+}
+function text(s, x, y, size, color, weight = 800) { g.font = `${weight} ${size}px P`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = color; g.fillText(s, x, y); }
+function render() {
+  if (v === "hanpan") { // 30초 한판: 노랑 바탕, 남은 시간 분홍, 아래 「한판」 딱지
+    g.fillStyle = YEL; g.fillRect(0, 0, W, W);
+    stopwatch(INK, PINK, CREAM, 0.5);
+    text("30", C, 560, 300, INK);
+    g.fillStyle = PINK; g.beginPath(); g.roundRect(C - 150, 700, 300, 104, 52); g.fill(); text("한판", C, 754, 72, "#fff");
+  } else if (v === "seungbu") { // 30초 승부: 남색 바탕, A·B 두 색 반반
+    g.fillStyle = "#1c2240"; g.fillRect(0, 0, W, W);
+    stopwatch("#fff7ef", PINK, "#1c2240", 0.5);
+    g.fillStyle = BLUE; g.beginPath(); g.moveTo(C, 580); g.arc(C, 580, 318, Math.PI / 2, Math.PI * 1.5); g.closePath(); g.fill();
+    g.fillStyle = "#1c2240"; g.beginPath(); g.arc(C, 580, 250, 0, 7); g.fill();
+    text("30", C, 560, 300, "#fff7ef"); text("승부", C, 740, 76, YEL);
+  } else { // 골라 30초: 크림 바탕, 손가락 고르기 느낌
+    g.fillStyle = CREAM; g.fillRect(0, 0, W, W);
+    stopwatch(INK, YEL, "#ffffff", 0.75);
+    text("30", C, 560, 300, INK); text("골라!", C, 740, 76, PINK);
+  }
+}
+window.ready = document.fonts.load("800 40px P").then(() => document.fonts.load("600 40px P")).then(() => { render(); return true; });
+</script></body></html>
