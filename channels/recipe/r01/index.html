@@ -315,10 +315,12 @@ function endCard(t) {
   g.restore();
   stove(W / 2, 900, 0.62); pot(W / 2, 900, 0.62, t, state(t)); steam(W / 2, 900, 0.7, t);
   const q = pop(T_END + 0.6, 0.4, t);
-  if (q > 0) { g.save(); g.translate(W / 2, 1300); g.scale(q, q); round(-400, -60, 800, 120, 60); g.fillStyle = INK; g.fill(); text('재료·도구 링크는 프로필에', 0, 2, 56, CREAM); g.restore(); }
-  adBand(1450, smooth(T_END + 0.6, T_END + 1, t));
+  if (q > 0) { g.save(); g.translate(W / 2, 1265); g.scale(q, q); round(-400, -58, 800, 116, 58); g.fillStyle = GOLD; g.fill(); g.lineWidth = 5; g.strokeStyle = INK; g.stroke(); text('글 레시피는 고정 댓글에', 0, 2, 56, INK); g.restore(); }
+  const q2 = pop(T_END + 0.9, 0.4, t);
+  if (q2 > 0) { g.save(); g.translate(W / 2, 1400); g.scale(q2, q2); round(-400, -58, 800, 116, 58); g.fillStyle = INK; g.fill(); text('재료·도구 링크는 프로필에', 0, 2, 56, CREAM); g.restore(); }
+  adBand(1550, smooth(T_END + 0.6, T_END + 1, t));
   g.globalAlpha = smooth(T_END + 1.2, T_END + 1.6, t);
-  text('다음엔 뭐 해 먹을까요? 댓글로!', W / 2, 1580, 54, SOFT, 600); g.globalAlpha = 1;
+  text('다음엔 뭐 해 먹을까요? 댓글로!', W / 2, 1675, 54, SOFT, 600); g.globalAlpha = 1;
   const fl = 1 - smooth(T_END, T_END + 0.25, t); if (fl > 0) { g.fillStyle = `rgba(255,250,240,${fl})`; g.fillRect(0, 0, W, H); }
 }
 
