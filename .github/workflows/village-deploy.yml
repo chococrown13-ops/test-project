@@ -5,7 +5,7 @@
 #   CLOUDFLARE_API_TOKEN    Cloudflare → My Profile → API Tokens 에서 만든 토큰 (템플릿: "Edit Cloudflare Workers")
 #   CLOUDFLARE_ACCOUNT_ID   Cloudflare 화면 주소에 들어 있는 계정 ID (영문·숫자 32자)
 # 오터스톡 저장소에 넣은 것과 같은 값을 그대로 넣으면 됩니다.
-#   VILLAGE_ADMIN_KEY       (선택) 소원 관리 화면(/admin.html) 비밀번호. 대표님이 직접 정한 16자 이상 문구.
+#   VILLAGE_ADMIN_KEY       (선택) 소원 관리 화면(/admin) 비밀번호. 대표님이 직접 정한 16자 이상 문구.
 #                           넣어 두면 배포 때마다 Cloudflare 비밀값 ADMIN_KEY 로 들어갑니다. 비우면 관리 화면이 잠겨 있어요.
 #
 # 올라간 주소: https://winter-wish-village.<내 하위도메인>.workers.dev
@@ -76,6 +76,7 @@ jobs:
           [ ${#T} -eq 40 ] && echo "방문자 만들기 OK"
           curl -fsS -X POST "$U/api/game/start" -H 'content-type: application/json' -d "{\"token\":\"$T\"}" | grep -q gid && echo "미니게임 시작 OK"
           curl -fsS "$U/api/room?v=santa" && echo " ← 방 배정 OK"
-          curl -fsS "$U/admin.html" | grep -q "소원 관리" && echo "소원 관리 화면 OK"
+          curl -fsSL "$U/admin" | grep -q "소원 관리" || { echo "::error::소원 관리 화면이 안 열려요"; exit 1; }
+          echo "소원 관리 화면 OK"
           C=$(curl -s -o /dev/null -w "%{http_code}" "$U/api/admin/check")
           case "$C" in 401) echo "소원 관리: 비밀번호 걸려 있음 OK";; 503) echo "소원 관리: 비밀번호 아직 없음 (VILLAGE_ADMIN_KEY 를 넣어 주세요)";; *) echo "::error::소원 관리 확인 실패 ($C)"; exit 1;; esac
