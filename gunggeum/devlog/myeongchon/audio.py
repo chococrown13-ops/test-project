@@ -38,7 +38,7 @@ for a, b, ns in CHORDS:
         out[:, 0] += s * e * amp * (1 - pan)
         out[:, 1] += s * e * amp * pan
 
-STOPS = [3.2, 9.2, 15.2, 20.2, 26.2]
+STOPS = [3.8, 9.6, 15.2, 20.2, 26.2]  # 자막 등장 시각 (index.html STOPS.a 와 맞춤)
 BELL = [76, 79, 81, 84, 88]
 noise = rng.standard_normal(len(t))
 smoothn = np.convolve(noise, np.ones(40) / 40, mode="same")
