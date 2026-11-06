@@ -1,0 +1,133 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}
+canvas{display:block}
+</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// 도시의 나이테 · 원래 ○○이었다 #7 「남산에는 원래 아파트가 있었다」 — render(t) 한 번 = 한 프레임.
+// 옆에서 본 남산 자락 단면. 건물이 선 자리에서 나무가 자라는 시간 흐름. 모양·위치는 모두 단순화한 그림(폭파는 차분히 가라앉는 표현).
+const W=1080,H=1920;
+const cv=document.getElementById('c'),g=cv.getContext('2d');
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const lerp=(a,b,u)=>a+(b-a)*u,clamp01=x=>Math.max(0,Math.min(1,x));
+function smooth(a,b,t){const u=clamp01((t-a)/(b-a));return u*u*(3-2*u)}
+const mix=(a,b,u)=>a.map((v,i)=>v+(b[i]-v)*u),rgb=(c,a)=>a===undefined?`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`:`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;
+function roundRect(x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+
+// ---------- 월드 (옆모습) ----------
+const TER=1120; // 아파트가 선 평평한 터
+function gy(x){return x<150?TER-(150-x)*.55:x<880?TER:TER+(x-880)*.42}
+const BLK=[{x:250,w:210,h:330,fl:6,at:11.4},{x:560,w:210,h:330,fl:6,at:14.6}]; // 두 동(단순화)
+const R1=rng(7),TREES=[];
+for(let i=0;i<46;i++){const x=-420+i*52+R1()*24;if(x>200&&x<830)continue;TREES.push({x,s:.8+R1()*.6,k:R1(),c:R1()})}
+const SITE=[];for(let i=0;i<20;i++){SITE.push({x:240+i*26+R1()*12,s:.6+R1()*.7,k:i/20,c:R1()})}
+const FLW=[];for(let i=0;i<46;i++)FLW.push({x:230+R1()*560,r:4+R1()*4,c:R1()});
+
+// ---------- 시간표 ----------
+let T=0,tone=0;
+function setState(t){T=t;tone=smooth(9,11,t)*(1-smooth(17.5,20,t))} // 철거 즈음 살짝 회색빛
+function skyTop(){return mix(mix([126,190,236],[196,182,168],smooth(2.5,5,T)*.5),[116,196,230],smooth(18,22,T))}
+function skyBot(){return mix(mix([226,240,250],[240,226,200],smooth(2.5,5,T)*.5),[232,246,236],smooth(18,22,T))}
+
+// ---------- 카메라 ----------
+const KEYS=[[0,540,980,1.0],[3,540,980,1.0],[3.6,450,1000,1.15],[9.4,500,1000,1.1],[10.4,520,980,.95],
+ [18,520,980,.95],[19,540,1000,1.0],[25,540,1000,1.0],[26.5,540,960,.8],[30,540,960,.72]];
+function cam(t){let i=0;while(i<KEYS.length-2&&t>KEYS[i+1][0])i++;const a=KEYS[i],b=KEYS[i+1];let u=clamp01((t-a[0])/(b[0]-a[0]));u=u*u*(3-2*u);return[lerp(a[1],b[1],u),lerp(a[2],b[2],u),lerp(a[3],b[3],u)]}
+let CX=540,CY=980,CZ=1;
+
+// ---------- 그리기 ----------
+function tree(x,y,s,grow,c,col){ // 침엽·활엽 섞은 단순 나무
+  if(grow<=0.02)return;const sc=s*grow,sw=Math.sin(T*1.3+x*.05)*3*sc;
+  g.fillStyle='rgb(104,78,56)';g.fillRect(x-5*sc,y-46*sc,10*sc,46*sc);
+  const gcol=col||mix([78,150,84],[56,128,78],c);
+  g.fillStyle=rgb(gcol);
+  if(c<.45){g.beginPath();g.moveTo(x+sw*.5,y-150*sc);g.lineTo(x-38*sc,y-40*sc);g.lineTo(x+38*sc,y-40*sc);g.closePath();g.fill();g.beginPath();g.moveTo(x+sw,y-190*sc);g.lineTo(x-30*sc,y-100*sc);g.lineTo(x+30*sc,y-100*sc);g.closePath();g.fill()}
+  else{g.beginPath();g.arc(x+sw,y-92*sc,46*sc,0,7);g.fill();g.fillStyle=rgb(mix(gcol,[255,255,255],.12));g.beginPath();g.arc(x+sw-14*sc,y-104*sc,26*sc,0,7);g.fill()}}
+function building(b,dn){ // dn: 0 서 있음 → 1 다 가라앉음
+  const base=gy(b.x+b.w/2),top=base-b.h,sink=dn*b.h;
+  g.save();g.beginPath();g.rect(b.x-60,top-80,b.w+120,base-top+80);g.clip(); // 땅 아래로는 안 보이게
+  g.translate(0,sink);
+  g.fillStyle='rgba(0,0,0,.18)';g.fillRect(b.x+16,top+10,b.w,b.h);
+  g.fillStyle='rgb(206,196,182)';g.fillRect(b.x,top,b.w,b.h);
+  g.fillStyle='rgb(174,164,152)';g.fillRect(b.x+b.w-26,top,26,b.h);
+  g.fillStyle='rgb(150,96,84)';g.fillRect(b.x-8,top-14,b.w+16,16);
+  const cols=3,cw=(b.w-60)/cols;
+  for(let r=0;r<b.fl;r++)for(let c=0;c<cols;c++){const lit=(r*3+c*5)%7<2;g.fillStyle=lit?'rgb(255,224,150)':'rgb(96,126,156)';g.fillRect(b.x+16+c*cw+8,top+22+r*50,cw-18,30)}
+  g.fillStyle='rgb(120,110,100)';g.fillRect(b.x+b.w/2-18,base-48,36,48);
+  g.restore();}
+function dust(b,t0){ // 먼지: 천천히 퍼졌다 가라앉음(차분한 표현)
+  const d=T-t0;if(d<0||d>6)return;const base=gy(b.x+b.w/2),rr=rng(t0*10|0);
+  for(let i=0;i<16;i++){const ox=(rr()-.5)*(b.w+120),sp=(rr()-.5)*40,rise=Math.min(d,2.2)*40*(.5+rr());
+    const a=.5*smooth(0,.5,d)*(1-smooth(2.5,6,d)),r=30+d*16*(.6+rr());
+    g.fillStyle=`rgba(190,184,176,${a})`;g.beginPath();g.arc(b.x+b.w/2+ox+sp*d*.3,base-rise-r*.4,r,0,7);g.fill()}}
+function drawWorld(){
+  // 하늘
+  const sg=g.createLinearGradient(0,-1500,0,1300);sg.addColorStop(0,rgb(skyTop()));sg.addColorStop(1,rgb(skyBot()));g.fillStyle=sg;g.fillRect(-2000,-1800,5000,6200);
+  // 구름
+  g.fillStyle='rgba(255,255,255,.75)';for(let i=0;i<5;i++){const x=((i*430+T*10)%2400)-700,y=240+i*70;g.beginPath();g.ellipse(x,y,110,28,0,0,7);g.ellipse(x+70,y-18,80,26,0,0,7);g.fill()}
+  // 먼 능선
+  g.fillStyle=rgb(mix([150,196,168],[168,176,170],tone*.8));g.beginPath();g.moveTo(-1600,2600);for(let x=-1600;x<=2800;x+=40)g.lineTo(x,780+Math.sin(x/260)*60+Math.sin(x/97)*18-Math.max(0,300-Math.abs(x-300))*.25);g.lineTo(2800,2600);g.closePath();g.fill();
+  // 땅
+  const gnd=mix(mix([116,170,92],[150,140,100],tone*.7),[96,160,86],0);
+  g.fillStyle=rgb(gnd);g.beginPath();g.moveTo(-1600,4200);for(let x=-1600;x<=2800;x+=20)g.lineTo(x,gy(x));g.lineTo(2800,4200);g.closePath();g.fill();
+  g.fillStyle=rgb(mix(gnd,[60,40,24],.45));g.beginPath();g.moveTo(-1600,4200);for(let x=-1600;x<=2800;x+=20)g.lineTo(x,gy(x)+34);g.lineTo(2800,4200);g.closePath();g.fill();
+  // 터에 깔린 맨땅(철거 직후)
+  const bare=smooth(12,15,T)*(1-smooth(18.5,22,T));if(bare>0){g.fillStyle=`rgba(176,150,112,${.9*bare})`;g.fillRect(230,TER-2,580,16)}
+  // 주변 나무
+  for(const t of TREES)tree(t.x,gy(t.x),t.s,1,t.c);
+  // 아파트
+  building(BLK[0],smooth(BLK[0].at,BLK[0].at+2.2,T));building(BLK[1],smooth(BLK[1].at,BLK[1].at+2.2,T));
+  dust(BLK[0],BLK[0].at);dust(BLK[1],BLK[1].at);
+  // 계획 윤곽(1990): 점선 사각형 + 수목 윤곽
+  const pl=smooth(4.2,5.4,T)*(1-smooth(9,10,T));if(pl>0){g.globalAlpha=pl;g.strokeStyle='#FFD54A';g.lineWidth=5;g.setLineDash([16,12]);
+    for(const b of BLK){g.strokeRect(b.x-14,gy(b.x)-b.h-26,b.w+28,b.h+26)}g.setLineDash([]);
+    g.strokeStyle='rgba(255,255,255,.9)';g.lineWidth=4;g.setLineDash([8,10]);for(let i=0;i<4;i++){const x=320+i*140;g.beginPath();g.arc(x,TER-70,28,0,7);g.stroke()}g.setLineDash([]);g.globalAlpha=1}
+  // 터에서 자라는 나무와 꽃
+  for(const s of SITE){const gr=smooth(17.8+s.k*3.4,20.4+s.k*4.2,T)*(T>25?1:1);const big=1+smooth(24.5,27,T)*.45;tree(s.x,TER,s.s*big,gr,s.c)}
+  const fl=smooth(22,25,T);if(fl>0)for(const f of FLW){const col=f.c<.33?'rgb(255,120,150)':f.c<.66?'rgb(255,210,70)':'rgb(255,255,255)';g.globalAlpha=fl;g.fillStyle=col;g.beginPath();g.arc(f.x,TER+14+(f.c*10),f.r*fl,0,7);g.fill();g.globalAlpha=1}
+}
+function label(text,x,y,alpha,accent){if(alpha<=0)return;const q=[W/2+(x-CX)*CZ,H*.56+(y-CY)*CZ];g.font='800 34px P';const w=g.measureText(text).width+32;
+  g.fillStyle=accent?`rgba(255,213,74,${.95*alpha})`:`rgba(10,14,28,${.78*alpha})`;roundRect(q[0]-w/2,q[1]-70,w,52,26);g.fill();g.fillStyle=accent?`rgba(27,20,48,${alpha})`:`rgba(255,255,255,${alpha})`;g.textAlign='center';g.fillText(text,q[0],q[1]-33);g.textAlign='left';
+  g.strokeStyle=`rgba(255,255,255,${.7*alpha})`;g.lineWidth=2;g.beginPath();g.moveTo(q[0],q[1]-18);g.lineTo(q[0],q[1]);g.stroke()}
+
+// ---------- 자막 ----------
+const STOPS=[
+ {a:3.2,b:9.9,year:'1990',head:'「남산 제모습찾기」 계획',sub:'외국인아파트 철거가 계획에 들어가요',src:'출처: 서울신문'},
+ {a:10.2,b:17.9,year:'1994',head:'11월 20일, 철거',sub:'폭파로 허물어요',src:'출처: 서울신문'},
+ {a:18.2,b:24.9,year:'그 뒤',head:'그 터에 식물원이',sub:'남산야외식물원이 만들어져요',src:'출처: 서울시 미디어허브'},
+ {a:25,b:26.9,year:'지금',head:'아파트 자리에 나무가',sub:'',src:''}];
+function fade(t,a,b){return Math.min(smooth(a,a+.45,t),1-smooth(b-.45,b,t))}
+function caption(t){
+  const gr=g.createLinearGradient(0,0,0,660);gr.addColorStop(0,'rgba(0,0,0,.55)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,W,660);
+  const gb=g.createLinearGradient(0,H-380,0,H);gb.addColorStop(0,'rgba(0,0,0,0)');gb.addColorStop(1,'rgba(0,0,0,.62)');g.fillStyle=gb;g.fillRect(0,H-380,W,380);
+  g.font='800 32px P';const tag='도시의 나이테 · 원래 ○○이었다 #7';const tw=g.measureText(tag).width+48;g.fillStyle='rgba(255,213,74,.95)';roundRect(56,72,tw,60,30);g.fill();g.fillStyle='#1b1430';g.fillText(tag,80,113);
+  const h=fade(t,0,3.2);if(h>0){g.globalAlpha=h;g.textAlign='center';g.fillStyle='#fff';g.font='800 100px P';g.fillText('남산에는',W/2,360);g.fillStyle='#FFD54A';g.font='800 120px P';g.fillText('원래 아파트가 있었다',W/2,500);g.font='600 44px P';g.fillStyle='rgba(255,255,255,.9)';g.fillText('지금은 식물원이 있는 자리',W/2,584);g.textAlign='left';g.globalAlpha=1}
+  for(const s of STOPS){const a=fade(t,s.a,s.b);if(a<=0)continue;g.globalAlpha=a;g.textAlign='center';const y0=300+(1-a)*24;
+    g.font='800 130px P';g.fillStyle='#FFD54A';g.fillText(s.year,W/2,y0);g.font='800 68px P';g.fillStyle='#fff';g.fillText(s.head,W/2,y0+100);
+    if(s.sub){g.font='600 44px P';g.fillStyle='rgba(255,255,255,.9)';g.fillText(s.sub,W/2,y0+168)}
+    if(s.src){g.font='400 30px P';g.fillStyle='rgba(255,255,255,.8)';g.fillText(s.src,W/2,H-150)}g.textAlign='left';g.globalAlpha=1}
+  const e=smooth(27.4,28,t);if(e>0){g.fillStyle=`rgba(10,14,28,${.55*e})`;g.fillRect(0,0,W,H);g.globalAlpha=e;g.textAlign='center';g.fillStyle='#fff';g.font='800 72px P';g.fillText('다음 편도',W/2,820);g.fillStyle='#FFD54A';g.font='800 84px P';g.fillText('원래 ○○이었다',W/2,930);
+    g.font='600 44px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('궁금한 동네를 댓글로 알려 주세요',W/2,1030);
+    g.font='400 30px P';g.fillStyle='rgba(255,255,255,.8)';g.fillText('그림은 기록을 바탕으로 단순화한 그림이에요',W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+}
+
+function render(t){
+  setState(t);[CX,CY,CZ]=cam(t);
+  g.save();g.fillStyle='#000';g.fillRect(0,0,W,H);
+  g.translate(W/2,H*.56);g.scale(CZ,CZ);g.translate(-CX,-CY);
+  drawWorld();g.restore();
+  label('남산',90,gy(90)-110,fade(t,0.3,3));
+  label('외인아파트',BLK[0].x+BLK[0].w+50,gy(400)-BLK[0].h-20,fade(t,1.2,3)+fade(t,5.5,9.5)*0);
+  label('외인아파트',510,TER-BLK[0].h-40,fade(t,5.4,10));
+  label('11월 20일',510,TER-BLK[0].h-40,fade(t,11,15.5),true);
+  label('남산야외식물원',510,TER-330,fade(t,21.5,26),true);
+  caption(t);
+}
+window.render=render;
+window.ready=document.fonts.load('800 40px P').then(()=>document.fonts.load('600 40px P')).then(()=>document.fonts.load('400 40px P')).then(()=>{render(0);return true});
+</script></body></html>
