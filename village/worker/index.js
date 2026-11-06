@@ -57,7 +57,11 @@ export class Hub extends DurableObject {
       CREATE TABLE IF NOT EXISTS rewards (uid TEXT, week TEXT, item TEXT, PRIMARY KEY (uid, week));
       CREATE INDEX IF NOT EXISTS scores_rank ON scores (week, best DESC);
     `);
+    // 관리자가 숨긴 소원 (지우지 않고 트리에서만 안 보이게) — 예전 표에는 칸이 없어서 한 번 더함
+    try { this.sql.exec("ALTER TABLE wishes ADD COLUMN hidden INTEGER DEFAULT 0"); } catch { /* 이미 있음 */ }
+    this.sql.exec("CREATE TABLE IF NOT EXISTS modlog (at TEXT, action TEXT, v TEXT, uid TEXT, preset TEXT, text TEXT)");
     this.tries = new Map(); // 이어하기 코드 마구 넣기 막기 (IP별)
+    this.adminFails = new Map(); // 관리자 비밀번호 마구 넣기 막기 (IP별)
   }
 
   user(token) {
@@ -91,11 +95,79 @@ export class Hub extends DurableObject {
   async whois(token) { const u = this.user(token); return u && u.nick ? { uid: u.uid, nick: u.nick } : null; }
   async roomCount(room, n) { this.sql.exec("INSERT INTO rooms (room, n, at) VALUES (?, ?, ?) ON CONFLICT(room) DO UPDATE SET n = excluded.n, at = excluded.at", room, n, Date.now()); }
 
+  // ---------- 관리자 (대표님): 소원 보기 · 숨기기 · 다시 보이기 · 지우기 ----------
+  // 비밀번호는 Cloudflare 비밀값 ADMIN_KEY (GitHub 저장소 비밀값 VILLAGE_ADMIN_KEY 에서 배포 때 넣음).
+  // 관리 화면은 /admin.html. 비밀번호는 요청 머리글 x-admin-key 로만 받고, 틀리면 IP별 10분에 8번까지.
+  async adminKeyOk(given) {
+    const want = this.env.ADMIN_KEY;
+    if (!want || typeof given !== "string" || !given) return false;
+    const enc = new TextEncoder();
+    const [a, b] = await Promise.all([crypto.subtle.digest("SHA-256", enc.encode(given)), crypto.subtle.digest("SHA-256", enc.encode(want))]);
+    const x = new Uint8Array(a), y = new Uint8Array(b);
+    let diff = 0;
+    for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+    return diff === 0;
+  }
+  async admin(request, op, url, body) {
+    if (!this.env.ADMIN_KEY) return json({ error: "no_admin_key" }, 503);
+    const ip = request.headers.get("cf-connecting-ip") || "?", now = Date.now();
+    const f = this.adminFails.get(ip);
+    if (f && f.n >= 8 && now - f.at < 600e3) return json({ error: "locked", wait: Math.ceil((600e3 - (now - f.at)) / 60e3) }, 429);
+    if (!(await this.adminKeyOk(request.headers.get("x-admin-key")))) {
+      this.adminFails.set(ip, { n: (f && now - f.at < 600e3 ? f.n : 0) + 1, at: now });
+      return json({ error: "bad_key" }, 401);
+    }
+    this.adminFails.delete(ip);
+    const counts = (v) => this.sql.exec("SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN COALESCE(hidden, 0) = 1 THEN 1 ELSE 0 END), 0) AS hidden FROM wishes WHERE v = ?", v).one();
+
+    if (op === "check") return json({ ok: true, villages: Object.fromEntries(VILLAGES.map((v) => [v, counts(v)])) });
+
+    if (op === "wishes") { // ?v=santa&show=all|shown|hidden&q=검색어&before=시각 (최근 것부터 100개씩)
+      const v = url.searchParams.get("v");
+      if (!VILLAGES.includes(v)) return json({ error: "bad_village" }, 400);
+      const show = url.searchParams.get("show") || "all", q = (url.searchParams.get("q") || "").trim().slice(0, 30), before = url.searchParams.get("before") || "";
+      let sql = "SELECT w.uid, w.preset, w.text, w.at, COALESCE(w.hidden, 0) AS hidden, u.nick FROM wishes w LEFT JOIN users u ON u.uid = w.uid WHERE w.v = ?";
+      const args = [v];
+      if (show === "shown") sql += " AND COALESCE(w.hidden, 0) = 0";
+      if (show === "hidden") sql += " AND COALESCE(w.hidden, 0) = 1";
+      if (q) { sql += " AND (w.text LIKE ? OR w.preset LIKE ? OR u.nick LIKE ?)"; const like = "%" + q.replace(/[%_]/g, "") + "%"; args.push(like, like, like); }
+      if (before) { sql += " AND w.at < ?"; args.push(before); }
+      sql += " ORDER BY w.at DESC LIMIT 101";
+      const rows = this.sql.exec(sql, ...args).toArray();
+      return json({ list: rows.slice(0, 100), more: rows.length > 100, counts: counts(v) });
+    }
+
+    if (op === "hide" || op === "delete") {
+      if (request.method !== "POST") return json({ error: "post_only" }, 405);
+      const v = body.v, uid = String(body.uid || "");
+      if (!VILLAGES.includes(v) || !uid) return json({ error: "bad_target" }, 400);
+      const w = this.sql.exec("SELECT preset, text FROM wishes WHERE v = ? AND uid = ?", v, uid).toArray()[0];
+      if (!w) return json({ error: "not_found" }, 404);
+      const at = new Date().toISOString();
+      if (op === "hide") {
+        const hidden = body.hidden ? 1 : 0;
+        this.sql.exec("UPDATE wishes SET hidden = ? WHERE v = ? AND uid = ?", hidden, v, uid);
+        this.sql.exec("INSERT INTO modlog (at, action, v, uid, preset, text) VALUES (?, ?, ?, ?, ?, ?)", at, hidden ? "hide" : "show", v, uid, w.preset, w.text);
+      } else {
+        this.sql.exec("DELETE FROM wishes WHERE v = ? AND uid = ?", v, uid);
+        this.sql.exec("INSERT INTO modlog (at, action, v, uid, preset, text) VALUES (?, ?, ?, ?, ?, ?)", at, "delete", v, uid, w.preset, w.text);
+      }
+      return json({ ok: true, counts: counts(v) });
+    }
+
+    if (op === "log") { // 최근 관리 기록 50개 (지운 소원 글도 여기 남음)
+      return json({ list: this.sql.exec("SELECT at, action, v, uid, preset, text FROM modlog ORDER BY at DESC LIMIT 50").toArray() });
+    }
+    return json({ error: "not_found" }, 404);
+  }
+
   async fetch(request) {
     const url = new URL(request.url), path = url.pathname.slice(5);
     let body = {};
     if (request.method === "POST") { try { body = await request.json(); } catch { return json({ error: "bad_json" }, 400); } }
     const day = kstDay();
+
+    if (path.startsWith("admin/")) return this.admin(request, path.slice(6), url, body);
 
     if (path === "hello") {
       let u = this.user(body.token);
@@ -139,8 +211,8 @@ export class Hub extends DurableObject {
     if (path === "wishes") {
       const v = url.searchParams.get("v");
       if (!VILLAGES.includes(v)) return json({ error: "bad_village" }, 400);
-      const list = this.sql.exec("SELECT uid AS id, preset, text, at FROM wishes WHERE v = ? ORDER BY at DESC LIMIT 200", v).toArray();
-      const total = this.sql.exec("SELECT COUNT(*) AS c FROM wishes WHERE v = ?", v).one().c;
+      const list = this.sql.exec("SELECT uid AS id, preset, text, at FROM wishes WHERE v = ? AND COALESCE(hidden, 0) = 0 ORDER BY at DESC LIMIT 200", v).toArray();
+      const total = this.sql.exec("SELECT COUNT(*) AS c FROM wishes WHERE v = ? AND COALESCE(hidden, 0) = 0", v).one().c;
       return json({ list, total });
     }
 

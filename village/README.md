@@ -31,3 +31,10 @@
 - 입장: 산타마을 눈싸움장(팻말) 또는 위쪽 「☃ 눈덩이 피하기」 칩. 게임 중엔 3D 마을을 멈춤
 - 확인(로컬): 바로 높은 점수 보내기 → 거절, 같은 판 다시 보내기 → 거절, 실제로 한 판(12초 291점) → 기록·1등·조각 +1
 - 문구: 「미리 열린 겨울 소원마을」 (12월 1일은 큰 업데이트 날로)
+
+## 소원 관리 (대표님용, 2026-11-06)
+- 화면: https://winter-wish-village.chococrown13.workers.dev/admin.html (휴대폰 OK)
+- 할 수 있는 것: 산타마을 트리·해맞이마을 풍등의 소원을 최근 순으로 보기, 소원·닉네임 찾기, **숨기기 / 다시 보이기**(트리에서만 안 보임, 되돌릴 수 있음), **지우기**(되돌릴 수 없음 — 지운 글은 「최근 관리 기록」에 남음)
+- 숨긴 사람이 소원을 다시 써도 계속 숨겨져 있어요(관리 화면에서 「다시 보이기」로 풀기)
+- 비밀번호: GitHub 저장소 → Settings → Secrets and variables → Actions → `VILLAGE_ADMIN_KEY`(16자 이상, 대표님이 직접 정함). 배포 때 Cloudflare 비밀값 `ADMIN_KEY` 로 들어감. 없으면 관리 화면은 잠겨 있음
+- 서버: `worker/index.js` 의 `Hub.admin()` — `/api/admin/check · wishes · hide · delete · log`, 머리글 `x-admin-key`, 틀리면 IP별 10분에 8번까지

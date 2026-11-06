@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>소원 관리 · 겨울 소원마을</title>
+<style>
+  :root {
+    --bg: #0f1a2e; --card: #18253d; --line: #2c3c5c; --ink: #f3f6fb; --soft: #a9b6cc;
+    --gold: #ffd54a; --red: #ff6b6b; --green: #6fd39a; --blue: #7fb7ff;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  [hidden] { display: none !important; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 16px 16px calc(32px + env(safe-area-inset-bottom, 0px)); }
+  h1 { font-size: 22px; margin: 8px 0 4px; }
+  .sub { color: var(--soft); margin: 0 0 16px; font-size: 13px; }
+  .box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  label { display: block; font-weight: 700; margin-bottom: 6px; }
+  input[type=password], input[type=search] { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: #0b1424; color: var(--ink); font-size: 16px; }
+  button { font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--line); background: #22324f; color: var(--ink); padding: 10px 14px; min-height: 44px; }
+  button.primary { background: var(--gold); color: #1b1430; border-color: var(--gold); font-weight: 800; }
+  button.on { background: var(--blue); color: #0b1424; border-color: var(--blue); font-weight: 800; }
+  button:disabled { opacity: .5; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .err { color: var(--red); min-height: 1.5em; margin: 8px 0 0; }
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 10px; }
+  .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0; }
+  .counts { color: var(--soft); font-size: 13px; margin: 6px 0 12px; }
+  .counts b { color: var(--ink); }
+  .list { display: grid; gap: 10px; }
+  .wish { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .wish.hid { border-style: dashed; opacity: .72; }
+  .wish .p { font-weight: 800; }
+  .wish .t { margin: 2px 0 6px; word-break: break-all; }
+  .wish .meta { color: var(--soft); font-size: 12px; }
+  .wish .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 800; padding: 1px 8px; border-radius: 99px; background: #3a2a2a; color: #ffb4b4; margin-left: 6px; vertical-align: 2px; }
+  .del { color: var(--red); }
+  .empty { color: var(--soft); text-align: center; padding: 24px 0; }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .link { background: none; border: 0; color: var(--soft); text-decoration: underline; padding: 6px; min-height: 0; white-space: nowrap; }
+  details { margin-top: 16px; }
+  summary { cursor: pointer; color: var(--soft); }
+  .log { font-size: 12px; color: var(--soft); display: grid; gap: 4px; margin-top: 8px; }
+  .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: #000c; padding: 10px 16px; border-radius: 99px; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>🎄 소원 관리</h1>
+      <p class="sub">겨울 소원마을에 달린 소원을 보고, 숨기거나 지울 수 있어요.</p>
+    </div>
+    <button id="logout" class="link" hidden>나가기</button>
+  </div>
+
+  <!-- 비밀번호 -->
+  <section id="login" class="box">
+    <label for="key">관리자 비밀번호</label>
+    <input id="key" type="password" autocomplete="current-password" placeholder="GitHub 에 넣은 VILLAGE_ADMIN_KEY">
+    <div class="row" style="margin-top:10px">
+      <label style="display:flex;gap:6px;align-items:center;font-weight:400;margin:0"><input id="remember" type="checkbox" checked> 이 기기에서 기억하기</label>
+    </div>
+    <div class="row" style="margin-top:10px"><button id="go" class="primary" style="flex:1">들어가기</button></div>
+    <p id="loginErr" class="err"></p>
+  </section>
+
+  <!-- 관리 -->
+  <section id="panel" hidden>
+    <div class="tabs">
+      <button data-v="santa" class="on">🎅 산타마을 트리</button>
+      <button data-v="sun">🌅 해맞이마을 풍등</button>
+    </div>
+    <input id="q" type="search" placeholder="소원·닉네임 찾기">
+    <div class="chips">
+      <button data-show="all" class="on">전체</button>
+      <button data-show="shown">보이는 소원</button>
+      <button data-show="hidden">숨긴 소원</button>
+    </div>
+    <p id="counts" class="counts"></p>
+    <div id="list" class="list"></div>
+    <div class="row" style="margin-top:12px"><button id="more" hidden style="flex:1">더 보기</button></div>
+    <details id="logBox">
+      <summary>최근 관리 기록 (지운 소원 글도 여기 남아요)</summary>
+      <div id="log" class="log"></div>
+    </details>
+  </section>
+</div>
+<div id="toast" class="toast" hidden></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const KEY_STORE = "village.admin.key";
+let key = "", v = "santa", show = "all", q = "", rows = [], more = false;
+const VNAME = { santa: "산타마을 트리", sun: "해맞이마을 풍등" };
+
+function store(k) { try { k ? localStorage.setItem(KEY_STORE, k) : localStorage.removeItem(KEY_STORE); } catch {} }
+function stored() { try { return localStorage.getItem(KEY_STORE) || ""; } catch { return ""; } }
+function toast(t) { const el = $("toast"); el.textContent = t; el.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => (el.hidden = true), 1800); }
+const kstTime = (iso) => { try { const d = new Date(new Date(iso).getTime() + 9 * 3600e3); return d.toISOString().slice(5, 16).replace("-", "/").replace("T", " "); } catch { return iso; } };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+async function call(op, opts = {}) {
+  const res = await fetch("/api/admin/" + op, {
+    method: opts.body ? "POST" : "GET",
+    headers: { "x-admin-key": key, ...(opts.body ? { "content-type": "application/json" } : {}) },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  let data = {};
+  try { data = await res.json(); } catch {}
+  if (!res.ok) { const e = new Error(data.error || "http_" + res.status); e.data = data; e.status = res.status; throw e; }
+  return data;
+}
+function why(e) {
+  if (e.message === "bad_key") return "비밀번호가 맞지 않아요.";
+  if (e.message === "locked") return `여러 번 틀려서 잠시 잠겼어요. ${e.data?.wait || 10}분 뒤에 다시 해 주세요.`;
+  if (e.message === "no_admin_key") return "아직 서버에 관리자 비밀번호가 없어요. GitHub 저장소 비밀값 VILLAGE_ADMIN_KEY 를 넣고 다시 배포해 주세요.";
+  return "연결이 잠깐 안 됐어요. 다시 해 주세요.";
+}
+
+async function login(k, quiet) {
+  key = k.trim();
+  if (!key) { $("loginErr").textContent = "비밀번호를 넣어 주세요."; return; }
+  $("go").disabled = true; $("loginErr").textContent = "";
+  try {
+    await call("check");
+    if ($("remember").checked) store(key); else store("");
+    $("login").hidden = true; $("panel").hidden = false; $("logout").hidden = false;
+    await load(true);
+  } catch (e) {
+    if (quiet && e.message === "bad_key") store("");
+    $("loginErr").textContent = why(e);
+  }
+  $("go").disabled = false;
+}
+
+async function load(reset) {
+  if (reset) { rows = []; more = false; $("list").innerHTML = '<p class="empty">불러오는 중…</p>'; }
+  const p = new URLSearchParams({ v, show });
+  if (q) p.set("q", q);
+  if (!reset && rows.length) p.set("before", rows[rows.length - 1].at);
+  try {
+    const r = await call("wishes?" + p.toString());
+    rows = reset ? r.list : rows.concat(r.list);
+    more = r.more;
+    const c = r.counts;
+    $("counts").innerHTML = `${VNAME[v]} · 전체 <b>${c.total}</b>개 · 보이는 <b>${c.total - c.hidden}</b>개 · 숨긴 <b>${c.hidden}</b>개`;
+    render();
+  } catch (e) { $("list").innerHTML = `<p class="empty">${esc(why(e))}</p>`; if (e.status === 401) logout(); }
+}
+
+function render() {
+  const el = $("list");
+  if (!rows.length) { el.innerHTML = '<p class="empty">해당하는 소원이 없어요.</p>'; $("more").hidden = true; return; }
+  el.innerHTML = rows.map((w, i) => `
+    <article class="wish ${w.hidden ? "hid" : ""}">
+      <div class="p">${esc(w.preset)}${w.hidden ? '<span class="tag">숨김</span>' : ""}</div>
+      ${w.text ? `<div class="t">“${esc(w.text)}”</div>` : ""}
+      <div class="meta">${esc(w.nick || "(이름 없음)")} · ${kstTime(w.at)}</div>
+      <div class="acts">
+        <button data-i="${i}" data-act="hide">${w.hidden ? "다시 보이기" : "숨기기"}</button>
+        <button data-i="${i}" data-act="delete" class="del">지우기</button>
+      </div>
+    </article>`).join("");
+  $("more").hidden = !more;
+}
+
+$("list").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button[data-act]"); if (!b) return;
+  const w = rows[Number(b.dataset.i)]; if (!w) return;
+  if (b.dataset.act === "delete" && !confirm(`이 소원을 지울까요? 되돌릴 수 없어요.\n\n${w.preset}${w.text ? " — " + w.text : ""}\n(${w.nick || "이름 없음"})`)) return;
+  b.disabled = true;
+  try {
+    if (b.dataset.act === "hide") {
+      await call("hide", { body: { v, uid: w.uid, hidden: !w.hidden } });
+      toast(w.hidden ? "다시 보이게 했어요" : "트리에서 숨겼어요");
+    } else {
+      await call("delete", { body: { v, uid: w.uid } });
+      toast("지웠어요");
+    }
+    await load(true);
+    if ($("logBox").open) loadLog();
+  } catch (e) { toast(why(e)); b.disabled = false; }
+});
+
+async function loadLog() {
+  try {
+    const r = await call("log");
+    const A = { hide: "숨김", show: "다시 보임", delete: "지움" };
+    $("log").innerHTML = r.list.length ? r.list.map((x) => `<div>${kstTime(x.at)} · ${A[x.action] || x.action} · ${x.v === "santa" ? "산타" : "해맞이"} · ${esc(x.preset)}${x.text ? " — " + esc(x.text) : ""}</div>`).join("") : "<div>아직 기록이 없어요.</div>";
+  } catch (e) { $("log").textContent = why(e); }
+}
+$("logBox").addEventListener("toggle", () => { if ($("logBox").open) loadLog(); });
+
+document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
+  v = b.dataset.v; document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b)); load(true);
+}));
+document.querySelectorAll(".chips button").forEach((b) => b.addEventListener("click", () => {
+  show = b.dataset.show; document.querySelectorAll(".chips button").forEach((x) => x.classList.toggle("on", x === b)); load(true);
+}));
+let qt = 0;
+$("q").addEventListener("input", () => { clearTimeout(qt); qt = setTimeout(() => { q = $("q").value.trim(); load(true); }, 350); });
+$("more").addEventListener("click", () => load(false));
+$("go").addEventListener("click", () => login($("key").value));
+$("key").addEventListener("keydown", (e) => { if (e.key === "Enter") login($("key").value); });
+function logout() { store(""); key = ""; $("panel").hidden = true; $("login").hidden = false; $("logout").hidden = true; $("key").value = ""; }
+$("logout").addEventListener("click", logout);
+
+const saved = stored();
+if (saved) login(saved, true);
+</script>
+</body>
+</html>
