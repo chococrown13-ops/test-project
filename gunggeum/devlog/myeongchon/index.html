@@ -1,0 +1,142 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}
+canvas{display:block}
+</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// 도시의 나이테 · 원래 ○○이었다 #8 「울산 명촌동은 원래 소금밭이었다」 — render(t) 한 번 = 한 프레임.
+// 위에서 본 강어귀 지도. 바다(아래)에서 강(위)으로 거슬러 오르는 카메라. 모양·위치는 모두 단순화한 근사.
+const W=1080,H=1920;
+const cv=document.getElementById('c'),g=cv.getContext('2d');
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const lerp=(a,b,u)=>a+(b-a)*u,clamp01=x=>Math.max(0,Math.min(1,x));
+function smooth(a,b,t){const u=clamp01((t-a)/(b-a));return u*u*(3-2*u)}
+const mix=(a,b,u)=>a.map((v,i)=>v+(b[i]-v)*u),rgb=(c,a)=>a===undefined?`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`:`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;
+function roundRect(x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+
+// ---------- 월드 ----------
+// 강: 위(y=0)에서 아래(y=2300, 바다)로. 왼쪽 기슭 = 명촌, 오른쪽 = 남구(삼산·돋질).
+const SEA_Y=1900;
+function riverC(y){return 640+Math.sin(y/330)*70-smooth(1200,2000,y)*60}
+function riverHW(y){return 110+smooth(900,1900,y)*170}      // 반폭: 바다 쪽으로 넓어짐
+const LEFT=y=>riverC(y)-riverHW(y), RIGHT=y=>riverC(y)+riverHW(y);
+const ISL={x:()=>riverC(1060),y:1060,rx:60,ry:150};            // 대도섬(단순화)
+
+// 소금밭(염전): 왼쪽 기슭 강어귀 모래땅에 바둑판
+const PANS=[];for(let r=0;r<7;r++)for(let c=0;c<4;c++){const y=1280+r*86,x=LEFT(y)-62-(c+1)*128;PANS.push({x,y,w:112,h:70,k:(r*4+c)/28})}
+// 마을 네 곳
+const VIL=[{n:'평촌',x:120,y:520},{n:'명촌',x:300,y:860},{n:'대도',x:150,y:1080},{n:'독도',x:380,y:640}];
+const RH=rng(88),HOUSES=[];for(const v of VIL)for(let i=0;i<9;i++)HOUSES.push({x:v.x+(RH()-.5)*130,y:v.y+(RH()-.5)*110,w:18+RH()*10,h:14+RH()*8,v});
+// 공장 건물
+const RF=rng(1968),FAC=[];for(let i=0;i<110;i++){const col=i%5,row=Math.floor(i/5);const y=1010+row*92,x=-60+col*118+(RF()*10|0);{const w=84+RF()*22;if(x+w<LEFT(y)-30)FAC.push({x,y,w,h:58+RF()*18,hh:14+RF()*30,k:i/70})}}
+const FAC2=[];for(let i=0;i<48;i++){const col=i%6,row=Math.floor(i/6);FAC2.push({x:-740+col*120,y:380+row*96,w:88,h:60,hh:16+RF()*26,k:i/48})}
+
+// ---------- 시간표 ----------
+let T=0,vil=0,pans=0,fac=0,fac2=0,isl=1;
+function setState(t){T=t;
+  vil=smooth(3.5,5,t)*(1-smooth(9,10.5,t)*.7);
+  pans=Math.max(1-smooth(3,3.8,t),smooth(9.2,12.5,t)*(1-smooth(21,23.5,t)));
+  isl=1-smooth(17.8,19.8,t);
+  fac=smooth(20.5,24,t);
+  fac2=smooth(26,27.6,t)}
+const SEA=[[64,148,166]];
+function waterCol(){return mix([66,150,170],[56,92,112],smooth(20,26,T))}
+function landCol(){return mix([226,214,176],[132,134,138],smooth(20.5,24,T)*.85)}
+
+// ---------- 카메라 ----------
+const KEYS=[[0,260,1560,1.45],[3,260,1480,1.5],[3.4,260,740,1.5],[8.6,260,950,1.4],
+ [9,160,1500,1.35],[14.6,160,1380,1.35],[15.4,560,1060,1.5],[19.8,560,1060,1.5],
+ [20.4,300,1180,1.2],[25.6,300,1100,1.1],[26.2,-100,800,.7],[28.2,-100,800,.5],[30,300,1100,.42]];
+function cam(t){let i=0;while(i<KEYS.length-2&&t>KEYS[i+1][0])i++;const a=KEYS[i],b=KEYS[i+1];let u=clamp01((t-a[0])/(b[0]-a[0]));u=u*u*(3-2*u);return[lerp(a[1],b[1],u),lerp(a[2],b[2],u),lerp(a[3],b[3],u)]}
+let CZ=1,CCX=540,CCY=1000;
+
+// ---------- 그리기 ----------
+function drawWorld(){
+  const wc=waterCol();g.fillStyle=rgb(wc);g.fillRect(-2400,-2400,6000,6000);
+  // 땅(왼쪽 기슭, 오른쪽 기슭)
+  g.fillStyle=rgb(mix(landCol(),[255,250,230],.45));
+  g.beginPath();g.moveTo(-2600,-2400);for(let y=-2400;y<=SEA_Y+60;y+=30)g.lineTo(LEFT(y)-26,y);g.lineTo(-2600,SEA_Y+60);g.closePath();g.fill();
+  g.beginPath();g.moveTo(2600,-2400);for(let y=-2400;y<=SEA_Y-200;y+=30)g.lineTo(RIGHT(y)+26,y);g.lineTo(2600,SEA_Y-200);g.closePath();g.fill();
+  g.fillStyle=rgb(landCol());
+  g.beginPath();g.moveTo(-2600,-2400);for(let y=-2400;y<=SEA_Y+60;y+=30)g.lineTo(LEFT(y),y);g.lineTo(-2600,SEA_Y+60);g.closePath();g.fill();
+  g.beginPath();g.moveTo(2600,-2400);for(let y=-2400;y<=SEA_Y-200;y+=30)g.lineTo(RIGHT(y),y);g.lineTo(2600,SEA_Y-200);g.closePath();g.fill();
+  // 물결
+  const rw=rng(11);g.strokeStyle=rgb(mix(wc,[255,255,255],.4),.4);g.lineWidth=3;
+  for(let i=0;i<120;i++){const y=-100+rw()*2200,x=riverC(y)+(rw()-.5)*2*riverHW(y)*.9,l=36+rw()*50,ph=(T*26+rw()*200)%140-70;g.beginPath();g.moveTo(x,y+ph);g.lineTo(x+3,y+ph+l);g.stroke()}
+  // 소금밭 바둑판
+  if(pans>0){for(const p of PANS){const k=smooth(0,.4,pans*1.4-p.k*.9);if(k<=0.02)continue;g.globalAlpha=k;
+      g.fillStyle='rgb(190,176,140)';g.fillRect(p.x-6,p.y-6,p.w+12,p.h+12);
+      g.fillStyle='rgb(96,164,184)';g.fillRect(p.x,p.y,p.w,p.h);
+      const fill=smooth(.5,1,pans)*.9;g.fillStyle='rgba(255,255,255,.95)';g.fillRect(p.x+4,p.y+4,(p.w-8)*fill*(.4+.6*((p.k*7)%1)),p.h-8);
+      g.globalAlpha=1}}
+  // 마을(초가집 느낌의 작은 지붕)
+  if(vil>0){for(const h of HOUSES){g.globalAlpha=vil;g.fillStyle='rgba(0,0,0,.2)';g.fillRect(h.x+4,h.y+5,h.w,h.h);g.fillStyle='rgb(176,142,98)';g.fillRect(h.x,h.y,h.w,h.h);g.fillStyle='rgb(214,184,128)';g.fillRect(h.x,h.y,h.w,h.h*.45);g.globalAlpha=1}
+    for(const v of VIL){g.globalAlpha=vil*.35;g.strokeStyle='#fff';g.lineWidth=4;g.setLineDash([10,10]);g.beginPath();g.arc(v.x,v.y,96,0,7);g.stroke();g.setLineDash([]);g.globalAlpha=1}}
+  // 대도섬
+  if(isl>0.01){const cx=ISL.x();g.globalAlpha=isl;g.fillStyle='rgb(238,226,186)';g.beginPath();g.ellipse(cx,ISL.y,ISL.rx+14,ISL.ry+14,.15,0,7);g.fill();g.fillStyle='rgb(222,204,150)';g.beginPath();g.ellipse(cx,ISL.y,ISL.rx,ISL.ry,.15,0,7);g.fill();
+    g.fillStyle='rgba(120,160,90,.8)';g.beginPath();g.ellipse(cx-8,ISL.y-30,26,40,.15,0,7);g.fill();g.globalAlpha=1}
+  // 공장(회색 건물, 주황 불빛)
+  const lights=(b,k)=>{g.fillStyle=`rgba(255,170,70,${.9*k})`;for(let i=0;i<3;i++)g.fillRect(b.x+8+i*((b.w-20)/3),b.y+b.h-12,10,6)};
+  if(fac>0){const roadA=smooth(0,.3,fac);g.fillStyle=`rgba(80,82,90,${roadA})`;g.fillRect(-20,985,560,16);
+    for(const b of FAC){const k=smooth(0,.4,fac*1.4-b.k*.9);if(k<=0.03)continue;const h=b.hh*k;
+      g.fillStyle='rgba(0,0,0,.25)';g.fillRect(b.x+h*.4,b.y+h*.5,b.w,b.h);
+      g.fillStyle='rgb(128,132,142)';g.fillRect(b.x,b.y,b.w,b.h);g.fillStyle='rgb(168,172,182)';g.fillRect(b.x+4,b.y+4,b.w-8,b.h*.5);lights(b,k)}}
+  if(fac2>0){for(const b of FAC2){const k=smooth(0,.4,fac2*1.4-b.k*.9);if(k<=0.03)continue;const h=b.hh*k;
+      g.fillStyle='rgba(0,0,0,.25)';g.fillRect(b.x+h*.4,b.y+h*.5,b.w,b.h);g.fillStyle='rgb(128,132,142)';g.fillRect(b.x,b.y,b.w,b.h);g.fillStyle='rgb(168,172,182)';g.fillRect(b.x+4,b.y+4,b.w-8,b.h*.5);lights(b,k)}}
+}
+function drawActors(){
+  // 훅: 소금 반짝임
+  if(T<9.5){const a=(1-smooth(2.4,3.4,T))+(smooth(9.2,10,T)*(1-smooth(14,15,T)));const rs=rng(5);g.globalAlpha=Math.min(1,a)*.9;
+    for(let i=0;i<40;i++){const p=PANS[(rs()*PANS.length)|0],tw=.5+.5*Math.sin(T*5+i*2.1);if(tw<.6)continue;const x=p.x+rs()*p.w,y=p.y+rs()*p.h;g.strokeStyle='#fff';g.lineWidth=3;g.beginPath();g.moveTo(x-9,y);g.lineTo(x+9,y);g.moveTo(x,y-9);g.lineTo(x,y+9);g.stroke()}g.globalAlpha=1}
+  // 소금 거두는 사람(점)
+  if(T>=11&&T<21){const a=smooth(11,12.5,T)*(1-smooth(19.5,21,T));g.globalAlpha=a;const rc=rng(9);
+    for(let i=0;i<18;i++){const p=PANS[(rc()*PANS.length)|0];const ph=(T*.4+rc())%1;g.fillStyle='rgb(70,56,44)';g.beginPath();g.arc(p.x+10+ph*(p.w-20),p.y+p.h+10,5,0,7);g.fill()}g.globalAlpha=1}
+  // 1968: 첫 차 코티나(작은 자동차) 공장 도로 위를 달림
+  if(T>=23&&T<26.2){const a=smooth(23,23.6,T)*(1-smooth(25.4,26.2,T));g.globalAlpha=a;const x=lerp(-20,520,smooth(23,26,T));
+    g.fillStyle='rgba(0,0,0,.3)';g.fillRect(x-24,997,52,26);g.fillStyle='rgb(240,240,244)';roundRect(x-26,985,52,24,8);g.fill();g.fillStyle='rgb(60,70,90)';g.fillRect(x-8,988,18,16);g.globalAlpha=1}
+}
+function label(text,x,y,alpha,accent){if(alpha<=0)return;const q=[W/2+(x-CCX)*CZ,H*.56+(y-CCY)*CZ];g.font='800 34px P';const w=g.measureText(text).width+32;
+  g.fillStyle=accent?`rgba(255,213,74,${.95*alpha})`:`rgba(10,14,28,${.78*alpha})`;roundRect(q[0]-w/2,q[1]-70,w,52,26);g.fill();g.fillStyle=accent?`rgba(27,20,48,${alpha})`:`rgba(255,255,255,${alpha})`;g.textAlign='center';g.fillText(text,q[0],q[1]-33);g.textAlign='left';
+  g.strokeStyle=`rgba(255,255,255,${.7*alpha})`;g.lineWidth=2;g.beginPath();g.moveTo(q[0],q[1]-18);g.lineTo(q[0],q[1]);g.stroke()}
+
+// ---------- 자막 ----------
+const STOPS=[
+ {a:3.2,b:8.9,year:'1911',head:'강어귀 네 마을',sub:'평촌·명촌·대도·독도 → 1914년 명촌리',src:'출처: 울산역사문화대전'},
+ {a:9.2,b:14.9,year:'옛날',head:'울산 4대 염전 「명촌염전」',sub:'바닷물과 강물이 만나는 모래땅의 소금밭',src:'출처: 울산 남구청 · 울산저널'},
+ {a:15.2,b:19.9,year:'옛날',head:'강 가운데엔 섬도',sub:'모래섬 「대도섬」 — 지금은 사라졌어요',src:'출처: 경상일보 · 울산매일'},
+ {a:20.2,b:25.9,year:'1968',head:'현대자동차 울산공장',sub:"소금밭 자리에 공장이, 11월 첫 차 '코티나'",src:'출처: 현대자동차 · 울산 남구청'},
+ {a:26.2,b:28.6,year:'지금',head:'여의도 1.5배 공장',sub:'약 500만㎡',src:'출처: 울산시'}];
+function fade(t,a,b){return Math.min(smooth(a,a+.45,t),1-smooth(b-.45,b,t))}
+function caption(t){
+  const gr=g.createLinearGradient(0,0,0,660);gr.addColorStop(0,'rgba(0,0,0,.6)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,W,660);
+  const gb=g.createLinearGradient(0,H-380,0,H);gb.addColorStop(0,'rgba(0,0,0,0)');gb.addColorStop(1,'rgba(0,0,0,.62)');g.fillStyle=gb;g.fillRect(0,H-380,W,380);
+  g.font='800 32px P';const tag='도시의 나이테 · 원래 ○○이었다 #8';const tw=g.measureText(tag).width+48;g.fillStyle='rgba(255,213,74,.95)';roundRect(56,72,tw,60,30);g.fill();g.fillStyle='#1b1430';g.fillText(tag,80,113);
+  const h=fade(t,0,3.2);if(h>0){g.globalAlpha=h;g.textAlign='center';g.fillStyle='#fff';g.font='800 100px P';g.fillText('울산 명촌동은',W/2,360);g.fillStyle='#FFD54A';g.font='800 120px P';g.fillText('원래 소금밭이었다',W/2,500);g.font='600 44px P';g.fillStyle='rgba(255,255,255,.9)';g.fillText('지금은 현대차 공장이 있는 동네',W/2,584);g.textAlign='left';g.globalAlpha=1}
+  for(const s of STOPS){const a=fade(t,s.a,s.b);if(a<=0)continue;g.globalAlpha=a;g.textAlign='center';const y0=300+(1-a)*24;
+    g.font='800 130px P';g.fillStyle='#FFD54A';g.fillText(s.year,W/2,y0);g.font='800 68px P';g.fillStyle='#fff';g.fillText(s.head,W/2,y0+100);
+    if(s.sub){g.font='600 44px P';g.fillStyle='rgba(255,255,255,.9)';g.fillText(s.sub,W/2,y0+168)}g.font='400 30px P';g.fillStyle='rgba(255,255,255,.8)';g.fillText(s.src,W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+  const e=smooth(28.6,29.2,t);if(e>0){g.fillStyle=`rgba(10,14,28,${.55*e})`;g.fillRect(0,0,W,H);g.globalAlpha=e;g.textAlign='center';g.fillStyle='#fff';g.font='800 72px P';g.fillText('댓글로 신청받은',W/2,820);g.fillStyle='#FFD54A';g.font='800 84px P';g.fillText('동네였어요',W/2,930);
+    g.font='600 44px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('다음 동네도 댓글로 알려 주세요',W/2,1030);
+    g.font='400 30px P';g.fillStyle='rgba(255,255,255,.8)';g.fillText('지도는 기록을 바탕으로 단순화한 그림이에요',W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+}
+
+function render(t){
+  setState(t);[CCX,CCY,CZ]=cam(t);
+  g.save();g.fillStyle='#000';g.fillRect(0,0,W,H);
+  g.translate(W/2,H*.56);g.scale(CZ,CZ);g.translate(-CCX,-CCY);
+  drawWorld();drawActors();g.restore();
+  label('태화강',riverC(1500),1500,fade(t,0.2,3.0));
+  label('바다',riverC(1900),1900,fade(t,0.2,2.6)*0);
+  label('모래섬 대도섬',ISL.x(),ISL.y-60,fade(t,15.6,19));
+  label('소금밭',PANS[13].x+50,PANS[13].y,fade(t,10,14.6),true);
+  label('공장 자리',200,1040,fade(t,21,25));
+  caption(t);
+}
+window.render=render;
+window.ready=document.fonts.load('800 40px P').then(()=>document.fonts.load('600 40px P')).then(()=>document.fonts.load('400 40px P')).then(()=>{render(0);return true});
+</script></body></html>
