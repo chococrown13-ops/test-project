@@ -1,0 +1,113 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(file:///home/user/test-project/gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}
+canvas{display:block}
+</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// 도시의 나이테 · 원래 ○○이었다 #9 「인천 논현2동 앞은 원래 바다였다」 — render(t) 한 번 = 한 프레임.
+// 카메라 고정. 한 장의 해안 지도가 옛 지도(누런 종이·먹선) → 지금 지도(색)로 바뀌며 바다가 물러난다. 모양·위치는 모두 단순화한 근사.
+const W=1080,H=1920;
+const cv=document.getElementById('c'),g=cv.getContext('2d');
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const lerp=(a,b,u)=>a+(b-a)*u,clamp01=x=>Math.max(0,Math.min(1,x));
+function smooth(a,b,t){const u=clamp01((t-a)/(b-a));return u*u*(3-2*u)}
+const mix=(a,b,u)=>a.map((v,i)=>v+(b[i]-v)*u);
+function roundRect(x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+function fade(t,a,b){return Math.min(smooth(a,a+.45,t),1-smooth(b-.45,b,t))}
+
+// ---------- 월드 (화면 좌표 그대로, 고정 카메라) ----------
+const MAP_T=250, MAP_B=1760;                    // 지도 위/아래
+const BAY={x:560,w:230,top:820};                // 호랑이 입 모양 포구(만): 바다 쪽으로 열린 입
+function oldShore(x){let y=1010+Math.sin(x/150)*38+(x-540)*.06;
+  const d=Math.abs(x-BAY.x)/BAY.w; if(d<1){const k=Math.cos(d*Math.PI/2);y-= (1010-BAY.top)*k*k*k}   // 만이 육지 안쪽으로 파고듦
+  return y}
+function newShore(x){return 1470+Math.sin(x/190)*14}
+let T=0,reclaim=0,paper=1,flatK=0;
+function shoreY(x){return lerp(oldShore(x),newShore(x),reclaim)}
+function setState(t){T=t;
+  flatK=smooth(12.6,14,t)*(1-smooth(17,18.6,t));            // 개펄(소금밭) 띠
+  reclaim=smooth(18,21.5,t);                                // 바다를 메움
+  paper=1-smooth(17.5,20.5,t)}                              // 옛 지도 → 지금 지도
+
+// 개펄 띠(옛 해안 바깥) — 소금밭이 만들어지는 곳
+const PANS=[];for(let r=0;r<3;r++)for(let c=0;c<7;c++){const x=70+c*132+(r%2)*40,y=1060+r*80;PANS.push({x,y,w:112,h:62,k:(r*7+c)/21})}
+// 공단 건물 (메운 땅 위)
+const RF=rng(1985),FAC=[];for(let row=0;row<4;row++)for(let col=0;col<9;col++){FAC.push({x:30+col*115+(RF()*10|0),y:1130+row*84,w:86+RF()*20,h:58+RF()*12,hh:14+RF()*26,k:(row*9+col)/36})}
+// 아파트 (육지 쪽)
+const RA=rng(1998),APT=[];for(let row=0;row<3;row++)for(let col=0;col<8;col++){const x=60+col*124+(RA()*8|0),y=600+row*96;if(y>shoreY(x)-80)continue;APT.push({x,y,w:46+RA()*10,h:64+RA()*16,k:(row*8+col)/24})}
+const STN={x:360,y:960};                          // 수인선 역(상징)
+const FORT={x:BAY.x-BAY.w+10,y:BAY.top+210};      // 포대 자리(만 입구 서쪽 언덕)
+
+// ---------- 그리기 ----------
+function drawWorld(){
+  const sea=mix([74,118,138],[46,132,196],1-paper), land=mix([218,196,150],[236,232,214],1-paper);
+  // 종이 바탕 / 바다
+  g.fillStyle='rgb('+mix([226,206,160],[24,36,58],1-paper).map(v=>v|0)+')';g.fillRect(0,0,W,H);
+  g.fillStyle='rgb('+sea.map(v=>v|0)+')';g.fillRect(0,MAP_T,W,MAP_B-MAP_T);
+  // 물결
+  const rw=rng(7);g.strokeStyle='rgba(255,255,255,'+(.22+.18*(1-paper))+')';g.lineWidth=3;
+  for(let i=0;i<70;i++){const x=rw()*W,y=1100+rw()*640,l=40+rw()*50,ph=Math.sin(T*1.4+i)*8;if(y<shoreY(x)+20)continue;g.beginPath();g.moveTo(x,y+ph);g.quadraticCurveTo(x+l/2,y+ph-8,x+l,y+ph);g.stroke()}
+  // 개펄 띠 (옛 해안과 바깥 사이, 소금밭 시기)
+  if(flatK>0){g.globalAlpha=flatK;g.fillStyle='rgb(176,160,120)';g.beginPath();g.moveTo(0,oldShore(0));for(let x=0;x<=W;x+=20)g.lineTo(x,oldShore(x));for(let x=W;x>=0;x-=20)g.lineTo(x,oldShore(x)+330);g.closePath();g.fill();
+    for(const p of PANS){const k=smooth(0,.4,flatK*1.4-p.k*.8);if(k<=.02)continue;g.globalAlpha=k*flatK;g.fillStyle='rgb(206,192,150)';g.fillRect(p.x-5,p.y-5,p.w+10,p.h+10);g.fillStyle='rgb(112,170,190)';g.fillRect(p.x,p.y,p.w,p.h);g.fillStyle='rgba(255,255,255,.92)';g.fillRect(p.x+4,p.y+4,(p.w-8)*smooth(.5,1,flatK)*(.4+.6*((p.k*7)%1)),p.h-8)}g.globalAlpha=1}
+  // 육지
+  g.fillStyle='rgb('+land.map(v=>v|0)+')';g.beginPath();g.moveTo(0,MAP_T);g.lineTo(W,MAP_T);for(let x=W;x>=0;x-=10)g.lineTo(x,shoreY(x));g.closePath();g.fill();
+  // 새로 메운 땅(공단 바닥)
+  if(reclaim>0){g.fillStyle='rgba(150,154,162,'+(.9*smooth(0,.5,reclaim))+')';g.beginPath();for(let x=0;x<=W;x+=10)(x?g.lineTo(x,shoreY(x)):g.moveTo(x,shoreY(x)));for(let x=W;x>=0;x-=10)g.lineTo(x,oldShore(x)+4);g.closePath();g.fill()}
+  // 해안선 먹선
+  g.strokeStyle='rgba(60,44,28,'+(.75*paper+.25)+')';g.lineWidth=5;g.lineJoin='round';g.beginPath();for(let x=0;x<=W;x+=10)(x?g.lineTo(x,shoreY(x)):g.moveTo(x,shoreY(x)));g.stroke();
+  // 사라진 옛 해안선(점선)
+  if(reclaim>.3){g.setLineDash([14,12]);g.strokeStyle='rgba(255,213,74,'+(.9*smooth(.3,.8,reclaim)*(1-smooth(26.5,27.6,T)))+')';g.lineWidth=4;g.beginPath();for(let x=0;x<=W;x+=10)(x?g.lineTo(x,oldShore(x)):g.moveTo(x,oldShore(x)));g.stroke();g.setLineDash([])}
+  // 공장
+  const lights=(b,k)=>{g.fillStyle='rgba(255,170,70,'+(.9*k)+')';for(let i=0;i<3;i++)g.fillRect(b.x+8+i*((b.w-20)/3),b.y+b.h-12,10,6)};
+  const fk=smooth(20,22.8,T);if(fk>0)for(const b of FAC){const k=smooth(0,.4,fk*1.4-b.k*.9);if(k<=.03)continue;const h=b.hh*k;g.fillStyle='rgba(0,0,0,.25)';g.fillRect(b.x+h*.4,b.y+h*.5,b.w,b.h);g.fillStyle='rgb(128,132,142)';g.fillRect(b.x,b.y,b.w,b.h);g.fillStyle='rgb(176,180,190)';g.fillRect(b.x+4,b.y+4,b.w-8,b.h*.5);lights(b,k)}
+  // 아파트
+  const ak=smooth(23,26,T);if(ak>0)for(const a of APT){const k=smooth(0,.4,ak*1.4-a.k*.9);if(k<=.03)continue;const h=a.h*k;g.fillStyle='rgba(0,0,0,.22)';g.fillRect(a.x+8,a.y+8,a.w,h);g.fillStyle='rgb(238,232,222)';g.fillRect(a.x,a.y,a.w,h);
+    g.fillStyle='rgba(255,176,72,'+(.85*k)+')';for(let yy=a.y+8;yy<a.y+h-8;yy+=14)for(let xx=a.x+6;xx<a.x+a.w-8;xx+=14)g.fillRect(xx,yy,7,7)}
+  // 수인선 역
+  const sk=smooth(25.4,26.6,T);if(sk>0){g.globalAlpha=sk;g.strokeStyle='#e4572e';g.lineWidth=8;g.beginPath();g.moveTo(40,STN.y);g.lineTo(W-40,STN.y);g.stroke();g.fillStyle='#fff';g.strokeStyle='#e4572e';g.lineWidth=7;g.beginPath();g.arc(STN.x,STN.y,20,0,7);g.fill();g.stroke();g.globalAlpha=1}
+  // 포대(대포 자리)
+  const fo=fade(T,8.2,14);if(fo>0){g.globalAlpha=fo;const p=1+.12*Math.sin(T*6);g.fillStyle='rgba(255,213,74,.35)';g.beginPath();g.arc(FORT.x,FORT.y,46*p,0,7);g.fill();g.fillStyle='#3a2a1a';g.beginPath();g.arc(FORT.x,FORT.y,18,0,7);g.fill();g.fillRect(FORT.x,FORT.y-7,44,14);g.globalAlpha=1}
+  // 옛 지도 느낌: 얼룩 가장자리
+  if(paper>0){const vg=g.createRadialGradient(W/2,H/2,500,W/2,H/2,1150);vg.addColorStop(0,'rgba(90,60,20,0)');vg.addColorStop(1,'rgba(90,60,20,'+(.4*paper)+')');g.fillStyle=vg;g.fillRect(0,0,W,H)}
+}
+function label(text,x,y,alpha,accent){if(alpha<=0)return;g.font='800 34px P';const w=g.measureText(text).width+32;
+  g.fillStyle=accent?'rgba(255,213,74,'+(.95*alpha)+')':'rgba(10,14,28,'+(.8*alpha)+')';roundRect(x-w/2,y-70,w,52,26);g.fill();g.fillStyle=accent?'rgba(27,20,48,'+alpha+')':'rgba(255,255,255,'+alpha+')';g.textAlign='center';g.fillText(text,x,y-33);g.textAlign='left';
+  g.strokeStyle='rgba(255,255,255,'+(.7*alpha)+')';g.lineWidth=2;g.beginPath();g.moveTo(x,y-18);g.lineTo(x,y);g.stroke()}
+
+// ---------- 자막 ----------
+const STOPS=[
+ {a:3.4,b:7.9,year:'옛날',head:'호랑이 입 모양 포구 「호구포」',sub:'바닷물이 드나들던 포구',src:'출처: 인천시 지명유래'},
+ {a:8.3,b:12.9,year:'1879',head:'바다를 지키던 대포 자리',sub:'호구포대 — 지금의 논현포대',src:'출처: 국가문화유산포털'},
+ {a:13.3,b:17.9,year:'1920년대',head:'개펄에 소금밭',sub:'호구포 앞에 「남동염전」',src:'출처: 인천시 지명유래'},
+ {a:18.3,b:22.9,year:'1985~1997',head:'바다를 메워 공단으로',sub:'남동국가산업단지 957만㎡',src:'출처: 인천시'},
+ {a:23.3,b:26.9,year:'1998',head:'아파트 동네가 되다',sub:'논현주공 입주 → 2012년 수인선 호구포역',src:'출처: 위키백과'}];
+function caption(t){
+  const gr=g.createLinearGradient(0,0,0,660);gr.addColorStop(0,'rgba(0,0,0,.62)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,W,660);
+  const gb=g.createLinearGradient(0,H-380,0,H);gb.addColorStop(0,'rgba(0,0,0,0)');gb.addColorStop(1,'rgba(0,0,0,.66)');g.fillStyle=gb;g.fillRect(0,H-380,W,380);
+  g.font='800 32px P';const tag='도시의 나이테 · 원래 ○○이었다 #9';const tw=g.measureText(tag).width+48;g.fillStyle='rgba(255,213,74,.95)';roundRect(56,72,tw,60,30);g.fill();g.fillStyle='#1b1430';g.fillText(tag,80,113);
+  const h=fade(t,0,3.2);if(h>0){g.globalAlpha=h;g.textAlign='center';g.fillStyle='#fff';g.font='800 100px P';g.fillText('인천 논현2동 앞은',W/2,360);g.fillStyle='#FFD54A';g.font='800 120px P';g.fillText('원래 바다였다',W/2,500);g.font='600 44px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('호구포역 이름이 그 흔적',W/2,584);g.textAlign='left';g.globalAlpha=1}
+  for(const s of STOPS){const a=fade(t,s.a,s.b);if(a<=0)continue;g.globalAlpha=a;g.textAlign='center';const y0=300+(1-a)*24;
+    g.font='800 130px P';g.fillStyle='#FFD54A';g.fillText(s.year,W/2,y0);g.font='800 62px P';g.fillStyle='#fff';g.fillText(s.head,W/2,y0+100);
+    g.font='600 42px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText(s.sub,W/2,y0+168);g.font='400 30px P';g.fillStyle='rgba(255,255,255,.82)';g.fillText(s.src,W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+  const e=smooth(27.2,27.9,t);if(e>0){g.fillStyle='rgba(10,14,28,'+(.6*e)+')';g.fillRect(0,0,W,H);g.globalAlpha=e;g.textAlign='center';g.fillStyle='#fff';g.font='800 70px P';g.fillText('댓글로 신청받은',W/2,780);g.fillStyle='#FFD54A';g.font='800 84px P';g.fillText('동네였어요',W/2,890);
+    g.font='600 42px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('대포 자리는 지금 아파트 사이 공원에 있어요',W/2,990);g.fillText('다음 동네도 댓글로 알려 주세요',W/2,1054);
+    g.font='400 30px P';g.fillStyle='rgba(255,255,255,.82)';g.fillText('지도는 기록을 바탕으로 단순화한 그림이에요',W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+}
+function render(t){
+  setState(t);g.save();g.fillStyle='#000';g.fillRect(0,0,W,H);drawWorld();
+  label('호구포',BAY.x,BAY.top+320,fade(t,3.4,8)*paper,true);
+  label('대포 자리',FORT.x,FORT.y-30,fade(t,8.6,12.8));
+  label('남동염전',W/2,1050,fade(t,13.6,17.6),true);
+  label('옛 바닷가',830,oldShore(830)+30,smooth(21.6,22.4,t)*(1-smooth(26,27,t)));
+  label('호구포역',STN.x,STN.y-30,fade(t,25.6,27.1));
+  g.restore();caption(t);
+}
+window.render=render;
+window.ready=document.fonts.load('800 40px P').then(()=>document.fonts.load('600 40px P')).then(()=>document.fonts.load('400 40px P')).then(()=>{render(0);return true});
+</script></body></html>
