@@ -1,0 +1,86 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(../../tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(../../tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(../../tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}canvas{display:block}
+</style></head><body><canvas id="c" width="1080" height="1920"></canvas>
+<script src="map/map.js"></script>
+<script src="../../tools/mapkit.js"></script>
+<script>
+// 도시의 나이테 · 원래 ○○이었다 #10 「양주 덕계동엔 원래 서울우유 공장이 있었다」 — render(t) 한 번 = 한 프레임. 실제 지도(OSM) 위에 겹쳐 그림.
+const W=1080,H=1920,cv=document.getElementById('c'),g=cv.getContext('2d');
+const clamp01=x=>Math.max(0,Math.min(1,x)),lerp=(a,b,u)=>a+(b-a)*u;
+function smooth(a,b,t){const u=clamp01((t-a)/(b-a));return u*u*(3-2*u)}
+function fade(t,a,b){return Math.min(smooth(a,a+.45,t),1-smooth(b-.45,b,t))}
+function roundRect(x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+let M,dong,site,S,P;
+// 카메라 키프레임 [초, 중심x, 중심y, 배율]
+let KF;
+function camAt(t){let a=KF[0],b=KF[KF.length-1];for(let i=0;i<KF.length-1;i++)if(t>=KF[i][0]&&t<=KF[i+1][0]){a=KF[i];b=KF[i+1];break}
+  const u=t<=KF[0][0]?0:t>=KF[KF.length-1][0]?1:smooth(a[0],b[0],t)*0+ (()=>{const v=(t-a[0])/(b[0]-a[0]);return v*v*(3-2*v)})();
+  const cx=lerp(a[1],b[1],u),cy=lerp(a[2],b[2],u),z=Math.exp(lerp(Math.log(a[3]),Math.log(b[3]),u));
+  return{cx,cy,z,s:(x,y)=>[(x-cx)*z+W/2,(y-cy)*z+H*.56]}}
+const STOPS=[
+ {a:3.4,b:7.9,year:'1914',head:'두 마을 이름을 합친 「덕계리」',sub:'도덕리의 \'덕\' + 돈계리의 \'계\'',src:'출처: 디지털양주문화대전'},
+ {a:8.3,b:13.9,year:'1984',head:'서울우유 공장이 덕계동으로',sub:'서울 중랑구 공장을 옮겨 와요 · 부지 6만 3천㎡',src:'출처: 경기일보 · 공장 자리 테두리는 공사 구역 기준(대략)'},
+ {a:14.3,b:18.9,year:'2008',head:'공장 둘레로 신도시 계획',sub:'회천신도시 4.3㎢ (계획)',src:'출처: 아주경제'},
+ {a:19.3,b:24.9,year:'2022',head:'공장은 은현면 새 공장으로',sub:'양주·용인 공장을 합쳐 옮겨요',src:'출처: 경향신문'},
+ {a:25.3,b:27.9,year:'지금',head:'옛 공장 자리엔 아파트 공사',sub:'1,595가구 (2029년 입주 예정)',src:'출처: 헤럴드경제'}];
+function caption(t){
+  const gr=g.createLinearGradient(0,0,0,600);gr.addColorStop(0,'rgba(8,14,24,.85)');gr.addColorStop(1,'rgba(8,14,24,0)');g.fillStyle=gr;g.fillRect(0,0,W,600);
+  const gb=g.createLinearGradient(0,H-300,0,H);gb.addColorStop(0,'rgba(0,0,0,0)');gb.addColorStop(1,'rgba(0,0,0,.6)');g.fillStyle=gb;g.fillRect(0,H-300,W,300);
+  g.font='800 32px P';const tag='도시의 나이테 · 원래 ○○이었다 #10';const tw=g.measureText(tag).width+48;g.fillStyle='rgba(255,213,74,.95)';roundRect(56,72,tw,60,30);g.fill();g.fillStyle='#1b1430';g.fillText(tag,80,113);
+  const h=fade(t,0,3.2);if(h>0){g.globalAlpha=h;g.textAlign='center';g.fillStyle='#fff';g.font='800 90px P';g.fillText('양주 덕계동엔 원래',W/2,330);g.fillStyle='#FFD54A';g.font='800 100px P';g.fillText('서울우유 공장이 있었다',W/2,450);g.font='600 44px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('1호선 덕계역 바로 옆',W/2,530);g.textAlign='left';g.globalAlpha=1}
+  for(const s of STOPS){const a=fade(t,s.a,s.b);if(a<=0)continue;g.globalAlpha=a;g.textAlign='center';const y0=270+(1-a)*24;
+    g.font='800 120px P';g.fillStyle='#FFD54A';g.fillText(s.year,W/2,y0);g.font='800 58px P';g.fillStyle='#fff';g.fillText(s.head,W/2,y0+90);
+    g.font='600 40px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText(s.sub,W/2,y0+152);g.font='400 28px P';g.fillStyle='rgba(255,255,255,.85)';g.fillText(s.src,W/2,H-90);g.textAlign='left';g.globalAlpha=1}
+  const e=smooth(28.0,28.7,t);if(e>0){g.fillStyle='rgba(10,14,28,'+(.65*e)+')';g.fillRect(0,0,W,H);g.globalAlpha=e;g.textAlign='center';g.fillStyle='#fff';g.font='800 70px P';g.fillText('댓글로 신청받은',W/2,800);g.fillStyle='#FFD54A';g.font='800 84px P';g.fillText('동네였어요',W/2,910);
+    g.font='600 42px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('다음에 궁금한 동네도 댓글로 알려 주세요',W/2,1010);
+    g.font='400 30px P';g.fillStyle='rgba(255,255,255,.85)';g.fillText('지도는 기록을 바탕으로 단순화한 그림이에요',W/2,H-150);g.textAlign='left';g.globalAlpha=1}
+}
+function render(t){
+  const c=camAt(t);g.fillStyle='#000';g.fillRect(0,0,W,H);
+  const paper=1-smooth(13.4,14.4,t)>0&&t<14?1:0; // 옛 지도 톤: 1914~1984
+  const pm=t<3.4?0:(t<13.6?smooth(3.0,3.8,t):1-smooth(13.6,14.4,t));
+  g.save();g.translate(W/2,H*.56);g.scale(c.z,c.z);g.translate(-c.cx,-c.cy);
+  MapKit.drawBase(g,M,{mix:{from:'light',to:'paper',u:pm}});
+  // 동네 테두리(노랑)
+  MapKit.poly(g,dong,{fill:'rgba(255,213,74,'+(.2+.1*Math.sin(t*3)*smooth(14,15,t)*(1-smooth(18,19,t)))+')',stroke:'#ffb300',width:7/ (c.z>1.5?1.6:1)});
+  // 공장 자리: 1984~2022 주황(공장=회색 규칙에 맞춰 회색), 2022 이후 아파트 주황
+  const fac=smooth(8.6,9.8,t)*(1-smooth(23.5,24.5,t)), apt=smooth(25.4,26.6,t);
+  MapKit.poly(g,site,{fill:'rgba(120,126,138,.85)',stroke:'#4a4f5a',width:5,alpha:fac});
+  MapKit.poly(g,site,{fill:'rgba(242,155,56,.85)',stroke:'#c46a12',width:5,alpha:apt});
+  g.restore();
+  const sp=(x,y)=>c.s(x,y),dp=(n)=>sp(P(n).x,P(n).y);
+  let q;
+  q=dp('덕계역');MapKit.pin(g,q[0],q[1],'덕계역 (1호선)',{alpha:t<3?1:Math.max(.55*smooth(3,3.6,t)*0+(t<28?.7:0),0)});
+  q=dp('덕정역');MapKit.pin(g,q[0],q[1],'덕정역',{alpha:fade(t,-1,3.2)});
+  q=sp(880,1470);MapKit.label(g,q[0],q[1],'덕계동 일대',{size:58,color:'#FFD54A',alpha:fade(t,-1,3.2)});
+  q=sp(S[0],S[1]);
+  MapKit.pin(g,q[0],q[1],'서울우유 양주공장',{kind:'hero',dy:-120,alpha:fade(t,8.6,14.2)});
+  MapKit.pin(g,q[0],q[1],'공장 터 (대략)',{dy:-110,alpha:fade(t,14.4,19.2)*.9});
+  // 2008 신도시: 동네 전체 라벨
+  q=sp(880,1470);MapKit.label(g,q[0],q[1],'회천신도시 (계획)',{size:56,color:'#fff',alpha:fade(t,14.6,19.2)});
+  // 2022 이동 화살표
+  const mv=smooth(19.8,22.5,t);if(mv>0){const np=P('서울우유 양주신공장'),a=sp(S[0],S[1]),b=sp(np.x,np.y);
+    const ex=lerp(a[0],b[0],mv),ey=lerp(a[1],b[1],mv)+Math.sin(mv*Math.PI)*0;
+    g.save();g.strokeStyle='#2f6fd6';g.lineWidth=9;g.setLineDash([24,14]);g.globalAlpha=1-smooth(24.5,25.3,t);g.beginPath();g.moveTo(a[0],a[1]);g.quadraticCurveTo((a[0]+b[0])/2+120,(a[1]+b[1])/2,ex,ey);g.stroke();g.restore();
+    MapKit.pin(g,b[0],b[1],'2022 새 공장 (은현면)',{kind:'hero',alpha:smooth(21.5,22.5,t)*(1-smooth(24.5,25.3,t))});
+    MapKit.pin(g,a[0],a[1],'옛 공장 자리',{dy:70,alpha:fade(t,19.8,24.9)*.9})}
+  MapKit.pin(g,q[0],q[1],'아파트 공사 (1,595가구 계획)',{kind:'hero',dy:-120,alpha:fade(t,25.6,28.3)});
+  // 늘 보이는 것
+  MapKit.north(g,990,1500);MapKit.scale(g,M,70,1560,c.z);
+  if(t<3.2)MapKit.inset(g,M,56,1190,190,{label:'양주',t,alpha:fade(t,-1,3.2)});
+  MapKit.legend(g,70,1700,[['rgba(120,126,138,1)','공장 자리(대략)']].concat(t>=25?[['#f29b38','아파트(계획)']]:[]),{alpha:fade(t,8.6,28.3)});
+  MapKit.credit(g,M,W,H);
+  caption(t);
+}
+window.render=render;
+window.ready=Promise.all([document.fonts.load('800 40px P'),document.fonts.load('600 40px P'),document.fonts.load('400 40px P')]).then(()=>MapKit.load('map/')).then(m=>{M=m;
+  dong=MapKit.area(M,'회천2동, 양주시');site=MapKit.area(M,'옛 서울우유 공장 자리(대략)');P=n=>MapKit.place(M,n);
+  S=site.reduce((a,p)=>[a[0]+p[0]/site.length,a[1]+p[1]/site.length],[0,0]);
+  KF=[[0,1150,1500,.95],[3.4,1150,1450,.95],[8.2,1150,1450,.95],[10.5,S[0],S[1],2.2],[13.8,S[0],S[1],2.2],[15.5,1100,1420,.85],[19,1100,1420,.85],[19.8,1040,1380,.9],[24.8,1040,1380,.9],[26.2,S[0],S[1],2.0],[30,S[0],S[1],2.0]];
+  render(0);return true});
+</script></body></html>
