@@ -1,0 +1,59 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(../../tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(../../tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(../../tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}canvas{display:block}
+</style></head><body><canvas id="c" width="1080" height="1920"></canvas>
+<script src="map/map.js"></script>
+<script src="../../tools/mapkit.js"></script>
+<script>
+// N10 덕계동 지도 시안 — 지금 → 1984 서울우유 공장 → 2022 새 공장으로 옮기고 그 자리에 아파트(계획)
+const W = 1080, H = 1920, g = document.getElementById('c').getContext('2d');
+let M;
+function cam(cx, cy, z) { return { cx, cy, z, s: (x, y) => [(x - cx) * z + W / 2, (y - cy) * z + H * 0.56] }; }
+function topText(year, head, sub) {
+  const gr = g.createLinearGradient(0, 0, 0, 560); gr.addColorStop(0, 'rgba(8,14,24,.82)'); gr.addColorStop(1, 'rgba(8,14,24,0)'); g.fillStyle = gr; g.fillRect(0, 0, W, 560);
+  g.textAlign = 'center'; g.fillStyle = '#FFD54A'; g.font = '800 110px P'; g.fillText(year, W / 2, 230);
+  g.fillStyle = '#fff'; g.font = '800 68px P'; g.fillText(head, W / 2, 330); g.font = '600 44px P'; g.fillStyle = 'rgba(255,255,255,.92)'; g.fillText(sub, W / 2, 400); g.textAlign = 'left';
+}
+function world(c, fn) { g.save(); g.translate(W / 2, H * 0.56); g.scale(c.z, c.z); g.translate(-c.cx, -c.cy); fn(); g.restore(); }
+function frame(f) {
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+  const dong = MapKit.area(M, '회천2동, 양주시'), site = MapKit.area(M, '옛 서울우유 공장 자리(대략)');
+  const P = (n) => MapKit.place(M, n), S = site.reduce((a, p) => [a[0] + p[0] / site.length, a[1] + p[1] / site.length], [0, 0]);
+  if (f === 0) {
+    const c = cam(1150, 1500, 0.95);
+    world(c, () => { MapKit.drawBase(g, M, { tone: 'light' }); MapKit.poly(g, dong, { fill: 'rgba(255,213,74,.2)', stroke: '#ffb300', width: 7 }); });
+    for (const n of ['덕계역', '덕정역']) { const [x, y] = c.s(P(n).x, P(n).y); MapKit.pin(g, x, y, n + ' (1호선)'); }
+    const [lx, ly] = c.s(880, 1470); MapKit.label(g, lx, ly, '덕계동 일대', { size: 60, color: '#FFD54A' });
+    topText('지금', '경기 양주시 덕계동', '1호선 덕계역이 있는 회천신도시');
+    MapKit.inset(g, M, 56, 1380, 190, { label: '양주' });
+    MapKit.north(g, 990, 1500); MapKit.scale(g, M, 760, 1620, c.z);
+  }
+  if (f === 1) {
+    const c = cam(S[0], S[1], 2.2);
+    world(c, () => { MapKit.drawBase(g, M, { tone: 'paper' }); MapKit.poly(g, site, { fill: 'rgba(255,255,255,.88)', stroke: '#2f6fd6', width: 4 }); });
+    let [x, y] = c.s(S[0], S[1]); MapKit.pin(g, x, y, '서울우유 양주공장', { kind: 'hero', dy: -120 });
+    [x, y] = c.s(P('덕계역').x, P('덕계역').y); MapKit.pin(g, x, y, '지금 덕계역', { alpha: .8, size: 30 });
+    topText('1984', '서울우유 공장이 덕계동으로', '서울 중랑구 공장을 옮겨 와요 · 부지 6만 3천㎡');
+    MapKit.legend(g, 70, 1640, [['#ffffff', '공장 자리(대략)']]);
+    MapKit.north(g, 990, 1500); MapKit.scale(g, M, 70, 1560, c.z);
+  }
+  if (f === 2) {
+    const c = cam(1040, 1380, 0.9);
+    world(c, () => { MapKit.drawBase(g, M, { tone: 'light' }); MapKit.poly(g, site, { fill: 'rgba(242,155,56,.75)', stroke: '#c46a12', width: 5 }); });
+    const np = P('서울우유 양주신공장');
+    g.save(); g.strokeStyle = '#2f6fd6'; g.lineWidth = 8; g.setLineDash([22, 14]); const [ax, ay] = c.s(S[0], S[1]), [bx, by] = c.s(np.x, np.y); g.beginPath(); g.moveTo(ax, ay); g.quadraticCurveTo((ax + bx) / 2 + 120, (ay + by) / 2, bx, by); g.stroke(); g.restore();
+    MapKit.pin(g, bx, by, '2022 새 공장 (은현면)', { kind: 'hero' });
+    MapKit.pin(g, ax, ay, '옛 공장 자리 → 아파트 (계획)', { dy: 70 });
+    topText('2022', '공장은 은현면으로, 그 자리엔', '은현면 새 공장 준공 · 옛 자리엔 1,595가구 아파트 계획');
+    MapKit.north(g, 990, 1500); MapKit.scale(g, M, 70, 1560, c.z);
+  }
+  MapKit.credit(g, M, W, H);
+  g.font = '400 28px P'; g.fillStyle = 'rgba(255,255,255,.85)'; g.textAlign = 'center'; g.fillText(['', '출처: 경기일보 · 공장 자리 테두리는 지금 공사 구역 기준(대략)', '출처: 경향신문 · 헤럴드경제(분양 보도)'][f], W / 2, H - 90); g.textAlign = 'left';
+}
+window.frame = frame;
+window.ready = Promise.all([document.fonts.load('800 40px P'), document.fonts.load('600 40px P'), document.fonts.load('400 40px P')]).then(() => MapKit.load('map/')).then((m) => { M = m; frame(0); return true; });
+</script></body></html>

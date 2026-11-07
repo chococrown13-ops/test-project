@@ -9,6 +9,7 @@ OpenStreetMap 지도 조각(타일)을 이어 붙여 한 장의 바탕 지도 PN
       --place "호구포역" --place "인천논현역" --place "소래포구=37.4006,126.7378" --area "남동국가산업단지"
   --place  이름만 주면 위치를 찾아 줌(Nominatim). "이름=위도,경도" 로 직접 줄 수도 있음
   --area   이름의 경계선(다각형)을 받아 둠 — 예: 지금 공단 자리 = 옛 바다 자리를 겹쳐 그릴 때
+  --osm-way "이름=번호"  OpenStreetMap 선 하나(공사장·공장 터 등)를 테두리로
 결과: map/basemap.png(바탕) · map/inset.png(전국 위치 작은 지도) · map/map.json(좌표·출처)
 
 규칙: 지도 그림은 © OpenStreetMap 기여자(ODbL) — 화면 아래에 꼭 "지도 © OpenStreetMap" 표시.
@@ -101,6 +102,7 @@ def main():
     ap.add_argument("--size", default="2600x3600", help="바탕 지도 픽셀 크기 (화면보다 넉넉히: 카메라가 움직일 자리)")
     ap.add_argument("--place", action="append", default=[], help='"이름" 또는 "이름=위도,경도"')
     ap.add_argument("--area", action="append", default=[], help="경계선을 받아 둘 장소 이름")
+    ap.add_argument("--osm-way", action="append", default=[], help='"이름=OSM way 번호" — 공사장·공장 터처럼 이름으로 못 찾는 테두리')
     ap.add_argument("--no-inset", action="store_true")
     a = ap.parse_args()
 
@@ -146,6 +148,18 @@ def main():
         rings = [[to_px(lat, lon) for lon, lat in poly[0]] for poly in polys]  # 바깥 테두리만
         areas.append({"name": name, "rings": rings, "found": r["display_name"]})
         print(f"  ▭ {name}: 테두리 {len(rings)}개, 점 {sum(len(r) for r in rings)}개")
+
+    for item in a.osm_way:  # OpenStreetMap 의 선(way) 하나를 테두리로
+        name, wid = item.split("=", 1)
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(get(f"https://api.openstreetmap.org/api/0.6/way/{int(wid)}/full"))
+        nodes = {n.get("id"): (float(n.get("lat")), float(n.get("lon"))) for n in root.iter("node")}
+        way = root.find("way")
+        ring = [to_px(*nodes[nd.get("ref")]) for nd in way.iter("nd")]
+        tags = {t.get("k"): t.get("v") for t in way.iter("tag")}
+        areas.append({"name": name, "rings": [ring], "found": f"OSM way {wid} {tags}"})
+        print(f"  ▭ {name}: OSM way {wid}, 점 {len(ring)}개 {tags}")
+        time.sleep(1)
 
     inset = None
     if not a.no_inset:  # 전국 지도(확대 6)에 이 동네 위치
