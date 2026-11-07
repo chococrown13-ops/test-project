@@ -5,6 +5,7 @@ AI 사무실이 운영하는 쇼츠 채널 「도시의 나이테」입니다. *
 
 - 제작 라인: `.claude/skills/city-line/SKILL.md` (기획 → 결재함 → 코드 렌더 → 자료실) · 주제 후보 `topics-city.md`
 - 본보기 영상: `devlog/jamsil/`(N01 「잠실은 원래 섬이었다」) · `devlog/seoul2056/`(「2056년 서울」 시범) — 각 폴더에 `index.html`(render(t)) · `capture.cjs` · `audio.py` · `publish.md`
+- 실제 지도 바탕(2026-11-07~): `tools/basemap.py`(OpenStreetMap 지도·장소·경계 → 편 폴더 `map/`) + `tools/mapkit.js`(이름표·전국 위치·북쪽·축척·범례·출처 그리기) — 규칙은 city-line 「지도 규칙」, 시안 `devlog/nonhyeon2/map_demo.html`
 - 채널 프로필 사진: `brand/channel/profile.png`(B 시간 고리, 코드 원본 `profile.html`) · 글꼴 `tools/fonts/`(Pretendard)
 - 대표 결정 기록: `decisions.md` · 전략 회의 메모: `strategy/` · 점검 보고서: `checks/` · 조사 보고서: 「조회수·수익 늘리기 조사 보고서」(Claude Docs)
 - 전략 회의: `.claude/skills/strategy-office/SKILL.md` + `.claude/agents/strategy-*.md` · 스튜디오 점검: `.claude/skills/studio-check/SKILL.md` + `.claude/agents/inspect-*.md`

@@ -1,0 +1,67 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(../../tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(../../tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(../../tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}canvas{display:block}
+</style></head><body><canvas id="c" width="1080" height="1920"></canvas>
+<script src="map/map.js"></script>
+<script src="../../tools/mapkit.js"></script>
+<script>
+// N09 지도 시안 — 새 지도 규칙(실제 지도 바탕 + 이름표 + 전국 위치 + 방위·축척 + 옛 모습 겹치기)을 장면 3개로 보여 줌
+const W = 1080, H = 1920, g = document.getElementById('c').getContext('2d');
+let M;
+function cam(cx, cy, z) { return { cx, cy, z, s: (x, y) => [(x - cx) * z + W / 2, (y - cy) * z + H * 0.56] }; }
+function topText(year, head, sub) {
+  const gr = g.createLinearGradient(0, 0, 0, 560); gr.addColorStop(0, 'rgba(8,14,24,.82)'); gr.addColorStop(1, 'rgba(8,14,24,0)'); g.fillStyle = gr; g.fillRect(0, 0, W, 560);
+  g.textAlign = 'center'; g.fillStyle = '#FFD54A'; g.font = '800 110px P'; g.fillText(year, W / 2, 230);
+  g.fillStyle = '#fff'; g.font = '800 68px P'; g.fillText(head, W / 2, 330); g.font = '600 44px P'; g.fillStyle = 'rgba(255,255,255,.92)'; g.fillText(sub, W / 2, 400); g.textAlign = 'left';
+}
+function world(c, fn) { g.save(); g.translate(W / 2, H * 0.56); g.scale(c.z, c.z); g.translate(-c.cx, -c.cy); fn(); g.restore(); }
+function frame(f) {
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+  const dong = MapKit.area(M, '논현2동, 남동구, 인천'), park = MapKit.area(M, '남동국가산업단지');
+  const P = (n) => MapKit.place(M, n);
+  if (f === 0) { // 지금: 여기가 어디인지
+    const c = cam(1060, 1180, 1.0);
+    world(c, () => { MapKit.drawBase(g, M, { tone: 'light' }); MapKit.poly(g, dong, { fill: 'rgba(255,213,74,.22)', stroke: '#ffb300', width: 7 }); });
+    for (const [n, label] of [['호구포역', '호구포역'], ['인천논현역', '인천논현역']]) { const [x, y] = c.s(P(n).x, P(n).y); MapKit.pin(g, x, y, label); }
+    const [lx, ly] = c.s(900, 980); MapKit.label(g, lx, ly, '논현2동', { size: 64, color: '#FFD54A' });
+    topText('지금', '인천 남동구 논현2동', '수인선 호구포역·인천논현역이 있는 동네');
+    MapKit.inset(g, M, 56, 1400, 190, { label: '인천' });
+    MapKit.north(g, 990, 1500); MapKit.scale(g, M, 760, 1620, c.z);
+  }
+  if (f === 1) { // 옛날: 같은 지도 위에 옛 바다를 겹침
+    const c = cam(880, 1500, 0.72);
+    world(c, () => {
+      MapKit.drawBase(g, M, { tone: 'paper' });
+      MapKit.poly(g, park, { fill: 'rgba(42,167,160,.55)', hatch: 'rgba(255,255,255,.5)', stroke: '#1f8f8a', width: 5 });
+      MapKit.poly(g, dong, { stroke: '#ffb300', width: 7 });
+    });
+    const [sx, sy] = c.s(640, 1420); MapKit.label(g, sx, sy, '옛 바다·개펄 (대략)', { size: 50, color: '#d8fffb' });
+    let [x, y] = c.s(P('호구포역').x, P('호구포역').y); MapKit.pin(g, x, y, '호구포 (옛 포구)', { kind: 'old' });
+    [x, y] = c.s(P('인천논현역').x, P('인천논현역').y); MapKit.pin(g, x, y, '지금 인천논현역', { alpha: .75, size: 30 });
+    topText('옛날', '호랑이 입 모양 포구 「호구포」', '바닷물이 드나들던 포구');
+    MapKit.legend(g, 70, 1640, [['#2aa7a0', '옛 바다·개펄', true], ['#ffb300', '지금 논현2동']]);
+    MapKit.north(g, 990, 1500); MapKit.scale(g, M, 70, 1560, c.z);
+  }
+  if (f === 2) { // 1985~1997: 그 자리가 공단으로
+    const c = cam(880, 1500, 0.72);
+    world(c, () => {
+      MapKit.drawBase(g, M, { tone: 'light' });
+      MapKit.poly(g, park, { fill: 'rgba(110,116,126,.62)', stroke: '#4a505a', width: 6 });
+      MapKit.poly(g, dong, { stroke: '#ffb300', width: 7 });
+    });
+    const [sx, sy] = c.s(560, 1380); MapKit.label(g, sx, sy, '남동국가산업단지', { size: 52 });
+    const [x, y] = c.s(P('호구포역').x, P('호구포역').y); MapKit.pin(g, x, y, '호구포역');
+    topText('1985~1997', '바다를 메워 공단으로', '남동국가산업단지 957만㎡');
+    MapKit.legend(g, 70, 1640, [['#8a8f98', '바다를 메운 공단'], ['#ffb300', '지금 논현2동']]);
+    MapKit.north(g, 990, 1500); MapKit.scale(g, M, 70, 1560, c.z);
+  }
+  MapKit.credit(g, M, W, H);
+  g.font = '400 28px P'; g.fillStyle = 'rgba(255,255,255,.8)'; g.textAlign = 'center'; g.fillText(['', '출처: 인천시 지명유래 · 옛 바다 범위는 지금 공단 자리로 나타낸 대략', '출처: 인천시'][f], W / 2, H - 90); g.textAlign = 'left';
+}
+window.frame = frame;
+window.ready = Promise.all([document.fonts.load('800 40px P'), document.fonts.load('600 40px P'), document.fonts.load('400 40px P')]).then(() => MapKit.load('map/')).then((m) => { M = m; frame(0); return true; });
+</script></body></html>

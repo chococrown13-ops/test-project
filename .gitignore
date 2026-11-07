@@ -22,3 +22,6 @@ gunggeum/cards/*/out/
 gunggeum/devlog/*/*.mp4
 gunggeum/devlog/*/*_thumb.jpg
 channels/*/*/*.mp4
+# 실제 지도 바탕 (basemap.py 로 다시 만듦 — map.json 만 커밋)
+gunggeum/devlog/*/map/*.png
+gunggeum/devlog/*/map/map.js
