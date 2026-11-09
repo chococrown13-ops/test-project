@@ -1,0 +1,92 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(../../tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(../../tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(../../tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}canvas{display:block}
+</style></head><body><canvas id="c" width="1080" height="1920"></canvas>
+<script src="map/map.js"></script>
+<script src="../../tools/mapkit.js"></script>
+<script>
+// 도시의 나이테 · 원래 ○○이었다 #11 「DDP는 원래 야구장이었다」 — render(t) 한 번 = 한 프레임.
+// 실제 OpenStreetMap 바탕 위에서 카메라가 천천히 들어가며 같은 자리의 모습이 바뀐다. 옛 부지 경계는 근거가 없어 지금 DDP 부지 안쪽을 "대략"으로 표시.
+const W=1080,H=1920,g=document.getElementById('c').getContext('2d');
+const clamp01=x=>Math.max(0,Math.min(1,x));
+function smooth(a,b,t){const u=clamp01((t-a)/(b-a));return u*u*(3-2*u)}
+const lerp=(a,b,u)=>a+(b-a)*u;
+function fade(t,a,b){return Math.min(smooth(a,a+.45,t),1-smooth(b-.45,b,t))}
+let M;
+// 옛 운동장 자리(대략): 동대문역사문화공원 일대 블록
+const SITE=[[1100,1355],[1140,1318],[1240,1338],[1275,1415],[1245,1470],[1160,1492],[1102,1462]];
+const CEN=[1185,1405];
+const P=n=>MapKit.place(M,n);
+function camAt(t){const z=lerp(1.05,1.5,smooth(0,29,t));return{cx:lerp(1150,1185,smooth(0,29,t)),cy:lerp(1300,1405,smooth(0,29,t)),z}}
+function toS(c,x,y){return[(x-c.cx)*c.z+W/2,(y-c.cy)*c.z+H*0.56]}
+function world(c,fn){g.save();g.translate(W/2,H*0.56);g.scale(c.z,c.z);g.translate(-c.cx,-c.cy);fn();g.restore()}
+function topText(year,head,sub,a){if(a<=0)return;g.save();g.globalAlpha=a;const y0=(1-a)*20;
+  g.textAlign='center';g.fillStyle='#FFD54A';g.font='800 124px P';g.fillText(year,W/2,320+y0);
+  g.fillStyle='#fff';g.font='800 62px P';g.fillText(head,W/2,420+y0);g.font='600 42px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText(sub,W/2,488+y0);g.restore()}
+function srcLine(s,a){if(a<=0||!s)return;g.save();g.globalAlpha=a;g.font='400 30px P';g.fillStyle='rgba(255,255,255,.88)';g.textAlign='center';g.fillText(s,W/2,H-90);g.restore()}
+const STOPS=[
+ {a:3.4,b:7.9,year:'1920년대',head:'이 자리엔 「경성운동장」',sub:'야구·축구·육상을 한 곳에서',src:'출처: 서울시 미디어허브'},
+ {a:8.3,b:13.9,year:'1985',head:'이름이 「동대문운동장」으로',sub:'잠실에 종합운동장이 생긴 뒤',src:'출처: 국가기록원'},
+ {a:14.3,b:18.9,year:'2007',head:'야구장 마지막 경기, 철거 시작',sub:'고교야구 가을리그 결승을 끝으로',src:'출처: 서울시 미디어허브'},
+ {a:19.3,b:24.9,year:'2008',head:'땅 밑에서 한양도성이 나왔어요',sub:'성곽과 이간수문 발견',src:'출처: 서울시 미디어허브'},
+ {a:25.3,b:27.9,year:'2014',head:'그 자리에 DDP 개관',sub:'3월 문을 열어요',src:'출처: 서울시 미디어허브'}];
+function render(t){
+  g.fillStyle='#000';g.fillRect(0,0,W,H);
+  const c=camAt(t);
+  const old=smooth(2.6,3.6,t)*(1-smooth(14.6,16,t));       // 옛 종이 지도 톤
+  const ddp=smooth(25,26,t);
+  world(c,()=>{
+    MapKit.drawBase(g,M,{mix:{from:'light',to:'paper',u:old}});
+    // 지금 DDP 부지 (노랑 테두리, 첫 장면과 마지막)
+    const hero=Math.max(1-smooth(2.8,3.6,t),ddp);
+    MapKit.poly(g,SITE,{fill:'rgba(255,213,74,'+(.22*hero)+')',stroke:'rgba(255,179,0,'+hero+')',width:8});
+    // 옛 운동장(초록) 1920~2007
+    const fieldA=smooth(3.4,4.4,t)*(1-smooth(15.5,17,t));
+    MapKit.poly(g,SITE,{fill:'rgba(76,160,96,'+(.5*fieldA)+')',hatch:'rgba(255,255,255,'+(.45*fieldA)+')'});
+    MapKit.poly(g,SITE,{stroke:'rgba(40,110,60,'+fieldA+')',width:7});
+    // 철거 (회색)
+    const dem=smooth(15.2,16.5,t)*(1-smooth(24.8,26,t));
+    MapKit.poly(g,SITE,{fill:'rgba(110,116,126,'+(.66*dem)+')',stroke:'rgba(74,80,90,'+dem+')',width:7});
+    // DDP (은색)
+    MapKit.poly(g,SITE,{fill:'rgba(170,182,200,'+(.7*ddp)+')',stroke:'rgba(255,255,255,'+ddp+')',width:6});
+  });
+  // 이름표
+  const sp=P('동대문역사문화공원역'),hg=P('흥인지문');
+  let [x,y]=toS(c,sp.x,sp.y);MapKit.pin(g,x,y,'동대문역사문화공원역',{alpha:Math.max(fade(t,0,3.4)*1.2,.0)+.0,dy:70});
+  [x,y]=toS(c,hg.x,hg.y);MapKit.pin(g,x,y,'흥인지문',{alpha:fade(t,.3,3.4),size:34});
+  // 옛 장면에도 지금 역 이름표를 흐리게
+  [x,y]=toS(c,sp.x,sp.y);MapKit.pin(g,x,y,'지금 동대문역사문화공원역',{alpha:.72*smooth(3.8,4.6,t)*(1-smooth(26.5,27.2,t)),size:28,dy:70});
+  [x,y]=toS(c,CEN[0],CEN[1]);
+  MapKit.label(g,x,y-8,'DDP 자리',{alpha:fade(t,.6,3.4),size:60,color:'#FFD54A'});
+  MapKit.label(g,x,y-8,'경성운동장 (대략)',{alpha:fade(t,4,8),size:48,color:'#eaffea'});
+  MapKit.label(g,x,y-8,'동대문운동장 (대략)',{alpha:fade(t,8.6,14.2),size:48,color:'#eaffea'});
+  MapKit.label(g,x,y-8,'야구장 철거 중',{alpha:fade(t,15.4,19.3),size:50,color:'#fff'});
+  MapKit.pin(g,x,y+30,'성곽·이간수문 발견 (자리는 대략)',{alpha:fade(t,19.7,24.6),kind:'old',size:30,dy:-80});
+  MapKit.label(g,x,y-8,'DDP',{alpha:fade(t,25.4,28.2),size:84,color:'#fff'});
+  // 위·아래 그늘 + 태그
+  let gr=g.createLinearGradient(0,0,0,660);gr.addColorStop(0,'rgba(8,14,24,.82)');gr.addColorStop(1,'rgba(8,14,24,0)');g.fillStyle=gr;g.fillRect(0,0,W,660);
+  gr=g.createLinearGradient(0,H-300,0,H);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,0,.6)');g.fillStyle=gr;g.fillRect(0,H-300,W,300);
+  g.font='800 32px P';const tag='도시의 나이테 · 원래 ○○이었다 #11';const tw=g.measureText(tag).width+48;g.fillStyle='rgba(255,213,74,.95)';MapKit._round(g,56,72,tw,60,30);g.fill();g.fillStyle='#1b1430';g.fillText(tag,80,113);
+  const h=fade(t,0,3.3);
+  if(h>0){g.save();g.globalAlpha=h;g.textAlign='center';g.fillStyle='#fff';g.font='800 112px P';g.fillText('DDP는 원래',W/2,330);g.fillStyle='#FFD54A';g.font='800 128px P';g.fillText('야구장이었다',W/2,466);g.font='600 44px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('동대문역사문화공원역 바로 옆',W/2,540);g.restore()}
+  for(const s of STOPS)topText(s.year,s.head,s.sub,fade(t,s.a,s.b));
+  for(const s of STOPS)srcLine(s.src,fade(t,s.a,s.b));
+  // 지도 장치
+  MapKit.inset(g,M,56,1260,170,{alpha:1,t,label:'서울'});
+  MapKit.north(g,990,1500);MapKit.scale(g,M,70,1580,c.z);
+  const lg=fade(t,3.6,16),lg2=fade(t,15.6,25.2);
+  MapKit.legend(g,70,1660,[['#4ca060','옛 운동장 자리(대략)',true],['#ffb300','지금 DDP 부지']],{alpha:lg});
+  MapKit.legend(g,70,1660,[['#6e747e','철거한 자리(대략)'],['#ffb300','지금 DDP 부지']],{alpha:lg2});
+  // 끝
+  const e=smooth(28,28.7,t);
+  if(e>0){g.fillStyle='rgba(10,14,28,'+(.66*e)+')';g.fillRect(0,0,W,H);g.save();g.globalAlpha=e;g.textAlign='center';g.fillStyle='#fff';g.font='800 74px P';g.fillText('다음엔 어떤 동네가',W/2,840);g.fillStyle='#FFD54A';g.font='800 90px P';g.fillText('궁금하세요?',W/2,950);
+    g.font='600 42px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('댓글로 신청해 주세요',W/2,1040);g.font='400 30px P';g.fillStyle='rgba(255,255,255,.85)';g.fillText('그림은 기록을 바탕으로 단순화한 거예요',W/2,H-90);g.restore()}
+  MapKit.credit(g,M,W,H);
+}
+window.render=render;
+window.ready=Promise.all([document.fonts.load('800 40px P'),document.fonts.load('600 40px P'),document.fonts.load('400 40px P')]).then(()=>MapKit.load('map/')).then(m=>{M=m;render(0);return true});
+</script></body></html>
