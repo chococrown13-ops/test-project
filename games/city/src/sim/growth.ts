@@ -2,7 +2,7 @@ import { Ground, KINDS, LANDMARK, N, SERVICE, Zone, type BuildingKind } from './
 import { findAccess, network, occRatio, reachesOutside } from './network';
 import { addBuilding, demolish, footprint } from './tools';
 import { transitLandBonus } from './transit';
-import { idx, inside, notify, rand, type Building, type World } from './world';
+import { bh, bw, idx, inside, lotsOf, notify, rand, type Building, type World } from './world';
 
 const LEVEL_KIND: Record<number, BuildingKind[]> = {
   [Zone.R]: ['r1', 'r2', 'r3'],
@@ -32,9 +32,9 @@ export function updateLand(w: World) {
       }
   };
   w.buildings.forEach((b) => {
-    const cx = b.x + b.size / 2, cy = b.y + b.size / 2;
+    const cx = b.x + bw(b) / 2, cy = b.y + bh(b) / 2;
     const e = EMIT[b.kind];
-    if (e && !b.abandoned) stamp(cx, cy, e[0] + b.size / 2, (i, f) => { w.pollution[i] = Math.min(100, w.pollution[i] + e[1] * f); });
+    if (e && !b.abandoned) stamp(cx, cy, e[0] + Math.max(bw(b), bh(b)) / 2, (i, f) => { w.pollution[i] = Math.min(100, w.pollution[i] + e[1] * f); });
     const s = SERVICE[b.kind];
     if (s && b.powered) stamp(cx, cy, s.radius, (i, f) => { w[s.key][i] = 1; bonus[i] += s.value * Math.min(1, f * 2); });
     if (b.kind === 'park') stamp(cx, cy, 4, (i, f) => { bonus[i] += 14 * f; });
@@ -95,8 +95,8 @@ export function updateDemand(w: World) {
   w.buildings.forEach((b) => {
     const d = KINDS[b.kind];
     if (b.abandoned || !d.jobs) return;
-    if (d.zone === Zone.C) { jobsC += b.occ; capC += d.jobs; }
-    if (d.zone === Zone.I) { jobsI += b.occ; capI += d.jobs; }
+    if (d.zone === Zone.C) { jobsC += b.occ; capC += d.jobs * lotsOf(b); }
+    if (d.zone === Zone.I) { jobsI += b.occ; capI += d.jobs * lotsOf(b); }
   });
   const pop = s.pop;
   const workers = pop * 0.52;
@@ -152,7 +152,7 @@ export function grow(w: World) {
     // Homes care most about land value; factories hardly at all.
     const need = (z === Zone.R ? [30, 46] : z === Zone.C ? [26, 40] : [0, 15])[(d.level ?? 1) - 1];
     if (w.land[i] < need) continue;
-    if (d.level === 1) { upgradeInPlace(w, b, LEVEL_KIND[z][1]); continue; }
+    if (d.level === 1) { if (!tryPair(w, b, z)) upgradeInPlace(w, b, LEVEL_KIND[z][1]); continue; }
     tryMerge(w, b, z);
   }
 }
@@ -166,29 +166,78 @@ function upgradeInPlace(w: World, b: Building, kind: BuildingKind) {
   nb.powered = true; nb.watered = true;
 }
 
-/** Four mid-density lots of the same zone become one 아파트 단지 or tower. */
-function tryMerge(w: World, b: Building, z: number) {
-  const top = LEVEL_KIND[z][2];
-  for (const [ox, oy] of [[0, 0], [-1, 0], [0, -1], [-1, -1]]) {
-    const x0 = b.x + ox, y0 = b.y + oy;
-    if (!inside(x0, y0) || !inside(x0 + 1, y0 + 1)) continue;
-    const cells = footprint(x0, y0, 2);
-    const ok = cells.every((i) => {
-      if (w.zone[i] !== z || w.road[i]) return false;
-      const id = w.bld[i];
-      if (id < 0) return true;
-      const o = w.buildings.get(id)!;
-      return o.size === 1 && (KINDS[o.kind].level ?? 0) >= 2 && !o.abandoned;
-    });
-    if (!ok) continue;
-    let occ = 0;
-    cells.forEach((i) => { const id = w.bld[i]; if (id >= 0) { occ += w.buildings.get(id)!.occ; demolish(w, id); } });
-    const nb = addBuilding(w, top, x0, y0);
+/**
+ * Two small neighbours along the same street grow into one longer building,
+ * a 상가 or a 공장 running along its frontage: the block's shape, not a square.
+ */
+function tryPair(w: World, b: Building, z: number): boolean {
+  if (bw(b) !== 1 || bh(b) !== 1 || rand(w) > 0.4) return false;
+  const net = network(w);
+  const a = net.access.get(b.id);
+  if (a === undefined) return false;
+  // Along the frontage: east-west if the road is north or south of the lot.
+  const ax = a % N, ay = (a / N) | 0;
+  const alongX = Math.abs(ay - b.y) >= Math.abs(ax - b.x);
+  for (const s of rand(w) < 0.5 ? [1, -1] : [-1, 1]) {
+    const nx = b.x + (alongX ? s : 0), ny = b.y + (alongX ? 0 : s);
+    if (!inside(nx, ny)) continue;
+    const j = idx(nx, ny);
+    if (w.zone[j] !== z || w.road[j]) continue;
+    const id = w.bld[j];
+    const o = id >= 0 ? w.buildings.get(id)! : null;
+    if (o && (bw(o) !== 1 || bh(o) !== 1 || o.abandoned || (KINDS[o.kind].level ?? 3) > 2 || KINDS[o.kind].zone !== z)) continue;
+    const x0 = Math.min(b.x, nx), y0 = Math.min(b.y, ny);
+    const sx = alongX ? 2 : 1, sy = alongX ? 1 : 2;
+    if (findAccess(w, { x: x0, y: y0, size: 1, sx, sy }) < 0) continue;
+    const occ = b.occ + (o?.occ ?? 0);
+    demolish(w, b.id);
+    if (o) demolish(w, o.id);
+    const nb = addBuilding(w, LEVEL_KIND[z][1], x0, y0, sx, sy);
     nb.occ = occ;
     nb.powered = true; nb.watered = true;
-    if (top === 'r3' && !w.milestones.includes(-3)) { w.milestones.push(-3); notify(w, '첫 아파트 단지가 들어섰어요!', 'good'); }
-    if (top === 'c3' && !w.milestones.includes(-4)) { w.milestones.push(-4); notify(w, '첫 오피스 타워가 올라갔어요!', 'good'); }
-    return;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Mid-density lots of the same zone redevelop into one 아파트 단지, office
+ * tower or 산업단지 as big as the block allows: 3×3 in a deep block, 3×2 or
+ * 2×3 in a long one, 2×2 where that's all there is.
+ */
+function tryMerge(w: World, b: Building, z: number) {
+  const top = LEVEL_KIND[z][2];
+  const shapes: [number, number][] = rand(w) < 0.5 ? [[3, 3], [3, 2], [2, 3], [2, 2]] : [[3, 3], [2, 3], [3, 2], [2, 2]];
+  for (const [sx, sy] of shapes) {
+    for (let x0 = b.x + bw(b) - sx; x0 <= b.x; x0++) for (let y0 = b.y + bh(b) - sy; y0 <= b.y; y0++) {
+      if (!inside(x0, y0) || !inside(x0 + sx - 1, y0 + sy - 1)) continue;
+      const cells = footprint(x0, y0, sx, sy);
+      let built = 0;
+      const ok = cells.every((i) => {
+        if (w.zone[i] !== z || w.road[i]) return false;
+        const id = w.bld[i];
+        if (id < 0) return true;
+        const o = w.buildings.get(id)!;
+        const lv = KINDS[o.kind].level ?? 0;
+        if (o.abandoned || lv < 2 || lv >= 3) return false;
+        // Whole lots only: a building half inside the plot can't join it.
+        if (o.x < x0 || o.y < y0 || o.x + bw(o) > x0 + sx || o.y + bh(o) > y0 + sy) return false;
+        built++;
+        return true;
+      });
+      if (!ok || built < Math.ceil((sx * sy) / 2)) continue;
+      if (findAccess(w, { x: x0, y: y0, size: 2, sx, sy }) < 0) continue;
+      let occ = 0;
+      const ids = new Set<number>();
+      for (const i of cells) if (w.bld[i] >= 0) ids.add(w.bld[i]);
+      ids.forEach((id) => { occ += w.buildings.get(id)!.occ; demolish(w, id); });
+      const nb = addBuilding(w, top, x0, y0, sx, sy);
+      nb.occ = occ;
+      nb.powered = true; nb.watered = true;
+      if (top === 'r3' && !w.milestones.includes(-3)) { w.milestones.push(-3); notify(w, '첫 아파트 단지가 들어섰어요!', 'good'); }
+      if (top === 'c3' && !w.milestones.includes(-4)) { w.milestones.push(-4); notify(w, '첫 오피스 타워가 올라갔어요!', 'good'); }
+      return;
+    }
   }
 }
 
@@ -228,7 +277,7 @@ export function updateBuildings(w: World) {
     if (!b.abandoned && b.outage > 40) { b.abandoned = true; b.occ = 0; w.ver.buildings++; }
     else if (b.abandoned && !out && b.happy > 40) { b.abandoned = false; w.ver.buildings++; }
     if (b.abandoned && w.day - b.builtDay > 240 && rand(w) < 0.01) toRemove.push(b.id);
-    const cap = d.residents ?? d.jobs ?? 0;
+    const cap = (d.residents ?? d.jobs ?? 0) * lotsOf(b);
     if (d.zone === Zone.R) {
       const target = b.abandoned ? 0 : cap * (b.happy > 30 ? 1 : 0.5) * (w.demand.R > -40 ? 1 : 0.85);
       b.occ += (target - b.occ) * 0.06;

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CELL, KINDS, N, variantOf } from '../sim/defs';
 import { HALF_WIDTH, KERB, nearestCurve } from '../sim/curves';
 import { network } from '../sim/network';
-import type { Building, World } from '../sim/world';
+import { bh, bw, type Building, type World } from '../sim/world';
 import { buildingMaterial, shared } from './materials';
 
 /**
@@ -299,6 +299,7 @@ function rawParts(b: Building, w: World): Part[] {
  * footprint still fits its lot, and nudged back off the pavement.
  */
 function parts(b: Building, w: World): Part[] {
+  if (bw(b) !== b.size || bh(b) !== b.size) return stretched(b, w);
   const out = rawParts(b, w);
   if (!KINDS[b.kind].zone || !w.curves.length) return out;
   const S = b.size * CELL;
@@ -325,6 +326,25 @@ function parts(b: Building, w: World): Part[] {
     p.z = cz + oz - dx * sin + dz * cos;
     p.sx *= k; p.sz *= k;
     p.rot += phi;
+  }
+  return out;
+}
+
+/**
+ * A lot grown to fit its block (2×1, 3×2, ...): the kind's own model drawn on
+ * its usual square, then stretched to the footprint. A villa becomes a long
+ * 다세대, a shop a row of shopfronts, two apartment slabs longer 동.
+ */
+function stretched(b: Building, w: World): Part[] {
+  const W = bw(b), D = bh(b), base = b.size;
+  const out = rawParts({ ...b, x: b.x + (W - base) / 2, y: b.y + (D - base) / 2 }, w);
+  const cx = (b.x + W / 2) * CELL, cz = (b.y + D / 2) * CELL;
+  const fx = W / base, fz = D / base;
+  for (const p of out) {
+    p.x = cx + (p.x - cx) * fx;
+    p.z = cz + (p.z - cz) * fz;
+    // A part turned a quarter is long along the other axis.
+    if (Math.abs(Math.sin(p.rot)) > 0.5) { p.sx *= fz; p.sz *= fx; } else { p.sx *= fx; p.sz *= fz; }
   }
   return out;
 }
@@ -488,10 +508,9 @@ export class BuildingLayer {
       let sp = this.icons[n];
       if (!sp) { sp = new THREE.Sprite(); sp.renderOrder = 10; this.icons[n] = sp; this.group.add(sp); }
       sp.material = this.iconTex[k];
-      const S = b.size * CELL;
       // Empty houses get a quieter, smaller badge than problems the player can fix.
       const k2 = k === 'gone' ? 4.6 : 6.4;
-      sp.position.set(b.x * CELL + S / 2, b.floors * 3 + 4 + k2, b.y * CELL + S / 2);
+      sp.position.set((b.x + bw(b) / 2) * CELL, b.floors * 3 + 4 + k2, (b.y + bh(b) / 2) * CELL);
       sp.scale.set(k2, k2, 1);
       sp.visible = true;
       n++;

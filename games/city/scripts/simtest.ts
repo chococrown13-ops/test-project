@@ -1,5 +1,5 @@
 /* Headless check: build a planned town by script and run the simulation for years. */
-import { N, Road, Zone } from '../src/sim/defs';
+import { KINDS, N, Road, Zone } from '../src/sim/defs';
 import { createSim, stepDay, tick } from '../src/sim/sim';
 import { paintZone, placeFacility, placeRoad, rectCells, roadPath } from '../src/sim/tools';
 import { createWorld, idx, riverY } from '../src/sim/world';
@@ -58,3 +58,13 @@ const ms = performance.now() - t0;
 for (const k of ['r1', 'c1', 'i1', 'r2', 'c2']) { const bs = [...w.buildings.values()].filter((b) => b.kind === k); if (!bs.length) continue; const avg = (f: (b: typeof bs[0]) => number) => (bs.reduce((a, b) => a + f(b), 0) / bs.length).toFixed(1); console.log(k, bs.length, 'land', avg((b) => w.land[idx(b.x, b.y)]), 'happy', avg((b) => b.happy), 'powered', avg((b) => +b.powered), 'watered', avg((b) => +b.watered), 'occ', avg((b) => b.occ)); }
 console.log('ticks', ticks, 'avg ms/tick', (ms / ticks).toFixed(2), 'buildings', w.buildings.size);
 void stepDay; void N;
+{
+  // Lots grown to fit their blocks: footprint shapes by level.
+  const shapes = new Map<string, number>();
+  w.buildings.forEach((b) => { const d = KINDS[b.kind]; if (!d.zone) return; const k = `lv${d.level} ${b.sx ?? b.size}x${b.sy ?? b.size}`; shapes.set(k, (shapes.get(k) ?? 0) + 1); });
+  console.log('shapes', [...shapes].sort().map(([k, v]) => `${k}:${v}`).join(' '));
+  let overlap = 0;
+  const seen = new Map<number, number>();
+  w.buildings.forEach((b) => { for (let y = b.y; y < b.y + (b.sy ?? b.size); y++) for (let x = b.x; x < b.x + (b.sx ?? b.size); x++) { const i = idx(x, y); if (w.bld[i] !== b.id || w.road[i]) overlap++; seen.set(i, b.id); } });
+  console.log(overlap ? `FAIL footprint mismatch ${overlap}` : 'footprints consistent');
+}

@@ -1,6 +1,6 @@
 import { Ground, KINDS, N, SEWAGE_CAPACITY, ZONE_DEPTH } from './defs';
 import { forEachNeighbour, NN, nodeExists } from './graph';
-import { idx, inside, type Building, type World } from './world';
+import { idx, inside, type Building, type World, bw, bh, lotsOf } from './world';
 
 /**
  * Road connectivity and the utility grids. Water mains and power cables run
@@ -50,7 +50,7 @@ export function invalidateNetwork() { cache = null; }
  * A building reaches the nearest road straight out from any side of its
  * footprint, through zoned land, up to the zoning depth.
  */
-export function findAccess(w: World, b: { x: number; y: number; size: number }): number {
+export function findAccess(w: World, b: { x: number; y: number; size: number; sx?: number; sy?: number }): number {
   let best = -1, bestD = 99;
   const tryLine = (x0: number, y0: number, dx: number, dy: number) => {
     for (let d = 1; d <= ZONE_DEPTH + 1; d++) {
@@ -61,12 +61,9 @@ export function findAccess(w: World, b: { x: number; y: number; size: number }):
       if (w.ground[i] !== Ground.Land) return;
     }
   };
-  for (let k = 0; k < b.size; k++) {
-    tryLine(b.x + k, b.y, 0, -1);
-    tryLine(b.x + k, b.y + b.size - 1, 0, 1);
-    tryLine(b.x, b.y + k, -1, 0);
-    tryLine(b.x + b.size - 1, b.y + k, 1, 0);
-  }
+  const W = bw(b), H = bh(b);
+  for (let k = 0; k < W; k++) { tryLine(b.x + k, b.y, 0, -1); tryLine(b.x + k, b.y + H - 1, 0, 1); }
+  for (let k = 0; k < H; k++) { tryLine(b.x, b.y + k, -1, 0); tryLine(b.x + W - 1, b.y + k, 1, 0); }
   return best;
 }
 
@@ -97,7 +94,8 @@ export function updateUtilities(w: World) {
     const d = KINDS[b.kind];
     const a = net.access.get(b.id);
     const g = a === undefined ? null : supply.get(net.comp[a]);
-    const pNeed = Math.max(0, d.power), wNeed = Math.max(0, d.water);
+    const lots = lotsOf(b);
+    const pNeed = Math.max(0, d.power) * lots, wNeed = Math.max(0, d.water) * lots;
     // An empty or abandoned building draws almost nothing.
     const load = b.abandoned ? 0.1 : d.zone ? 0.3 + 0.7 * occRatio(b) : 1;
     const pn = pNeed * load, wn = wNeed * load;
@@ -117,6 +115,6 @@ export function updateUtilities(w: World) {
 
 export function occRatio(b: Building): number {
   const d = KINDS[b.kind];
-  const cap = d.residents ?? d.jobs ?? 0;
+  const cap = (d.residents ?? d.jobs ?? 0) * lotsOf(b);
   return cap ? b.occ / cap : 1;
 }

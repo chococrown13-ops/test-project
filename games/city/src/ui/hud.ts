@@ -4,7 +4,7 @@ import { curveInfo } from '../sim/curves';
 import { curbCapacity, LOT_SPACES } from '../sim/parking';
 import { network } from '../sim/network';
 import { busCount, lineCost, lineUpkeep, type LineKind } from '../sim/transit';
-import { idx, type Building, type World } from '../sim/world';
+import { bh, bw, idx, lotsOf, type Building, type World } from '../sim/world';
 import type { Overlay } from '../render/ground';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -120,8 +120,8 @@ export function infoHtml(w: World, x: number, y: number): string {
     const hasRoad = net.access.has(b.id);
     let h = head(displayName(b.kind, b.look));
     if (d.zone) {
-      const cap = d.residents ?? d.jobs ?? 0;
-      h += tags(ZONE_NAME[d.zone], `${d.level}단계`, `${b.floors}층`, b.abandoned ? '폐가' : '');
+      const cap = Math.round((d.residents ?? d.jobs ?? 0) * lotsOf(b));
+      h += tags(ZONE_NAME[d.zone], `${d.level}단계`, `${b.floors}층`, `${bw(b)}×${bh(b)}칸`, b.abandoned ? '폐가' : '');
       h += kv(d.residents ? '주민' : '일자리', `${num(b.occ)} / ${num(cap)}명`);
       h += `<div class="kv"><span class="k">${d.zone === Zone.R ? '만족도' : '경영 상태'}</span>${state(toneOf(b.happy), `${Math.round(b.happy)}%`)}</div>${meter(b.happy)}`;
       h += kv('전기', mark(b.powered, '들어옴', '끊김'));

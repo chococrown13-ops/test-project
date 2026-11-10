@@ -9,6 +9,9 @@ export interface Building {
   x: number;
   y: number;
   size: number;
+  /** Footprint in cells along x and y when it isn't the kind's square (a lot grown to fit its block). */
+  sx?: number;
+  sy?: number;
   floors: number;
   /** 0-1 seed for colour and facade variety. */
   look: number;
@@ -102,6 +105,13 @@ export interface World {
 }
 
 export const idx = (x: number, y: number) => y * N + x;
+
+type Footprinted = { size: number; sx?: number; sy?: number };
+/** Footprint width (x) and depth (y) in cells. */
+export const bw = (b: Footprinted) => b.sx ?? b.size;
+export const bh = (b: Footprinted) => b.sy ?? b.size;
+/** How many standard lots of its kind a building covers: a lot grown to fit its block holds more. */
+export const lotsOf = (b: Footprinted) => (bw(b) * bh(b)) / (b.size * b.size);
 export const inside = (x: number, y: number) => x >= 0 && y >= 0 && x < N && y < N;
 export const cx = (i: number) => i % N;
 export const cy = (i: number) => (i / N) | 0;
@@ -185,9 +195,12 @@ export function notify(w: World, text: string, tone: 'info' | 'warn' | 'good' = 
 }
 
 /** The road cell a building uses to reach the network: any road touching its footprint. */
-export function accessRoad(w: World, b: { x: number; y: number; size: number }): number {
-  for (let k = 0; k < b.size; k++) {
-    const cand: [number, number][] = [[b.x + k, b.y - 1], [b.x + k, b.y + b.size], [b.x - 1, b.y + k], [b.x + b.size, b.y + k]];
+export function accessRoad(w: World, b: { x: number; y: number } & Footprinted): number {
+  const W = bw(b), H = bh(b);
+  for (let k = 0; k < Math.max(W, H); k++) {
+    const cand: [number, number][] = [];
+    if (k < W) cand.push([b.x + k, b.y - 1], [b.x + k, b.y + H]);
+    if (k < H) cand.push([b.x - 1, b.y + k], [b.x + W, b.y + k]);
     for (const [x, y] of cand) if (inside(x, y) && w.road[idx(x, y)]) return idx(x, y);
   }
   return -1;

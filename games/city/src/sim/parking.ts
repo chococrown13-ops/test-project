@@ -2,7 +2,7 @@ import { Ground, KINDS, N, Road, Zone } from './defs';
 import { curveInfo } from './curves';
 import { NN, forEachNeighbour } from './graph';
 import { network } from './network';
-import type { Building, World } from './world';
+import { bh, bw, type Building, type World } from './world';
 
 /**
  * Parking. Every lived-in or busy building wants somewhere to leave its cars.
@@ -85,7 +85,7 @@ export function updateParking(w: World) {
   for (const e of left) {
     const b = e.b;
     if (e.d && e.a !== undefined) {
-      const cx = b.x + b.size / 2, cy = b.y + b.size / 2;
+      const cx = b.x + bw(b) / 2, cy = b.y + bh(b) / 2;
       for (const l of lots) {
         if (!e.d) break;
         if (l.free <= 0 || Math.max(Math.abs(l.cx - cx), Math.abs(l.cy - cy)) > 5) continue;
@@ -95,7 +95,7 @@ export function updateParking(w: World) {
     }
     unmet += e.d;
     const p = Math.round((e.d / e.want) * 100);
-    for (let y = b.y; y < b.y + b.size; y++) for (let x = b.x; x < b.x + b.size; x++) w.parkPress[y * N + x] = p;
+    for (let y = b.y; y < b.y + bh(b); y++) for (let x = b.x; x < b.x + bw(b); x++) w.parkPress[y * N + x] = p;
     if (e.a !== undefined) w.parkPress[e.a] = Math.max(w.parkPress[e.a], p);
   }
   for (let i = 0; i < NN; i++) w.parked[i] = cap[i] - free[i];

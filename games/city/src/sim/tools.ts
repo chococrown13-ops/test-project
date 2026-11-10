@@ -2,7 +2,7 @@ import { BRIDGE_MULT, Ground, KINDS, Level, LEVEL_COST, LEVEL_NAME, N, Road, ROA
 import { DIAG, isRamp, oppositeDiag } from './graph';
 import { bezLength, coverCells, curveCells, curveInfo, curveProblem, pruneCurves, type Curve } from './curves';
 import { findAccess, invalidateNetwork } from './network';
-import { idx, inside, notify, rand, type Building, type World } from './world';
+import { idx, inside, notify, rand, type Building, type World, bw, bh } from './world';
 
 /** Cells along an L-shaped route: the longer leg first, as most road tools do. */
 export function roadPath(x0: number, y0: number, x1: number, y1: number): number[] {
@@ -202,9 +202,9 @@ export function paintZone(w: World, cells: number[], z: Zone): number {
   return n;
 }
 
-export function footprint(x: number, y: number, size: number): number[] {
+export function footprint(x: number, y: number, size: number, depth = size): number[] {
   const out: number[] = [];
-  for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) if (inside(x + dx, y + dy)) out.push(idx(x + dx, y + dy));
+  for (let dy = 0; dy < depth; dy++) for (let dx = 0; dx < size; dx++) if (inside(x + dx, y + dy)) out.push(idx(x + dx, y + dy));
   return out;
 }
 
@@ -246,7 +246,7 @@ export function placeFacility(w: World, kind: BuildingKind, x: number, y: number
   return null;
 }
 
-export function addBuilding(w: World, kind: BuildingKind, x: number, y: number): Building {
+export function addBuilding(w: World, kind: BuildingKind, x: number, y: number, sx?: number, sy?: number): Building {
   const d = KINDS[kind];
   const [lo, hi] = d.floors;
   const b: Building = {
@@ -254,8 +254,9 @@ export function addBuilding(w: World, kind: BuildingKind, x: number, y: number):
     floors: lo + Math.floor(rand(w) * (hi - lo + 1)),
     look: rand(w), occ: 0, powered: false, watered: false, sewered: false, happy: 60, outage: 0, abandoned: false, builtDay: w.day,
   };
+  if ((sx && sx !== d.size) || (sy && sy !== d.size)) { b.sx = sx ?? d.size; b.sy = sy ?? d.size; }
   w.buildings.set(b.id, b);
-  for (const i of footprint(x, y, d.size)) w.bld[i] = b.id;
+  for (const i of footprint(x, y, bw(b), bh(b))) w.bld[i] = b.id;
   w.ver.buildings++;
   invalidateNetwork();
   return b;
@@ -264,7 +265,7 @@ export function addBuilding(w: World, kind: BuildingKind, x: number, y: number):
 export function demolish(w: World, id: number) {
   const b = w.buildings.get(id);
   if (!b) return;
-  for (const i of footprint(b.x, b.y, b.size)) if (w.bld[i] === id) w.bld[i] = -1;
+  for (const i of footprint(b.x, b.y, bw(b), bh(b))) if (w.bld[i] === id) w.bld[i] = -1;
   w.buildings.delete(id);
   w.ver.buildings++;
   invalidateNetwork();
