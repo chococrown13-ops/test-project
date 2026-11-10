@@ -6,7 +6,8 @@ import { createSim, tick, type Sim } from './sim/sim';
 import { altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
 import { createLine, removeLine, STOP_RADIUS, stopProblem, type LineKind } from './sim/transit';
 import { bez, curveProblem, HALF_WIDTH, snapControl } from './sim/curves';
-import { createWorld, idx, riverY } from './sim/world';
+import { createWorld, idx, startRowOf } from './sim/world';
+import { MAPS, randomMap, type MapKind } from './sim/maps';
 import { CityScene } from './render/scene';
 import type { Overlay } from './render/ground';
 import { CATEGORIES, TOOLS, type ToolDef, type ToolId } from './ui/tools';
@@ -46,7 +47,7 @@ window.addEventListener('resize', resize);
 resize();
 
 function focusStart() {
-  const row = Math.round(riverY(0, sim.w.seed) - 22);
+  const row = startRowOf(sim.w);
   scene.view.focus(24 * CELL, row * CELL + 40);
 }
 focusStart();
@@ -490,9 +491,24 @@ function useWorld(w: ReturnType<typeof createWorld>) {
 
 const saved = loadLocal();
 if (saved) $('loadBtn').hidden = false;
+/** The land for the next new city: one of the maps, or 무작위. */
+let mapChoice: MapKind | 'random' = 'random';
+function renderMapChips() {
+  const opts: { id: MapKind | 'random'; name: string; desc: string }[] = [{ id: 'random', name: '무작위', desc: '어떤 땅이 나올지 몰라요. 매번 지형이 달라져요' }, ...MAPS];
+  $('mapChips').innerHTML = opts.map((m) => `<button type="button" data-map="${m.id}" aria-pressed="${m.id === mapChoice}">${m.name}</button>`).join('');
+  $('mapDesc').textContent = opts.find((m) => m.id === mapChoice)!.desc;
+}
+renderMapChips();
+$('mapChips').addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-map]');
+  if (!b) return;
+  mapChoice = b.dataset.map as MapKind | 'random';
+  renderMapChips();
+});
 $('newBtn').addEventListener('click', () => {
   const name = ($<HTMLInputElement>('nameInput').value.trim() || '새솔시').slice(0, 10);
-  useWorld(createWorld((Math.random() * 1e9) | 0, name));
+  const seed = (Math.random() * 1e9) | 0;
+  useWorld(createWorld(seed, name, mapChoice === 'random' ? randomMap(seed) : mapChoice));
   begin();
   toast(`${name}에 오신 걸 환영해요, 시장님! 왼쪽 위 목표를 따라가 보세요.`, 'good');
 });

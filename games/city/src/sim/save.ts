@@ -25,7 +25,7 @@ export function serialize(w: World): string {
 
 export function deserialize(json: string): World {
   const o = JSON.parse(json);
-  const w = createWorld(o.seed, o.name);
+  const w = createWorld(o.seed, o.name, o.map ?? 'river');
   Object.assign(w, o);
   w.ground = unb64(o.ground, (b) => new Uint8Array(b));
   w.road = unb64(o.road, (b) => new Uint8Array(b));
@@ -37,6 +37,7 @@ export function deserialize(json: string): World {
   for (const k of ['edu', 'safety', 'fire', 'health', 'transit'] as const) w[k] = o[k] ? unb64(o[k], (b) => new Uint8Array(b)) : new Uint8Array(w.ground.length);
   w.lines ??= [];
   w.curves ??= [];
+  w.map ??= 'river';
   w.noAvenueParking ??= false;
   w.stats.parkDemand ??= 0;
   w.stats.parkUnmet ??= 0;

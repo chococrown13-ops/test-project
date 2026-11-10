@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;600;700&family=Jua&display=swap" />
-    <meta name="description" content="강이 흐르는 빈 땅에 도로, 구역, 전기와 수도, 버스와 지하철을 놓아 키우는 로우폴리 한국 도시 건설 게임" />
+    <meta name="description" content="강가, 바닷가, 산골의 빈 땅에 도로, 구역, 전기와 수도, 버스와 지하철을 놓아 키우는 로우폴리 한국 도시 건설 게임" />
     <title>한강도시</title>
   </head>
   <body>
@@ -60,8 +60,9 @@
     <div id="start" class="overlay">
       <div class="card hero">
         <h1>한강도시</h1>
-        <p class="lead">강이 흐르는 빈 땅에 우리 도시를 세워 보세요. 도로를 깔고 구역을 나누고 전기와 물을 대면 사람들이 이사 와요.</p>
+        <p class="lead">강가, 바닷가, 산골 어디든 빈 땅에 우리 도시를 세워 보세요. 도로를 깔고 구역을 나누고 전기와 물을 대면 사람들이 이사 와요.</p>
         <label class="field" for="nameInput">도시 이름<input id="nameInput" maxlength="10" value="새솔시" autocomplete="off" /></label>
+        <div class="field" role="group" aria-labelledby="mapLabel"><span id="mapLabel">지형</span><div id="mapChips" class="chips"></div><p id="mapDesc" class="map-desc"></p></div>
         <div class="row">
           <button id="newBtn" class="btn primary">새 도시 시작</button>
           <button id="loadBtn" class="btn" hidden>이어하기</button>

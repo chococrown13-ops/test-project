@@ -76,7 +76,7 @@ export class GroundLayer {
     const pos0 = geo.attributes.position as THREE.BufferAttribute;
     for (let v = 0; v < pos0.count; v++) uv.setXY(v, pos0.getX(v) / SIZE, pos0.getZ(v) / SIZE);
     this.geo = geo;
-    this.field = terrainField(w.seed);
+    this.field = terrainField(w.seed, w.map);
     this.shape(w);
     // Flat shading shows the hills as low-poly facets; flat land is unaffected.
     const landMat = new THREE.MeshStandardMaterial({ map: this.tex, roughness: 1, flatShading: true });
@@ -98,11 +98,41 @@ export class GroundLayer {
     land.receiveShadow = true;
     this.group.add(land);
 
-    // Land beyond the map edge, so the city doesn't float in the void.
-    const far = new THREE.Mesh(new THREE.PlaneGeometry(SIZE * 6, SIZE * 6), new THREE.MeshStandardMaterial({ color: '#6f8f5a', roughness: 1 }));
-    far.rotation.x = -Math.PI / 2;
-    far.position.set(SIZE / 2, -0.3, SIZE / 2);
-    this.group.add(far);
+    // Land beyond the map edge, so the city doesn't float in the void; open
+    // water where the map's own water runs off the edge (the sea round an island,
+    // the sea south of a coast, the river as it leaves the map).
+    const farMat = new THREE.MeshStandardMaterial({ color: '#6f8f5a', roughness: 1 });
+    const F = SIZE * 2.5;
+    const rect = (x0: number, z0: number, x1: number, z1: number) => {
+      if (x1 <= x0 || z1 <= z0) return;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), farMat);
+      m.rotation.x = -Math.PI / 2;
+      m.position.set((x0 + x1) / 2, -0.3, (z0 + z1) / 2);
+      this.group.add(m);
+    };
+    // Where the edge columns turn to water: the gap to leave in the side pieces.
+    const edgeWater = (x: number) => {
+      let lo = N, hi = -1;
+      for (let y = 0; y < N; y++) if (w.ground[idx(x, y)] === Ground.Water) { lo = Math.min(lo, y); hi = Math.max(hi, y); }
+      return hi < 0 ? null : { z0: lo * CELL, z1: (hi + 1) * CELL };
+    };
+    const side = (x0: number, x1: number, gap: { z0: number; z1: number } | null) => {
+      if (!gap) { rect(x0, 0, x1, SIZE); return; }
+      rect(x0, 0, x1, gap.z0); rect(x0, gap.z1, x1, SIZE);
+    };
+    if (w.map === 'island') {
+      // Nothing but sea all round.
+    } else if (w.map === 'coast') {
+      rect(-F, -F, SIZE + F, 0);
+      rect(-F, 0, 0, edgeWater(0)?.z0 ?? SIZE);
+      rect(SIZE, 0, SIZE + F, edgeWater(N - 1)?.z0 ?? SIZE);
+    } else {
+      rect(-F, -F, SIZE + F, 0);
+      rect(-F, SIZE, SIZE + F, SIZE + F);
+      const big = (x: number) => { const g = edgeWater(x); return g && g.z1 - g.z0 > CELL * 3 ? g : null; };
+      side(-F, 0, w.map === 'river' ? big(0) : null);
+      side(SIZE, SIZE + F, w.map === 'river' ? big(N - 1) : null);
+    }
 
     const waterMat = new THREE.MeshStandardMaterial({ color: '#2f7fb8', roughness: 0.08, metalness: 0.15 });
     // Ripples: the normal wobbles with two crossing wave trains, so sun and sky glint off the river.
@@ -115,7 +145,7 @@ export class GroundLayer {
           normal = normalize(normal + (viewMatrix * vec4(wv.x * 0.06, 0.0, wv.y * 0.06, 0.0)).xyz);`);
     };
     waterMat.customProgramCacheKey = () => 'city-water';
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(SIZE * 4, SIZE), waterMat);
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(SIZE * 6, SIZE * 6), waterMat);
     water.rotation.x = -Math.PI / 2;
     water.position.set(SIZE / 2, -1.1, SIZE / 2);
     water.receiveShadow = true;

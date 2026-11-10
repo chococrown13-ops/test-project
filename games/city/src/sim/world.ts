@@ -1,4 +1,5 @@
 import type { Curve } from './curves';
+import { hillField, startRow, waterMask, type MapKind } from './maps';
 import { Ground, N, Road, START_MONEY, type BuildingKind } from './defs';
 import type { TransitLine } from './transit';
 
@@ -34,6 +35,8 @@ export interface MonthReport {
 export interface World {
   name: string;
   seed: number;
+  /** The kind of land the city was founded on. */
+  map: MapKind;
   rng: number;
   day: number;
   money: number;
@@ -112,21 +115,18 @@ export function rand(w: World): number {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 
-/** River centre line: a gentle S-curve across the map, like a city on the 한강. */
-export function riverY(x: number, seed: number): number {
-  const p = seed % 1000 / 1000;
-  return N * 0.58 + Math.sin((x / N) * Math.PI * 1.6 + p * 6) * 9 + Math.sin((x / N) * Math.PI * 4.2 + p * 3) * 2.5;
-}
+export { riverY } from './maps';
 
 export function emptyMonth(month: number): MonthReport {
   return { month, income: { R: 0, C: 0, I: 0, T: 0 }, expense: { roads: 0, facilities: 0, services: 0, transit: 0 }, pop: 0, jobs: 0 };
 }
 
-export function createWorld(seed = 20261028, name = '새솔시'): World {
+export function createWorld(seed = 20261028, name = '새솔시', map: MapKind = 'river'): World {
   const size = N * N;
   const w: World = {
     name,
     seed,
+    map,
     rng: seed >>> 0,
     day: 0,
     money: START_MONEY,
@@ -162,51 +162,22 @@ export function createWorld(seed = 20261028, name = '새솔시'): World {
     ver: { roads: 1, zones: 1, buildings: 1, transit: 1 },
     milestones: [],
   };
-  for (let x = 0; x < N; x++) {
-    const c = riverY(x, seed);
-    const half = 3.6 + Math.sin(x * 0.07 + seed) * 0.9;
-    for (let y = 0; y < N; y++) if (Math.abs(y + 0.5 - c) < half) w.ground[idx(x, y)] = Ground.Water;
-  }
-  // The city starts with an expressway link from the west edge: the outside world.
-  const row = Math.round(riverY(0, seed) - 22);
-  // Mountains behind the city and a hill across the river: 배산임수.
-  const hills = terrainField(seed);
+  const wet = waterMask(seed, map);
+  for (let i = 0; i < size; i++) if (wet[i]) w.ground[i] = Ground.Water;
+  // Hills: on the river map, mountains behind the city and a hill across the river (배산임수).
+  const hills = hillField(seed, map);
   for (let i = 0; i < size; i++) if (hills[i] > 0 && w.ground[i] === Ground.Land) w.ground[i] = Ground.Mountain;
+  // The city starts with an expressway link from the west edge: the outside world.
+  const row = startRow(seed, map);
   for (let x = 0; x <= 22; x++) w.road[idx(x, row)] = Road.Avenue;
   return w;
 }
 
-const fh = (x: number, y: number) => { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); };
-function vnoise(x: number, y: number): number {
-  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
-  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
-  const a = fh(xi, yi), b = fh(xi + 1, yi), c = fh(xi, yi + 1), d = fh(xi + 1, yi + 1);
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-}
+/** Mountain heights in metres per cell, from the seed and map alone, so the renderer can rebuild them. */
+export const terrainField = (seed: number, map: MapKind = 'river') => hillField(seed, map);
 
-/**
- * Mountain heights in metres per cell (0 on flat land), from the seed alone so
- * the renderer can rebuild it. A ridge runs along the north edge and one hill
- * stands south of the river; the river, its banks and the start road stay flat.
- */
-export function terrainField(seed: number): Float32Array {
-  const h = new Float32Array(N * N);
-  const o = (seed % 997) * 0.37;
-  const row = Math.round(riverY(0, seed) - 22);
-  const hx = Math.round(N * (0.55 + (seed % 7) * 0.03)), hy = Math.round(Math.min(N - 14, riverY(hx, seed) + 22));
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    const depth = 6 + vnoise(x / 13 + o, 3.1) * 13;
-    let v = 0;
-    if (y < depth) v = ((depth - y) / depth) ** 0.8 * (45 + vnoise(x / 8 + o, 7.7) * 50);
-    const d = Math.hypot(x - hx, y - hy), r = 7.5 + vnoise(o, 1.3) * 3;
-    if (d < r) v = Math.max(v, (1 - d / r) ** 1.2 * (55 + vnoise(o, 9.1) * 25));
-    v *= 0.85 + vnoise(x / 4 + o, y / 4) * 0.3;
-    const river = Math.abs(y + 0.5 - riverY(x, seed));
-    if (river < 9 || (x < 40 && Math.abs(y - row) < 12) || v < 4) v = 0;
-    h[y * N + x] = v;
-  }
-  return h;
-}
+/** Row of the expressway link the city starts from. */
+export const startRowOf = (w: World) => startRow(w.seed, w.map);
 
 export function notify(w: World, text: string, tone: 'info' | 'warn' | 'good' = 'info') {
   w.notices.unshift({ day: w.day, text, tone });

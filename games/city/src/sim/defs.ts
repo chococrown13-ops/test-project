@@ -58,7 +58,7 @@ export const KINDS: Record<BuildingKind, KindDef> = {
   i3: { name: '첨단 산업단지', zone: Zone.I, level: 3, size: 2, jobs: 180, power: 60, water: 30, floors: [3, 5] },
   coal: { name: '화력 발전소', size: 3, power: -600, water: 20, cost: 9000, upkeep: 300, floors: [3, 3], desc: '전력 600 · 주변 땅값 하락' },
   solar: { name: '태양광 발전소', size: 2, power: -140, water: 0, cost: 3500, upkeep: 90, floors: [1, 1], desc: '전력 140 · 깨끗함' },
-  water: { name: '정수장', size: 3, power: 25, water: -700, cost: 6000, upkeep: 260, floors: [2, 2], desc: '수도 700 · 강가에 지어야 함' },
+  water: { name: '정수장', size: 3, power: 25, water: -700, cost: 6000, upkeep: 260, floors: [2, 2], desc: '수도 700 · 강, 바다, 호수 같은 물가에 지어야 함' },
   sewage: { name: '하수처리장', size: 2, power: 15, water: 0, cost: 4000, upkeep: 180, floors: [2, 2], desc: '하수 처리 600 · 주변 땅값 하락' },
   park: { name: '공원', size: 1, power: 0, water: 1, cost: 300, upkeep: 12, floors: [0, 0], desc: '주변 땅값 상승' },
   school: { name: '초등학교', size: 2, power: 8, water: 6, cost: 4500, upkeep: 220, floors: [3, 4], desc: '반경 내 교육 · 땅값 상승' },
@@ -68,7 +68,7 @@ export const KINDS: Record<BuildingKind, KindDef> = {
   // Built and paid for through its subway line (transit.ts).
   metro: { name: '지하철역', size: 1, power: 6, water: 2, floors: [1, 1], desc: '역 주변 땅값 상승 (역세권)' },
   market: { name: '전통시장', size: 2, power: 6, water: 4, cost: 3500, upkeep: 110, floors: [1, 1], desc: '주변 상업과 땅값을 살려요' },
-  riverpark: { name: '한강공원', size: 2, power: 1, water: 2, cost: 2500, upkeep: 60, floors: [0, 0], desc: '강가에만 지어요. 주변 땅값과 만족도가 크게 올라요' },
+  riverpark: { name: '수변공원', size: 2, power: 1, water: 2, cost: 2500, upkeep: 60, floors: [0, 0], desc: '물가에만 지어요. 주변 땅값과 만족도가 크게 올라요' },
   palace: { name: '고궁', size: 3, power: 4, water: 4, cost: 20000, upkeep: 200, floors: [1, 1], desc: '도시에 하나뿐인 명소. 넓은 범위의 땅값이 올라요' },
   parking: { name: '공영주차장', size: 1, power: 0, water: 0, cost: 600, upkeep: 20, floors: [0, 0], desc: '차 40대 · 반경 5칸 건물의 주차난을 덜어요' },
   parktower: { name: '주차타워', size: 1, power: 4, water: 0, cost: 2800, upkeep: 70, floors: [5, 5], desc: '차 160대 · 좁은 땅에 많이 세워요' },

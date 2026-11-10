@@ -72,7 +72,7 @@ export const GOALS: Goal[] = [
   { text: '서쪽 고속도로 끝에서 이어지는 도로를 깔아 보세요. 도구는 아래 도로에 있어요.', done: (w) => roads(w) > 40 },
   { text: '도로 옆에 주거 구역을 칠하세요. 도로에서 3칸까지 칠할 수 있어요.', done: (w) => zoned(w, Zone.R) },
   { text: '발전소를 짓고 도로로 연결하세요. 전기는 도로를 따라 흘러요.', done: (w) => w.stats.powerSupply > 0 },
-  { text: '강가에 정수장을 지어 수돗물을 공급하세요.', done: (w) => w.stats.waterSupply > 0 },
+  { text: '물가에 정수장을 지어 수돗물을 공급하세요.', done: (w) => w.stats.waterSupply > 0 },
   { text: '상업과 산업 구역을 만들어 일자리를 주세요.', done: (w) => zoned(w, Zone.C) && zoned(w, Zone.I) },
   { text: '인구 300명을 모아 보세요. 위쪽 수요 막대를 참고하세요.', done: (w) => w.stats.pop >= 300 },
   { text: '하수처리장을 지어 하수를 처리하세요. 주거지와 떨어뜨리면 좋아요.', done: (w) => w.stats.sewageCap > 0 },
@@ -84,7 +84,7 @@ export const GOALS: Goal[] = [
   { text: '인구 5,000명. 대로와 버스로 교통 체증을 줄이세요.', done: (w) => w.stats.pop >= 5000 },
   { text: '지하철 1호선을 개통하세요. 역 주변은 역세권이 돼요.', done: (w) => w.lines.some((l) => l.kind === 'metro') },
   { text: '고가도로, 지하차도, 터널 중 하나로 막힌 길을 뚫어 보세요.', done: (w) => w.roadAlt.some((r) => r > 0) },
-  { text: '명소를 하나 지어 보세요. 전통시장, 한강공원, 고궁, 전망타워가 있어요.', done: (w) => count(w, (b) => ['market', 'riverpark', 'palace', 'tower'].includes(b.kind)) > 0 },
+  { text: '명소를 하나 지어 보세요. 전통시장, 수변공원, 고궁, 전망타워가 있어요.', done: (w) => count(w, (b) => ['market', 'riverpark', 'palace', 'tower'].includes(b.kind)) > 0 },
   { text: '첫 오피스 타워를 올리세요. 상업 구역의 땅값이 관건이에요.', done: (w) => count(w, (b) => b.kind === 'c3') > 0 },
   { text: '인구 20,000명. 진짜 도시가 됐어요!', done: (w) => w.stats.pop >= 20000 },
 ];
@@ -164,7 +164,7 @@ export function infoHtml(w: World, x: number, y: number): string {
     for (const l of stops) h += kv(`<span class="sw" style="--sw:${l.color}"></span>${esc(l.name)} 정류장`, `지난달 ${num(l.riders)}명`);
     return h;
   }
-  if (w.ground[i] === Ground.Water) return `${head('강')}<p class="hint">도로를 놓으면 다리가 돼요. 비용은 4배예요. 강 밑으로는 터널을 뚫을 수 있어요.</p>`;
+  if (w.ground[i] === Ground.Water) return `${head('물')}<p class="hint">도로를 놓으면 다리가 돼요. 비용은 4배예요. 물 밑으로는 터널을 뚫을 수 있어요.</p>`;
   if (w.ground[i] === Ground.Mountain) return `${head('산')}<p class="hint">산에는 집을 짓거나 길을 낼 수 없어요. 터널로 뚫고 지나가거나, 꼭대기에 전망타워를 세울 수 있어요. 산이 보이는 동네는 땅값이 조금 올라요.</p>`;
   return `${head('빈 땅')}${w.zone[i] ? kv('구역', ZONE_NAME[w.zone[i]]) : ''}${kv('땅값', `${Math.round(w.land[i])}`)}${kv('오염', `${Math.round(w.pollution[i])}`)}`;
 }

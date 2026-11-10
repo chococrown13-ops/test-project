@@ -221,8 +221,8 @@ export function placeProblem(w: World, kind: BuildingKind, x: number, y: number)
     const id = w.bld[i];
     if (id >= 0 && !KINDS[w.buildings.get(id)!.kind].zone) return '다른 시설이 있어요.';
   }
-  if (kind === 'water' && !nearWater(w, x, y, d.size, 2)) return '정수장은 강가(2칸 이내)에 지어야 해요.';
-  if (kind === 'riverpark' && !nearWater(w, x, y, d.size, 1)) return '한강공원은 강에 붙여 지어야 해요.';
+  if (kind === 'water' && !nearWater(w, x, y, d.size, 2)) return '정수장은 물가(2칸 이내)에 지어야 해요.';
+  if (kind === 'riverpark' && !nearWater(w, x, y, d.size, 1)) return '수변공원은 물에 붙여 지어야 해요.';
   if ((d.cost ?? 0) > w.money) return `예산이 부족해요. (${(d.cost ?? 0).toLocaleString('ko-KR')}만 원 필요)`;
   return null;
 }
