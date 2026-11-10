@@ -10,6 +10,7 @@ import { calendarMonth, DAY_SECONDS, type Sim } from '../sim/sim';
 import { busRoute } from '../sim/transit';
 import type { LineKind } from '../sim/transit';
 import { Atmosphere } from './atmosphere';
+import { StylizePass } from './stylize';
 import { BuildingLayer } from './buildings';
 import { CityCamera } from './camera';
 import { GroundLayer, type Overlay } from './ground';
@@ -39,6 +40,7 @@ export class CityScene {
   private atmo = new Atmosphere();
   private composer: EffectComposer;
   private bloom: UnrealBloomPass;
+  private stylize: StylizePass;
   quality: Quality = 'high';
   private ray = new THREE.Raycaster();
   private plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -73,8 +75,13 @@ export class CityScene {
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     pmrem.dispose();
-    this.composer = new EffectComposer(this.renderer);
+    // The composer's buffers carry depth, which the outline pass reads.
+    const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(1, 1) });
+    this.composer = new EffectComposer(this.renderer, rt);
     this.composer.addPass(new RenderPass(this.scene, this.view.cam));
+    this.stylize = new StylizePass(this.scene, this.view.cam);
+    this.stylize.skip = this.atmo.outlineSkip;
+    this.composer.addPass(this.stylize);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0, 0.35, 0.9);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
@@ -91,6 +98,10 @@ export class CityScene {
       this.sun.shadow.map = null;
     }
     this.atmo.cloudsOn = q === 'high';
+    // Phones: no multisampling and a half-size normal buffer for the outlines.
+    const samples = q === 'high' ? 4 : 0;
+    for (const t of [this.composer.renderTarget1, this.composer.renderTarget2]) if (t.samples !== samples) { t.samples = samples; t.dispose(); }
+    this.stylize.normalScale = q === 'high' ? 1 : 0.5;
     const s = new THREE.Vector2();
     this.renderer.getSize(s);
     this.resize(s.x, s.y);
@@ -166,6 +177,8 @@ export class CityScene {
     this.atmo.update(this.view.cam.position, shared.uTime.value, day, Math.min(1, dusk), night, this.sun.position.clone().sub(t).normalize());
     (this.scene.fog as THREE.Fog).color.copy(this.atmo.horizon);
     this.bloom.strength = this.quality === 'high' ? night * 0.45 : 0;
+    this.bloom.enabled = this.bloom.strength > 0.02;
+    this.stylize.configure(this.view.dist, night);
     const s = Math.min(560, Math.max(140, this.view.dist * 1.2));
     const cam = this.sun.shadow.camera;
     if (cam.right !== s) { cam.left = -s; cam.right = s; cam.top = s; cam.bottom = -s; cam.near = 10; cam.far = 1600; cam.updateProjectionMatrix(); }
@@ -213,7 +226,6 @@ export class CityScene {
       this.buildings.refreshInfo(w);
     }
     // Bloom only earns its cost at night, when windows and street lights glow.
-    if (this.bloom.strength > 0.02) this.composer.render(dt);
-    else this.renderer.render(this.scene, this.view.cam);
+    this.composer.render(dt);
   }
 }

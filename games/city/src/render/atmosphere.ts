@@ -72,6 +72,9 @@ export class Atmosphere {
 
   set cloudsOn(on: boolean) { this.clouds.visible = on; }
 
+  /** Objects that must stay out of the outline pass's normal render: the sky dome and the shadow-only clouds. */
+  get outlineSkip(): THREE.Object3D[] { return [this.sky, this.clouds]; }
+
   /** Colours for the time of day; `day` and `dusk` are 0..1, `sunDir` points at the sun. */
   update(camPos: THREE.Vector3, time: number, day: number, dusk: number, night: number, sunDir: THREE.Vector3) {
     this.sky.position.copy(camPos);
