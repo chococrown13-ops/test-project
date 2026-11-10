@@ -387,18 +387,14 @@ export class BuildingLayer {
       neon: this.neonMat,
     };
     (Object.keys(GEOS) as Shape[]).forEach((s) => this.alloc(s, s === 'box' ? 4096 : 512));
-    // Problem badges as short words on a card-stock pill, in the HUD's coral and ink.
-    for (const [k, word] of Object.entries({ power: '전기', water: '수도', road: '도로', gone: '폐가' })) {
+    // Problem badges: a round pictogram on a card-stock ring, coral for what needs fixing, slate for empty houses.
+    for (const k of ['power', 'water', 'road', 'gone']) {
       const c = document.createElement('canvas');
-      c.width = 128; c.height = 64;
-      const g = c.getContext('2d')!;
-      g.fillStyle = k === 'gone' ? '#4a4f57' : '#f0644f';
-      g.beginPath(); g.roundRect(4, 6, 120, 52, 26); g.fill();
-      g.fillStyle = '#fbf8ee';
-      g.font = '34px Jua, "Gothic A1", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.fillText(word, 64, 34);
+      c.width = c.height = 128;
+      drawIcon(c.getContext('2d')!, k);
       const t = new THREE.CanvasTexture(c);
       t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = 4;
       this.iconTex[k] = new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true });
     }
   }
@@ -493,8 +489,10 @@ export class BuildingLayer {
       if (!sp) { sp = new THREE.Sprite(); sp.renderOrder = 10; this.icons[n] = sp; this.group.add(sp); }
       sp.material = this.iconTex[k];
       const S = b.size * CELL;
-      sp.position.set(b.x * CELL + S / 2, b.floors * 3 + 9, b.y * CELL + S / 2);
-      sp.scale.set(10, 5, 1);
+      // Empty houses get a quieter, smaller badge than problems the player can fix.
+      const k2 = k === 'gone' ? 4.6 : 6.4;
+      sp.position.set(b.x * CELL + S / 2, b.floors * 3 + 4 + k2, b.y * CELL + S / 2);
+      sp.scale.set(k2, k2, 1);
       sp.visible = true;
       n++;
     };
@@ -506,5 +504,46 @@ export class BuildingLayer {
       else if (b.outage > 3 || (showAll && b.outage > 0)) put(b, !b.powered ? 'power' : 'water');
     });
     for (let i = n; i < this.icons.length; i++) this.icons[i].visible = false;
+  }
+}
+
+/** A 128px badge: drop shadow, light ring, coloured disc, and a white pictogram. */
+function drawIcon(g: CanvasRenderingContext2D, k: string) {
+  const R = 52;
+  g.save();
+  g.shadowColor = 'rgba(20, 24, 30, 0.35)';
+  g.shadowBlur = 8;
+  g.shadowOffsetY = 3;
+  g.fillStyle = '#fbf8ee';
+  g.beginPath(); g.arc(64, 62, R + 6, 0, Math.PI * 2); g.fill();
+  g.restore();
+  g.fillStyle = k === 'gone' ? '#5b616b' : k === 'water' ? '#2f7fc8' : k === 'road' ? '#e0892f' : '#f0644f';
+  g.beginPath(); g.arc(64, 62, R, 0, Math.PI * 2); g.fill();
+  g.fillStyle = g.strokeStyle = '#fbf8ee';
+  g.lineJoin = g.lineCap = 'round';
+  g.beginPath();
+  if (k === 'power') {
+    // Lightning bolt.
+    g.moveTo(72, 24); g.lineTo(42, 68); g.lineTo(62, 68); g.lineTo(54, 100); g.lineTo(86, 52); g.lineTo(66, 52); g.lineTo(74, 24);
+    g.closePath(); g.fill();
+  } else if (k === 'water') {
+    // A drop, with a slash: no water.
+    g.moveTo(64, 26); g.bezierCurveTo(78, 46, 88, 58, 88, 72); g.arc(64, 72, 24, 0, Math.PI); g.bezierCurveTo(40, 58, 50, 46, 64, 26);
+    g.fill();
+    g.strokeStyle = '#2f7fc8'; g.lineWidth = 7;
+    g.beginPath(); g.moveTo(44, 92); g.lineTo(86, 40); g.stroke();
+  } else if (k === 'road') {
+    // A road running away into the distance, with a gap: not connected.
+    g.moveTo(52, 26); g.lineTo(76, 26); g.lineTo(94, 100); g.lineTo(34, 100); g.closePath(); g.fill();
+    g.fillStyle = '#e0892f';
+    g.fillRect(61, 32, 6, 12); g.fillRect(60, 52, 8, 12); g.fillRect(59, 74, 10, 16);
+    g.strokeStyle = '#e0892f'; g.lineWidth = 8;
+    g.beginPath(); g.moveTo(30, 60); g.lineTo(98, 60); g.stroke();
+  } else {
+    // An empty house: gable roof, boarded-up window.
+    g.moveTo(30, 60); g.lineTo(64, 30); g.lineTo(98, 60); g.lineTo(90, 60); g.lineTo(90, 96); g.lineTo(38, 96); g.lineTo(38, 60); g.closePath(); g.fill();
+    g.strokeStyle = '#5b616b'; g.lineWidth = 6;
+    g.strokeRect(52, 62, 24, 22);
+    g.beginPath(); g.moveTo(52, 62); g.lineTo(76, 84); g.moveTo(76, 62); g.lineTo(52, 84); g.stroke();
   }
 }
