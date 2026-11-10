@@ -368,8 +368,22 @@ function drawPoly(b: Builder, poly: PolyRoads) {
       }
     }
   }
-  // Markings along each centreline, kept clear of junctions.
-  const clear = (x: number, z: number) => poly.junctions.every((j) => (x - j.x) ** 2 + (z - j.z) ** 2 > j.r * j.r);
+  // Markings along each centreline, kept clear of junctions; a 횡단보도 where a line leaves one.
+  const inJ = (x: number, z: number) => poly.junctions.some((j) => (x - j.x) ** 2 + (z - j.z) ** 2 <= j.r * j.r);
+  const drawnHere = (x: number, z: number) => {
+    const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
+    if (cx < 0 || cz < 0 || cx >= N || cz >= N) return false;
+    const i = cz * N + cx;
+    return poly.cells.has(i) || poly.owned[i] === 1;
+  };
+  const zebra = (x: number, z: number, ux: number, uz: number, t: Road) => {
+    // Stripes run along the road, spaced across it, 2.2 m long.
+    const hw = HALF_WIDTH[t as 1 | 2] - 0.5, nx = -uz, nz = ux;
+    for (let k = -hw; k <= hw + 1e-6; k += 1.1) {
+      const px = x + nx * k, pz = z + nz * k;
+      b.strip(px - ux * 1.1, pz - uz * 1.1, Y + 0.025, px + ux * 1.1, pz + uz * 1.1, Y + 0.025, 0.6, WHITE);
+    }
+  };
   for (const { pts, t } of poly.lines) {
     let s = 0;
     for (let k = 0; k < pts.length - 1; k++) {
@@ -381,7 +395,14 @@ function drawPoly(b: Builder, poly: PolyRoads) {
       for (let d = 0; d < len - 1e-6; d += 1) {
         const d1 = Math.min(len, d + 1), ss = s + d;
         const x0 = a.x + ux * d, z0 = a.z + uz * d, x1 = a.x + ux * d1, z1 = a.z + uz * d1;
-        if (!clear((x0 + x1) / 2, (z0 + z1) / 2)) continue;
+        const i0 = inJ(x0, z0), i1 = inJ(x1, z1);
+        if (i0 !== i1) {
+          // Leaving (or entering) a junction: the crossing sits just outside it.
+          const sgn = i0 ? 1 : -1, ex = i0 ? x1 : x0, ez = i0 ? z1 : z0;
+          const zx = ex + ux * sgn * 1.4, zz = ez + uz * sgn * 1.4;
+          if (drawnHere(zx, zz) && !inJ(zx, zz)) zebra(zx, zz, ux, uz, t);
+        }
+        if (i0 || i1) continue;
         const strip = (off: number, wd: number, hex: number) => b.strip(x0 + nx * off, z0 + nz * off, Y + 0.02, x1 + nx * off, z1 + nz * off, Y + 0.02, wd, hex);
         const dash = (ss % 6) < 3;
         if (t === Road.Avenue) {
