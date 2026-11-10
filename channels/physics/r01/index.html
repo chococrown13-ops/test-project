@@ -1,0 +1,153 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:600;src:url(../../../gunggeum/tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(../../../gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}canvas{display:block}
+</style></head><body><canvas id="c" width="1080" height="1920"></canvas>
+<script src="../vendor/matter-0.20.0.min.js"></script>
+<script src="course.js"></script>
+<script>
+// 물리 시뮬레이션 #1 「구슬 레이스 · 골드버그 코스」 — render(t) 한 번 = 한 프레임
+// 물리는 matter-js(MIT)로 미리 끝까지 계산해 두고(무작위 없음) 프레임마다 그 순간을 그림. 결과를 미리 정하지 않음.
+const W = 1080, H = 1920, FPS = 24, g = document.getElementById('c').getContext('2d');
+const clamp01 = (x) => Math.max(0, Math.min(1, x)), smooth = (a, b, t) => { const u = clamp01((t - a) / (b - a)); return u * u * (3 - 2 * u); };
+const back = (u) => 1 + 2.7 * Math.pow(u - 1, 3) + 1.7 * Math.pow(u - 1, 2), pop = (a, d, t) => { const u = clamp01((t - a) / d); return u <= 0 ? 0 : back(u); };
+let SIM, C, CAM = [], DUR = 40;
+const M = window.Matter;
+
+function round(x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+function text(s, x, y, size, color, weight = 800, align = 'center') { g.font = `${weight} ${size}px P`; g.textAlign = align; g.textBaseline = 'middle'; g.fillStyle = color; g.fillText(s, x, y); }
+
+function prepare() {
+  SIM = Course.simulate(M, 70, FPS);
+  C = Course.build(M); // 고정된 부품 모양·위치를 그리려고 한 번 더 만듦(움직이지 않음)
+  const last = SIM.finish.length ? SIM.finish[SIM.finish.length - 1].t : 40;
+  DUR = Math.min(58, Math.ceil(last + 4.5));
+  // 카메라: 아직 안 들어온 구슬 중 맨 앞(가장 아래)을 따라감 → 앞뒤로 부드럽게
+  const raw = SIM.frames.map((f, i) => {
+    const t = i / FPS, done = new Set(SIM.finish.filter((q) => q.t <= t).map((q) => q.id));
+    const ys = f.m.map((p, k) => (done.has(Course.MARBLES[k].id) ? -1 : p[1])).filter((y) => y >= 0);
+    const lead = ys.length ? Math.max(...ys) : C.H;
+    return Math.max(0, Math.min(C.H - H + 60, lead - H * 0.46));
+  });
+  let v = raw[0]; const fw = raw.map((y) => (v += (y - v) * 0.08));
+  let w = fw[fw.length - 1]; CAM = fw.slice().reverse().map((y) => (w += (y - w) * 0.08)).reverse();
+}
+const frameAt = (t) => SIM.frames[Math.min(SIM.frames.length - 1, Math.max(0, Math.round(t * FPS)))];
+const camAt = (t) => CAM[Math.min(CAM.length - 1, Math.max(0, Math.round(t * FPS)))];
+
+function bg(cy) {
+  const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#141a33'); gr.addColorStop(1, '#0b0f20'); g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(120,140,255,.07)'; g.lineWidth = 2;
+  for (let x = 0; x <= W; x += 60) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
+  for (let y = -(cy % 60); y <= H; y += 60) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+}
+const PART_COL = { ramp: '#8ad7ff', side: '#2a3358', box: '#c9a0ff', gate: '#ff7ad9', peg: '#ffe48a', wheel: '#ff9f43', seesaw: '#7dffb0', bumper: '#ff5c8a', floor: '#3b4675', domino: '#f4f1ea', bell: '#ffd23d', stopper: '#8ad7ff', shelf: '#8ad7ff' };
+function drawRect(x, y, w, h, a, col) { g.save(); g.translate(x, y); g.rotate(a); g.shadowColor = col; g.shadowBlur = 18; round(-w / 2, -h / 2, w, h, Math.min(8, h / 2)); g.fillStyle = col; g.fill(); g.restore(); }
+function drawWorld(t, f) {
+  // 움직이는 부품 위치(시소·도미노·물레방아)는 기록된 값, 나머지는 처음 모양
+  let di = 0; const dyn = f.p;
+  for (const p of C.parts) {
+    const b = p.body; let x = b.position.x, y = b.position.y, a = b.angle;
+    if (!b.isStatic || p.kind === 'wheel') { const q = dyn[di++]; if (q) [x, y, a] = q; }
+    if (p.kind === 'gate' && !f.gate) continue;
+    const col = PART_COL[p.kind] || '#8ad7ff';
+    if (p.r) {
+      g.save(); g.shadowColor = col; g.shadowBlur = p.kind === 'bumper' ? 26 : 12; g.fillStyle = col; g.beginPath(); g.arc(x, y, p.r, 0, 7); g.fill();
+      if (p.kind === 'bumper') { g.fillStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.arc(x - 8, y - 10, p.r * 0.4, 0, 7); g.fill(); }
+      if (p.kind === 'bell') { text('🔔', x, y + 2, 30, '#000'); }
+      g.restore();
+    } else drawRect(x, y, p.w, p.h, a, col);
+    if (p.pivot) { g.fillStyle = '#fff'; g.beginPath(); g.arc(p.pivot.x, p.pivot.y, 7, 0, 7); g.fill(); }
+  }
+  // 결승선
+  const fy = C.finishY; g.save(); for (let x = 0; x < W; x += 40) { g.fillStyle = (x / 40) % 2 ? '#fff' : '#111'; g.fillRect(x, fy - 10, 40, 10); g.fillStyle = (x / 40) % 2 ? '#111' : '#fff'; g.fillRect(x, fy, 40, 10); } g.restore();
+  text('FINISH', 540, fy - 40, 46, 'rgba(255,255,255,.85)');
+  // 구간 이름표
+  for (const [y, name] of [[620, '지그재그'], [1600, '핀볼 판'], [2600, '물레방아'], [3080, '시소'], [3660, '범퍼'], [4980, '도미노 → 종']]) {
+    g.font = '800 34px P'; const w = g.measureText(name).width + 36; g.fillStyle = 'rgba(255,255,255,.1)'; round(W - w - 28, y - 26, w, 52, 26); g.fill(); text(name, W - 28 - w / 2, y + 1, 34, 'rgba(255,255,255,.75)');
+  }
+  // 구슬 (꼬리 + 반짝)
+  f.m.forEach(([x, y, a], k) => {
+    const mk = Course.MARBLES[k], r = Course.R;
+    for (let j = 6; j >= 1; j--) { const pf = frameAt(t - j / FPS).m[k]; g.globalAlpha = 0.07 * (7 - j); g.fillStyle = mk.color; g.beginPath(); g.arc(pf[0], pf[1], r * (1 - j * 0.07), 0, 7); g.fill(); }
+    g.globalAlpha = 1;
+    const gr = g.createRadialGradient(x - 8, y - 10, 3, x, y, r); gr.addColorStop(0, '#fff'); gr.addColorStop(0.25, mk.color); gr.addColorStop(1, shade(mk.color));
+    g.save(); g.shadowColor = mk.color; g.shadowBlur = 22; g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.restore();
+    g.save(); g.translate(x, y); g.rotate(a); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 4; g.beginPath(); g.arc(0, 0, r * 0.62, -0.6, 0.6); g.stroke(); g.restore();
+  });
+}
+function shade(hex) { const n = parseInt(hex.slice(1), 16); return `rgb(${(n >> 16) * 0.45 | 0},${(n >> 8 & 255) * 0.45 | 0},${(n & 255) * 0.45 | 0})`; }
+
+function ranking(t, f) {
+  // 들어온 순서 + 아직 달리는 구슬은 더 아래(앞)에 있는 순
+  const done = SIM.finish.filter((q) => q.t <= t).map((q) => q.id);
+  const rest = Course.MARBLES.map((m, k) => ({ m, y: f.m[k][1] })).filter((o) => !done.includes(o.m.id)).sort((a, b) => b.y - a.y).map((o) => o.m.id);
+  return [...done, ...rest];
+}
+function hud(t, f) {
+  // 위 제목
+  const gr = g.createLinearGradient(0, 0, 0, 300); gr.addColorStop(0, 'rgba(5,8,20,.85)'); gr.addColorStop(1, 'rgba(5,8,20,0)'); g.fillStyle = gr; g.fillRect(0, 0, W, 300);
+  round(56, 60, 520, 70, 35); g.fillStyle = '#ff7ad9'; g.fill(); text('구슬 레이스 #1 · 골드버그 코스', 316, 96, 34, '#1a0f2e');
+  // 실시간 순위 (왼쪽 위)
+  const order = ranking(t, f);
+  order.forEach((id, i) => {
+    const m = Course.MARBLES.find((q) => q.id === id), done = SIM.finish.find((q) => q.id === id && q.t <= t);
+    const y = 180 + i * 64; g.fillStyle = 'rgba(10,14,32,.75)'; round(56, y - 26, 250, 52, 26); g.fill();
+    text(`${i + 1}`, 92, y + 1, 32, '#fff'); g.fillStyle = m.color; g.beginPath(); g.arc(140, y, 16, 0, 7); g.fill();
+    text(m.name + (done ? ' ✓' : ''), 172, y + 1, 30, done ? '#ffe48a' : '#fff', 800, 'left');
+  });
+  // 오른쪽 진행 막대
+  const x0 = 1040, top = 200, bot = 1700; g.fillStyle = 'rgba(255,255,255,.12)'; round(x0 - 6, top, 12, bot - top, 6); g.fill();
+  f.m.forEach(([, y], k) => { const u = clamp01(y / C.finishY); g.fillStyle = Course.MARBLES[k].color; g.beginPath(); g.arc(x0, top + u * (bot - top), 14, 0, 7); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 3; g.stroke(); });
+  text('🏁', x0, bot + 34, 34, '#fff');
+  // 결승 알림
+  SIM.finish.forEach((q, i) => {
+    const a = pop(q.t, 0.4, t) * (1 - smooth(q.t + 1.8, q.t + 2.3, t)); if (a <= 0) return;
+    const m = Course.MARBLES.find((z) => z.id === q.id);
+    g.save(); g.translate(W / 2, 820); g.scale(a, a); round(-330, -80, 660, 160, 40); g.fillStyle = m.color; g.fill();
+    text(`${i + 1}등 ${m.name}!`, 0, -6, 84, '#111'); text(`${q.t.toFixed(2)}초`, 0, 52, 36, 'rgba(0,0,0,.7)', 600); g.restore();
+  });
+}
+function hook(t) {
+  const a = 1 - smooth(2.1, 2.6, t); if (a <= 0) return;
+  g.globalAlpha = a; g.fillStyle = 'rgba(5,8,20,.55)'; g.fillRect(0, 520, W, 520);
+  const p = pop(0.1, 0.5, t); g.save(); g.translate(W / 2, 700); g.scale(p, p);
+  text('어느 색이 1등일까?', 0, 0, 100, '#fff');
+  text('출발 전에 댓글로 찍어 보세요 👇', 0, 110, 50, '#ffe48a', 600); g.restore();
+  Course.MARBLES.forEach((m, i) => { const q = pop(0.6 + i * 0.12, 0.35, t); g.save(); g.translate(240 + i * 200, 960); g.scale(q, q); g.fillStyle = m.color; g.beginPath(); g.arc(0, 0, 40, 0, 7); g.fill(); text(m.name, 0, 72, 36, '#fff'); g.restore(); });
+  g.globalAlpha = 1;
+}
+function endCard(t) {
+  const last = SIM.finish.length ? SIM.finish[SIM.finish.length - 1].t : DUR - 4;
+  const a = smooth(last + 1.2, last + 1.8, t); if (a <= 0) return;
+  g.globalAlpha = a; g.fillStyle = 'rgba(5,8,20,.82)'; g.fillRect(0, 0, W, H);
+  text('최종 순위', W / 2, 520, 90, '#fff');
+  SIM.finish.forEach((q, i) => {
+    const m = Course.MARBLES.find((z) => z.id === q.id), y = 700 + i * 150, p = pop(last + 1.5 + i * 0.25, 0.35, t);
+    g.save(); g.translate(W / 2, y); g.scale(p, p); round(-380, -58, 760, 116, 58); g.fillStyle = i ? 'rgba(255,255,255,.1)' : 'rgba(255,228,138,.25)'; g.fill();
+    text(['🥇', '🥈', '🥉', '4'][i], -300, 4, 54, '#fff'); g.fillStyle = m.color; g.beginPath(); g.arc(-190, 0, 32, 0, 7); g.fill();
+    text(m.name, -130, 4, 54, '#fff', 800, 'left'); text(`${q.t.toFixed(2)}초`, 330, 4, 44, '#ffe48a', 600, 'right'); g.restore();
+  });
+  text('맞히셨어요? 다음 코스는 댓글로 골라요', W / 2, 1380, 46, '#ffe48a', 600);
+  text('물리 계산으로 움직여요 · 결과는 미리 정하지 않았어요', W / 2, 1460, 32, 'rgba(255,255,255,.6)', 600);
+  g.globalAlpha = 1;
+}
+function render(t) {
+  const f = frameAt(t), cy = camAt(t);
+  bg(cy);
+  g.save(); g.translate(0, -cy); drawWorld(t, f); g.restore();
+  hud(t, f); hook(t); endCard(t);
+}
+function thumb({ lines, kicker, channel }) {
+  const t = 16; render(t);
+  g.fillStyle = 'rgba(5,8,20,.55)'; g.fillRect(0, 0, W, H);
+  round(270, 230, 540, 90, 45); g.fillStyle = '#ff7ad9'; g.fill(); text(kicker, W / 2, 276, 44, '#1a0f2e');
+  lines.forEach((l, i) => text(l, W / 2, 470 + i * 170, 140, i ? '#ffe48a' : '#fff'));
+  Course.MARBLES.forEach((m, i) => { g.fillStyle = m.color; g.beginPath(); g.arc(240 + i * 200, 1040, 60, 0, 7); g.fill(); });
+  text(channel, W / 2, 1660, 50, 'rgba(255,255,255,.85)', 600);
+}
+window.thumb = thumb; window.render = render;
+window.ready = document.fonts.load('800 40px P').then(() => document.fonts.load('600 40px P')).then(() => { prepare(); window.DUR = DUR; window.EVENTS = { hits: SIM.hits, finish: SIM.finish, dur: DUR }; render(0); return true; });
+</script></body></html>
