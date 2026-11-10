@@ -1,75 +1,61 @@
-import { SAVE_VERSION } from './generate';
 import type { GameState } from './types';
 
-/**
- * Saves go to IndexedDB: a full world is a couple of megabytes, which is
- * uncomfortably close to localStorage's quota on some phones. localStorage
- * only remembers whether a save exists, so the start screen can render
- * synchronously.
- */
+const KEY = 'gaffer.save.v1';
 
-const DB = 'gaffer26';
-const STORE = 'saves';
-const KEY = 'career';
-const FLAG = 'gaffer26.hasSave';
-
-function open(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function tx<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  const db = await open();
-  return new Promise((resolve, reject) => {
-    const t = db.transaction(STORE, mode);
-    const req = run(t.objectStore(STORE));
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-export async function saveGame(state: GameState): Promise<void> {
+export function saveGame(state: GameState): void {
   try {
-    await tx('readwrite', (s) => s.put(JSON.stringify(state), KEY));
-    try {
-      localStorage.setItem(FLAG, '1');
-    } catch {
-      // Flag is only a hint for the start screen.
-    }
-  } catch (error) {
-    console.warn('save failed', error);
+    localStorage.setItem(KEY, JSON.stringify(state));
+  } catch {
+    // Storage full or unavailable (private mode). The game stays playable
+    // in memory, so failing quietly is better than interrupting a match.
   }
 }
 
-export async function loadGame(): Promise<GameState | null> {
+export function loadGame(): GameState | null {
   try {
-    const raw = await tx<string | undefined>('readonly', (s) => s.get(KEY) as IDBRequest<string | undefined>);
+    const raw = localStorage.getItem(KEY);
     if (!raw) return null;
-    const state = JSON.parse(raw) as GameState;
-    if (state.version !== SAVE_VERSION) return null;
-    return state;
+    const parsed = JSON.parse(raw) as GameState;
+    // Guard against a save written by an incompatible build.
+    if (!parsed?.teams || !parsed?.fixtures || !parsed?.clubId) return null;
+    return migrate(parsed);
   } catch {
     return null;
   }
 }
 
+/**
+ * Fill in fields added after a save was written, so an in-progress career
+ * survives an update instead of being thrown away.
+ */
+function migrate(state: GameState): GameState {
+  if (!state.leagueName) state.leagueName = '프리미어 리그';
+  if (!state.transfer) state.transfer = { listed: [], offers: [], log: [] };
+  if (!state.transfer.listed) state.transfer.listed = [];
+  if (!state.transfer.offers) state.transfer.offers = [];
+  if (!state.transfer.log) state.transfer.log = [];
+
+  Object.values(state.teams).forEach((team) => {
+    if (typeof team.wageBudget !== 'number') {
+      team.wageBudget = Math.round(team.players.reduce((sum, p) => sum + p.wage, 0) * 1.25);
+    }
+  });
+
+  return state;
+}
+
 export function hasSave(): boolean {
   try {
-    return localStorage.getItem(FLAG) === '1';
+    return localStorage.getItem(KEY) !== null;
   } catch {
     return false;
   }
 }
 
-export async function clearSave(): Promise<void> {
+export function clearSave(): void {
   try {
-    await tx('readwrite', (s) => s.delete(KEY));
-    localStorage.removeItem(FLAG);
+    localStorage.removeItem(KEY);
   } catch {
-    // Nothing to clear.
+    // Nothing to do — the caller is starting a new game either way.
   }
 }

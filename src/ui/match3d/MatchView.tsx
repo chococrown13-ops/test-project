@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Club } from '../../game/types';
+import type { Team } from '../../game/types';
 import { MatchPitch } from '../match2d/MatchPitch';
-import { readableOn, type MatchDirector, type SceneView } from '../match2d/director';
+import { readableOn, type MatchDirector } from '../match2d/director';
 import type { CameraMode, Match3D } from './scene3d';
 
 type ViewMode = '3d' | '2d';
@@ -49,8 +49,8 @@ export function MatchView({
   clock,
 }: {
   director: MatchDirector;
-  home: Club;
-  away: Club;
+  home: Team;
+  away: Team;
   score: { home: number; away: number };
   clock: string;
 }) {
@@ -81,14 +81,14 @@ export function MatchView({
       )}
 
       <div className="scorebug" aria-live="polite">
-        <span className="scorebug__team" style={{ background: home.primary, color: readableOn(home.primary) }}>
-          {home.short}
+        <span className="scorebug__team" style={{ background: home.color, color: readableOn(home.color) }}>
+          {home.shortName}
         </span>
         <span className="scorebug__score">
           {score.home} - {score.away}
         </span>
-        <span className="scorebug__team" style={{ background: away.primary, color: readableOn(away.primary) }}>
-          {away.short}
+        <span className="scorebug__team" style={{ background: away.color, color: readableOn(away.color) }}>
+          {away.shortName}
         </span>
         <span className="scorebug__clock">{clock}</span>
       </div>
@@ -127,7 +127,6 @@ function Stadium3D({
   const failRef = useRef(onFail);
   failRef.current = onFail;
   const [loading, setLoading] = useState(true);
-  const [replaying, setReplaying] = useState(false);
 
   useEffect(() => {
     sceneRef.current?.setCameraMode(camera);
@@ -138,23 +137,13 @@ function Stadium3D({
     let frame = 0;
     let observer: ResizeObserver | null = null;
     let scene: Match3D | null = null;
-    director.setReplaysEnabled(true);
-
-    // Recent frames, so a goal can be shown again. Only the last few seconds
-    // are kept; that is all a replay needs.
-    const recorded: SceneView[] = [];
-    let goalTime: number | null = null;
-    let wasCelebrating = false;
-    let replayShown = false;
 
     // three.js is only fetched once somebody actually watches a match.
-    // The motion-captured player model loads alongside; without it the
-    // renderer falls back to its simple built-in players.
-    Promise.all([import('./scene3d'), import('./playerModel').then((m) => m.loadPlayerModel(new URL('models/player.json', document.baseURI).href))])
-      .then(([{ Match3D }, model]) => {
+    import('./scene3d')
+      .then(({ Match3D }) => {
         if (cancelled || !canvasRef.current || !wrapRef.current) return;
         const wrap = wrapRef.current;
-        scene = new Match3D(canvasRef.current, model);
+        scene = new Match3D(canvasRef.current);
         sceneRef.current = scene;
         scene.setCameraMode(cameraRef.current);
         const resize = () => scene?.setSize(wrap.clientWidth, wrap.clientHeight);
@@ -186,28 +175,8 @@ function Stadium3D({
             }
           }
           director.update(dt);
-          const live = director.view();
-          let view = live;
-
-          if (live.replay && goalTime !== null) {
-            // Slow motion from a few seconds before the goal to just after it.
-            const start = goalTime - 4.2;
-            const end = goalTime + 0.7;
-            const at = start + (live.replay.t / live.replay.dur) * (end - start);
-            view = frameAt(recorded, at) ?? live;
-          } else {
-            recorded.push(snapshot(live));
-            while (recorded.length > 0 && recorded[0].time < live.time - 8) recorded.shift();
-            const celebrating = live.celebrating !== null;
-            if (celebrating && !wasCelebrating) goalTime = live.time;
-            wasCelebrating = celebrating;
-          }
-          const inReplay = !!live.replay && view !== live;
-          if (inReplay !== replayShown) {
-            replayShown = inReplay;
-            setReplaying(inReplay);
-          }
-          scene!.render(view, dt, inReplay);
+          const view = director.view();
+          scene!.render(view, dt);
 
           // The banner is plain DOM over the canvas; touch it only on change.
           const el = bannerRef.current;
@@ -245,7 +214,6 @@ function Stadium3D({
 
     return () => {
       cancelled = true;
-      director.setReplaysEnabled(false);
       cancelAnimationFrame(frame);
       observer?.disconnect();
       scene?.dispose();
@@ -258,40 +226,6 @@ function Stadium3D({
       <canvas ref={canvasRef} />
       <div ref={bannerRef} className="matchview__banner" style={{ opacity: 0 }} />
       {loading && <div className="stadium3d__loading">경기장 불러오는 중…</div>}
-      {replaying && (
-        <>
-          <div className="replay-tag">REPLAY</div>
-          <button type="button" className="replay-skip" onClick={() => director.skipReplay()}>
-            건너뛰기 ▶▶
-          </button>
-        </>
-      )}
     </div>
   );
-}
-
-/** A frozen copy of the scene, safe to keep after the director moves on. */
-function snapshot(view: SceneView): SceneView {
-  return {
-    ...view,
-    actors: view.actors.map((a) => ({ ...a, pos: { x: a.pos.x, y: a.pos.y } })),
-    ball: { ...view.ball },
-    dives: view.dives.map((d) => ({ ...d })),
-    markers: [],
-    banner: null,
-    replay: null,
-  };
-}
-
-/** The recorded frame at (or just before) director time `time`. */
-function frameAt(frames: SceneView[], time: number): SceneView | null {
-  if (frames.length === 0) return null;
-  let lo = 0;
-  let hi = frames.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (frames[mid].time <= time) lo = mid;
-    else hi = mid - 1;
-  }
-  return frames[lo];
 }
