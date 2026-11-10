@@ -257,11 +257,14 @@ export function draftHtml(w: World, kind: LineKind, stops: number[]): string {
   return `<span class="draft-msg">${msg}</span><button class="btn small" data-draft="undo"${stops.length ? '' : ' disabled'}>되돌리기</button><button class="btn small" data-draft="cancel">취소</button><button class="btn primary small" data-draft="done"${stops.length >= 2 && cost <= w.money ? '' : ' disabled'}>노선 완성</button>`;
 }
 
-export function menuHtml(w: World, quality: 'high' | 'normal'): string {
+const STYLE_NAME = { lowpoly: '로우폴리', toon: '툰', pixel: '픽셀' } as const;
+
+export function menuHtml(w: World, quality: 'high' | 'normal', style: keyof typeof STYLE_NAME = 'lowpoly'): string {
   let h = head('메뉴');
   h += `<p class="hint">${esc(w.name)}, ${dateText(w.day)}</p><div class="menu">`;
   h += '<button class="btn" data-act="save">저장하기</button><button class="btn" data-act="load">마지막 저장 불러오기</button><button class="btn" data-act="new">새 도시</button><button class="btn" data-act="help">조작법</button>';
-  h += `<button class="btn" data-act="quality" aria-pressed="${quality === 'high'}">그래픽 품질: ${quality === 'high' ? '높음' : '보통'}</button></div>`;
+  h += `<button class="btn" data-act="quality" aria-pressed="${quality === 'high'}">그래픽 품질: ${quality === 'high' ? '높음' : '보통'}</button>`;
+  h += `<button class="btn" data-act="style">그림체: ${STYLE_NAME[style]}</button></div>`;
   h += '<h4>최근 소식</h4><ol class="log">' + w.notices.slice(0, 20).map((n) => `<li><span>${dateText(n.day)}</span>${esc(n.text)}</li>`).join('') + '</ol>';
   return h;
 }

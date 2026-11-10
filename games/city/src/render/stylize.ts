@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { FullScreenQuad, Pass } from 'three/examples/jsm/postprocessing/Pass.js';
 
+/** 0 low-poly (soft ink, gentle grade), 1 toon (cel bands, bold ink), 2 pixel (crisp ink, retro palette). */
+export type ArtStyle = 'lowpoly' | 'toon' | 'pixel';
+const STYLE_ID: Record<ArtStyle, number> = { lowpoly: 0, toon: 1, pixel: 2 };
+
 /**
  * The illustrated look: soft ink lines where depth or surface direction
  * changes, drawn in a darker shade of whatever lies beneath (never pure
@@ -24,6 +28,7 @@ export class StylizePass extends Pass {
     uFade: { value: new THREE.Vector2(400, 1600) },
     uStrength: { value: 0.55 },
     uNight: { value: 0 },
+    uStyle: { value: 0 },
   };
   /** Normal buffer size relative to the screen: 1 sharp, 0.5 for lighter devices. */
   normalScale = 1;
@@ -39,7 +44,7 @@ export class StylizePass extends Pass {
       fragmentShader: /* glsl */ `
         uniform sampler2D tDiffuse, tDepth, tNormal;
         uniform vec2 uTexel, uFade;
-        uniform float uNear, uFar, uStrength, uNight;
+        uniform float uNear, uFar, uStrength, uNight, uStyle;
         varying vec2 vUv;
         float lin(vec2 uv) {
           float d = texture2D(tDepth, uv).x;
@@ -62,16 +67,33 @@ export class StylizePass extends Pass {
             float normalEdge = smoothstep(0.35, 0.9, nd);
             float edge = max(depthEdge, normalEdge * 0.75);
             float fade = 1.0 - smoothstep(uFade.x, uFade.y, d0);
+            if (uStyle > 0.5) {
+              // Toon: cel bands. Brightness snaps to four steps (soft at the seams), hue kept.
+              float l0 = max(dot(col, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
+              float g = pow(l0, 1.0 / 2.2) * 4.0;
+              float q = (floor(g) + smoothstep(0.4, 0.6, fract(g))) / 4.0;
+              if (uStyle < 1.5) col *= pow(max(q, 0.06), 2.2) / l0;
+              // Bolder lines, further out; crisp on/off ones for pixel art.
+              edge = uStyle > 1.5 ? step(0.45, edge) : smoothstep(0.15, 0.6, edge);
+              fade = 1.0 - smoothstep(uFade.x * 1.6, uFade.y * 1.6, d0);
+            }
             // Ink is the colour beneath, darker and a touch warmer: never a black stroke.
-            vec3 ink = col * vec3(0.5, 0.44, 0.4);
+            vec3 ink = col * (uStyle > 0.5 ? vec3(0.26, 0.22, 0.2) : vec3(0.5, 0.44, 0.4));
             col = mix(col, ink, edge * fade * uStrength);
           }
           // Gentle grade: a little more colour, warm light by day, a faint vignette.
           float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
-          col = mix(vec3(lum), col, 1.08);
+          col = mix(vec3(lum), col, uStyle > 0.5 ? 1.2 : 1.08);
           col *= mix(vec3(1.035, 1.0, 0.955), vec3(0.98, 0.99, 1.03), uNight);
           vec2 c = vUv - 0.5;
           col *= 1.0 - 0.12 * smoothstep(0.45, 0.95, length(c * vec2(1.25, 1.0)));
+          if (uStyle > 1.5) {
+            // Pixel art: a small palette per channel, with ordered dithering between steps.
+            vec2 p = mod(floor(gl_FragCoord.xy), 2.0);
+            float bayer = ((p.x * 2.0 + p.y * 3.0 - 2.0 * p.x * p.y) / 4.0 - 0.375) * 0.6;
+            vec3 gcol = pow(max(col, 0.0), vec3(1.0 / 2.2)) * 10.0 + bayer;
+            col = pow(floor(gcol + 0.5) / 10.0, vec3(2.2));
+          }
           gl_FragColor = vec4(col, base.a);
         }`,
     });
@@ -87,8 +109,11 @@ export class StylizePass extends Pass {
   configure(viewDist: number, night: number) {
     this.uniforms.uFade.value.set(viewDist * 1.1, viewDist * 3.6);
     this.uniforms.uNight.value = night;
-    this.uniforms.uStrength.value = 0.55 - night * 0.2;
+    const s = this.uniforms.uStyle.value;
+    this.uniforms.uStrength.value = (s === 1 ? 0.9 : s === 2 ? 0.75 : 0.55) - night * 0.2;
   }
+
+  set style(s: ArtStyle) { this.uniforms.uStyle.value = STYLE_ID[s]; }
 
   render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget, readBuffer: THREE.WebGLRenderTarget) {
     // Normal buffer: opaque geometry only, no shadows, no sky, sprites or see-through overlays.

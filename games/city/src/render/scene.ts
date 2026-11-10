@@ -10,7 +10,7 @@ import { calendarMonth, DAY_SECONDS, type Sim } from '../sim/sim';
 import { busRoute } from '../sim/transit';
 import type { LineKind } from '../sim/transit';
 import { Atmosphere } from './atmosphere';
-import { StylizePass } from './stylize';
+import { StylizePass, type ArtStyle } from './stylize';
 import { BuildingLayer } from './buildings';
 import { CityCamera } from './camera';
 import { GroundLayer, type Overlay } from './ground';
@@ -42,6 +42,7 @@ export class CityScene {
   private bloom: UnrealBloomPass;
   private stylize: StylizePass;
   quality: Quality = 'high';
+  style: ArtStyle = 'lowpoly';
   private ray = new THREE.Raycaster();
   private plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private paintVer = '';
@@ -88,9 +89,17 @@ export class CityScene {
   }
 
   /** High: full pixel ratio, sharp shadows, clouds and night bloom. Normal: lighter for phones. */
+  /** Low-poly, toon or pixel art. Pixel art renders at a third of the screen and scales up unsmoothed. */
+  setStyle(s: ArtStyle) {
+    this.style = s;
+    this.stylize.style = s;
+    this.renderer.domElement.style.imageRendering = s === 'pixel' ? 'pixelated' : '';
+    this.setQuality(this.quality);
+  }
+
   setQuality(q: Quality) {
     this.quality = q;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, q === 'high' ? 2 : 1.25));
+    this.renderer.setPixelRatio(this.style === 'pixel' ? 1 / 3 : Math.min(window.devicePixelRatio, q === 'high' ? 2 : 1.25));
     const size = q === 'high' ? 2048 : 1024;
     if (this.sun.shadow.mapSize.x !== size) {
       this.sun.shadow.mapSize.set(size, size);
@@ -99,7 +108,7 @@ export class CityScene {
     }
     this.atmo.cloudsOn = q === 'high';
     // Phones: no multisampling and a half-size normal buffer for the outlines.
-    const samples = q === 'high' ? 4 : 0;
+    const samples = q === 'high' && this.style !== 'pixel' ? 4 : 0;
     for (const t of [this.composer.renderTarget1, this.composer.renderTarget2]) if (t.samples !== samples) { t.samples = samples; t.dispose(); }
     this.stylize.normalScale = q === 'high' ? 1 : 0.5;
     const s = new THREE.Vector2();

@@ -20,9 +20,14 @@ let sim: Sim = createSim(createWorld());
 const scene = new CityScene(canvas, sim);
 // Phones start on normal quality; the choice is remembered per browser.
 const QKEY = 'city.quality';
+const SKEY = 'city.style';
 let savedQ: string | null = null;
 try { savedQ = localStorage.getItem(QKEY); } catch { /* storage blocked */ }
 scene.setQuality(savedQ === 'high' || savedQ === 'normal' ? savedQ : matchMedia('(pointer: coarse)').matches ? 'normal' : 'high');
+// The art style, remembered per browser too.
+let savedS: string | null = null;
+try { savedS = localStorage.getItem(SKEY); } catch { /* storage blocked */ }
+if (savedS === 'toon' || savedS === 'pixel') scene.setStyle(savedS);
 let speed = 0;
 let running = false;
 let tool: ToolId = 'select';
@@ -176,7 +181,7 @@ function renderPanel(force = false) {
   const stamp = panel === 'budget' ? `${w.reports.length}:${w.tax.R}${w.tax.C}${w.tax.I}` : panel === 'stats' ? `${w.day}:${scene.overlay}` : panel === 'lines' ? `${w.ver.transit}:${w.reports.length}:${confirmLine}` : panel;
   if (!force && stamp === panelStamp) return;
   panelStamp = stamp;
-  $('panel').innerHTML = panel === 'budget' ? budgetHtml(w) : panel === 'stats' ? statsHtml(w, scene.overlay) : panel === 'menu' ? menuHtml(w, scene.quality) : panel === 'lines' ? linesHtml(w, confirmLine) : HELP;
+  $('panel').innerHTML = panel === 'budget' ? budgetHtml(w) : panel === 'stats' ? statsHtml(w, scene.overlay) : panel === 'menu' ? menuHtml(w, scene.quality, scene.style) : panel === 'lines' ? linesHtml(w, confirmLine) : HELP;
 }
 function openInfo(x: number, y: number) {
   infoCell = { x, y };
@@ -209,6 +214,13 @@ for (const id of ['info', 'panel']) {
     if (t.dataset.act === 'load') { const w = loadLocal(); if (w) { useWorld(w); toast('불러왔어요.', 'good'); } else toast('저장된 도시가 없어요.', 'warn'); }
     if (t.dataset.act === 'new') { closePanel(); setSpeed(0); running = false; $('start').hidden = false; }
     if (t.dataset.act === 'help') openPanel('help');
+    if (t.dataset.act === 'style') {
+      const order = ['lowpoly', 'toon', 'pixel'] as const;
+      scene.setStyle(order[(order.indexOf(scene.style) + 1) % order.length]);
+      try { localStorage.setItem(SKEY, scene.style); } catch { /* storage blocked */ }
+      renderPanel(true);
+      return;
+    }
     if (t.dataset.act === 'quality') {
       scene.setQuality(scene.quality === 'high' ? 'normal' : 'high');
       try { localStorage.setItem(QKEY, scene.quality); } catch { /* storage blocked */ }
