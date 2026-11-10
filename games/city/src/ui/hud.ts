@@ -1,5 +1,6 @@
 import { displayName, Ground, KINDS, LEVEL_NAME, N, Road, SERVICE, ZONE_NAME, Zone } from '../sim/defs';
 import { monthExpense, monthIncome } from '../sim/economy';
+import { curveInfo } from '../sim/curves';
 import { network } from '../sim/network';
 import { busCount, lineCost, lineUpkeep, type LineKind } from '../sim/transit';
 import { idx, type Building, type World } from '../sim/world';
@@ -150,7 +151,7 @@ export function infoHtml(w: World, x: number, y: number): string {
     return h;
   }
   if (w.road[i] || w.roadAlt[i]) {
-    const t = !w.road[i] ? LEVEL_NAME[w.altLevel[i]] : w.diag[i] ? '대각선 도로' : w.road[i] === Road.Avenue ? '4차선 대로' : '일반 도로';
+    const t = !w.road[i] ? LEVEL_NAME[w.altLevel[i]] : curveInfo(w).owned[i] ? '곡선 도로' : w.diag[i] ? '대각선 도로' : w.road[i] === Road.Avenue ? '4차선 대로' : '일반 도로';
     const load = Math.round(Math.min(150, w.traffic[i] * 100));
     const stops = w.lines.filter((l) => l.kind === 'bus' && l.stops.includes(i));
     let h = `${head(t)}${kv('교통량', state(toneOf(100 - load), `${load}%`))}${meter(100 - load)}`;
@@ -260,7 +261,7 @@ export const HELP = `${head('조작법')}
 <h4>카메라</h4>
 ${kv('이동', 'WASD, 방향키, 가운데 버튼 드래그')}${kv('회전', '우클릭 드래그, Q와 E')}${kv('확대', '마우스 휠, R과 F')}${kv('모바일', '두 손가락으로 이동, 확대, 회전')}
 <h4>건설</h4>
-${kv('도로', '드래그해서 직선이나 ㄱ자, 대각선을 켜면 45도')}${kv('고가와 터널', '도로 끝에서 끝까지 끌면 양 끝이 진입로가 돼요')}${kv('구역', '드래그해서 사각형으로 칠하기')}${kv('시설', '탭하거나 클릭해서 배치')}${kv('노선', '정류장을 차례로 찍고 완성')}${kv('취소', 'Esc 또는 우클릭')}
+${kv('도로', '드래그해서 직선이나 ㄱ자, 대각선은 45도')}${kv('곡선 도로', '시작점에서 끝점까지 끈 뒤 굽힐 곳을 눌러요. 길 끝에 맞추면 매끄럽게 이어져요')}${kv('고가와 터널', '도로 끝에서 끝까지 끌면 양 끝이 진입로가 돼요')}${kv('구역', '드래그해서 사각형으로 칠하기')}${kv('시설', '탭하거나 클릭해서 배치')}${kv('노선', '정류장을 차례로 찍고 완성')}${kv('취소', 'Esc 또는 우클릭')}
 <h4>단축키</h4>
-${kv('도구', 'Z 도로, X 구역, C 전기, V 상하수도, B 공공, N 대중교통, M 공원, L 명소')}${kv('대각선', 'T')}${kv('속도', 'Space 멈춤, 1, 2, 3')}
+${kv('도구', 'Z 도로, X 구역, C 전기, V 상하수도, B 공공, N 대중교통, M 공원, L 명소')}${kv('직각, 대각선, 곡선', 'T')}${kv('속도', 'Space 멈춤, 1, 2, 3')}
 <p class="hint">전기와 수도는 도로 밑으로 흘러요. 발전소와 정수장이 도로망에 붙어 있어야 해요. 화력 발전소, 하수처리장, 공장은 오염을 내니 주거지와 떨어뜨리세요.</p>`;

@@ -1,4 +1,5 @@
 import { CELL, ELEVATED_Y, Level, N, UNDER_Y } from '../sim/defs';
+import { curveInfo } from '../sim/curves';
 import { isRamp, NN } from '../sim/graph';
 import type { World } from '../sim/world';
 
@@ -24,8 +25,12 @@ export function nodeY(w: World, node: number): number {
   return ramp ? 0.12 : UNDER_Y;
 }
 
-/** Centre of a node's cell in world coordinates. */
-export function nodeCentre(node: number) {
+/** Where traffic passes through a node: the cell centre, or the nearest point of a curve laid through it. */
+export function nodeCentre(node: number, w?: World) {
   const c = node >= NN ? node - NN : node;
+  if (w && node < NN && w.curves.length) {
+    const ci = curveInfo(w);
+    if (ci.owned[c]) return { x: ci.px[c], z: ci.pz[c] };
+  }
   return { x: (c % N) * CELL + CELL / 2, z: Math.floor(c / N) * CELL + CELL / 2 };
 }

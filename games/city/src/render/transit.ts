@@ -89,7 +89,7 @@ export class TransitLayer {
       if (l.kind === 'bus') {
         for (const s of l.stops) if (!done.has(s)) { done.add(s); this.shelter(w, s, l.color); }
         const p = busRoute(w, l.stops, l.id);
-        if (p) this.routes.add(ribbon(Array.from(p).map(nodeCentre), l.color, 1.6, 0.7));
+        if (p) this.routes.add(ribbon(Array.from(p).map((n) => nodeCentre(n, w)), l.color, 1.6, 0.7));
       } else {
         this.routes.add(ribbon(l.stops.map(centre), l.color, 3.2, 0.9));
         for (const s of l.stops) this.routes.add(disc(centre(s), l.color, 4.2));
@@ -122,7 +122,7 @@ export class TransitLayer {
     const color = draft.kind === 'bus' ? '#2e9e4f' : '#263c96';
     for (const s of draft.stops) this.draft.add(disc(centre(s), color, draft.kind === 'bus' ? 3 : 4.5, 1.2));
     if (draft.stops.length < 2) return;
-    const pts = draft.kind === 'bus' ? Array.from(busRoute(w, draft.stops) ?? []).map(nodeCentre) : draft.stops.map(centre);
+    const pts = draft.kind === 'bus' ? Array.from(busRoute(w, draft.stops) ?? []).map((n) => nodeCentre(n, w)) : draft.stops.map(centre);
     if (pts.length > 1) this.draft.add(ribbon(pts, color, draft.kind === 'bus' ? 1.6 : 3.2, 1.1));
   }
 
@@ -179,7 +179,7 @@ function along(w: World, path: Int32Array, s: number, loop: boolean) {
   const L = path.length - 1;
   if (loop) s = ((s % L) + L) % L; else s = Math.max(0, Math.min(L, s));
   const i = Math.min(L - 1, Math.floor(s)), f = s - i;
-  const a = nodeCentre(path[i]), b = nodeCentre(path[i + 1]);
+  const a = nodeCentre(path[i], w), b = nodeCentre(path[i + 1], w);
   const len = Math.hypot(b.x - a.x, b.z - a.z) || 1;
   const dx = (b.x - a.x) / len, dz = (b.z - a.z) / len;
   const y = nodeY(w, path[i]) + (nodeY(w, path[i + 1]) - nodeY(w, path[i])) * f;

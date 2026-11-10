@@ -1,5 +1,6 @@
 import { BRIDGE_MULT, Ground, KINDS, Level, LEVEL_COST, LEVEL_NAME, N, Road, ROAD_COST, UNIQUE, Zone, ZONE_DEPTH, type BuildingKind } from './defs';
 import { DIAG, isRamp, oppositeDiag } from './graph';
+import { bezLength, coverCells, curveCells, curveInfo, curveProblem, pruneCurves, type Curve } from './curves';
 import { findAccess, invalidateNetwork } from './network';
 import { idx, inside, notify, rand, type Building, type World } from './world';
 
@@ -145,6 +146,7 @@ export function placeAltRoad(w: World, drag: number[], level: Level): string | n
     w.roadAlt[i] = Road.Avenue;
     w.altLevel[i] = level;
   });
+  pruneCurves(w);
   w.ver.roads++;
   w.ver.zones++;
   invalidateNetwork();
@@ -175,7 +177,7 @@ export function rectCells(x0: number, y0: number, x1: number, y1: number): numbe
 }
 
 export function zoneable(w: World, i: number): boolean {
-  if (w.road[i] || w.ground[i] !== Ground.Land || altBlocksGround(w, i)) return false;
+  if (w.road[i] || w.ground[i] !== Ground.Land || altBlocksGround(w, i) || curveInfo(w).cover[i]) return false;
   const id = w.bld[i];
   if (id >= 0 && !KINDS[w.buildings.get(id)!.kind].zone) return false;
   return roadDistance(w, i % N, (i / N) | 0) <= ZONE_DEPTH;
@@ -293,7 +295,7 @@ export function bulldoze(w: World, cells: number[]): number {
         roads++;
       }
     }
-    if (roads) { w.ver.roads++; invalidateNetwork(); }
+    if (roads) { pruneCurves(w); w.ver.roads++; invalidateNetwork(); }
     n += roads;
   }
   return n;
@@ -303,4 +305,43 @@ export function bulldoze(w: World, cells: number[]): number {
 function edgeLink(i: number): boolean {
   const x = i % N;
   return x <= 1;
+}
+
+/**
+ * A curved road from the centre of cell A to the centre of cell B, bent
+ * toward the control point (cx, cz) in metres. Laid as a chain of road cells
+ * like any other road; lots under its pavement are cleared and left unzoned.
+ */
+export function placeCurve(w: World, a: number, b: number, cx: number, cz: number, type: Road): string | null {
+  const c = curveOf(a, b, cx, cz, type);
+  const cells = curveCells(c);
+  const why = curveProblem(w, c, cells);
+  if (why) return why;
+  const had = cells.map((i) => w.road[i]);
+  const err = placeRoad(w, cells, type);
+  if (err) return err;
+  const own = cells.filter((_, k) => !had[k] && k > 0 && k < cells.length - 1);
+  for (const i of coverCells(c)) {
+    if (w.road[i]) continue;
+    const id = w.bld[i];
+    if (id >= 0 && KINDS[w.buildings.get(id)!.kind].zone) demolish(w, id);
+    w.zone[i] = Zone.None;
+  }
+  w.curves.push({ ...c, cells, own });
+  w.ver.roads++;
+  w.ver.zones++;
+  return null;
+}
+
+/** The curve (without its cells) a placement would make: also what the preview draws. */
+export function curveOf(a: number, b: number, cx: number, cz: number, type: Road): Omit<Curve, 'cells' | 'own'> {
+  const C = 10;
+  return { ax: (a % N) * C + C / 2, az: ((a / N) | 0) * C + C / 2, cx, cz, bx: (b % N) * C + C / 2, bz: ((b / N) | 0) * C + C / 2, t: type };
+}
+
+/** Cost of a curve, for the preview: its cells as a road. */
+export function curveCost(w: World, a: number, b: number, cx: number, cz: number, type: Road): { cells: number[]; cost: number; length: number } {
+  const c = curveOf(a, b, cx, cz, type);
+  const cells = curveCells(c);
+  return { cells, cost: roadCost(w, cells, type), length: Math.round(bezLength(c)) };
 }

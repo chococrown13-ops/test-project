@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CELL, KINDS, N, variantOf } from '../sim/defs';
+import { HALF_WIDTH, KERB, nearestCurve } from '../sim/curves';
 import { network } from '../sim/network';
 import type { Building, World } from '../sim/world';
 import { buildingMaterial, shared } from './materials';
@@ -42,7 +43,7 @@ const SIGN = ['#e74c3c', '#f1c40f', '#3498db', '#2ecc71', '#e67e22', '#9b59b6', 
 const FACTORY = ['#b8b2a6', '#9aa3a8', '#c2b8a3', '#8f9a92', '#a9a59b'];
 const FROOF = ['#4d6f9a', '#5e8a6e', '#7d8a93', '#3f6a8f'];
 
-function parts(b: Building, w: World): Part[] {
+function rawParts(b: Building, w: World): Part[] {
   const r = seq(b.look + b.id * 0.0137);
   const S = b.size * CELL;
   const cx = b.x * CELL + S / 2, cz = b.y * CELL + S / 2;
@@ -257,6 +258,43 @@ function parts(b: Building, w: World): Part[] {
       box(0, 9, 0, 4, 0.5, 1.2, '#2fa35a');
       box(0, 9, 0, 1.2, 0.5, 4, '#2fa35a');
       break;
+  }
+  return out;
+}
+
+/**
+ * Zoned buildings that front a curved road turn to face it, the way lots
+ * line a bending street: rotated to the curve's direction (by at most 45°,
+ * since a block reads the same every quarter turn), shrunk so the turned
+ * footprint still fits its lot, and nudged back off the pavement.
+ */
+function parts(b: Building, w: World): Part[] {
+  const out = rawParts(b, w);
+  if (!KINDS[b.kind].zone || !w.curves.length) return out;
+  const S = b.size * CELL;
+  const cx = b.x * CELL + S / 2, cz = b.y * CELL + S / 2;
+  const near = nearestCurve(w, cx, cz, S / 2 + 9);
+  if (!near) return out;
+  const a = network(w).access.get(b.id);
+  if (a === undefined || !near.c.cells.includes(a)) return out;
+  let phi = Math.atan2(-near.tan.z, near.tan.x);
+  phi -= Math.round(phi / (Math.PI / 2)) * (Math.PI / 2);
+  if (Math.abs(phi) < 0.03) return out;
+  const cos = Math.cos(phi), sin = Math.sin(phi);
+  let k = Math.min(1, 1.15 / (Math.abs(cos) + Math.abs(sin)));
+  const clear = HALF_WIDTH[near.c.t as 1 | 2] + KERB + 0.3;
+  const half = S * 0.42;
+  if (near.d - clear < half * k) k = Math.max(0.55, Math.min(k, (near.d - clear) / half));
+  // Back off along the normal if the shrunk lot still reaches the pavement.
+  const push = Math.min(2, Math.max(0, half * k - (near.d - clear)));
+  const nx = (cx - near.x) / (near.d || 1), nz = (cz - near.z) / (near.d || 1);
+  const ox = nx * push, oz = nz * push;
+  for (const p of out) {
+    const dx = (p.x - cx) * k, dz = (p.z - cz) * k;
+    p.x = cx + ox + dx * cos + dz * sin;
+    p.z = cz + oz - dx * sin + dz * cos;
+    p.sx *= k; p.sz *= k;
+    p.rot += phi;
   }
   return out;
 }

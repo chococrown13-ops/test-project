@@ -36,6 +36,7 @@ export function deserialize(json: string): World {
   for (const k of ['land', 'traffic', 'pollution'] as const) w[k] = unb64(o[k], (b) => new Float32Array(b));
   for (const k of ['edu', 'safety', 'fire', 'health', 'transit'] as const) w[k] = o[k] ? unb64(o[k], (b) => new Uint8Array(b)) : new Uint8Array(w.ground.length);
   w.lines ??= [];
+  w.curves ??= [];
   w.month.income.T ??= 0;
   w.month.expense.transit ??= 0;
   w.nextLine ??= 1;

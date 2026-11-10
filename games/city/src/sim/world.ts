@@ -1,3 +1,4 @@
+import type { Curve } from './curves';
 import { Ground, N, Road, START_MONEY, type BuildingKind } from './defs';
 import type { TransitLine } from './transit';
 
@@ -44,6 +45,8 @@ export interface World {
   altLevel: Uint8Array;
   /** Diagonal links of the ground road: 1 NE, 2 SE, 4 SW, 8 NW. */
   diag: Uint8Array;
+  /** Curved roads drawn over their chains of road cells (see curves.ts). */
+  curves: Curve[];
   zone: Uint8Array;
   bld: Int32Array;
   land: Float32Array;
@@ -123,6 +126,7 @@ export function createWorld(seed = 20261028, name = '새솔시'): World {
     roadAlt: new Uint8Array(size),
     altLevel: new Uint8Array(size),
     diag: new Uint8Array(size),
+    curves: [],
     zone: new Uint8Array(size),
     bld: new Int32Array(size).fill(-1),
     land: new Float32Array(size),

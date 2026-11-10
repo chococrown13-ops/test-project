@@ -2,8 +2,9 @@ import './style.css';
 import { CELL, Ground, KINDS, Level, LEVEL_NAME, N, Road, SERVICE, Zone } from './sim/defs';
 import { loadLocal, saveLocal } from './sim/save';
 import { createSim, tick, type Sim } from './sim/sim';
-import { altCells, altCost, altProblem, bulldoze, diagonalPath, paintZone, placeAltRoad, placeFacility, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
+import { altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
 import { createLine, removeLine, STOP_RADIUS, stopProblem, type LineKind } from './sim/transit';
+import { bez, curveProblem, HALF_WIDTH, snapControl } from './sim/curves';
 import { createWorld, idx, riverY } from './sim/world';
 import { CityScene } from './render/scene';
 import type { Overlay } from './render/ground';
@@ -26,8 +27,16 @@ let tool: ToolId = 'select';
 let cat: string | null = null;
 /** The bus or subway line being drawn: stops picked so far. */
 let draft: { kind: LineKind; stops: number[] } | null = null;
-/** Road tools draw 45° runs while this is on. */
-let diagonal = false;
+/** How road tools lay a drag: an L of straight runs, a 45° run first, or a curve bent after the drag. */
+type RoadMode = 'grid' | 'diag' | 'curve';
+let roadMode: RoadMode = 'grid';
+const ROAD_MODES: { id: RoadMode; name: string; hint: string }[] = [
+  { id: 'grid', name: '직각', hint: '가로세로' },
+  { id: 'diag', name: '대각선', hint: '45도' },
+  { id: 'curve', name: '곡선', hint: '끌고 굽히기' },
+];
+/** A curve dragged from a to b, waiting for its bend: the next press places the handle. */
+let bend: { a: number; b: number; hx: number; hz: number; active: boolean } | null = null;
 
 /* --------------------------------------------------------------- layout */
 
@@ -50,7 +59,7 @@ function renderCats() {
   const c = CATEGORIES.find((k) => k.id === cat);
   tools.hidden = !c || (c.tools.length < 2 && c.id !== 'transit');
   if (c) tools.innerHTML = c.tools.map((t) => `<button class="tool" data-tool="${t.id}" aria-pressed="${t.id === tool}">${t.swatch ? `<span class="sw" style="--sw:${t.swatch}"></span>` : ''}<span class="n">${t.name}</span>${t.price ? `<span class="p">${t.price}</span>` : ''}</button>`).join('')
-    + (c.id === 'road' ? `<span class="cats-rule" aria-hidden="true"></span><button class="tool" data-toggle="diag" aria-pressed="${diagonal}" aria-keyshortcuts="T"><span class="n">대각선</span><span class="p">${diagonal ? '켜짐' : '꺼짐'}</span></button>` : '')
+    + (c.id === 'road' ? `<span class="cats-rule" aria-hidden="true"></span>` + ROAD_MODES.map((m) => `<button class="tool" data-roadmode="${m.id}" aria-pressed="${roadMode === m.id}" aria-keyshortcuts="T"><span class="n">${m.name}</span><span class="p">${m.hint}</span></button>`).join('') : '')
     + (c.id === 'transit' ? `<button class="tool" data-panel="lines" aria-pressed="${panel === 'lines'}"><span class="n">노선 관리</span><span class="p">${sim.w.lines.length}개 운행 중</span></button>` : '');
   renderDraft();
 }
@@ -75,6 +84,7 @@ function finishDraft() {
 function setTool(t: ToolId) {
   tool = t;
   drag = null;
+  bend = null;
   scene.preview.clear();
   hideTip();
   const def = TOOLS[t];
@@ -90,7 +100,7 @@ $('dock').addEventListener('click', (e) => {
   if (!el) return;
   if (el.dataset.cat) selectCategory(el.dataset.cat); else if (el.dataset.tool) setTool(el.dataset.tool as ToolId);
   else if (el.dataset.panel) openPanel(el.dataset.panel as PanelKind);
-  else if (el.dataset.toggle === 'diag') toggleDiagonal();
+  else if (el.dataset.roadmode) setRoadMode(el.dataset.roadmode as RoadMode);
   else if (el.dataset.draft && draft) {
     if (el.dataset.draft === 'undo') draft.stops.pop();
     if (el.dataset.draft === 'cancel') { cat = null; setTool('select'); return; }
@@ -99,8 +109,10 @@ $('dock').addEventListener('click', (e) => {
   }
 });
 
-function toggleDiagonal() {
-  diagonal = !diagonal;
+function setRoadMode(m: RoadMode) {
+  roadMode = m;
+  bend = null;
+  scene.preview.clear();
   renderCats();
   preview();
 }
@@ -221,7 +233,7 @@ let drag: Drag | null = null;
 const pointers = new Map<number, { x: number; y: number }>();
 let gesture: { cx: number; cy: number; d: number; a: number } | null = null;
 let camDrag: { mode: 'pan' | 'rot'; x: number; y: number; moved: boolean } | null = null;
-let hover: { x: number; y: number; px: number; py: number } | null = null;
+let hover: { x: number; y: number; px: number; py: number; wx: number; wz: number } | null = null;
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}만 원`;
 const ZONE_COLOR: Record<number, string> = { [Zone.R]: '#4cc47c', [Zone.C]: '#3f7fd6', [Zone.I]: '#e3b04b' };
@@ -240,13 +252,15 @@ function preview() {
   if (!hover || tool === 'select' || !def) { p.clear(); hideTip(); return; }
   const a = drag ? { x: drag.sx, y: drag.sy } : hover;
   const b = hover;
+  if (def.road !== undefined && roadMode === 'curve') { previewCurve(def.road, a, b); return; }
+  p.path([], 0, '');
   if (def.road !== undefined) {
-    const cells = (diagonal ? diagonalPath : roadPath)(a.x, a.y, b.x, b.y);
+    const cells = (roadMode === 'diag' ? diagonalPath : roadPath)(a.x, a.y, b.x, b.y);
     const cost = roadCost(w, cells, def.road);
     const hill = cells.some((i) => w.ground[i] === Ground.Mountain);
     const bad = hill || roadBlocked(w, cells) || cost > w.money;
     p.show(cells, bad ? '#ff5a5a' : def.road === Road.Avenue ? '#8fd0ff' : '#c6f0ff');
-    showTip(b.px, b.py, hill ? '산은 터널로만 지날 수 있어요' : roadBlocked(w, cells) ? '시설과 겹쳐서 놓을 수 없어요' : cost > w.money ? `예산이 부족해요, ${won(cost)} 필요` : `${diagonal ? '대각선 ' : ''}${Math.round(cells.length * 10)}m, ${won(cost)}`, bad);
+    showTip(b.px, b.py, hill ? '산은 터널로만 지날 수 있어요' : roadBlocked(w, cells) ? '시설과 겹쳐서 놓을 수 없어요' : cost > w.money ? `예산이 부족해요, ${won(cost)} 필요` : `${roadMode === 'diag' ? '대각선 ' : ''}${Math.round(cells.length * 10)}m, ${won(cost)}`, bad);
     return;
   }
   if (def.level) {
@@ -291,13 +305,46 @@ function preview() {
   }
 }
 
+/** The curve tool: a straight band while dragging, then the bend follows the pointer until the next press. */
+function previewCurve(type: Road, a: { x: number; y: number }, b: { x: number; y: number; px: number; py: number; wx: number; wz: number }) {
+  const w = sim.w, p = scene.preview;
+  const ia = bend ? bend.a : idx(a.x, a.y), ib = bend ? bend.b : idx(b.x, b.y);
+  if (!bend && !drag) { p.show([ia], '#c6f0ff'); p.path([], 0, ''); showTip(b.px, b.py, '곡선: 시작점에서 끝점까지 끈 다음, 굽힐 곳을 눌러 주세요'); return; }
+  if (ia === ib) { p.show([ia], '#c6f0ff'); p.path([], 0, ''); return; }
+  const h = bend ? snapControl(w, ia, ib, bend.hx, bend.hz) : snapControl(w, ia, ib, -1e6, -1e6);
+  const ctl = bend ? h : { x: (((ia % N) + (ib % N)) / 2 + 0.5) * CELL, z: ((((ia / N) | 0) + ((ib / N) | 0)) / 2 + 0.5) * CELL };
+  const c = curveOf(ia, ib, ctl.x, ctl.z, type);
+  const { cells, cost, length } = curveCost(w, ia, ib, ctl.x, ctl.z, type);
+  const why = curveProblem(w, c, cells) ?? (cells.some((i) => w.ground[i] === Ground.Mountain) ? '산은 터널로만 지날 수 있어요' : roadBlocked(w, cells) ? '시설과 겹쳐서 놓을 수 없어요' : cost > w.money ? `예산이 부족해요, ${won(cost)} 필요` : null);
+  const pts = Array.from({ length: 41 }, (_, k) => bez(c, k / 40));
+  p.show(cells, why ? '#ff5a5a' : type === Road.Avenue ? '#8fd0ff' : '#c6f0ff', 0.3);
+  p.path(pts, HALF_WIDTH[type as 1 | 2] * 2, why ? '#ff8a8a' : '#ffffff', bend ? ctl : undefined);
+  const snapNote = bend && h.snap === 'tangent' ? ' · 매끄럽게 이어짐' : bend && h.snap === 'straight' ? ' · 직선' : '';
+  showTip(b.px, b.py, why ?? (bend ? `곡선 ${length}m, ${won(cost)}${snapNote} · 눌러서 완성` : `${length}m · 손을 떼면 굽힐 수 있어요`), !!why);
+}
+
+function commitCurve() {
+  if (!bend) return;
+  const def = TOOLS[tool];
+  const h = snapControl(sim.w, bend.a, bend.b, bend.hx, bend.hz);
+  const err = placeCurve(sim.w, bend.a, bend.b, h.x, h.z, def.road!);
+  bend = null;
+  scene.preview.clear();
+  if (err) toast(err, 'warn');
+}
+
 function commit() {
   const def = TOOLS[tool];
   if (!drag || !def) return;
   const w = sim.w;
   const a = { x: drag.sx, y: drag.sy }, b = { x: drag.cx, y: drag.cy };
   let err: string | null = null;
-  if (def.road !== undefined) err = placeRoad(w, (diagonal ? diagonalPath : roadPath)(a.x, a.y, b.x, b.y), def.road);
+  if (def.road !== undefined && roadMode === 'curve') {
+    // Release ends the drag: the bend comes next.
+    if (a.x !== b.x || a.y !== b.y) bend = { a: idx(a.x, a.y), b: idx(b.x, b.y), hx: hover?.wx ?? 0, hz: hover?.wz ?? 0, active: false };
+    return;
+  }
+  if (def.road !== undefined) err = placeRoad(w, (roadMode === 'diag' ? diagonalPath : roadPath)(a.x, a.y, b.x, b.y), def.road);
   else if (def.level) err = placeAltRoad(w, roadPath(a.x, a.y, b.x, b.y), def.level);
   else if (def.zone !== undefined) {
     const n = paintZone(w, rectCells(a.x, a.y, b.x, b.y), def.zone);
@@ -332,7 +379,8 @@ canvas.addEventListener('pointerdown', (e) => {
   if (e.button === 1 || (tool === 'select' && e.button === 0)) { camDrag = { mode: 'pan', x: e.clientX, y: e.clientY, moved: false }; return; }
   const c = cellAt(e.clientX, e.clientY);
   if (!c) return;
-  hover = { x: c.x, y: c.y, px: e.clientX, py: e.clientY };
+  hover = { x: c.x, y: c.y, px: e.clientX, py: e.clientY, wx: c.wx, wz: c.wz };
+  if (bend) { bend.active = true; bend.hx = c.wx; bend.hz = c.wz; preview(); return; }
   drag = { sx: c.x, sy: c.y, cx: c.x, cy: c.y, px: e.clientX, py: e.clientY, moved: false };
   // Facilities follow the finger until release; everything else anchors here.
   preview();
@@ -366,7 +414,8 @@ canvas.addEventListener('pointermove', (e) => {
   }
   const c = cellAt(e.clientX, e.clientY);
   if (!c) { hover = null; preview(); return; }
-  hover = { x: c.x, y: c.y, px: e.clientX, py: e.clientY };
+  hover = { x: c.x, y: c.y, px: e.clientX, py: e.clientY, wx: c.wx, wz: c.wz };
+  if (bend) { bend.hx = c.wx; bend.hz = c.wz; preview(); return; }
   if (drag) {
     if (c.x !== drag.cx || c.y !== drag.cy) drag.moved = true;
     drag.cx = c.x; drag.cy = c.y;
@@ -391,8 +440,10 @@ function endPointer(e: PointerEvent) {
     }
     return;
   }
+  if (bend?.active) { if (e.type === 'pointerup') commitCurve(); else bend.active = false; return; }
   if (drag && e.type === 'pointerup') commit();
   drag = null;
+  if (bend) { preview(); return; }
   if (e.pointerType !== 'mouse') { hover = null; scene.preview.clear(); hideTip(); } else preview();
 }
 canvas.addEventListener('pointerup', endPointer);
@@ -403,11 +454,12 @@ canvas.addEventListener('wheel', (e) => { e.preventDefault(); scene.view.zoom(Ma
 window.addEventListener('keydown', (e) => {
   if ((e.target as HTMLElement).tagName === 'INPUT') return;
   const k = e.key.toLowerCase();
+  if (k === 'escape' && bend) { bend = null; scene.preview.clear(); preview(); return; }
   if (k === 'escape') { cat = null; setTool('select'); closeInfo(); closePanel(); return; }
   if (!running) return;
   if (draft && k === 'enter') { finishDraft(); return; }
   if (draft && k === 'backspace') { draft.stops.pop(); renderDraft(); return; }
-  if (k === 't') { toggleDiagonal(); return; }
+  if (k === 't' && cat === 'road') { setRoadMode(ROAD_MODES[(ROAD_MODES.findIndex((m) => m.id === roadMode) + 1) % ROAD_MODES.length].id); return; }
   const hot = CATEGORIES.find((c) => c.key.toLowerCase() === k);
   if (hot && !e.ctrlKey && !e.metaKey) { selectCategory(hot.id); return; }
   if (k === ' ') { e.preventDefault(); setSpeed(speed ? 0 : lastSpeed); return; }

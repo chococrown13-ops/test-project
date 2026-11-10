@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CELL, Ground, Level, N, Zone, ZONE_DEPTH } from '../sim/defs';
 import { roadDistance } from '../sim/tools';
+import { curveInfo } from '../sim/curves';
 import { isRamp } from '../sim/graph';
 import { idx, terrainField, type World } from '../sim/world';
 import { shared } from './materials';
@@ -186,6 +187,7 @@ export class GroundLayer {
     const R = N * TX, d = this.data;
     const ov = this.overlay;
     const near = this.showZoneable;
+    const cover = curveInfo(w).cover;
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const i = idx(x, y);
       let rgb: [number, number, number];
@@ -211,7 +213,7 @@ export class GroundLayer {
         line = true;
       } else if (bank(w, x, y)) rgb = [196, 184, 140];
       else rgb = grass;
-      if (near && !w.zone[i] && !w.road[i] && !b && w.ground[i] !== Ground.Water && roadDistance(w, x, y) <= ZONE_DEPTH) {
+      if (near && !w.zone[i] && !w.road[i] && !b && !cover[i] && w.ground[i] !== Ground.Water && roadDistance(w, x, y) <= ZONE_DEPTH) {
         rgb = [rgb[0] * 0.8 + 255 * 0.2, rgb[1] * 0.8 + 255 * 0.2, rgb[2] * 0.8 + 255 * 0.2];
         line = true;
       }
@@ -239,6 +241,7 @@ export class GroundLayer {
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), c = new THREE.Color();
     const up = new THREE.Vector3(0, 1, 0);
     const season = seasonOf(this.month);
+    const cover = curveInfo(w).cover;
     let n = 0;
     const put = (wx: number, wz: number, k: number, seed: number, cherry = 0) => {
       if (n >= MAX_TREES) return;
@@ -253,7 +256,7 @@ export class GroundLayer {
     };
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const i = idx(x, y);
-      if (w.road[i] || w.ground[i] === Ground.Water || w.roadAlt[i] && isRamp(w, i)) continue;
+      if (w.road[i] || w.ground[i] === Ground.Water || w.roadAlt[i] && isRamp(w, i) || cover[i]) continue;
       const id = w.bld[i];
       const h = hash(x, y), h2 = hash(y + 3.1, x + 7.7);
       if (w.ground[i] === Ground.Mountain) {

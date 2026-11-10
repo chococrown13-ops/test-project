@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CELL, ELEVATED_Y, Ground, Level, N, Road } from '../sim/defs';
+import { bez, bezLength, bezTan, curveInfo, HALF_WIDTH, KERB, type Curve } from '../sim/curves';
 import { altNeighbours, DIAG } from '../sim/graph';
 import { idx, type World } from '../sim/world';
 import { shared } from './materials';
@@ -146,9 +147,10 @@ export class RoadLayer {
     };
     const m = new THREE.Matrix4();
     let lamps = 0;
+    const owned = curveInfo(w).owned;
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const t = w.road[idx(x, y)] as Road;
-      if (!t) continue;
+      if (!t || owned[idx(x, y)]) continue;
       const x0 = x * CELL, z0 = y * CELL, x1 = x0 + CELL, z1 = z0 + CELL, mx = x0 + CELL / 2, mz = z0 + CELL / 2;
       if (w.diag[idx(x, y)]) { diagCell(b, w, x, y, t, road); continue; }
       const E = !!road(x + 1, y), W = !!road(x - 1, y), Nn = !!road(x, y - 1), S = !!road(x, y + 1);
@@ -225,6 +227,16 @@ export class RoadLayer {
         if (hi && !water) zebra(CELL - 2.6);
       }
     }
+    // Curved roads: one smooth ribbon each over the cells they laid.
+    const lamp = (x: number, z: number, ang: number) => {
+      if (lamps >= N * N) return;
+      m.makeTranslation(x, SW, z);
+      this.poles.setMatrixAt(lamps, m);
+      m.makeRotationY(ang).setPosition(x + Math.sin(ang) * 0.7, SW + 6.4, z + Math.cos(ang) * 0.7);
+      this.lamps.setMatrixAt(lamps, m);
+      lamps++;
+    };
+    for (const c of w.curves) curveRibbon(b, w, c, owned, lamp);
     // The second layer: flyover decks, and the mouths of underpasses and tunnels.
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (w.roadAlt[idx(x, y)]) altCell(b, w, x, y);
     this.poles.count = this.lamps.count = lamps;
@@ -318,4 +330,81 @@ function altCell(b: Builder, w: World, x: number, y: number) {
   b.slab(px - ox * half, pz - oz * half, frameH, px + ox * half, pz + oz * half, frameH, 1.4, frameH, tunnel ? 0x8f8b82 : CONCRETE);
   const mh = frameH - 1.4, mi = DW / 2 - 0.1;
   b.slab(px - ramp.dx * 0.1 - ox * mi, pz - ramp.dy * 0.1 - oz * mi, mh, px - ramp.dx * 0.1 + ox * mi, pz - ramp.dy * 0.1 + oz * mi, mh, 1.6, mh, MOUTH);
+}
+
+/**
+ * A curve's road surface: pavement, asphalt and markings swept along the
+ * Bézier, drawn only where the curve laid its own cells (its ends and any
+ * crossings belong to the grid roads it joins). Over water it becomes a deck
+ * with rails and piers.
+ */
+function curveRibbon(b: Builder, w: World, c: Curve, owned: Uint8Array, lamp: (x: number, z: number, ang: number) => void) {
+  const hw = HALF_WIDTH[c.t as 1 | 2];
+  const len = bezLength(c);
+  const n = Math.max(4, Math.ceil(len / 1.2));
+  const P: { x: number; z: number; nx: number; nz: number; s: number }[] = [];
+  let s = 0;
+  for (let k = 0; k <= n; k++) {
+    const p = bez(c, k / n), t = bezTan(c, k / n);
+    if (k) s += Math.hypot(p.x - P[k - 1].x, p.z - P[k - 1].z);
+    P.push({ x: p.x, z: p.z, nx: -t.z, nz: t.x, s });
+  }
+  const cellOfPt = (x: number, z: number) => Math.floor(z / CELL) * N + Math.floor(x / CELL);
+  const seg: { on: boolean; water: boolean }[] = [];
+  for (let k = 0; k < n; k++) {
+    const mx = (P[k].x + P[k + 1].x) / 2, mz = (P[k].z + P[k + 1].z) / 2;
+    const i = cellOfPt(mx, mz);
+    // Draw everywhere except over grid road cells the curve meets (its ends, crossings).
+    seg.push({ on: i >= 0 && i < N * N && (owned[i] === 1 || !w.road[i]), water: i >= 0 && i < N * N && w.ground[i] === Ground.Water });
+  }
+  const at = (k: number, off: number, y: number) => [P[k].x + P[k].nx * off, y, P[k].z + P[k].nz * off];
+  const band = (k: number, o0: number, o1: number, y: number, hex: number) => {
+    const a = at(k, o0, y), bb = at(k, o1, y), cc = at(k + 1, o1, y), d = at(k + 1, o0, y);
+    b.tri(a, bb, cc, hex, [0, 1, 0]);
+    b.tri(a, cc, d, hex, [0, 1, 0]);
+  };
+  const wall = (k: number, off: number, y0: number, y1: number, hex: number, out: number) => {
+    const a = at(k, off, y0), bb = at(k + 1, off, y0), cc = at(k + 1, off, y1), d = at(k, off, y1);
+    const hint = [P[k].nx * out, 0, P[k].nz * out];
+    b.tri(a, bb, cc, hex, hint, 0.82);
+    b.tri(a, cc, d, hex, hint, 0.82);
+  };
+  const avenue = c.t === Road.Avenue;
+  let nextLamp = 6, side = 1, nextPier = 4;
+  for (let k = 0; k < n; k++) {
+    if (!seg[k].on) continue;
+    const ss = (P[k].s + P[k + 1].s) / 2;
+    if (seg[k].water) {
+      band(k, -hw - 0.6, hw + 0.6, 0.12, 0x9c9a92);
+      for (const sd of [1, -1]) {
+        wall(k, sd * (hw + 0.6), -1.6, 0.12, 0x9c9a92, sd);
+        band(k, sd * (hw + 0.25), sd * (hw + 0.6), 1.0, 0xd6d4ce);
+        wall(k, sd * (hw + 0.25), 0.12, 1.0, 0xd6d4ce, -sd);
+      }
+      if (ss > nextPier) {
+        nextPier = ss + 14;
+        const p = P[k];
+        b.box(p.x - 1, -6, p.z - 1, p.x + 1, -1.6, p.z + 1, 0x8c8a84);
+      }
+    } else {
+      band(k, -hw - KERB, -hw, 0.26, WALK);
+      band(k, hw, hw + KERB, 0.26, WALK);
+      for (const sd of [1, -1]) wall(k, sd * (hw + KERB), 0, 0.26, WALK, sd);
+      if (ss > nextLamp) {
+        nextLamp = ss + 22;
+        const p = P[k], off = side * (hw + KERB * 0.5);
+        // The lamp arm reaches over the road: toward the centre line.
+        lamp(p.x + p.nx * off, p.z + p.nz * off, Math.atan2(-p.nx * side, -p.nz * side));
+        side = -side;
+      }
+    }
+    band(k, -hw, hw, 0.16, ASPHALT[c.t as 1 | 2]);
+    // Markings: dashed white for a street; double yellow and dashed lanes on an avenue.
+    const dash = (ss % 6) < 3;
+    if (avenue) {
+      band(k, -0.3, -0.16, 0.18, YELLOW);
+      band(k, 0.16, 0.3, 0.18, YELLOW);
+      if (dash) { band(k, -2.65, -2.5, 0.18, WHITE); band(k, 2.5, 2.65, 0.18, WHITE); }
+    } else if (dash) band(k, -0.09, 0.09, 0.18, WHITE);
+  }
 }

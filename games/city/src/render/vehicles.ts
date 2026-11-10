@@ -96,7 +96,7 @@ function sample(w: World, car: Car, s: number, out: { x: number; z: number; y: n
   s = Math.max(0, Math.min(last, s));
   const i = Math.min(last - 1, Math.floor(s)), f = s - i;
   const n0 = path[Math.max(0, i)], n1 = path[Math.min(last, i + 1)];
-  const p0 = nodeCentre(n0), p1 = nodeCentre(n1);
+  const p0 = nodeCentre(n0, w), p1 = nodeCentre(n1, w);
   let dx = p1.x - p0.x, dz = p1.z - p0.z;
   const len = Math.hypot(dx, dz) || 1;
   dx /= len; dz /= len;
