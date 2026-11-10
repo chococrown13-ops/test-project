@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CELL, KINDS, N, variantOf } from '../sim/defs';
-import { HALF_WIDTH, KERB, nearestCurve } from '../sim/curves';
+import { HALF_WIDTH, KERB_W, nearestCurve } from '../sim/curves';
 import { network } from '../sim/network';
 import { bh, bw, type Building, type World } from '../sim/world';
 import { buildingMaterial, shared } from './materials';
@@ -313,7 +313,7 @@ function parts(b: Building, w: World): Part[] {
   if (Math.abs(phi) < 0.03) return out;
   const cos = Math.cos(phi), sin = Math.sin(phi);
   let k = Math.min(1, 1.15 / (Math.abs(cos) + Math.abs(sin)));
-  const clear = HALF_WIDTH[near.c.t as 1 | 2] + KERB + 0.3;
+  const clear = HALF_WIDTH[near.c.t as 1 | 2] + KERB_W[near.c.t as 1 | 2] + 0.3;
   const half = S * 0.42;
   if (near.d - clear < half * k) k = Math.max(0.55, Math.min(k, (near.d - clear) / half));
   // Back off along the normal if the shrunk lot still reaches the pavement.

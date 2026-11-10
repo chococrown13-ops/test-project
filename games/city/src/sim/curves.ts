@@ -22,8 +22,9 @@ export interface Curve {
   own: number[];
 }
 
-export const HALF_WIDTH = { [Road.Street]: 3.5, [Road.Avenue]: 4.6 } as const;
-export const KERB = 1.6;
+/** Asphalt half width and pavement width, the same as a grid road's so the two meet flush. */
+export const HALF_WIDTH = { [Road.Street]: 3, [Road.Avenue]: 4 } as const;
+export const KERB_W = { [Road.Street]: 2, [Road.Avenue]: 1 } as const;
 
 export function bez(c: Pick<Curve, 'ax' | 'az' | 'cx' | 'cz' | 'bx' | 'bz'>, u: number) {
   const v = 1 - u;
@@ -130,7 +131,7 @@ export function curveInfo(w: World): CurveInfo {
 
 /** Lots whose middle lies on the curve's asphalt or pavement. */
 export function coverCells(c: Curve | (Pick<Curve, 'ax' | 'az' | 'cx' | 'cz' | 'bx' | 'bz' | 't'>)): number[] {
-  const reach = HALF_WIDTH[c.t as 1 | 2] + KERB + 1.2;
+  const reach = HALF_WIDTH[c.t as 1 | 2] + KERB_W[c.t as 1 | 2] + 1.2;
   const x0 = Math.max(0, Math.floor((Math.min(c.ax, c.bx, c.cx) - reach) / CELL)), x1 = Math.min(N - 1, Math.floor((Math.max(c.ax, c.bx, c.cx) + reach) / CELL));
   const z0 = Math.max(0, Math.floor((Math.min(c.az, c.bz, c.cz) - reach) / CELL)), z1 = Math.min(N - 1, Math.floor((Math.max(c.az, c.bz, c.cz) + reach) / CELL));
   const out: number[] = [];

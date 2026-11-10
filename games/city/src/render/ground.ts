@@ -166,6 +166,7 @@ export class GroundLayer {
     this.trees.castShadow = true;
     this.trees.receiveShadow = true;
     this.trees.count = 0;
+    this.trees.frustumCulled = false;
     this.group.add(this.trees);
   }
 
