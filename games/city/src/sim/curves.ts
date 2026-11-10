@@ -1,5 +1,6 @@
 import { CELL, Ground, KINDS, N, Road } from './defs';
-import { NN } from './graph';
+// Not imported from graph.ts: graph.ts asks this module which links are real.
+const NN = N * N;
 import type { World } from './world';
 
 /**
@@ -108,6 +109,25 @@ export interface CurveInfo {
   /** Where cars drive through an owned cell: the curve's point nearest its centre. */
   px: Float32Array;
   pz: Float32Array;
+  /**
+   * Links that touch a curve's own cells and are real road: consecutive cells
+   * of a chain, and one link per road that meets the curve from the side (to
+   * its nearest chain cell). A road that merely brushes past touches several
+   * chain cells; only that nearest one joins, so no phantom shortcuts.
+   */
+  links: Set<string>;
+  /** 1 on every cell of any curve's chain, ends and crossings included. */
+  chain: Uint8Array;
+}
+
+const lk = (a: number, b: number) => (a < b ? `${a}:${b}` : `${b}:${a}`);
+
+/** Whether the ground link a-b is a road (see CurveInfo.links); links away from curves always are. */
+export function curveLinkOk(w: World, a: number, b: number): boolean {
+  if (!w.curves.length) return true;
+  const ci = curveInfo(w);
+  if (!ci.owned[a] && !ci.owned[b]) return true;
+  return ci.links.has(lk(a, b));
 }
 
 let cacheW: World | null = null, cacheVer = -1, cacheN = -1, cache: CurveInfo | null = null;
@@ -117,15 +137,37 @@ export function curveInfo(w: World): CurveInfo {
   if (cache && cacheW === w && cacheVer === w.ver.roads && cacheN === w.curves.length) return cache;
   const owned = new Uint8Array(NN), cover = new Uint8Array(NN);
   const px = new Float32Array(NN), pz = new Float32Array(NN);
+  const links = new Set<string>();
+  const chain = new Uint8Array(NN);
   for (const c of w.curves) {
+    for (const i of c.cells) chain[i] = 1;
     for (const i of c.own) {
       owned[i] = 1;
       const p = distTo(c, (i % N) * CELL + CELL / 2, ((i / N) | 0) * CELL + CELL / 2);
       px[i] = p.x; pz[i] = p.z;
     }
     for (const i of coverCells(c)) if (!w.road[i]) cover[i] = 1;
+    for (let k = 1; k < c.cells.length; k++) links.add(lk(c.cells[k - 1], c.cells[k]));
   }
-  cacheW = w; cacheVer = w.ver.roads; cacheN = w.curves.length; cache = { owned, cover, px, pz };
+  // Roads meeting a curve from the side: each joins at its nearest chain cell only.
+  for (const c of w.curves) {
+    const chain = new Set(c.cells);
+    const best = new Map<number, { i: number; d: number }>();
+    for (const i of c.own) {
+      const x = i % N, y = (i / N) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= N || ny >= N) continue;
+        const j = ny * N + nx;
+        if (!w.road[j] || chain.has(j) || owned[j]) continue;
+        const d = Math.hypot(nx * CELL + CELL / 2 - px[i], ny * CELL + CELL / 2 - pz[i]);
+        const b = best.get(j);
+        if (!b || d < b.d) best.set(j, { i, d });
+      }
+    }
+    best.forEach(({ i }, j) => links.add(lk(i, j)));
+  }
+  cacheW = w; cacheVer = w.ver.roads; cacheN = w.curves.length; cache = { owned, cover, px, pz, links, chain };
   return cache;
 }
 

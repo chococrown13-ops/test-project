@@ -1,4 +1,5 @@
 import { N, Road } from './defs';
+import { curveLinkOk } from './curves';
 import type { World } from './world';
 
 /**
@@ -68,7 +69,8 @@ export function forEachNeighbour(w: World, node: number, fn: (n: number, len: nu
     const c = node;
     if (!w.road[c]) return;
     const nb = orth(c, []);
-    for (const n of nb) if (w.road[n]) fn(n, 1);
+    // Beside a curve only the links it really makes count (no shortcuts across the verge).
+    for (const n of nb) if (w.road[n] && curveLinkOk(w, c, n)) fn(n, 1);
     const d = w.diag[c];
     if (d) {
       const x = c % N, y = (c / N) | 0;

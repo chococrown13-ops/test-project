@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Clipper, ClipperOffset, EndType, FillRule, JoinType, Paths64, PointInPolygonResult, type Path64, type Point64 } from 'clipper2-js';
 import { CELL, Ground, N, Road } from '../sim/defs';
-import { bez, bezLength, HALF_WIDTH, KERB_W, type Curve } from '../sim/curves';
+import { bez, bezLength, curveInfo, curveLinkOk, HALF_WIDTH, KERB_W, type Curve } from '../sim/curves';
 import { DIAG } from '../sim/graph';
 import type { World } from '../sim/world';
 
@@ -73,6 +73,9 @@ export function buildPolyRoads(w: World, owned: Uint8Array): PolyRoads {
   const chainOf = new Map<number, Set<Curve>>();
   for (const c of w.curves) for (const i of c.cells) { if (!chainOf.has(i)) chainOf.set(i, new Set()); chainOf.get(i)!.add(c); }
   const sameCurve = (a: number, b: number) => { const A = chainOf.get(a), B = chainOf.get(b); if (!A || !B) return false; for (const c of A) if (B.has(c)) return true; return false; };
+  // Consecutive in some chain: the curve passes from one to the other.
+  const chainNeighbours = (a: number, b: number) => w.curves.some((c) => { const k = c.cells.indexOf(a); return k >= 0 && (c.cells[k - 1] === b || c.cells[k + 1] === b); });
+  const ci = curveInfo(w);
 
   const lines: PolyRoads['lines'] = [];
   const degree = new Map<number, number>();
@@ -92,18 +95,22 @@ export function buildPolyRoads(w: World, owned: Uint8Array): PolyRoads {
   };
   for (const i of cells) {
     for (const j of links(w, i)) {
-      // A curve's own cells meet the rest only along the curve (no blobs where it brushes past a road).
-      if (owned[i] || owned[j]) continue;
-      if (sameCurve(i, j)) continue;
+      // Along a chain the curve draws itself; beside it only the links it really makes (curveLinkOk).
+      if (sameCurve(i, j) && (owned[i] || owned[j] || chainNeighbours(i, j))) continue;
+      if (!curveLinkOk(w, i, j)) continue;
       const key = i < j ? `${i}:${j}` : `${j}:${i}`;
       if (seen.has(key)) continue;
       seen.add(key);
       // Half a link when the far end is drawn by the grid: the rest is the grid's.
-      const a = centre(i), b = centre(j);
+      // A road meeting a curve from the side runs to the curve itself, not the cell centre.
+      const at = (k: number) => (owned[k] ? { x: ci.px[k], z: ci.pz[k] } : centre(k));
+      const a = at(i), b = at(j);
       const end = cells.has(j) ? b : { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
       addLine([a, end], Math.min(w.road[i], w.road[j]) as Road);
       degree.set(i, (degree.get(i) ?? 0) + 1);
       if (cells.has(j)) degree.set(j, (degree.get(j) ?? 0) + 1);
+      // A road joining a curve from the side makes a T on the curve.
+      for (const k of [i, j]) if (owned[k]) degree.set(k, Math.max(3, degree.get(k) ?? 0));
     }
   }
   for (const c of w.curves) {
@@ -142,7 +149,8 @@ export function buildPolyRoads(w: World, owned: Uint8Array): PolyRoads {
     o.execute(d * S, out);
     return out;
   };
-  const inflate = (p: Paths64, d: number) => offset(p, d, EndType.Round);
+  // Clipper2 widens an open path by the whole delta (half each side): pass twice the half width.
+  const inflate = (p: Paths64, d: number) => offset(p, d * 2, EndType.Round);
   for (const cell of reach) {
     const cx0 = (cell % N) * CELL, cz0 = ((cell / N) | 0) * CELL;
     const st = new Paths64(), av = new Paths64();
@@ -175,7 +183,7 @@ export function buildPolyRoads(w: World, owned: Uint8Array): PolyRoads {
   pieceCache = fresh;
 
   const junctions: PolyRoads['junctions'] = [];
-  degree.forEach((d, i) => { if (d >= 3) { const p = centre(i); junctions.push({ x: p.x, z: p.z, r: HALF_WIDTH[2] + 2.5 }); } });
+  degree.forEach((d, i) => { if (d >= 3) { const p = owned[i] ? { x: ci.px[i], z: ci.pz[i] } : centre(i); junctions.push({ x: p.x, z: p.z, r: HALF_WIDTH[2] + 2.5 }); } });
   return { cells, pieces, lines, junctions };
 }
 
