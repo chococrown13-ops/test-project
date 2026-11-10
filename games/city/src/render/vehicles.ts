@@ -101,7 +101,9 @@ function sample(w: World, car: Car, s: number, out: { x: number; z: number; y: n
   const len = Math.hypot(dx, dz) || 1;
   dx /= len; dz /= len;
   const node = f < 0.5 ? n0 : n1;
-  const lane = roadTypeOf(w, node) === Road.Avenue ? (car.look > 0.5 ? 4.1 : 1.6) : car.kind === 3 ? 2.6 : 1.6;
+  // Lane centres sit inside the asphalt: avenue lanes at 1.15 and 2.95 m (kerb at 4 m), street lanes at 1.6 m (kerb at 3 m).
+  const avenue = roadTypeOf(w, node) === Road.Avenue;
+  const lane = car.kind === 3 ? (avenue ? 3.4 : 2.5) : avenue ? (car.look > 0.5 ? 2.95 : 1.15) : 1.6;
   // Right of travel direction (dx, dz) with y up is (-dz, dx); diagonals use the unit vector.
   out.x = p0.x + (p1.x - p0.x) * f - dz * lane;
   out.z = p0.z + (p1.z - p0.z) * f + dx * lane;

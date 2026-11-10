@@ -156,7 +156,8 @@ export class RoadLayer {
       const E = !!road(x + 1, y), W = !!road(x - 1, y), Nn = !!road(x, y - 1), S = !!road(x, y + 1);
       const water = w.ground[idx(x, y)] === Ground.Water;
       const avenue = t === Road.Avenue;
-      const sw = avenue ? 1.4 : 2.0;
+      // Avenue: 4 m of asphalt each side of the centre line, two 1.9 m lanes each way.
+      const sw = avenue ? 1.0 : 2.0;
       b.quad(x0, z0, x1, z1, Y, ASPHALT[t as 1 | 2]);
       if (water) {
         b.box(x0, -1.6, z0, x1, Y - 0.02, z1, 0x9c9a92);
@@ -205,14 +206,14 @@ export class RoadLayer {
         if (avenue) {
           if (bus.cells.has(idx(x, y)) && !water) {
             // 중앙버스전용차로: the inner lane each way, red with blue edge lines.
-            along(a0, a1, -1.85, 2.9, BUSLANE);
-            along(a0, a1, 1.85, 2.9, BUSLANE);
-            along(a0, a1, -3.35, 0.16, BLUE);
-            along(a0, a1, 3.35, 0.16, BLUE);
+            along(a0, a1, -1.17, 1.74, BUSLANE);
+            along(a0, a1, 1.17, 1.74, BUSLANE);
+            along(a0, a1, -2.08, 0.16, BLUE);
+            along(a0, a1, 2.08, 0.16, BLUE);
           }
           along(a0, a1, -0.22, 0.16, YELLOW);
           along(a0, a1, 0.22, 0.16, YELLOW);
-          for (const off of [-2.6, 2.6]) { along(Math.max(a0, 0.6), Math.min(a1, 3.6), off, 0.15, WHITE); along(Math.max(a0, 5.6), Math.min(a1, 8.6), off, 0.15, WHITE); }
+          if (!bus.cells.has(idx(x, y)) || water) for (const off of [-2.05, 2.05]) { along(Math.max(a0, 0.6), Math.min(a1, 3.6), off, 0.15, WHITE); along(Math.max(a0, 5.6), Math.min(a1, 8.6), off, 0.15, WHITE); }
         } else {
           if (a0 < 3.5) along(Math.max(a0, 0.8), 3.3, 0, 0.18, WHITE);
           if (a1 > 6.5) along(5.8, Math.min(a1, 8.3), 0, 0.18, WHITE);
@@ -404,7 +405,7 @@ function curveRibbon(b: Builder, w: World, c: Curve, owned: Uint8Array, lamp: (x
     if (avenue) {
       band(k, -0.3, -0.16, 0.18, YELLOW);
       band(k, 0.16, 0.3, 0.18, YELLOW);
-      if (dash) { band(k, -2.65, -2.5, 0.18, WHITE); band(k, 2.5, 2.65, 0.18, WHITE); }
+      if (dash) { band(k, -2.13, -1.98, 0.18, WHITE); band(k, 1.98, 2.13, 0.18, WHITE); }
     } else if (dash) band(k, -0.09, 0.09, 0.18, WHITE);
   }
 }

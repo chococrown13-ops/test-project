@@ -5,6 +5,7 @@ import { busCount, busRoute, type LineKind } from '../sim/transit';
 import type { World } from '../sim/world';
 import { shared } from './materials';
 import { nodeCentre, nodeY } from './roadheight';
+import { roadTypeOf } from '../sim/graph';
 
 const BUS_SPEED = 2.4; // cells per second at 1x
 const TRAIN_SPEED = 7;
@@ -104,7 +105,9 @@ export class TransitLayer {
     const side = [[0, -1], [0, 1], [-1, 0], [1, 0]].find(([dx, dy]) => !road(dx, dy)) ?? [0, -1];
     const c = centre(i);
     const g = new THREE.Group();
-    g.position.set(c.x + side[0] * 3.9, 0.3, c.z + side[1] * 3.9);
+    // On the pavement: an avenue's is narrower and further out.
+    const off = w.road[i] === Road.Avenue ? 4.55 : 3.9;
+    g.position.set(c.x + side[0] * off, 0.3, c.z + side[1] * off);
     g.rotation.y = Math.atan2(side[0], side[1]);
     const add = (geo: THREE.BufferGeometry, m: THREE.Material, px: number, py: number, pz: number) => { const mesh = new THREE.Mesh(geo, m); mesh.position.set(px, py, pz); mesh.castShadow = true; g.add(mesh); };
     add(new THREE.BoxGeometry(3.2, 0.14, 1.3), this.shelterMat, 0, 2.5, 0);
@@ -183,7 +186,9 @@ function along(w: World, path: Int32Array, s: number, loop: boolean) {
   const len = Math.hypot(b.x - a.x, b.z - a.z) || 1;
   const dx = (b.x - a.x) / len, dz = (b.z - a.z) / len;
   const y = nodeY(w, path[i]) + (nodeY(w, path[i + 1]) - nodeY(w, path[i])) * f;
-  return { x: a.x + (b.x - a.x) * f - dz * 1.7, z: a.z + (b.z - a.z) * f + dx * 1.7, y };
+  // Inner lane of an avenue (its 중앙버스전용차로), or the one lane each way of a street.
+  const lane = roadTypeOf(w, path[f < 0.5 ? i : i + 1]) === Road.Avenue ? 1.25 : 1.7;
+  return { x: a.x + (b.x - a.x) * f - dz * lane, z: a.z + (b.z - a.z) * f + dx * lane, y };
 }
 
 /** A flat coloured band through points, for route maps. */
