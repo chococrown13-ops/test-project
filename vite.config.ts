@@ -15,6 +15,7 @@ export default defineConfig({
         main: 'index.html',
         merge: 'games/merge/index.html',
         sudoku: 'games/sudoku/index.html',
+        city: 'games/city/index.html',
       },
     },
   },

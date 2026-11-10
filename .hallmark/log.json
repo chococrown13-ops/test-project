@@ -1,0 +1,30 @@
+[
+ {
+  "mode": "redesign",
+  "depth": "restyle",
+  "scope": "app",
+  "shape": "app screen",
+  "theme": "hum",
+  "axes": "light/rounded-sans/chromatic-yellow",
+  "hero": "none (app)",
+  "nav": "kept: floating top bar and bottom tool dock",
+  "footer": "none (app)",
+  "imagery": "the live 3D city",
+  "photos": [],
+  "entry": "games/city/index.html",
+  "fingerprint": "app-screen/hum/top-bar+dock/card-stock",
+  "sections": [
+   "top bar",
+   "goal card",
+   "tool dock",
+   "info sheet",
+   "panels"
+  ],
+  "signature": "the build dock as pressable card stock over the city",
+  "waived": [
+   "F4 dismissed"
+  ],
+  "prompt": "a city-building game HUD for a low-poly Korean city",
+  "date": "2026-10-28"
+ }
+]

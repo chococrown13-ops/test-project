@@ -11,3 +11,7 @@ quant/out/
 quant/**/__pycache__/
 quant/.pytest_cache/
 quant/.env
+
+# Hallmark design runs: keep the rotation log, not the screenshots and records
+.hallmark/*
+!.hallmark/log.json
