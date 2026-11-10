@@ -32,6 +32,7 @@ export const CATEGORIES: Category[] = [
     { id: 'elevated', name: '고가도로', price: `칸당 ${won(ROAD_COST[Road.Avenue] * LEVEL_COST[Level.Elevated])}`, level: Level.Elevated },
     { id: 'underpass', name: '지하차도', price: `칸당 ${won(ROAD_COST[Road.Avenue] * LEVEL_COST[Level.Underpass])}`, level: Level.Underpass },
     { id: 'tunnel', name: '터널', price: `칸당 ${won(ROAD_COST[Road.Avenue] * LEVEL_COST[Level.Tunnel])}`, level: Level.Tunnel },
+    fac('parking'), fac('parktower'),
   ] },
   { id: 'zone', name: '구역', key: 'X', tools: [
     { id: 'zoneR', name: '주거', price: '무료', zone: Zone.R, swatch: 'var(--color-zone-r)' },

@@ -187,7 +187,8 @@ function along(w: World, path: Int32Array, s: number, loop: boolean) {
   const dx = (b.x - a.x) / len, dz = (b.z - a.z) / len;
   const y = nodeY(w, path[i]) + (nodeY(w, path[i + 1]) - nodeY(w, path[i])) * f;
   // Inner lane of an avenue (its 중앙버스전용차로), or the one lane each way of a street.
-  const lane = roadTypeOf(w, path[f < 0.5 ? i : i + 1]) === Road.Avenue ? 1.25 : 1.7;
+  const node = path[f < 0.5 ? i : i + 1];
+  const lane = roadTypeOf(w, node) === Road.Avenue ? 1.25 : node < w.parked.length && w.parked[node] ? 1.2 : 1.7;
   return { x: a.x + (b.x - a.x) * f - dz * lane, z: a.z + (b.z - a.z) * f + dx * lane, y };
 }
 

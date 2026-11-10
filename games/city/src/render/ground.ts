@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { CELL, Ground, Level, N, Zone, ZONE_DEPTH } from '../sim/defs';
+import { CELL, Ground, KINDS, Level, N, Zone, ZONE_DEPTH } from '../sim/defs';
 import { roadDistance } from '../sim/tools';
 import { curveInfo } from '../sim/curves';
+import { LOT_SPACES } from '../sim/parking';
 import { isRamp } from '../sim/graph';
 import { idx, terrainField, type World } from '../sim/world';
 import { shared } from './materials';
@@ -11,7 +12,7 @@ const SIZE = N * CELL;
 /** Texels per cell, so zoned lots can show a thin grid line. */
 const TX = 4;
 
-export type Overlay = 'none' | 'traffic' | 'transit' | 'land' | 'pollution' | 'power' | 'water' | 'edu' | 'safety' | 'health' | 'fire';
+export type Overlay = 'none' | 'traffic' | 'transit' | 'land' | 'pollution' | 'power' | 'water' | 'edu' | 'safety' | 'health' | 'fire' | 'parking';
 
 const hash = (x: number, y: number) => {
   const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
@@ -334,6 +335,16 @@ function overlayValue(w: World, ov: Overlay, i: number): number | null {
     case 'safety': return w.safety[i] ? 0 : 1;
     case 'health': return w.health[i] ? 0 : 1;
     case 'fire': return w.fire[i] ? 0 : 1;
+    case 'parking': {
+      // Kerbs by how full they are; buildings by how many of their cars find no space.
+      if (w.road[i]) return w.parked[i] ? Math.min(1, w.parked[i] / 4) * 0.7 : null;
+      const id = w.bld[i];
+      if (id < 0) return null;
+      const b = w.buildings.get(id)!;
+      const lot = LOT_SPACES[b.kind];
+      if (lot) return 0;
+      return KINDS[b.kind].zone ? w.parkPress[i] / 100 : null;
+    }
     case 'power':
     case 'water': {
       const id = w.bld[i];

@@ -1,6 +1,7 @@
 import { displayName, Ground, KINDS, LEVEL_NAME, N, Road, SERVICE, ZONE_NAME, Zone } from '../sim/defs';
 import { monthExpense, monthIncome } from '../sim/economy';
 import { curveInfo } from '../sim/curves';
+import { curbCapacity, LOT_SPACES } from '../sim/parking';
 import { network } from '../sim/network';
 import { busCount, lineCost, lineUpkeep, type LineKind } from '../sim/transit';
 import { idx, type Building, type World } from '../sim/world';
@@ -127,6 +128,7 @@ export function infoHtml(w: World, x: number, y: number): string {
       h += kv('수도', mark(b.watered, '들어옴', '끊김'));
       h += kv('하수', mark(b.sewered, '처리됨', '처리 안 됨'));
       h += kv('땅값', `${Math.round(w.land[i])}`);
+      if (w.parkPress[i] > 0) h += kv('주차', state(w.parkPress[i] > 40 ? 'no' : 'meh', `차 ${w.parkPress[i]}%가 세울 곳이 없어요`));
       if (w.pollution[i] > 3) h += kv('오염', state('no', `${Math.round(w.pollution[i])}`));
       if (d.zone === Zone.R) {
         h += '<h4>공공 서비스</h4>';
@@ -143,6 +145,7 @@ export function infoHtml(w: World, x: number, y: number): string {
       h += `<p class="hint">${d.desc ?? ''}</p>`;
       h += kv('도로 연결', mark(hasRoad, '연결됨', '도로를 붙여 주세요'));
       if (d.power > 0) h += kv('전기', mark(b.powered, '들어옴', '끊김'));
+      if (LOT_SPACES[b.kind]) h += kv('주차', `${num(b.occ)} / ${num(LOT_SPACES[b.kind]!)}대`);
       h += kv('유지비', `월 ${won(d.upkeep ?? 0)}`);
       const s = SERVICE[b.kind];
       if (s) h += kv('범위', `${s.radius * 10}m`);
@@ -156,6 +159,7 @@ export function infoHtml(w: World, x: number, y: number): string {
     const stops = w.lines.filter((l) => l.kind === 'bus' && l.stops.includes(i));
     let h = `${head(t)}${kv('교통량', state(toneOf(100 - load), `${load}%`))}${meter(100 - load)}`;
     if (w.road[i]) h += kv('다리', w.ground[i] === Ground.Water ? '예' : '아니오');
+    if (w.road[i]) { const cap = curbCapacity(w, i); h += kv('갓길 주차', cap ? `${w.parked[i]} / ${cap}대` : '안 됨'); }
     if (w.road[i] && w.roadAlt[i]) h += kv(w.altLevel[i] === 1 ? '위로 지나는 길' : '아래로 지나는 길', LEVEL_NAME[w.altLevel[i]]);
     for (const l of stops) h += kv(`<span class="sw" style="--sw:${l.color}"></span>${esc(l.name)} 정류장`, `지난달 ${num(l.riders)}명`);
     return h;
@@ -205,7 +209,7 @@ export function budgetHtml(w: World): string {
 
 const OVERLAYS: [Overlay, string][] = [
   ['none', '기본'], ['traffic', '교통'], ['transit', '대중교통'], ['land', '땅값'], ['pollution', '오염'], ['power', '전기'], ['water', '수도'],
-  ['edu', '교육'], ['safety', '치안'], ['health', '의료'], ['fire', '소방'],
+  ['edu', '교육'], ['safety', '치안'], ['health', '의료'], ['fire', '소방'], ['parking', '주차'],
 ];
 
 export function statsHtml(w: World, overlay: Overlay): string {
@@ -221,6 +225,11 @@ export function statsHtml(w: World, overlay: Overlay): string {
   h += '<h4>교통</h4>';
   h += kv('평균 통근', `${Math.round(s.commute)}분`) + kv('도로 혼잡도', state(toneOf(100 - s.congestion * 100), `${Math.round(s.congestion * 100)}%`));
   h += kv('대중교통 승객', `지난달 ${num(w.lines.reduce((a, l) => a + l.riders, 0))}명`);
+  h += '<h4>주차</h4>';
+  const lots = [...w.buildings.values()].reduce((a, b) => a + (LOT_SPACES[b.kind] ?? 0), 0);
+  h += kv('주차 수요', `${num(s.parkDemand)}대`) + kv('갓길 / 주차장', `${num(s.parkCurb)}면 / ${num(lots)}면`);
+  h += kv('세울 곳 없는 차', state(s.parkDemand && s.parkUnmet > s.parkDemand * 0.25 ? 'no' : s.parkUnmet > s.parkDemand * 0.1 ? 'meh' : 'ok', `${num(s.parkUnmet)}대`));
+  if (w.noAvenueParking) h += kv('대로 주정차', state('meh', '금지 중'));
   return h;
 }
 
@@ -261,7 +270,7 @@ export const HELP = `${head('조작법')}
 <h4>카메라</h4>
 ${kv('이동', 'WASD, 방향키, 가운데 버튼 드래그')}${kv('회전', '우클릭 드래그, Q와 E')}${kv('확대', '마우스 휠, R과 F')}${kv('모바일', '두 손가락으로 이동, 확대, 회전')}
 <h4>건설</h4>
-${kv('도로', '드래그해서 직선이나 ㄱ자, 대각선은 45도')}${kv('곡선 도로', '시작점에서 끝점까지 끈 뒤 굽힐 곳을 눌러요. 길 끝에 맞추면 매끄럽게 이어져요')}${kv('고가와 터널', '도로 끝에서 끝까지 끌면 양 끝이 진입로가 돼요')}${kv('구역', '드래그해서 사각형으로 칠하기')}${kv('시설', '탭하거나 클릭해서 배치')}${kv('노선', '정류장을 차례로 찍고 완성')}${kv('취소', 'Esc 또는 우클릭')}
+${kv('도로', '드래그해서 직선이나 ㄱ자, 대각선은 45도')}${kv('곡선 도로', '시작점에서 끝점까지 끈 뒤 굽힐 곳을 눌러요. 길 끝에 맞추면 매끄럽게 이어져요')}${kv('고가와 터널', '도로 끝에서 끝까지 끌면 양 끝이 진입로가 돼요')}${kv('주차', '주차장이 모자라면 갓길에 세우고, 그래도 없으면 주변을 돌아요. 공영주차장, 주차타워, 지하철역이 주차난을 덜어요')}${kv('구역', '드래그해서 사각형으로 칠하기')}${kv('시설', '탭하거나 클릭해서 배치')}${kv('노선', '정류장을 차례로 찍고 완성')}${kv('취소', 'Esc 또는 우클릭')}
 <h4>단축키</h4>
 ${kv('도구', 'Z 도로, X 구역, C 전기, V 상하수도, B 공공, N 대중교통, M 공원, L 명소')}${kv('직각, 대각선, 곡선', 'T')}${kv('속도', 'Space 멈춤, 1, 2, 3')}
 <p class="hint">전기와 수도는 도로 밑으로 흘러요. 발전소와 정수장이 도로망에 붙어 있어야 해요. 화력 발전소, 하수처리장, 공장은 오염을 내니 주거지와 떨어뜨리세요.</p>`;

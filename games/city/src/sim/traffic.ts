@@ -1,6 +1,7 @@
 import { CELL, KINDS, N, ROAD_CAPACITY, ROAD_SPEED, Zone } from './defs';
 import { network } from './network';
 import { cellOf, forEachNeighbour, NN, roadTypeOf } from './graph';
+import { parkedSqueeze } from './parking';
 import { tryTransit } from './transit';
 import { rand, type World } from './world';
 
@@ -16,6 +17,8 @@ export interface Car {
   kind: 0 | 1 | 2 | 3; // car, bus-ish van, truck, delivery scooter
   look: number;
   age: number;
+  /** Already went round the block looking for a space once. */
+  cruised?: boolean;
 }
 
 export const MAX_CARS = 1600;
@@ -93,7 +96,8 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
   for (const c of tr.cars) {
     const node = c.path[c.i];
     const r = (roadTypeOf(w, node) || 1) as 1 | 2;
-    const over = tr.load[node] / ROAD_CAPACITY[r];
+    // Cars parked along the kerb take a share of the road.
+    const over = tr.load[node] / (ROAD_CAPACITY[r] * parkedSqueeze(w, node));
     const slow = over > 1 ? 1 / (1 + (over - 1) * 1.8) : 1;
     // A diagonal step is √2 cells long, so it takes longer to cover.
     const next = c.path[Math.min(c.i + 1, c.path.length - 1)];
@@ -108,6 +112,7 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
       c.i++;
       tr.load[c.path[c.i]]++;
     }
+    if (c.i >= c.path.length - 1 && c.t >= 0.5 && !c.cruised && cruise(w, c)) { keep.push(c); continue; }
     if (c.i >= c.path.length - 1 && c.t >= 0.5) {
       tr.tripTime += c.age;
       tr.trips++;
@@ -222,4 +227,33 @@ class Heap {
     }
     return top;
   }
+}
+
+/**
+ * Arriving where there's nowhere to park: some drivers go round the block
+ * a few cells before they give up and find something. Returns whether the
+ * car keeps driving.
+ */
+function cruise(w: World, c: Car): boolean {
+  const end = c.path[c.path.length - 1];
+  if (end >= NN || c.kind === 1 || c.kind === 3) return false;
+  const p = w.parkPress[end] / 100;
+  if (!p || rand(w) > p * 0.8) return false;
+  const walk = [end];
+  let prev = -1, cur = end;
+  const steps = 3 + Math.floor(rand(w) * 4);
+  for (let k = 0; k < steps; k++) {
+    const nb: number[] = [];
+    forEachNeighbour(w, cur, (n) => { if (n < NN && n !== prev) nb.push(n); });
+    if (!nb.length) break;
+    prev = cur;
+    cur = nb[Math.floor(rand(w) * nb.length)];
+    walk.push(cur);
+  }
+  if (walk.length < 2) return false;
+  c.path = Int32Array.from(walk);
+  c.i = 0;
+  c.t = 0;
+  c.cruised = true;
+  return true;
 }

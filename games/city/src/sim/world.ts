@@ -48,6 +48,12 @@ export interface World {
   /** Curved roads drawn over their chains of road cells (see curves.ts). */
   curves: Curve[];
   zone: Uint8Array;
+  /** Cars parked along the kerb of each ground road cell (see parking.ts). */
+  parked: Uint8Array;
+  /** Share of a building's cars with nowhere to park, 0-100, on its cells and its front road. */
+  parkPress: Uint8Array;
+  /** Policy: no stopping or parking on avenues. */
+  noAvenueParking: boolean;
   bld: Int32Array;
   land: Float32Array;
   traffic: Float32Array;
@@ -78,6 +84,9 @@ export interface World {
     happy: number;
     commute: number;
     congestion: number;
+    parkDemand: number;
+    parkUnmet: number;
+    parkCurb: number;
   };
   reports: MonthReport[];
   /** Running totals for the current month. */
@@ -127,6 +136,9 @@ export function createWorld(seed = 20261028, name = '새솔시'): World {
     altLevel: new Uint8Array(size),
     diag: new Uint8Array(size),
     curves: [],
+    parked: new Uint8Array(size),
+    parkPress: new Uint8Array(size),
+    noAvenueParking: false,
     zone: new Uint8Array(size),
     bld: new Int32Array(size).fill(-1),
     land: new Float32Array(size),
@@ -143,7 +155,7 @@ export function createWorld(seed = 20261028, name = '새솔시'): World {
     nextId: 1,
     tax: { R: 9, C: 9, I: 9 },
     demand: { R: 60, C: 25, I: 35 },
-    stats: { pop: 0, jobs: 0, workers: 0, employed: 0, powerSupply: 0, powerUse: 0, waterSupply: 0, waterUse: 0, sewageCap: 0, sewageUse: 0, happy: 60, commute: 0, congestion: 0 },
+    stats: { pop: 0, jobs: 0, workers: 0, employed: 0, powerSupply: 0, powerUse: 0, waterSupply: 0, waterUse: 0, sewageCap: 0, sewageUse: 0, happy: 60, commute: 0, congestion: 0, parkDemand: 0, parkUnmet: 0, parkCurb: 0 },
     reports: [],
     month: emptyMonth(0),
     notices: [],

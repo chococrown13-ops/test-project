@@ -51,7 +51,9 @@ export function updateLand(w: World) {
     if (w.ground[i] !== Ground.Land) { w.land[i] = 0; continue; }
     const view = (waterDist[i] <= 5 ? (6 - waterDist[i]) * 3 : 0) + (hillDist[i] <= 4 ? (5 - hillDist[i]) * 2 : 0);
     const noise = w.traffic[i] * 6 + neighbourTraffic(w, i) * 4;
-    w.land[i] = clamp(32 + view + bonus[i] - w.pollution[i] * 0.6 - noise, 0, 100);
+    // Nowhere to park costs a lot up to 10 points.
+    const parking = w.parkPress[i] * 0.1;
+    w.land[i] = clamp(32 + view + bonus[i] - w.pollution[i] * 0.6 - noise - parking, 0, 100);
   }
 }
 
@@ -219,6 +221,8 @@ export function updateBuildings(w: World) {
       h += w.transit[i] === 2 ? 4 : w.transit[i] ? 2 : 0;
       h -= Math.max(0, s.commute - 35) * 0.6;
     }
+    // Circling the block every evening for a space wears people down.
+    h -= w.parkPress[i] * 0.08;
     if (!reachesOutside(w, b)) h -= 30;
     b.happy += (clamp(h, 0, 100) - b.happy) * 0.15;
     if (!b.abandoned && b.outage > 40) { b.abandoned = true; b.occ = 0; w.ver.buildings++; }

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Road } from '../sim/defs';
-import { roadTypeOf } from '../sim/graph';
+import { NN, roadTypeOf } from '../sim/graph';
+import { CELL, N } from '../sim/defs';
 import { MAX_CARS, type Car, type Traffic } from '../sim/traffic';
 import type { World } from '../sim/world';
 import { shared } from './materials';
@@ -34,6 +35,8 @@ const MODELS = [
 ] as THREE.BufferGeometry[];
 
 const CAR_COLORS = ['#f2f2f0', '#f2f2f0', '#1b1c1e', '#1b1c1e', '#a9adb2', '#a9adb2', '#6f7378', '#2a3d66', '#8c1d1d', '#e6e1d3'];
+/** Kerbside parked cars drawn at most. */
+const MAX_PARKED = 6000;
 const BUS_COLORS = ['#2e9e4f', '#2f6db5', '#2e9e4f', '#d9483b'];
 const TRUCK_COLORS = ['#2f5fa8', '#2f5fa8', '#f2f2f0'];
 const SCOOTER_COLORS = ['#e0a400', '#d9483b', '#2e9e4f', '#2f6db5', '#f2f2f0'];
@@ -42,6 +45,8 @@ export class VehicleLayer {
   readonly group = new THREE.Group();
   private meshes: THREE.InstancedMesh[];
   private mat: THREE.MeshStandardMaterial;
+  private parked: THREE.InstancedMesh;
+  private parkedKey = '';
 
   constructor() {
     this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.3 });
@@ -61,9 +66,50 @@ export class VehicleLayer {
       this.group.add(m);
       return m;
     });
+    this.parked = new THREE.InstancedMesh(MODELS[0], this.mat, MAX_PARKED);
+    this.parked.castShadow = true;
+    this.parked.receiveShadow = true;
+    this.parked.count = 0;
+    this.parked.frustumCulled = false;
+    this.parked.setColorAt(0, new THREE.Color());
+    this.group.add(this.parked);
+  }
+
+  /** Cars parked along the kerbs, two to a side per cell: rebuilt when the parking changes. */
+  private updateParked(w: World) {
+    const key = `${w.day >> 1}:${w.ver.roads}:${w.noAvenueParking}`;
+    if (key === this.parkedKey) return;
+    this.parkedKey = key;
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
+    let n = 0;
+    for (let i = 0; i < NN && n < MAX_PARKED; i++) {
+      const k = w.parked[i];
+      if (!k || !w.road[i]) continue;
+      const x = i % N, y = (i / N) | 0;
+      const horiz = (x > 0 && !!w.road[i - 1]) || (x < N - 1 && !!w.road[i + 1]);
+      const off = w.road[i] === 2 ? 3.55 : 2.75;
+      const mx = x * CELL + CELL / 2, mz = y * CELL + CELL / 2;
+      // Alternate sides so a half-full street has cars on both kerbs.
+      const slots = [[1, -2.4], [-1, 2.4], [-1, -2.4], [1, 2.4]];
+      for (let s = 0; s < Math.min(k, 4) && n < MAX_PARKED; s++) {
+        const [side, along] = slots[(s + x + y) % 4];
+        const h = Math.sin(i * 12.9898 + s * 78.233) * 43758.5453;
+        const r = h - Math.floor(h);
+        if (horiz) { p.set(mx + along, 0.12, mz + side * off); q.setFromAxisAngle(up, r < 0.5 ? 0 : Math.PI); }
+        else { p.set(mx + side * off, 0.12, mz + along); q.setFromAxisAngle(up, r < 0.5 ? Math.PI / 2 : -Math.PI / 2); }
+        m.compose(p, q, one);
+        this.parked.setMatrixAt(n, m);
+        this.parked.setColorAt(n, c.set(CAR_COLORS[Math.floor(r * 997) % CAR_COLORS.length]));
+        n++;
+      }
+    }
+    this.parked.count = n;
+    this.parked.instanceMatrix.needsUpdate = true;
+    if (this.parked.instanceColor) this.parked.instanceColor.needsUpdate = true;
   }
 
   update(w: World, tr: Traffic) {
+    this.updateParked(w);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
     const n = [0, 0, 0, 0];
     const a = { x: 0, z: 0, y: 0 }, b = { x: 0, z: 0, y: 0 };
@@ -103,7 +149,9 @@ function sample(w: World, car: Car, s: number, out: { x: number; z: number; y: n
   const node = f < 0.5 ? n0 : n1;
   // Lane centres sit inside the asphalt: avenue lanes at 1.15 and 2.95 m (kerb at 4 m), street lanes at 1.6 m (kerb at 3 m).
   const avenue = roadTypeOf(w, node) === Road.Avenue;
-  const lane = car.kind === 3 ? (avenue ? 3.4 : 2.5) : avenue ? (car.look > 0.5 ? 2.95 : 1.15) : 1.6;
+  // Past parked cars everyone keeps further in: on an avenue they fill the outer lane.
+  const parked = node < NN && w.parked[node] > 0;
+  const lane = car.kind === 3 ? (avenue ? (parked ? 2.3 : 3.4) : parked ? 1.0 : 2.5) : avenue ? (car.look > 0.5 && !parked ? 2.95 : 1.15) : parked ? 0.95 : 1.6;
   // Right of travel direction (dx, dz) with y up is (-dz, dx); diagonals use the unit vector.
   out.x = p0.x + (p1.x - p0.x) * f - dz * lane;
   out.z = p0.z + (p1.z - p0.z) * f + dx * lane;

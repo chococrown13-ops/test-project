@@ -1,8 +1,8 @@
 import { createWorld, type World } from './world';
 
 const KEY = 'city.save.v1';
-type Arrays = 'ground' | 'road' | 'roadAlt' | 'altLevel' | 'diag' | 'zone' | 'bld' | 'land' | 'traffic' | 'pollution' | 'edu' | 'safety' | 'fire' | 'health' | 'transit';
-const ARRAYS: Arrays[] = ['ground', 'road', 'roadAlt', 'altLevel', 'diag', 'zone', 'bld', 'land', 'traffic', 'pollution', 'edu', 'safety', 'fire', 'health', 'transit'];
+type Arrays = 'ground' | 'road' | 'roadAlt' | 'altLevel' | 'diag' | 'parked' | 'parkPress' | 'zone' | 'bld' | 'land' | 'traffic' | 'pollution' | 'edu' | 'safety' | 'fire' | 'health' | 'transit';
+const ARRAYS: Arrays[] = ['ground', 'road', 'roadAlt', 'altLevel', 'diag', 'parked', 'parkPress', 'zone', 'bld', 'land', 'traffic', 'pollution', 'edu', 'safety', 'fire', 'health', 'transit'];
 
 function b64(a: ArrayBufferView): string {
   const u = new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
@@ -31,12 +31,16 @@ export function deserialize(json: string): World {
   w.road = unb64(o.road, (b) => new Uint8Array(b));
   w.zone = unb64(o.zone, (b) => new Uint8Array(b));
   // Saves from before layered and diagonal roads have none of either.
-  for (const k of ['roadAlt', 'altLevel', 'diag'] as const) w[k] = o[k] ? unb64(o[k], (b) => new Uint8Array(b)) : new Uint8Array(w.ground.length);
+  for (const k of ['roadAlt', 'altLevel', 'diag', 'parked', 'parkPress'] as const) w[k] = o[k] ? unb64(o[k], (b) => new Uint8Array(b)) : new Uint8Array(w.ground.length);
   w.bld = unb64(o.bld, (b) => new Int32Array(b));
   for (const k of ['land', 'traffic', 'pollution'] as const) w[k] = unb64(o[k], (b) => new Float32Array(b));
   for (const k of ['edu', 'safety', 'fire', 'health', 'transit'] as const) w[k] = o[k] ? unb64(o[k], (b) => new Uint8Array(b)) : new Uint8Array(w.ground.length);
   w.lines ??= [];
   w.curves ??= [];
+  w.noAvenueParking ??= false;
+  w.stats.parkDemand ??= 0;
+  w.stats.parkUnmet ??= 0;
+  w.stats.parkCurb ??= 0;
   w.month.income.T ??= 0;
   w.month.expense.transit ??= 0;
   w.nextLine ??= 1;

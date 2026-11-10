@@ -202,6 +202,36 @@ function rawParts(b: Building, w: World): Part[] {
       box(-3.2, 0, -2.6, 0.5, 4.2, 0.5, '#e7ebee');
       box(-3.2, 4.2, -2.6, 1.6, 1.0, 0.4, '#263c96');
       break;
+    case 'parking': {
+      // 공영주차장: an asphalt lot with painted bays and a few cars in them.
+      box(0, 0, 0, 9.4, 0.14, 9.4, '#55585c');
+      for (let k = -2; k <= 2; k++) { box(k * 2.3, 0.14, -2.6, 0.12, 0.02, 4, '#eeeeea'); box(k * 2.3, 0.14, 2.6, 0.12, 0.02, 4, '#eeeeea'); }
+      for (const k of [-1.5, -0.5, 0.5, 1.5]) for (const z of [-2.6, 2.6]) {
+        if (r() < 0.35) continue;
+        const col = pick(['#f2f2f0', '#1b1c1e', '#a9adb2', '#6f7378', '#2a3d66', '#8c1d1d'], r());
+        box(k * 2.3, 0.14, z, 1.7, 0.8, 3.9, col);
+        box(k * 2.3, 0.94, z, 1.5, 0.55, 2.0, '#2c2f33');
+      }
+      box(-4.3, 0, -4.3, 0.15, 3, 0.15, '#8c9196');
+      box(-4.3, 2.4, -4.3, 1.1, 1.1, 0.15, '#2f6db5', STYLE.plain);
+      break;
+    }
+    case 'parktower': {
+      // 주차타워: open concrete decks with cars glimpsed between them, a blue P on top.
+      const H2 = b.floors * 2.6;
+      for (let f = 0; f < b.floors; f++) {
+        box(0, f * 2.6, 0, 8.8, 0.35, 8.8, '#b4b1a9');
+        if (f) for (const x of [-3, 0, 3]) box(x, f * 2.6 + 0.35, (r() - 0.5) * 4, 1.6, 0.9, 3.6, pick(['#f2f2f0', '#1b1c1e', '#a9adb2', '#2a3d66', '#8c1d1d'], r()));
+        for (const [x, z] of [[-4.2, -4.2], [4.2, -4.2], [-4.2, 4.2], [4.2, 4.2]]) box(x, f * 2.6, z, 0.5, 2.6, 0.5, '#9d9a92');
+      }
+      box(0, H2, 0, 8.8, 0.4, 8.8, '#9d9a92');
+      box(0, H2 + 0.4, 4.2, 2.4, 2.4, 0.3, '#2f6db5');
+      box(-0.3, H2 + 0.9, 4.4, 0.4, 1.5, 0.1, '#ffffff');
+      box(0.15, H2 + 1.85, 4.4, 0.6, 0.45, 0.1, '#ffffff');
+      box(0.35, H2 + 1.35, 4.4, 0.25, 0.5, 0.1, '#ffffff');
+      box(0.15, H2 + 1.1, 4.4, 0.6, 0.3, 0.1, '#ffffff');
+      break;
+    }
     case 'market': {
       // 전통시장: two rows of stalls under a translucent arcade roof.
       for (const z of [-4.6, 4.6]) {

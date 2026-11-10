@@ -1,6 +1,7 @@
 import './style.css';
 import { CELL, Ground, KINDS, Level, LEVEL_NAME, N, Road, SERVICE, Zone } from './sim/defs';
 import { loadLocal, saveLocal } from './sim/save';
+import { updateParking } from './sim/parking';
 import { createSim, tick, type Sim } from './sim/sim';
 import { altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
 import { createLine, removeLine, STOP_RADIUS, stopProblem, type LineKind } from './sim/transit';
@@ -59,7 +60,8 @@ function renderCats() {
   const c = CATEGORIES.find((k) => k.id === cat);
   tools.hidden = !c || (c.tools.length < 2 && c.id !== 'transit');
   if (c) tools.innerHTML = c.tools.map((t) => `<button class="tool" data-tool="${t.id}" aria-pressed="${t.id === tool}">${t.swatch ? `<span class="sw" style="--sw:${t.swatch}"></span>` : ''}<span class="n">${t.name}</span>${t.price ? `<span class="p">${t.price}</span>` : ''}</button>`).join('')
-    + (c.id === 'road' ? `<span class="cats-rule" aria-hidden="true"></span>` + ROAD_MODES.map((m) => `<button class="tool" data-roadmode="${m.id}" aria-pressed="${roadMode === m.id}" aria-keyshortcuts="T"><span class="n">${m.name}</span><span class="p">${m.hint}</span></button>`).join('') : '')
+    + (c.id === 'road' ? `<span class="cats-rule" aria-hidden="true"></span><button class="tool" data-policy="noAvenueParking" aria-pressed="${sim.w.noAvenueParking}"><span class="n">대로 주정차 금지</span><span class="p">${sim.w.noAvenueParking ? '시행 중' : '안 함'}</span></button>` : '')
+    + (c.id === 'road' && TOOLS[tool]?.road !== undefined ? `<span class="cats-rule" aria-hidden="true"></span>` + ROAD_MODES.map((m) => `<button class="tool" data-roadmode="${m.id}" aria-pressed="${roadMode === m.id}" aria-keyshortcuts="T"><span class="n">${m.name}</span><span class="p">${m.hint}</span></button>`).join('') : '')
     + (c.id === 'transit' ? `<button class="tool" data-panel="lines" aria-pressed="${panel === 'lines'}"><span class="n">노선 관리</span><span class="p">${sim.w.lines.length}개 운행 중</span></button>` : '');
   renderDraft();
 }
@@ -101,6 +103,13 @@ $('dock').addEventListener('click', (e) => {
   if (el.dataset.cat) selectCategory(el.dataset.cat); else if (el.dataset.tool) setTool(el.dataset.tool as ToolId);
   else if (el.dataset.panel) openPanel(el.dataset.panel as PanelKind);
   else if (el.dataset.roadmode) setRoadMode(el.dataset.roadmode as RoadMode);
+  else if (el.dataset.policy === 'noAvenueParking') {
+    const w = sim.w;
+    w.noAvenueParking = !w.noAvenueParking;
+    updateParking(w);
+    toast(w.noAvenueParking ? '대로에 차를 세울 수 없어요. 차가 잘 빠지지만 주변 주차난은 늘어요.' : '대로 갓길 주차를 다시 허용했어요.', 'info');
+    renderCats();
+  }
   else if (el.dataset.draft && draft) {
     if (el.dataset.draft === 'undo') draft.stops.pop();
     if (el.dataset.draft === 'cancel') { cat = null; setTool('select'); return; }

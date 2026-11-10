@@ -28,7 +28,8 @@ export type BuildingKind =
   | 'c1' | 'c2' | 'c3'
   | 'i1' | 'i2' | 'i3'
   | 'coal' | 'solar' | 'water' | 'sewage' | 'park' | 'school' | 'police' | 'fire' | 'clinic' | 'metro'
-  | 'market' | 'riverpark' | 'palace' | 'tower';
+  | 'market' | 'riverpark' | 'palace' | 'tower'
+  | 'parking' | 'parktower';
 
 export interface KindDef {
   name: string;
@@ -69,6 +70,8 @@ export const KINDS: Record<BuildingKind, KindDef> = {
   market: { name: '전통시장', size: 2, power: 6, water: 4, cost: 3500, upkeep: 110, floors: [1, 1], desc: '주변 상업과 땅값을 살려요' },
   riverpark: { name: '한강공원', size: 2, power: 1, water: 2, cost: 2500, upkeep: 60, floors: [0, 0], desc: '강가에만 지어요. 주변 땅값과 만족도가 크게 올라요' },
   palace: { name: '고궁', size: 3, power: 4, water: 4, cost: 20000, upkeep: 200, floors: [1, 1], desc: '도시에 하나뿐인 명소. 넓은 범위의 땅값이 올라요' },
+  parking: { name: '공영주차장', size: 1, power: 0, water: 0, cost: 600, upkeep: 20, floors: [0, 0], desc: '차 40대 · 반경 5칸 건물의 주차난을 덜어요' },
+  parktower: { name: '주차타워', size: 1, power: 4, water: 0, cost: 2800, upkeep: 70, floors: [5, 5], desc: '차 160대 · 좁은 땅에 많이 세워요' },
   tower: { name: '전망타워', size: 1, power: 0, water: 0, cost: 15000, upkeep: 160, floors: [1, 1], desc: '산 위에만 지어요. 도시 어디서나 보이는 명소예요' },
 };
 
