@@ -336,6 +336,8 @@ function parts(b: Building, w: World): Part[] {
  * 다세대, a shop a row of shopfronts, two apartment slabs longer 동.
  */
 function stretched(b: Building, w: World): Part[] {
+  if (b.kind === 'r3') return complex(b);
+  if (b.kind === 'c3') return officeBlock(b);
   const W = bw(b), D = bh(b), base = b.size;
   const out = rawParts({ ...b, x: b.x + (W - base) / 2, y: b.y + (D - base) / 2 }, w);
   const cx = (b.x + W / 2) * CELL, cz = (b.y + D / 2) * CELL;
@@ -345,6 +347,79 @@ function stretched(b: Building, w: World): Part[] {
     p.z = cz + (p.z - cz) * fz;
     // A part turned a quarter is long along the other axis.
     if (Math.abs(Math.sin(p.rot)) > 0.5) { p.sx *= fz; p.sz *= fx; } else { p.sx *= fx; p.sz *= fz; }
+  }
+  return out;
+}
+
+/**
+ * An 아파트 단지 laid out for its plot: rows of 판상형 slabs along the long
+ * side (two to a row on a long plot), or a grid of 탑상형 towers, one per
+ * cell. A bigger block gets more 동, not fatter ones.
+ */
+function complex(b: Building): Part[] {
+  const r = seq(b.look + b.id * 0.0137);
+  const Wm = bw(b) * CELL, Dm = bh(b) * CELL;
+  const cx = b.x * CELL + Wm / 2, cz = b.y * CELL + Dm / 2;
+  const H = b.floors * 3;
+  const col = pick(APT, r()), brand = pick(BRAND, r());
+  const out: Part[] = [];
+  const box = (x: number, y: number, z: number, sx: number, sy: number, sz: number, color: string, style = STYLE.plain, sign?: string) =>
+    out.push({ shape: 'box', x: cx + x, y, z: cz + z, sx, sy, sz, rot: 0, color, style, sign });
+  const alongX = Wm > Dm || (Wm === Dm && b.look < 0.3);
+  const long = alongX ? Wm : Dm, short = alongX ? Dm : Wm;
+  const put = (u: number, v: number, lu: number, lv: number, h: number, style: number, sign?: string, color = col) =>
+    alongX ? box(u, 0, v, lu, h, lv, color, style, sign) : box(v, 0, u, lv, h, lu, color, style, sign);
+  const putAt = (u: number, v: number, y: number, lu: number, h: number, lv: number, color: string) =>
+    alongX ? box(u, y, v, lu, h, lv, color) : box(v, y, u, lv, h, lu, color);
+  if (b.look < 0.55) {
+    // 판상형: rows of slabs, about 9 m apart.
+    const rows = Math.max(2, Math.floor((short - 2) / 9));
+    const segs = long >= 28 ? 2 : 1;
+    const gap = 3, len = (long - 3.5 - (segs - 1) * gap) / segs;
+    for (let i = 0; i < rows; i++) {
+      const v = -short / 2 + (short / rows) * (i + 0.5);
+      for (let k = 0; k < segs; k++) {
+        const u = -long / 2 + 1.75 + len / 2 + k * (len + gap);
+        const h = H - Math.floor(r() * 3) * 3;
+        put(u, v, len, 4.6, h, STYLE.apt, brand);
+        putAt(u, v, h, Math.min(4, len * 0.3), 2.2, 3.2, col);
+      }
+    }
+  } else {
+    // 탑상형: a tower per cell, heights stepping.
+    const nu = Math.max(2, Math.round(long / 10)), nv = Math.max(2, Math.round(short / 10));
+    for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+      const u = -long / 2 + (long / nu) * (i + 0.5), v = -short / 2 + (short / nv) * (j + 0.5);
+      const h = H - Math.floor(r() * 3) * 6;
+      put(u, v, 7.2, 7.2, h, STYLE.apt, brand);
+      putAt(u, v, h, 4.6, 2.4, 4.6, brand);
+    }
+  }
+  // 경비실 at a corner, and a little 놀이터.
+  box(-Wm / 2 + 1.6, 0, -Dm / 2 + 1.6, 2.2, 2.6, 2.2, '#d9d2c3');
+  if (bw(b) * bh(b) >= 6) box(Wm / 2 - 3, 0, Dm / 2 - 3, 3.6, 0.3, 3.6, '#d9a25b');
+  return out;
+}
+
+/** Office plots: a podium over the whole lot, with a tower for every two cells of frontage. */
+function officeBlock(b: Building): Part[] {
+  const r = seq(b.look + b.id * 0.0137);
+  const Wm = bw(b) * CELL, Dm = bh(b) * CELL;
+  const cx = b.x * CELL + Wm / 2, cz = b.y * CELL + Dm / 2;
+  const H = b.floors * 3;
+  const out: Part[] = [];
+  const box = (x: number, y: number, z: number, sx: number, sy: number, sz: number, color: string, style = STYLE.plain, sign?: string) =>
+    out.push({ shape: 'box', x: cx + x, y, z: cz + z, sx, sy, sz, rot: 0, color, style, sign });
+  box(0, 0, 0, Wm - 1.6, 9, Dm - 1.6, '#b9b4ab', STYLE.shops, pick(SIGN, r()));
+  const alongX = Wm >= Dm, long = alongX ? Wm : Dm;
+  const n = Math.max(1, Math.floor(long / 15));
+  const glass = pick(['#7c90a6', '#8aa1a8', '#6d7f94', '#9aa7b4'], r());
+  for (let k = 0; k < n; k++) {
+    const u = -long / 2 + (long / n) * (k + 0.5);
+    const tw = 10 + r() * 3, td = 10 + r() * 3, h = H - (k % 2) * 9;
+    const [x, z] = alongX ? [u, 0] : [0, u];
+    box(x, 9, z, tw, h - 9, td, glass, STYLE.office);
+    box(x, h, z, 3, 2.5, 3, '#c9cbcc');
   }
   return out;
 }

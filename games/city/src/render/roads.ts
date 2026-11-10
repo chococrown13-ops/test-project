@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CELL, ELEVATED_Y, Ground, Level, N, Road } from '../sim/defs';
 import { bez, bezLength, bezTan, curveInfo, HALF_WIDTH, KERB_W, type Curve } from '../sim/curves';
 import { altNeighbours, DIAG } from '../sim/graph';
+import { buildPolyRoads, S as PS, shapes, type PolyRoads } from './roadpoly';
 import { idx, type World } from '../sim/world';
 import { shared } from './materials';
 
@@ -150,11 +151,11 @@ export class RoadLayer {
     const m = new THREE.Matrix4();
     let lamps = 0;
     const owned = curveInfo(w).owned;
-    // Curve ends the ribbon draws itself (dead ends, joints, straight run-ons) are left out of the grid.
-    const ends = curveEnds(w);
+    // Curves, diagonals and the road cells touching them are drawn as merged polygons.
+    const poly = buildPolyRoads(w, owned);
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const t = w.road[idx(x, y)] as Road;
-      if (!t || owned[idx(x, y)] || ends.get(idx(x, y))?.drawn) continue;
+      if (!t || owned[idx(x, y)] || poly.cells.has(idx(x, y))) continue;
       const x0 = x * CELL, z0 = y * CELL, x1 = x0 + CELL, z1 = z0 + CELL, mx = x0 + CELL / 2, mz = z0 + CELL / 2;
       if (w.diag[idx(x, y)]) { diagCell(b, w, x, y, t, road); continue; }
       const E = !!road(x + 1, y), W = !!road(x - 1, y), Nn = !!road(x, y - 1), S = !!road(x, y + 1);
@@ -241,7 +242,8 @@ export class RoadLayer {
       this.lamps.setMatrixAt(lamps, m);
       lamps++;
     };
-    for (const c of w.curves) curveRibbon(b, w, c, owned, ends, lamp);
+    drawPoly(b, poly);
+    for (const c of w.curves) curveRibbon(b, w, c, poly, lamp);
     // The second layer: flyover decks, and the mouths of underpasses and tunnels.
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (w.roadAlt[idx(x, y)]) altCell(b, w, x, y);
     this.poles.count = this.lamps.count = lamps;
@@ -337,189 +339,112 @@ function altCell(b: Builder, w: World, x: number, y: number) {
   b.slab(px - ramp.dx * 0.1 - ox * mi, pz - ramp.dy * 0.1 - oz * mi, mh, px - ramp.dx * 0.1 + ox * mi, pz - ramp.dy * 0.1 + oz * mi, mh, 1.6, mh, MOUTH);
 }
 
-type EndKind = 'cap' | 'joint' | 'continue' | 'junction';
-interface CurveEnd { kind: EndKind; drawn: boolean; toward?: { x: number; z: number } }
-
-/**
- * How each curve end meets the rest of the network, per end cell:
- * - cap: nothing else there; the curve ends in a rounded cul-de-sac.
- * - joint: other curves end there too and nothing else; they meet at the centre.
- * - continue: exactly one grid road leads on; a straight stub carries the curve to it.
- * - junction: a crossing or a T; the grid draws the cell and the curve meets its edge.
- */
-function curveEnds(w: World): Map<number, CurveEnd> {
-  const out = new Map<number, CurveEnd>();
-  const adjOf = new Map<number, number[]>();
-  for (const c of w.curves) {
-    const n = c.cells.length;
-    for (const [e, adj] of [[c.cells[0], c.cells[1]], [c.cells[n - 1], c.cells[n - 2]]]) {
-      if (!adjOf.has(e)) adjOf.set(e, []);
-      adjOf.get(e)!.push(adj);
+/** The merged road polygons: asphalt, raised pavement with kerb faces, and lane markings. */
+function drawPoly(b: Builder, poly: PolyRoads) {
+  const fill = (rings: PolyRoads['pieces'][number]['street'], y: number, hex: number) => {
+    for (const { outer, holes } of shapes(rings)) {
+      if (outer.length < 3) continue;
+      const tris = THREE.ShapeUtils.triangulateShape(outer, holes);
+      const pts = [...outer, ...holes.flat()];
+      for (const [i, j, k] of tris) b.tri([pts[i].x, y, pts[i].y], [pts[j].x, y, pts[j].y], [pts[k].x, y, pts[k].y], hex, [0, 1, 0]);
+    }
+  };
+  for (const pc of poly.pieces) {
+    fill(pc.street, Y, ASPHALT[Road.Street]);
+    fill(pc.avenue, Y, ASPHALT[Road.Avenue]);
+    fill(pc.pavement, SW, WALK);
+    // Kerb faces round the pavement, except along the cell's own edges (where the next piece carries on).
+    const x0 = (pc.cell % N) * CELL * PS, z0 = ((pc.cell / N) | 0) * CELL * PS, x1 = x0 + CELL * PS, z1 = z0 + CELL * PS;
+    const onEdge = (p: { x: number; y: number }, q: { x: number; y: number }) =>
+      (Math.abs(p.x - x0) < 1 && Math.abs(q.x - x0) < 1) || (Math.abs(p.x - x1) < 1 && Math.abs(q.x - x1) < 1) ||
+      (Math.abs(p.y - z0) < 1 && Math.abs(q.y - z0) < 1) || (Math.abs(p.y - z1) < 1 && Math.abs(q.y - z1) < 1);
+    for (const ring of pc.pavement) {
+      for (let k = 0; k < ring.length; k++) {
+        const p = ring[k], q = ring[(k + 1) % ring.length];
+        if (onEdge(p, q)) continue;
+        const ax = p.x / PS, az = p.y / PS, bx = q.x / PS, bz = q.y / PS;
+        b.tri([ax, 0, az], [bx, 0, bz], [bx, SW, bz], WALK, [bz - az, 0, ax - bx], 0.82);
+        b.tri([ax, 0, az], [bx, SW, bz], [ax, SW, az], WALK, [bz - az, 0, ax - bx], 0.82);
+      }
     }
   }
-  adjOf.forEach((adj, e) => {
-    const x = e % N, y = (e / N) | 0;
-    const others: [number, number][] = [];
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const nx = x + dx, ny = y + dy;
-      if (nx < 0 || ny < 0 || nx >= N || ny >= N || !w.road[ny * N + nx] || adj.includes(ny * N + nx)) continue;
-      others.push([dx, dy]);
+  // Markings along each centreline, kept clear of junctions.
+  const clear = (x: number, z: number) => poly.junctions.every((j) => (x - j.x) ** 2 + (z - j.z) ** 2 > j.r * j.r);
+  for (const { pts, t } of poly.lines) {
+    let s = 0;
+    for (let k = 0; k < pts.length - 1; k++) {
+      const a = pts[k], c = pts[k + 1];
+      const len = Math.hypot(c.x - a.x, c.z - a.z);
+      if (len < 1e-3) continue;
+      const ux = (c.x - a.x) / len, uz = (c.z - a.z) / len, nx = -uz, nz = ux;
+      // Walk the segment in 1 m steps so dashes and junction gaps line up.
+      for (let d = 0; d < len - 1e-6; d += 1) {
+        const d1 = Math.min(len, d + 1), ss = s + d;
+        const x0 = a.x + ux * d, z0 = a.z + uz * d, x1 = a.x + ux * d1, z1 = a.z + uz * d1;
+        if (!clear((x0 + x1) / 2, (z0 + z1) / 2)) continue;
+        const strip = (off: number, wd: number, hex: number) => b.strip(x0 + nx * off, z0 + nz * off, Y + 0.02, x1 + nx * off, z1 + nz * off, Y + 0.02, wd, hex);
+        const dash = (ss % 6) < 3;
+        if (t === Road.Avenue) {
+          strip(-0.22, 0.14, YELLOW); strip(0.22, 0.14, YELLOW);
+          if (dash) { strip(-2.05, 0.15, WHITE); strip(2.05, 0.15, WHITE); }
+        } else if (dash) strip(0, 0.18, WHITE);
+      }
+      s += len;
     }
-    for (const [dx, dy, bit] of DIAG) {
-      const nx = x + dx, ny = y + dy;
-      if (!(w.diag[e] & bit) || nx < 0 || ny < 0 || nx >= N || ny >= N || adj.includes(ny * N + nx)) continue;
-      others.push([dx, dy]);
-    }
-    // The expressway link and second-layer ramps stay with the grid.
-    if (x <= 1 || w.roadAlt[e]) { out.set(e, { kind: 'junction', drawn: false }); return; }
-    if (!others.length) out.set(e, { kind: adj.length > 1 ? 'joint' : 'cap', drawn: true });
-    else if (others.length === 1 && adj.length === 1) out.set(e, { kind: 'continue', drawn: true, toward: { x: others[0][0], z: others[0][1] } });
-    else out.set(e, { kind: 'junction', drawn: false });
-  });
-  return out;
+  }
 }
 
 /**
- * A curve's road surface: pavement, asphalt and markings swept along the
- * Bézier, with the same widths as a grid road. Its ends are finished by how
- * they meet the network (see curveEnds); crossings in the middle stay with
- * the grid. Over water it becomes a deck with rails and piers.
+ * The parts of a curve the polygons don't draw: a deck with rails and piers
+ * where it crosses water, and the street lights along it.
  */
-function curveRibbon(b: Builder, w: World, c: Curve, owned: Uint8Array, ends: Map<number, CurveEnd>, lamp: (x: number, z: number, ang: number) => void) {
+function curveRibbon(b: Builder, w: World, c: Curve, poly: PolyRoads, lamp: (x: number, z: number, ang: number) => void) {
   const t = c.t as 1 | 2;
   const hw = HALF_WIDTH[t], kerb = KERB_W[t];
   const cellOfPt = (x: number, z: number) => { const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL); return cx < 0 || cz < 0 || cx >= N || cz >= N ? -1 : cz * N + cx; };
-  const e0 = c.cells[0], e1 = c.cells[c.cells.length - 1];
-  const k0 = ends.get(e0)!, k1 = ends.get(e1)!;
-  // At a junction the ribbon starts where the curve leaves the junction cell.
-  const exitU = (cell: number, from: number, to: number) => {
-    let u = from;
-    const step = (to - from) / 200;
-    for (let k = 0; k < 200; k++) { const p = bez(c, u); if (cellOfPt(p.x, p.z) !== cell) return u; u += step; }
-    return u;
+  const n = Math.max(3, Math.ceil(bezLength(c) / 1.2));
+  const P: { x: number; z: number; nx: number; nz: number; s: number }[] = [];
+  let s = 0;
+  for (let k = 0; k <= n; k++) {
+    const p = bez(c, k / n), tn = bezTan(c, k / n);
+    if (k) s += Math.hypot(p.x - P[k - 1].x, p.z - P[k - 1].z);
+    P.push({ x: p.x, z: p.z, nx: -tn.z, nz: tn.x, s });
+  }
+  const at = (k: number, off: number, y: number) => [P[k].x + P[k].nx * off, y, P[k].z + P[k].nz * off];
+  const band = (k: number, o0: number, o1: number, y: number, hex: number) => {
+    const a = at(k, o0, y), bb = at(k, o1, y), cc = at(k + 1, o1, y), d = at(k + 1, o0, y);
+    b.tri(a, bb, cc, hex, [0, 1, 0]);
+    b.tri(a, cc, d, hex, [0, 1, 0]);
   };
-  const u0 = k0.kind === 'junction' ? exitU(e0, 0, 1) : 0;
-  const u1 = k1.kind === 'junction' ? exitU(e1, 1, 0) : 1;
-  const len = bezLength(c) * (u1 - u0);
-  const n = Math.max(3, Math.ceil(len / 1.2));
-  type Pt = { x: number; z: number; nx: number; nz: number; s: number };
-  const sample = (ua: number, ub: number, m: number): Pt[] => {
-    const P: Pt[] = [];
-    let s = 0;
-    for (let k = 0; k <= m; k++) {
-      const u = ua + ((ub - ua) * k) / m;
-      const p = bez(c, u), tn = bezTan(c, u);
-      if (k) s += Math.hypot(p.x - P[k - 1].x, p.z - P[k - 1].z);
-      P.push({ x: p.x, z: p.z, nx: -tn.z, nz: tn.x, s });
-    }
-    return P;
+  const wall = (k: number, off: number, y0: number, y1: number, hex: number, out: number) => {
+    const a = at(k, off, y0), bb = at(k + 1, off, y0), cc = at(k + 1, off, y1), d = at(k, off, y1);
+    const hint = [P[k].nx * out, 0, P[k].nz * out];
+    b.tri(a, bb, cc, hex, hint, 0.82);
+    b.tri(a, cc, d, hex, hint, 0.82);
   };
-  const P = sample(u0, u1, n);
-  const water = (x: number, z: number) => { const i = cellOfPt(x, z); return i >= 0 && w.ground[i] === Ground.Water; };
-  const avenue = t === Road.Avenue;
-  const AS = ASPHALT[t];
-
-  /** Pavement, asphalt and markings along a polyline; `skip` leaves out stretches over grid crossings. */
-  const sweep = (Q: Pt[], skip: (k: number) => boolean, lamps: boolean) => {
-    const at = (k: number, off: number, y: number) => [Q[k].x + Q[k].nx * off, y, Q[k].z + Q[k].nz * off];
-    const band = (k: number, o0: number, o1: number, y: number, hex: number) => {
-      const a = at(k, o0, y), bb = at(k, o1, y), cc = at(k + 1, o1, y), d = at(k + 1, o0, y);
-      b.tri(a, bb, cc, hex, [0, 1, 0]);
-      b.tri(a, cc, d, hex, [0, 1, 0]);
-    };
-    const wall = (k: number, off: number, y0: number, y1: number, hex: number, out: number) => {
-      const a = at(k, off, y0), bb = at(k + 1, off, y0), cc = at(k + 1, off, y1), d = at(k, off, y1);
-      const hint = [Q[k].nx * out, 0, Q[k].nz * out];
-      b.tri(a, bb, cc, hex, hint, 0.82);
-      b.tri(a, cc, d, hex, hint, 0.82);
-    };
-    let nextLamp = 6, side = 1, nextPier = 4;
-    for (let k = 0; k < Q.length - 1; k++) {
-      if (skip(k)) continue;
-      const ss = (Q[k].s + Q[k + 1].s) / 2;
-      const mx = (Q[k].x + Q[k + 1].x) / 2, mz = (Q[k].z + Q[k + 1].z) / 2;
-      if (water(mx, mz)) {
-        band(k, -hw - 0.6, hw + 0.6, 0.12, 0x9c9a92);
-        for (const sd of [1, -1]) {
-          wall(k, sd * (hw + 0.6), -1.6, 0.12, 0x9c9a92, sd);
-          band(k, sd * (hw + 0.25), sd * (hw + 0.6), 1.0, 0xd6d4ce);
-          wall(k, sd * (hw + 0.25), 0.12, 1.0, 0xd6d4ce, -sd);
-        }
-        if (ss > nextPier) { nextPier = ss + 14; b.box(Q[k].x - 1, -6, Q[k].z - 1, Q[k].x + 1, -1.6, Q[k].z + 1, 0x8c8a84); }
-      } else {
-        band(k, -hw - kerb, -hw, SW, WALK);
-        band(k, hw, hw + kerb, SW, WALK);
-        for (const sd of [1, -1]) wall(k, sd * (hw + kerb), 0, SW, WALK, sd);
-        if (lamps && ss > nextLamp) {
-          nextLamp = ss + 22;
-          const off = side * (hw + kerb * 0.5);
-          // The lamp arm reaches over the road: toward the centre line.
-          lamp(Q[k].x + Q[k].nx * off, Q[k].z + Q[k].nz * off, Math.atan2(-Q[k].nx * side, -Q[k].nz * side));
-          side = -side;
-        }
+  const nearJunction = (x: number, z: number) => poly.junctions.some((j) => (x - j.x) ** 2 + (z - j.z) ** 2 < (j.r + 3) ** 2);
+  let nextLamp = 8, side = 1, nextPier = 4;
+  for (let k = 0; k < n; k++) {
+    const mx = (P[k].x + P[k + 1].x) / 2, mz = (P[k].z + P[k + 1].z) / 2;
+    const i = cellOfPt(mx, mz);
+    const ss = (P[k].s + P[k + 1].s) / 2;
+    if (i >= 0 && w.ground[i] === Ground.Water) {
+      band(k, -hw - 0.6, hw + 0.6, Y, 0x9c9a92);
+      band(k, -hw, hw, Y + 0.01, ASPHALT[t]);
+      for (const sd of [1, -1]) {
+        wall(k, sd * (hw + 0.6), -1.6, Y, 0x9c9a92, sd);
+        band(k, sd * (hw + 0.25), sd * (hw + 0.6), 1.0, 0xd6d4ce);
+        wall(k, sd * (hw + 0.25), Y, 1.0, 0xd6d4ce, -sd);
       }
-      band(k, -hw, hw, Y, AS);
-      // Markings: dashed white for a street; double yellow and dashed lanes on an avenue.
-      const dash = (ss % 6) < 3;
-      if (avenue) {
-        band(k, -0.3, -0.16, Y + 0.02, YELLOW);
-        band(k, 0.16, 0.3, Y + 0.02, YELLOW);
-        if (dash) { band(k, -2.13, -1.98, Y + 0.02, WHITE); band(k, 1.98, 2.13, Y + 0.02, WHITE); }
-      } else if (dash) band(k, -0.09, 0.09, Y + 0.02, WHITE);
-    }
-  };
-  // The curve itself, leaving out grid crossings in its middle.
-  sweep(P, (k) => {
-    const i = cellOfPt((P[k].x + P[k + 1].x) / 2, (P[k].z + P[k + 1].z) / 2);
-    if (i < 0) return true;
-    if (i === e0 || i === e1) return false;
-    return !owned[i] && !!w.road[i];
-  }, true);
-
-  // Each end.
-  for (const [e, k, u, sgn] of [[e0, k0, 0, -1], [e1, k1, 1, 1]] as const) {
-    const ex = (e % N) * CELL + CELL / 2, ez = ((e / N) | 0) * CELL + CELL / 2;
-    // Onward direction of the curve out of this end, away from the rest of it.
-    const tn = bezTan(c, u), ox = tn.x * sgn, oz = tn.z * sgn;
-    if (k.kind === 'junction') {
-      // Asphalt from the ribbon's start to the junction centre, just under the grid's: it only shows in the notch an oblique cut leaves.
-      const ua = u === 0 ? 0 : u1, ub = u === 0 ? u0 : 1;
-      const Q = sample(ua, ub, 6);
-      for (let j = 0; j < Q.length - 1; j++) {
-        const a = Q[j], bb = Q[j + 1];
-        b.tri([a.x + a.nx * hw, 0.1, a.z + a.nz * hw], [bb.x + bb.nx * hw, 0.1, bb.z + bb.nz * hw], [bb.x - bb.nx * hw, 0.1, bb.z - bb.nz * hw], AS, [0, 1, 0]);
-        b.tri([a.x + a.nx * hw, 0.1, a.z + a.nz * hw], [bb.x - bb.nx * hw, 0.1, bb.z - bb.nz * hw], [a.x - a.nx * hw, 0.1, a.z - a.nz * hw], AS, [0, 1, 0]);
-      }
+      if (ss > nextPier) { nextPier = ss + 14; b.box(P[k].x - 1, -6, P[k].z - 1, P[k].x + 1, -1.6, P[k].z + 1, 0x8c8a84); }
       continue;
     }
-    let stub: { x: number; z: number } | null = null;
-    if (k.kind === 'continue' && k.toward) {
-      // A straight run from the centre to the edge the next grid cell opens onto.
-      const tx = ex + k.toward.x * CELL / 2, tz = ez + k.toward.z * CELL / 2;
-      const l = Math.hypot(tx - ex, tz - ez), dx = (tx - ex) / l, dz = (tz - ez) / l;
-      stub = { x: dx, z: dz };
-      const m = Math.max(2, Math.ceil(l / 1.2));
-      const Q: Pt[] = [];
-      for (let j = 0; j <= m; j++) Q.push({ x: ex + (tx - ex) * (j / m), z: ez + (tz - ez) * (j / m), nx: -dz, nz: dx, s: (l * j) / m });
-      sweep(Q, () => false, false);
-    }
-    // Round off the centre: asphalt disc, and pavement round the outside where neither road runs.
-    if (water(ex, ez)) continue;
-    const dirs = [{ x: -ox, z: -oz }];
-    if (stub) dirs.push(stub);
-    const segs = 24;
-    for (let j = 0; j < segs; j++) {
-      const a0 = (j / segs) * Math.PI * 2, a1 = ((j + 1) / segs) * Math.PI * 2, am = (a0 + a1) / 2;
-      const c0 = Math.cos(a0), s0 = Math.sin(a0), c1 = Math.cos(a1), s1 = Math.sin(a1);
-      b.tri([ex, Y, ez], [ex + c0 * hw, Y, ez + s0 * hw], [ex + c1 * hw, Y, ez + s1 * hw], AS, [0, 1, 0]);
-      // Curves meeting at a joint only need the asphalt between them.
-      const away = k.kind !== 'joint' && dirs.every((d) => Math.cos(am) * d.x + Math.sin(am) * d.z < 0.15);
-      if (!away) continue;
-      const r0 = hw, r1 = hw + kerb;
-      b.tri([ex + c0 * r0, SW, ez + s0 * r0], [ex + c0 * r1, SW, ez + s0 * r1], [ex + c1 * r1, SW, ez + s1 * r1], WALK, [0, 1, 0]);
-      b.tri([ex + c0 * r0, SW, ez + s0 * r0], [ex + c1 * r1, SW, ez + s1 * r1], [ex + c1 * r0, SW, ez + s1 * r0], WALK, [0, 1, 0]);
-      b.tri([ex + c0 * r1, 0, ez + s0 * r1], [ex + c1 * r1, 0, ez + s1 * r1], [ex + c1 * r1, SW, ez + s1 * r1], WALK, [Math.cos(am), 0, Math.sin(am)], 0.82);
-      b.tri([ex + c0 * r1, 0, ez + s0 * r1], [ex + c1 * r1, SW, ez + s1 * r1], [ex + c0 * r1, SW, ez + s0 * r1], WALK, [Math.cos(am), 0, Math.sin(am)], 0.82);
+    if (ss > nextLamp && !nearJunction(mx, mz)) {
+      nextLamp = ss + 22;
+      const off = side * (hw + kerb * 0.5);
+      // The lamp arm reaches over the road: toward the centre line.
+      lamp(P[k].x + P[k].nx * off, P[k].z + P[k].nz * off, Math.atan2(-P[k].nx * side, -P[k].nz * side));
+      side = -side;
     }
   }
 }
