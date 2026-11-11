@@ -6,7 +6,8 @@ import { createSim, tick, type Sim } from './sim/sim';
 import { altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
 import { createLine, removeLine, STOP_RADIUS, stopProblem, type LineKind } from './sim/transit';
 import { bez, curveProblem, HALF_WIDTH, snapControl } from './sim/curves';
-import { createWorld, idx, startRowOf } from './sim/world';
+import { createRealWorld, createWorld, idx, startRowOf } from './sim/world';
+import { drawPreview, drawTiles, loadIndex, loadTile, savedDraw, storeDraw, type Draw } from './ui/korea';
 import { MAPS, randomMap, type MapKind } from './sim/maps';
 import { CityScene } from './render/scene';
 import type { Overlay } from './render/ground';
@@ -40,7 +41,7 @@ let roadMode: RoadMode = 'grid';
 const ROAD_MODES: { id: RoadMode; name: string; hint: string }[] = [
   { id: 'grid', name: '직각', hint: '가로세로' },
   { id: 'diag', name: '대각선', hint: '45도' },
-  { id: 'curve', name: '곡선', hint: '끌고 굽히기' },
+  // 곡선 도로 is switched off for now; curves in older saves still draw and work.
 ];
 /** A curve dragged from a to b, waiting for its bend: the next press places the handle. */
 let bend: { a: number; b: number; hx: number; hz: number; active: boolean } | null = null;
@@ -517,9 +518,72 @@ $('mapChips').addEventListener('click', (e) => {
   mapChoice = b.dataset.map as MapKind | 'random';
   renderMapChips();
 });
-$('newBtn').addEventListener('click', () => {
+/* The real-Korea draw: leave out one 도 or 광역시 if you like, draw three places, redraw once. */
+let mode: 'real' | 'fake' = 'real';
+let draw: Draw | null = savedDraw();
+let picked: string | null = null;
+let nameTouched = false;
+$('nameInput').addEventListener('input', () => { nameTouched = true; });
+$('mapMode').addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-mode]');
+  if (!b) return;
+  mode = b.dataset.mode as 'real' | 'fake';
+  document.querySelectorAll<HTMLButtonElement>('#mapMode button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  $('realBox').hidden = mode !== 'real';
+  $('fakeBox').hidden = mode !== 'fake';
+});
+async function renderDraw() {
+  const idx = await loadIndex();
+  const box = $('realBox');
+  if (!idx.tiles.length) { box.innerHTML = '<p class="map-desc">실제 지도 데이터가 없어요. 가상 지형을 골라 주세요.</p>'; return; }
+  const opts = Object.entries(idx.provinces).map(([k, v]) => `<option value="${k}" ${draw?.exclude === k ? 'selected' : ''}>${v}</option>`).join('');
+  const select = `<label class="draw-row" for="excludeSel"><span class="map-desc">제외할 지역</span><select id="excludeSel" ${draw ? 'disabled' : ''}><option value="">제외 안 함</option>${opts}</select></label>`;
+  if (!draw) {
+    box.innerHTML = `${select}<div class="draw-row"><button type="button" class="btn" data-draw="go">지역 추첨</button><span class="map-desc">시·군 세 곳이 나와요. 다시 뽑기는 한 번뿐이에요.</span></div>`;
+    return;
+  }
+  const infos = draw.picks.map((id) => idx.tiles.find((t) => t.id === id)!).filter(Boolean);
+  box.innerHTML = `${select}<div class="draw-cards">${infos.map((t) => `<button type="button" class="draw-card" data-pick="${t.id}" aria-pressed="${picked === t.id}"><canvas aria-hidden="true"></canvas><span class="n">${t.name}</span><span class="p">${idx.provinces[t.prov]}${t.water ? ' · 물가' : ''}</span></button>`).join('')}</div>`
+    + `<div class="draw-row">${draw.rerolled ? '<span class="map-desc">다시 뽑기를 썼어요. 셋 중에서 골라 주세요.</span>' : '<button type="button" class="btn" data-draw="again">다시 뽑기 (1회)</button><span class="map-desc">마음에 드는 곳이 없으면 한 번 더 뽑을 수 있어요.</span>'}</div>`;
+  const cards = box.querySelectorAll<HTMLButtonElement>('.draw-card');
+  infos.forEach((t, k) => { void drawPreview(cards[k].querySelector('canvas')!, t); });
+}
+$('realBox').addEventListener('click', async (e) => {
+  const el = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+  if (!el) return;
+  const idx = await loadIndex();
+  if (el.dataset.draw === 'go' && !draw) {
+    const exclude = $<HTMLSelectElement>('excludeSel').value;
+    draw = { exclude, picks: drawTiles(idx, exclude), rerolled: false };
+    picked = null;
+  } else if (el.dataset.draw === 'again' && draw && !draw.rerolled) {
+    draw = { ...draw, picks: drawTiles(idx, draw.exclude, draw.picks), rerolled: true };
+    picked = null;
+  } else if (el.dataset.pick) {
+    picked = el.dataset.pick;
+    const t = idx.tiles.find((x) => x.id === picked);
+    if (t && !nameTouched) $<HTMLInputElement>('nameInput').value = t.name.slice(0, 10);
+  } else return;
+  storeDraw(draw);
+  void renderDraw();
+});
+void renderDraw();
+
+$('newBtn').addEventListener('click', async () => {
   const name = ($<HTMLInputElement>('nameInput').value.trim() || '새솔시').slice(0, 10);
   const seed = (Math.random() * 1e9) | 0;
+  if (mode === 'real') {
+    const idx = await loadIndex();
+    const info = idx.tiles.find((t) => t.id === picked);
+    if (!info) { toast(draw ? '세 곳 중 한 곳을 골라 주세요.' : '먼저 지역 추첨을 해 주세요.', 'warn'); return; }
+    const real = await loadTile(info);
+    useWorld(createRealWorld(seed, name, real));
+    // A city founded from this draw ends it: the next city gets a fresh draw.
+    draw = null; picked = null; storeDraw(null); void renderDraw();
+    begin();
+    toast(`${real.prov} ${real.name}의 실제 땅이에요. ${name}에 오신 걸 환영해요, 시장님!`, 'good');
+    return;
+  }
   useWorld(createWorld(seed, name, mapChoice === 'random' ? randomMap(seed) : mapChoice));
   begin();
   toast(`${name}에 오신 걸 환영해요, 시장님! 왼쪽 위 목표를 따라가 보세요.`, 'good');

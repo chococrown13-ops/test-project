@@ -5,7 +5,8 @@ import { N } from './defs';
  * flat corridor along the west edge for the expressway link, and hills whose
  * heights come from the seed alone, so the renderer can rebuild them.
  */
-export type MapKind = 'river' | 'coast' | 'lake' | 'valley' | 'plain' | 'island';
+/** 'korea' is a real place (World.real); the others are generated. */
+export type MapKind = 'river' | 'coast' | 'lake' | 'valley' | 'plain' | 'island' | 'korea';
 
 export const MAPS: { id: MapKind; name: string; desc: string }[] = [
   { id: 'river', name: '강변 도시', desc: '도시를 가로지르는 큰 강, 뒤로는 산' },
@@ -50,6 +51,7 @@ export function startRow(seed: number, kind: MapKind): number {
     case 'valley': return Math.round(streamY(0, seed) - 14);
     case 'plain': return Math.round(N * 0.55);
     case 'island': return Math.round(N * 0.5);
+    default: return Math.round(N * 0.5);
   }
 }
 

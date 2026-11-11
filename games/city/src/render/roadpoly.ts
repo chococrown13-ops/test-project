@@ -208,6 +208,21 @@ export function buildPolyRoads(w: World, owned: Uint8Array): PolyRoads {
     }
   });
 
+  // Four road cells in a 2x2 square (a double-width road, or a little plaza): one paved surface,
+  // not a ladder of links with kerbed islands between them. Their centres count as junctions.
+  for (const i of cells) {
+    const x = i % N, y = (i / N) | 0;
+    if (x >= N - 1 || y >= N - 1) continue;
+    const sq = [i, i + 1, i + N, i + N + 1];
+    if (!sq.every((k) => cells.has(k) && !owned[k])) continue;
+    const a = centre(i), c = centre(i + N + 1);
+    const flat = [a.x, a.z, c.x, a.z, c.x, c.z, a.x, c.z].map((v) => Math.round(v * S));
+    let path = Clipper.makePath(flat);
+    if (!Clipper.isPositive(path)) path = Clipper.reversePath(path);
+    patches.push({ path, av: sq.every((k) => w.road[k] === Road.Avenue), key: `q${i};`, x0: a.x, z0: a.z, x1: c.x, z1: c.z });
+    for (const k of sq) degree.set(k, Math.max(3, degree.get(k) ?? 0));
+  }
+
   // Cells the surfaces may reach, minus those they must not spill onto: grid-drawn road cells and water.
   const reach = new Set<number>();
   for (const i of cells) {

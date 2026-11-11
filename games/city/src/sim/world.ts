@@ -40,6 +40,11 @@ export interface World {
   seed: number;
   /** The kind of land the city was founded on. */
   map: MapKind;
+  /**
+   * Real land (map 'korea'): per cell 0 open land, 1 forest, 2 water, 3+ hill (height/2 + 3 m),
+   * the row of the expressway link, and where it is.
+   */
+  real?: { cells: Uint8Array; row: number; id: string; name: string; prov: string; lat: number; lon: number };
   rng: number;
   day: number;
   money: number;
@@ -184,10 +189,30 @@ export function createWorld(seed = 20261028, name = '새솔시', map: MapKind = 
 }
 
 /** Mountain heights in metres per cell, from the seed and map alone, so the renderer can rebuild them. */
-export const terrainField = (seed: number, map: MapKind = 'river') => hillField(seed, map);
+export function terrainField(w: Pick<World, 'seed' | 'map' | 'real'>): Float32Array {
+  if (!w.real) return hillField(w.seed, w.map);
+  const h = new Float32Array(N * N);
+  for (let i = 0; i < N * N; i++) { const v = w.real.cells[i]; h[i] = v >= 3 ? (v - 3) * 2 : 0; }
+  return h;
+}
+
+/** A city on a real 1.28 km square of Korea (see data/korea and scripts/korea-build.mjs). */
+export function createRealWorld(seed: number, name: string, real: NonNullable<World['real']>): World {
+  const w = createWorld(seed, name, 'plain');
+  w.map = 'korea';
+  w.real = real;
+  w.ground.fill(Ground.Land);
+  w.road.fill(0);
+  for (let i = 0; i < N * N; i++) {
+    const v = real.cells[i];
+    w.ground[i] = v === 2 ? Ground.Water : v >= 3 ? Ground.Mountain : Ground.Land;
+  }
+  for (let x = 0; x <= 22; x++) w.road[idx(x, real.row)] = Road.Avenue;
+  return w;
+}
 
 /** Row of the expressway link the city starts from. */
-export const startRowOf = (w: World) => startRow(w.seed, w.map);
+export const startRowOf = (w: World) => (w.real ? w.real.row : startRow(w.seed, w.map));
 
 export function notify(w: World, text: string, tone: 'info' | 'warn' | 'good' = 'info') {
   w.notices.unshift({ day: w.day, text, tone });
