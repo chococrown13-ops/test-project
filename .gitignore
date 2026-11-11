@@ -27,3 +27,5 @@ gunggeum/devlog/*/map/*.png
 gunggeum/devlog/*/map/map.js
 # 상황극 목소리(tts.py 로 다시 만듦)
 channels/story/*/voice/
+channels/story/*/*/voice/
+channels/*/*/*/*.mp4

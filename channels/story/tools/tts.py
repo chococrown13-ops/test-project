@@ -81,6 +81,14 @@ def main():
         path = ep / "voice" / f"{i:02d}.wav"
         key = json.dumps([ln["text"], c], ensure_ascii=False, sort_keys=True)
         keyf = ep / "voice" / f"{i:02d}.key"
+        if not (path.exists() and keyf.exists() and keyf.read_text() == key):
+            for kf in (ep / "voice").glob("*.key"):  # 순서만 바뀐 같은 대사면 그 파일을 옮겨 씀
+                if kf != keyf and kf.read_text() == key and kf.with_suffix(".wav").exists():
+                    shutil.copy(kf.with_suffix(".wav"), ep / "voice" / f"_{i:02d}.tmp")
+                    break
+        tmp = ep / "voice" / f"_{i:02d}.tmp"
+        if tmp.exists():
+            tmp.replace(path); keyf.write_text(key)
         if not (path.exists() and keyf.exists() and keyf.read_text() == key):  # 같은 대사·목소리면 다시 안 만듦(글자 아끼기)
             path.write_bytes(synth(ln["text"], c["voice"], c.get("rate", 1.0), c.get("pitch", 0)))  # LINEAR16 는 wav 머리말이 붙어 옴
             keyf.write_text(key)

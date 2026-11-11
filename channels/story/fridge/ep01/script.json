@@ -1,0 +1,570 @@
+{
+ "start": 1.2,
+ "gap": 0.35,
+ "tail": 4.5,
+ "cast": {
+  "김치": {
+   "voice": "ko-KR-Chirp3-HD-Algenib",
+   "rate": 1.0
+  },
+  "우유": {
+   "voice": "ko-KR-Chirp3-HD-Leda",
+   "rate": 1.08
+  },
+  "계란": {
+   "voice": "ko-KR-Chirp3-HD-Puck",
+   "rate": 1.12
+  },
+  "두부": {
+   "voice": "ko-KR-Chirp3-HD-Despina",
+   "rate": 0.98
+  },
+  "케첩": {
+   "voice": "ko-KR-Chirp3-HD-Fenrir",
+   "rate": 1.0
+  }
+ },
+ "lines": [
+  {
+   "who": "김치",
+   "text": "쉿. 불 꺼졌다. 사람 잠들었지?",
+   "mood": "normal",
+   "gesture": "think"
+  },
+  {
+   "who": "계란",
+   "text": "코 고는 소리 들려요! 완전히 잠들었어요!",
+   "mood": "happy",
+   "jump": true
+  },
+  {
+   "who": "김치",
+   "text": "좋아. 지금부터 냉장고 긴급회의를 시작하겠다.",
+   "mood": "smug",
+   "gesture": "wave",
+   "sfx": [
+    {
+     "kind": "ding",
+     "at": 0.2
+    }
+   ]
+  },
+  {
+   "who": "김치",
+   "text": "먼저 출석을 부르겠다. 우유.",
+   "mood": "normal",
+   "gesture": "point",
+   "pause": 3.0
+  },
+  {
+   "who": "우유",
+   "text": "네… 여기 있어요…",
+   "mood": "tired"
+  },
+  {
+   "who": "김치",
+   "text": "계란.",
+   "mood": "normal",
+   "gesture": "point"
+  },
+  {
+   "who": "계란",
+   "text": "네! 계란판에서 제일 동그란 계란, 여기 있습니다!",
+   "mood": "proud",
+   "gesture": "cheer",
+   "jump": true
+  },
+  {
+   "who": "김치",
+   "text": "…좋다. 다들 왔군.",
+   "mood": "tired"
+  },
+  {
+   "who": "우유",
+   "text": "선배님… 저 큰일 났어요. 제 날짜가… 내일이에요.",
+   "mood": "worried",
+   "gesture": "hold",
+   "pause": 0.6
+  },
+  {
+   "who": "계란",
+   "text": "내일? 에이, 그럼 아직 하루나 남았네!",
+   "mood": "happy",
+   "gesture": "shrug"
+  },
+  {
+   "who": "우유",
+   "text": "하루밖에 안 남은 거라고요!",
+   "mood": "scared",
+   "gesture": "panic",
+   "jump": true
+  },
+  {
+   "who": "김치",
+   "text": "진정해라. 거기 적힌 날짜, 뭐라고 쓰여 있지?",
+   "mood": "normal",
+   "gesture": "point"
+  },
+  {
+   "who": "우유",
+   "text": "어… 유통기한이요.",
+   "mood": "worried"
+  },
+  {
+   "who": "김치",
+   "text": "흠. 요즘은 대부분 그 자리에 소비기한이 적혀 있지.",
+   "mood": "smug",
+   "gesture": "think"
+  },
+  {
+   "who": "계란",
+   "text": "소비기한? 유통기한이랑 뭐가 달라요?",
+   "mood": "surprised"
+  },
+  {
+   "who": "김치",
+   "text": "유통기한은 가게에서 팔아도 되는 기한이고,",
+   "mood": "normal",
+   "gesture": "point",
+   "card": "date"
+  },
+  {
+   "who": "김치",
+   "text": "소비기한은 적힌 대로 잘 보관했을 때 먹어도 되는 기한이다.",
+   "mood": "normal",
+   "gesture": "hold",
+   "card": "date"
+  },
+  {
+   "who": "김치",
+   "text": "2023년 1월 1일부터 대부분의 식품이 소비기한으로 바뀌었지.",
+   "mood": "smug",
+   "card": "y2023"
+  },
+  {
+   "who": "우유",
+   "text": "그럼 저도 소비기한이에요? 며칠 더 살 수 있는 거예요?",
+   "mood": "happy",
+   "jump": true,
+   "gesture": "cheer"
+  },
+  {
+   "who": "김치",
+   "text": "음… 그게… 우유는 조금 늦게 바뀐다.",
+   "mood": "worried",
+   "gesture": "shrug"
+  },
+  {
+   "who": "우유",
+   "text": "네?",
+   "mood": "surprised"
+  },
+  {
+   "who": "김치",
+   "text": "냉장 보관하는 우유 종류는 2031년부터 소비기한을 쓰게 되어 있어.",
+   "mood": "normal",
+   "card": "y2031"
+  },
+  {
+   "who": "우유",
+   "text": "왜 저만요?! 왜 저만 8년이나 기다려요?!",
+   "mood": "cry",
+   "gesture": "panic",
+   "jump": true,
+   "sfx": [
+    {
+     "kind": "sting",
+     "at": 0
+    }
+   ]
+  },
+  {
+   "who": "김치",
+   "text": "차갑게 운반하고 파는 환경을 더 갖출 시간이 필요했다더구나.",
+   "mood": "normal",
+   "gesture": "shrug",
+   "card": "y2031"
+  },
+  {
+   "who": "계란",
+   "text": "괜찮아 우유야! 날짜가 뭐 대수야? 나를 봐!",
+   "mood": "happy",
+   "gesture": "cheer"
+  },
+  {
+   "who": "계란",
+   "text": "난 이마에 숫자랑 글자가 열 개나 찍혀 있다고!",
+   "mood": "proud",
+   "gesture": "point",
+   "jump": true
+  },
+  {
+   "who": "두부",
+   "text": "…그거, 계란님 생일이에요.",
+   "mood": "normal",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "pop",
+     "at": 0
+    }
+   ]
+  },
+  {
+   "who": "계란",
+   "text": "으악! 누구야?! 물이 말을 해!",
+   "mood": "scared",
+   "gesture": "panic",
+   "jump": true
+  },
+  {
+   "who": "두부",
+   "text": "저… 두부예요. 저번 주부터 여기 물속에 살았어요.",
+   "mood": "worried",
+   "gesture": "wave",
+   "sfx": [
+    {
+     "kind": "magic",
+     "at": 0
+    }
+   ]
+  },
+  {
+   "who": "김치",
+   "text": "아, 두부 왔구나. 다들 인사해라.",
+   "mood": "happy",
+   "gesture": "wave"
+  },
+  {
+   "who": "우유",
+   "text": "안녕하세요… 근데 생일이라니요?",
+   "mood": "normal"
+  },
+  {
+   "who": "두부",
+   "text": "계란 껍데기의 앞 네 자리는 닭이 알을 낳은 날이에요.",
+   "mood": "normal",
+   "card": "egg1"
+  },
+  {
+   "who": "계란",
+   "text": "1105… 그럼 내가 11월 5일생?! 생일을 이마에 붙이고 다녔네!",
+   "mood": "surprised",
+   "jump": true,
+   "card": "egg1"
+  },
+  {
+   "who": "두부",
+   "text": "가운데 다섯 자리는 어느 농장에서 왔는지 알려 주는 번호고요.",
+   "mood": "normal",
+   "card": "egg2"
+  },
+  {
+   "who": "두부",
+   "text": "마지막 한 자리는 닭이 어떤 곳에서 자랐는지예요.",
+   "mood": "normal",
+   "card": "egg3"
+  },
+  {
+   "who": "두부",
+   "text": "1번은 밖에 풀어 키운 닭, 2번은 축사 안에 풀어 키운 닭, 3번이랑 4번은 케이지예요.",
+   "mood": "normal",
+   "card": "egg3"
+  },
+  {
+   "who": "계란",
+   "text": "내 끝자리는 2! 그럼 난… 2등이야?",
+   "mood": "worried",
+   "card": "egg3"
+  },
+  {
+   "who": "두부",
+   "text": "등수가 아니에요. 맛이나 영양 점수도 아니고요. 자란 곳 표시예요.",
+   "mood": "normal",
+   "card": "egg3"
+  },
+  {
+   "who": "계란",
+   "text": "휴, 다행이다! 난 실내에서 뛰어놀던 닭 출신이구나!",
+   "mood": "happy",
+   "gesture": "cheer",
+   "jump": true
+  },
+  {
+   "who": "김치",
+   "text": "봐라. 표시만 잘 읽어도 많은 걸 알 수 있지.",
+   "mood": "smug",
+   "gesture": "think"
+  },
+  {
+   "who": "케첩",
+   "text": "흥. 다들 시끄럽군.",
+   "mood": "smug",
+   "pause": 0.8,
+   "sfx": [
+    {
+     "kind": "thud",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "우유",
+   "text": "누, 누구세요?",
+   "mood": "scared"
+  },
+  {
+   "who": "케첩",
+   "text": "문 칸의 VIP, 케첩님이시다.",
+   "mood": "proud",
+   "gesture": "wave",
+   "jump": true,
+   "sfx": [
+    {
+     "kind": "whoosh",
+     "at": 0
+    }
+   ]
+  },
+  {
+   "who": "계란",
+   "text": "VIP요? 거기 문 열 때마다 흔들리는 데잖아요.",
+   "mood": "normal",
+   "gesture": "shrug"
+  },
+  {
+   "who": "케첩",
+   "text": "흔들려야 잘 나오는 법이지. 너희 같은 애들은 못 버틴다.",
+   "mood": "smug",
+   "gesture": "point"
+  },
+  {
+   "who": "김치",
+   "text": "그 말은 맞다. 문 칸은 열고 닫을 때마다 온도가 크게 오르내리거든.",
+   "mood": "normal",
+   "gesture": "think",
+   "card": "door"
+  },
+  {
+   "who": "김치",
+   "text": "그래서 잘 안 상하는 소스 같은 게 문 칸에 어울리고, 우유랑 계란은 안쪽이 낫지.",
+   "mood": "normal",
+   "gesture": "point",
+   "card": "door"
+  },
+  {
+   "who": "케첩",
+   "text": "들었지? 난 선택받은 소스다.",
+   "mood": "proud",
+   "gesture": "cheer"
+  },
+  {
+   "who": "우유",
+   "text": "저도 예전엔 문 칸에 살았는데… 그래서 맨날 추웠다 더웠다 했구나.",
+   "mood": "tired"
+  },
+  {
+   "who": "케첩",
+   "text": "그나저나 너희, 내가 언제 뚜껑 열렸는지 아나?",
+   "mood": "smug"
+  },
+  {
+   "who": "계란",
+   "text": "음… 작년 여름이요?",
+   "mood": "normal",
+   "gesture": "think"
+  },
+  {
+   "who": "케첩",
+   "text": "…그건 비밀이다.",
+   "mood": "worried"
+  },
+  {
+   "who": "김치",
+   "text": "소스 이야기는 다음에 따로 회의하자.",
+   "mood": "tired",
+   "gesture": "shrug"
+  },
+  {
+   "who": "김치",
+   "text": "자, 이제 오늘의 진짜 안건이다.",
+   "mood": "normal",
+   "pause": 0.4,
+   "sfx": [
+    {
+     "kind": "ding",
+     "at": 0
+    }
+   ]
+  },
+  {
+   "who": "김치",
+   "text": "내일 사람이 냉장고 파먹기를 한다는 소식이 들어왔다.",
+   "mood": "worried",
+   "card": "agenda",
+   "sfx": [
+    {
+     "kind": "sting",
+     "at": 0.3
+    }
+   ]
+  },
+  {
+   "who": "계란",
+   "text": "파먹기요? 우리를… 파먹어요?!",
+   "mood": "scared",
+   "gesture": "panic",
+   "jump": true
+  },
+  {
+   "who": "두부",
+   "text": "장을 안 보고, 냉장고에 있는 재료부터 먼저 먹는 거예요.",
+   "mood": "normal"
+  },
+  {
+   "who": "우유",
+   "text": "그럼 날짜가 제일 급한 저부터 먹히겠네요…",
+   "mood": "cry"
+  },
+  {
+   "who": "케첩",
+   "text": "난 걱정 없다. 모든 음식에 어울리니까 끝까지 살아남지.",
+   "mood": "smug",
+   "gesture": "shrug"
+  },
+  {
+   "who": "계란",
+   "text": "난 숨을래! 계란판 맨 뒤에 딱 붙어 있을 거야!",
+   "mood": "happy",
+   "gesture": "hold"
+  },
+  {
+   "who": "두부",
+   "text": "저는… 물속에 조금 더 깊이 들어가 있을게요.",
+   "mood": "worried"
+  },
+  {
+   "who": "김치",
+   "text": "나는 숨지 않겠다.",
+   "mood": "proud",
+   "pause": 0.4
+  },
+  {
+   "who": "우유",
+   "text": "선배님?",
+   "mood": "surprised"
+  },
+  {
+   "who": "김치",
+   "text": "푹 익은 김치는 찌개가 될 때 가장 빛나는 법이지.",
+   "mood": "proud",
+   "gesture": "think",
+   "sfx": [
+    {
+     "kind": "magic",
+     "at": 0.5
+    }
+   ]
+  },
+  {
+   "who": "계란",
+   "text": "선배님… 너무 멋있어요!",
+   "mood": "cry",
+   "gesture": "cheer"
+  },
+  {
+   "who": "김치",
+   "text": "그러니 우유야, 걱정 마라. 차갑게 잘 보관만 하면 된다.",
+   "mood": "happy",
+   "gesture": "hold"
+  },
+  {
+   "who": "우유",
+   "text": "선배님…!",
+   "mood": "cry"
+  },
+  {
+   "who": "계란",
+   "text": "쉿! 문 열린다! 다들 얼음!",
+   "mood": "scared",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "thud",
+     "at": -0.4
+    }
+   ]
+  },
+  {
+   "who": "계란",
+   "text": "…어? 우유야?",
+   "mood": "surprised",
+   "pause": 5.0,
+   "sfx": [
+    {
+     "kind": "door",
+     "at": -4.6
+    },
+    {
+     "kind": "thud",
+     "at": -1.0
+    }
+   ]
+  },
+  {
+   "who": "두부",
+   "text": "우유님이… 없어졌어요.",
+   "mood": "scared"
+  },
+  {
+   "who": "김치",
+   "text": "다음 회의 안건이 정해졌군. 우유는 어디로 갔는가.",
+   "mood": "worried",
+   "sfx": [
+    {
+     "kind": "sting",
+     "at": 0.2
+    }
+   ]
+  },
+  {
+   "who": "두부",
+   "text": "그 전에… 오늘 회의록, 제가 정리할게요.",
+   "mood": "normal",
+   "pause": 0.5,
+   "card": "recap"
+  },
+  {
+   "who": "두부",
+   "text": "하나. 이제 대부분의 식품엔 소비기한이 적혀 있어요. 냉장 우유류는 2031년부터.",
+   "mood": "normal",
+   "card": "recap"
+  },
+  {
+   "who": "두부",
+   "text": "둘. 계란 껍데기 앞 네 자리는 낳은 날, 끝자리는 자란 곳이에요.",
+   "mood": "normal",
+   "card": "recap"
+  },
+  {
+   "who": "두부",
+   "text": "셋. 문 칸은 온도가 크게 바뀌니까, 우유랑 계란은 안쪽에.",
+   "mood": "normal",
+   "card": "recap"
+  },
+  {
+   "who": "계란",
+   "text": "그리고 넷! 우유를 꼭 찾는다!",
+   "mood": "proud",
+   "gesture": "cheer",
+   "jump": true,
+   "card": "recap"
+  },
+  {
+   "who": "김치",
+   "text": "회의 끝. 다들 제자리로.",
+   "mood": "smug",
+   "gesture": "wave"
+  }
+ ]
+}

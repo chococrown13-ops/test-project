@@ -1,0 +1,146 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>@font-face{font-family:P;font-weight:800;src:url(../../../../gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script src="../../../physics/vendor/three-0.149.0.min.js"></script>
+<script src="timeline.js"></script>
+<script src="../../tools/engine2.js"></script>
+<script>
+// 냉장고 속 회의 1화 「새벽 2시 긴급회의」 — 가로 본편. 세로 쇼츠는 ?w=1080&h=1920&t0=초&dur=초&st=제목
+const Q = new URLSearchParams(location.search);
+const W = +(Q.get('w') || 1920), H = +(Q.get('h') || 1080), PORT = H > W;
+const T0 = +(Q.get('t0') || 0), SD = Q.get('dur') ? +Q.get('dur') : null;
+const L = TL.lines, idx = (s) => L.findIndex((l) => l.text.includes(s));
+const opened = L[idx('긴급회의를 시작')];
+const S = Story.init({
+  w: W, h: H, bg: '#cfe7f6', exposure: 1.0,
+  title: SD ? (Q.get('st') || '냉장고 속 회의') : '냉장고 속 회의', sub: SD ? (Q.get('ss') || '1화 새벽 2시 긴급회의') : '1화 · 새벽 2시 긴급회의',
+  smallTitle: '냉장고 속 회의 1화',
+  titleAt: SD ? [T0 + 0.01, T0 + 2.6] : [opened.start + opened.dur + 0.3, opened.start + opened.dur + 3.1],
+  endAt: SD ? T0 + SD - 3.0 : null,
+  end: SD ? ['전체 회의는 채널에서', '냉장고 속 회의 1화'] : ['냉장고 속 회의 1화 끝', '다음 화: 우유는 어디로?', '구독하고 다음 회의에 참석하세요'],
+});
+const { scene, renderer } = S, M = Story.mesh;
+window.CAST_STYLE = { 김치: { name: '김치 선배', color: '#ff8f7a' }, 우유: { name: '우유', color: '#a9d1ff' }, 계란: { name: '계란', color: '#ffe08a' }, 두부: { name: '두부', color: '#e9e4d8' }, 케첩: { name: '케첩', color: '#ff6b6b' } };
+
+// ---- 무대: 냉장고 안 ----
+const glass = new THREE.MeshToonMaterial({ color: '#e6f6ff', transparent: true, opacity: 0.55 });
+M(new THREE.BoxGeometry(12, 0.1, 4.2), null, [0, 0, 0], scene, { line: 0, mat: glass });           // 유리 선반
+M(new THREE.BoxGeometry(12, 0.16, 0.12), '#cfe3ef', [0, 0.02, 2.06], scene, { line: 0 });          // 선반 앞 테두리
+M(new THREE.BoxGeometry(12, 6, 0.1), '#f2f9fe', [0, 2.2, -2.1], scene, { line: 0 });               // 뒷벽
+for (const s of [-1, 1]) M(new THREE.BoxGeometry(0.1, 6, 4.4), '#e3f0f9', [s * 6, 2.2, 0], scene, { line: 0 });
+M(new THREE.BoxGeometry(12, 0.1, 4.2), null, [0, 3.6, 0], scene, { line: 0, mat: glass });         // 윗선반
+M(new THREE.BoxGeometry(12, 1.6, 4.2), '#eef7fc', [0, -0.85, 0], scene, { line: 0 });              // 아래 채소칸
+for (let k = 0; k < 7; k++) M(new THREE.BoxGeometry(0.06, 5.6, 0.04), '#e6f1f8', [-5.4 + k * 1.8, 2.2, -2.04], scene, { line: 0, shadow: false }); // 뒷벽 홈
+const lamp = new THREE.PointLight('#d8f1ff', 0.55, 14); lamp.position.set(0, 3.3, 1.0); scene.add(lamp);
+// 윗선반 소품 · 뒤쪽 소품(얼굴 없음)
+M(new THREE.CylinderGeometry(0.35, 0.35, 0.5, 20), '#b04a6a', [-4.4, 3.9, -0.8], scene); M(new THREE.CylinderGeometry(0.37, 0.37, 0.12, 20), '#f1c94a', [-4.4, 4.2, -0.8], scene);
+M(new THREE.BoxGeometry(1.4, 0.4, 1.0), '#ffffff', [3.6, 3.85, -0.6], scene);
+M(new THREE.CylinderGeometry(0.25, 0.3, 1.1, 20), '#7cc36b', [-0.2, 0.6, -1.3], scene); M(new THREE.CylinderGeometry(0.12, 0.12, 0.22, 12), '#ffffff', [-0.2, 1.25, -1.3], scene);
+M(new THREE.BoxGeometry(1.0, 0.45, 0.8), '#ffd98a', [1.6, 0.28, -1.2], scene);
+M(new THREE.CylinderGeometry(0.5, 0.5, 0.2, 24), '#ffffff', [-4.6, 0.15, -1.0], scene);
+// 두부 물통
+const TB = [-3.4, 0.06, 0.2];
+M(new THREE.BoxGeometry(1.7, 1.05, 1.2), null, [TB[0], TB[1] + 0.52, TB[2]], scene, { line: 1.02, mat: new THREE.MeshToonMaterial({ color: '#f4fbff', transparent: true, opacity: 0.22, depthWrite: false }) });
+const water = M(new THREE.BoxGeometry(1.6, 0.88, 1.1), null, [TB[0], TB[1] + 0.48, TB[2]], scene, { line: 0, shadow: false, mat: new THREE.MeshToonMaterial({ color: '#9fd6f5', transparent: true, opacity: 0.38, depthWrite: false }) });
+const bubbles = []; for (let k = 0; k < 6; k++) { const b = M(new THREE.SphereGeometry(0.05 + (k % 3) * 0.02, 10, 8), '#e9f8ff', [TB[0] - 0.4 + k * 0.16, 0.5, TB[2] + 0.3], scene, { line: 0, shadow: false }); b.visible = false; bubbles.push(b); }
+// 계란판
+const tray = M(new THREE.BoxGeometry(1.9, 0.26, 1.3), '#c9a37a', [2.3, 0.18, 0.1], scene);
+for (const [x, z] of [[1.75, -0.25], [2.3, -0.25], [2.85, -0.25], [1.75, 0.35], [2.85, 0.35]]) { const e = M(new THREE.SphereGeometry(0.26, 20, 16), '#f6e7c8', [x, 0.52, z], scene); e.scale.set(0.9, 1.2, 0.9); }
+// 문 칸(오른쪽 앞)
+M(new THREE.BoxGeometry(1.8, 0.12, 1.3), '#f4f8fb', [4.75, 0.9, 1.3], scene);
+M(new THREE.BoxGeometry(1.8, 0.5, 0.06), null, [4.75, 1.18, 1.95], scene, { line: 1.02, mat: new THREE.MeshToonMaterial({ color: '#dff2ff', transparent: true, opacity: 0.6 }) });
+M(new THREE.BoxGeometry(0.1, 3.6, 1.6), '#e8f1f7', [5.75, 1.6, 1.3], scene, { line: 0 });
+M(new THREE.CylinderGeometry(0.2, 0.22, 0.8, 18), '#f3d36a', [5.2, 1.36, 1.1], scene); // 머스터드(얼굴 없음)
+
+// ---- 캐릭터 5 ----
+const ARM = { arms: true, armColor: '#3b2a24', handColor: '#ffffff' };
+const C = {
+  김치: Story.char({ type: 'jar', pos: [-1.3, 0.06, 0.4], color: '#eef7fb', lid: '#3fae6a', inner: '#d9452b', blinkOff: 0.4, faceSize: 0.78, ...ARM }),
+  우유: Story.char({ type: 'carton', pos: [0.45, 0.06, 0.5], color: '#ffffff', roof: '#3d8bff', label: '#3d8bff', blinkOff: 1.2, faceSize: 0.72, ...ARM }),
+  계란: Story.char({ type: 'egg', pos: [2.3, 0.3, 0.6], color: '#fff2d6', stamp: '1105 ABC12 2', blinkOff: 2.1, faceSize: 0.6, ...ARM }),
+  두부: Story.char({ type: 'tofu', pos: [TB[0], TB[1], TB[2] + 0.05], color: '#fbf8ef', blinkOff: 0.9, faceSize: 0.56, ...ARM, handColor: '#fbf8ef' }),
+  케첩: Story.char({ type: 'bottle', pos: [4.45, 0.96, 1.3], color: '#e2352b', cap: '#f5f5f5', label: '#fff3e0', blinkOff: 1.7, faceSize: 0.6, ...ARM }),
+};
+C.케첩.g.rotation.y = -0.55; C.두부.head.scale.set(1, 1, 1);
+for (const k of ['김치', '우유']) C[k].g.rotation.y = 0.08 * (k === '김치' ? 1 : -1);
+Object.values(C).forEach((c) => scene.add(c.g));
+
+// ---- 시간표 ----
+const iHidden = idx('계란님 생일'), iTofu = idx('저… 두부예요'), iKet = idx('흥. 다들'), iShh = idx('문 열린다'), iGone = idx('어? 우유야');
+const tofuUp = L[iTofu].start - 0.1;
+const freezeAt = L[iShh].start + L[iShh].dur + 0.1, doorAt = L[iGone].start - 4.6, doorClose = L[iGone].start - 1.0, milkGone = doorAt + 1.4;
+const tofuBase = C.두부.baseY;
+
+// ---- 정보 카드 ----
+const CARDS = {
+  date: { t: '유통기한 vs 소비기한', rows: ['유통기한 — 가게에서 팔아도 되는 기한', '소비기한 — 적힌 대로 보관하면 먹어도 되는 기한'] },
+  y2023: { t: '2023년 1월 1일부터', rows: ['대부분의 식품: 유통기한 → 소비기한'] },
+  y2031: { t: '냉장 보관 우유류는', rows: ['2031년 1월 1일부터 소비기한', '냉장 유통 환경을 갖출 시간을 줌'] },
+  egg1: { t: '계란 껍데기 10자리', code: [0, 4], rows: ['앞 4자리 = 닭이 알을 낳은 날', '1105 → 11월 5일'] },
+  egg2: { t: '계란 껍데기 10자리', code: [5, 10], rows: ['가운데 5자리 = 농장 고유번호'] },
+  egg3: { t: '끝 1자리 = 사육환경', code: [11, 12], rows: ['1 방사 · 2 평사(축사 안)', '3 개선 케이지 · 4 기존 케이지', '※ 등급·영양 점수가 아니에요'] },
+  door: { t: '냉장고 문 칸', rows: ['열고 닫을 때마다 온도가 크게 바뀜', '어울림: 잘 안 상하는 소스·양념', '우유·계란은 안쪽 선반에'] },
+  agenda: { t: '오늘의 안건', rows: ['내일 사람이', '「냉장고 파먹기」를 한대요'] },
+  recap: { t: '오늘 회의록', rows: ['① 대부분 소비기한 · 냉장 우유류는 2031년부터', '② 계란 앞 4자리 낳은 날 · 끝자리 자란 곳', '③ 우유·계란은 문 칸 말고 안쪽에', '④ 우유를 찾는다'] },
+};
+const spans = []; L.forEach((l) => { if (!l.card) return; const s = spans[spans.length - 1]; if (s && s.k === l.card) s.b = l.start + l.dur + 0.5; else spans.push({ k: l.card, a: l.start, b: l.start + l.dur + 0.5 }); });
+window.CAPTION = (g, t, { W, H, U, rr }) => {
+  const sp = spans.find((s) => t >= s.a - 0.2 && t <= s.b + 0.3); if (!sp) return;
+  const a = Story.smooth(sp.a - 0.2, sp.a + 0.2, t) * (1 - Story.smooth(sp.b, sp.b + 0.3, t)); if (a <= 0) return;
+  const c = CARDS[sp.k]; const rows = c.rows; g.font = `800 ${38 * U}px P`; const need = Math.max(...rows.map((r) => g.measureText(r).width)) + 90 * U; g.font = `800 ${50 * U}px P`; const cw = PORT ? W * 0.9 : Math.max(W * 0.3, need, g.measureText(c.t).width + 200 * U);
+  const ch = 120 * U + (c.code ? 110 * U : 0) + rows.length * 62 * U;
+  const x = PORT ? (W - cw) / 2 : W - cw - 60 * U, y = PORT ? 150 * U : 140 * U + (1 - a) * 30 * U;
+  g.save(); g.globalAlpha = a; rr(x, y, cw, ch, 30 * U); g.fillStyle = 'rgba(255,253,246,.96)'; g.fill(); g.lineWidth = 6 * U; g.strokeStyle = '#2a1f1a'; g.stroke();
+  g.textAlign = 'left'; g.fillStyle = '#e2352b'; g.font = `800 ${50 * U}px P`; g.fillText(c.t, x + 40 * U, y + 66 * U);
+  let yy = y + 130 * U;
+  if (c.code) { const s = '1105 ABC12 2'; g.font = `800 ${64 * U}px P`; let xx = x + 40 * U;
+    for (let i = 0; i < s.length; i++) { const on = i >= c.code[0] && i < c.code[1]; g.fillStyle = on ? '#e2352b' : '#b9aea0'; g.fillText(s[i], xx, yy + 8 * U); xx += g.measureText(s[i]).width + 4 * U; }
+    g.font = `800 ${24 * U}px P`; g.fillStyle = '#8a7f72'; g.fillText('※ 예시 번호', x + cw - 170 * U, yy - 30 * U); yy += 100 * U; }
+  g.font = `800 ${38 * U}px P`; g.fillStyle = '#2a1f1a'; rows.forEach((r, i) => g.fillText(r, x + 40 * U, yy + i * 62 * U));
+  g.restore(); g.textAlign = 'center';
+};
+
+// ---- 카메라 ----
+const X = (n) => C[n].g.position.x, Y = (n) => C[n].g.position.y;
+const WIDE0 = { pos: [-0.9, 2.3, 10.2], look: [-0.9, 1.0, 0], fov: 30 };
+const WIDE = { pos: [0.7, 2.6, 12.6], look: [0.7, 1.1, 0], fov: 30 };
+function base(t, l) {
+  if (t < 1.2) return { ...WIDE0, pos: [-0.9, 3.4, 13], cut: true };
+  if (t >= freezeAt && t < doorClose + 0.3) return { pos: [0.3, 2.2, 9.5 + Story.smooth(freezeAt, doorAt, t) * 2], look: [0.3, 1.0, 0], fov: 30, cut: t < freezeAt + 0.05 };
+  if (t >= doorClose + 0.3 && (!l || L.indexOf(l) <= iGone)) return { ...WIDE, cut: true };
+  if (!l) return t < L[iKet].start ? WIDE0 : WIDE;
+  const i = L.indexOf(l), n = l.who;
+  if (i === iHidden) return { pos: [TB[0] + 0.4, 1.3, 4.0], look: [TB[0], 0.6, 0.2], fov: 30, cut: true };
+  if (i === iKet) return { pos: [3.2, 1.9, 5.2], look: [4.6, 1.4, 1.2], fov: 30, cut: true };
+  if (l.card === 'recap' || l.card === 'agenda') return { pos: [-1.2, 2.2, 9.8], look: [-1.2 + (PORT ? 1.2 : 2.0), 1.0, 0], fov: 30 };
+  const prev = L[i - 1];
+  const x = X(n), y = Y(n) + (n === '두부' && t < tofuUp ? -0.2 : 0);
+  if (i % 4 === 3 && prev && prev.who !== n && C[prev.who]) { const m = (x + X(prev.who)) / 2, d = Math.abs(x - X(prev.who)); return { pos: [m, 2.0, 5.6 + d * 0.9], look: [m, 0.95, 0.3], fov: 30 }; }
+  const off = l.card && !PORT ? 1.15 : 0;
+  const z = C[n].g.position.z;
+  return { pos: [x * 0.85 + off, y + 1.45, z + 5.1], look: [x + off, y + 0.88, z - 0.2], fov: 28 };
+}
+const shot = (t, l) => { const s = { ...base(t, l) }; /* 상수(WIDE0 등)를 고치지 않게 복사 */ if (PORT) { s.fov = Math.min(56, s.fov * 1.55); s.look = [s.look[0], s.look[1] + 0.15, s.look[2]]; } return s; };
+
+let lit = 0;
+window.render = (t) => S.render(T0 + t, {
+  cast: C, shot, camK: 0.09,
+  update: (t) => {
+    // 두부: 물속에 있다가 떠오름
+    const up = Story.smooth(tofuUp, tofuUp + 0.6, t);
+    C.두부.baseY = tofuBase + (-0.12 + up * 0.55);
+    const talkHidden = L[iHidden], bt = t - talkHidden.start;
+    C.두부.face.plane.visible = bt > -0.3; // 그 전까진 그냥 두부 한 모(아무도 몰랐음)
+    bubbles.forEach((b, k) => { const on = (bt > 0 && bt < talkHidden.dur + 0.6) || (t > tofuUp && t < tofuUp + 0.9); b.visible = on; const ph = ((t * 0.9 + k * 0.17) % 1); b.position.y = 0.3 + ph * 0.7; });
+    // 문 열림: 얼음 → 밝은 빛 → 우유 사라짐
+    const frz = t >= freezeAt && t < doorClose + 0.2;
+    for (const c of Object.values(C)) { if (frz && !c.frozen) { c.frozen = true; c.face.draw({ shape: 'X', mood: 'surprised' }); c.head.rotation.z = 0; c.head.scale.set(1, 1, 1); } else if (!frz && c.frozen) c.frozen = false; }
+    lit = Story.smooth(doorAt, doorAt + 0.35, t) * (1 - Story.smooth(doorClose - 0.3, doorClose + 0.2, t));
+    renderer.toneMappingExposure = 1 + lit * 1.1; lamp.intensity = 0.55 + lit * 1.6;
+    scene.background.set(lit > 0.5 ? '#ffffff' : '#cfe7f6');
+    C.우유.g.visible = t < milkGone;
+  },
+});
+window.DUR = SD || TL.dur;
+window.ready = document.fonts.load("800 40px P").then(() => { window.render(0); return true; });
+</script></body></html>
