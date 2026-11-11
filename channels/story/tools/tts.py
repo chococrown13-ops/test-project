@@ -6,6 +6,9 @@
 """
 import base64
 import json
+import os
+import shutil
+import subprocess
 import math
 import struct
 import sys
@@ -34,19 +37,54 @@ def synth(text, voice, rate=1.0, pitch=0.0):
             time.sleep(2 * (i + 1))
 
 
+RHUBARB_URL = "https://github.com/DanielSWolf/rhubarb-lip-sync/releases/download/v1.14.0/Rhubarb-Lip-Sync-1.14.0-Linux.zip"
+
+
+def rhubarb():
+    """입 모양 도구(Rhubarb Lip Sync, MIT, 공식 GitHub 배포본). 없으면 ~/.cache 에 한 번 받아 둠."""
+    exe = os.environ.get("RHUBARB") or shutil.which("rhubarb")
+    if exe:
+        return exe
+    home = Path.home() / ".cache" / "rhubarb"
+    exe = home / "Rhubarb-Lip-Sync-1.14.0-Linux" / "rhubarb"
+    if not exe.exists():
+        import zipfile, io
+        print("입 모양 도구를 한 번 받아요 (약 87MB)…")
+        data = urllib.request.urlopen(RHUBARB_URL, timeout=300).read()
+        home.mkdir(parents=True, exist_ok=True)
+        zipfile.ZipFile(io.BytesIO(data)).extractall(home)
+        exe.chmod(0o755)
+    return str(exe)
+
+
+def mouth_cues(exe, wav):
+    """목소리 → 입 모양 순서 [[시작초, 모양(A~H, X)]…] (언어 상관없는 phonetic 인식)."""
+    try:
+        out = subprocess.run([exe, "-r", "phonetic", "-f", "json", "--extendedShapes", "GHX", "-q", str(wav)], capture_output=True, text=True, timeout=300)
+        cues = json.loads(out.stdout)["mouthCues"]
+        return [[round(c["start"], 2), c["value"]] for c in cues]
+    except Exception as e:
+        print(f"  입 모양 계산 실패({type(e).__name__}) — 목소리 크기로 대신 움직여요")
+        return None
+
+
 def main():
     ep = Path(sys.argv[1])
     sc = json.loads((ep / "script.json").read_text())
     (ep / "voice").mkdir(exist_ok=True)
     t = sc.get("start", 1.0)
     lines, chars = [], 0
+    exe = rhubarb() if sc.get("lipsync", True) else None
     for i, ln in enumerate(sc["lines"]):
         t += ln.get("pause", 0)
         c = sc["cast"][ln["who"]]
-        raw = synth(ln["text"], c["voice"], c.get("rate", 1.0), c.get("pitch", 0))
-        chars += len(ln["text"])
         path = ep / "voice" / f"{i:02d}.wav"
-        path.write_bytes(raw)  # LINEAR16 는 wav 머리말이 붙어 옴
+        key = json.dumps([ln["text"], c], ensure_ascii=False, sort_keys=True)
+        keyf = ep / "voice" / f"{i:02d}.key"
+        if not (path.exists() and keyf.exists() and keyf.read_text() == key):  # 같은 대사·목소리면 다시 안 만듦(글자 아끼기)
+            path.write_bytes(synth(ln["text"], c["voice"], c.get("rate", 1.0), c.get("pitch", 0)))  # LINEAR16 는 wav 머리말이 붙어 옴
+            keyf.write_text(key)
+            chars += len(ln["text"])
         with wave.open(str(path)) as w:
             n, sr = w.getnframes(), w.getframerate()
             pcm = w.readframes(n)
@@ -58,14 +96,15 @@ def main():
             seg = samples[k:k + hop]
             rms = math.sqrt(sum(s * s for s in seg) / max(1, len(seg))) / 32768
             env.append(round(min(1.0, rms * 6), 3))
-        lines.append({**{k: v for k, v in ln.items() if k not in ("pause",)}, "start": round(t, 3), "dur": round(dur, 3), "env": env, "file": path.name})
+        cues = mouth_cues(exe, path) if exe else None
+        lines.append({**{k: v for k, v in ln.items() if k not in ("pause",)}, "start": round(t, 3), "dur": round(dur, 3), "env": env, "cues": cues, "file": path.name})
         t += dur + sc.get("gap", 0.3)
     sfx = [{"t": round(l["start"] + s.get("at", 0), 3), "kind": s["kind"]} for l in lines for s in ([l["sfx"]] if isinstance(l.get("sfx"), dict) else l.get("sfx", []) or [])]
     sfx += sc.get("sfxAbs", [])
     tl = {"dur": round(t - sc.get("gap", 0.3) + sc.get("tail", 2.5), 2), "lines": lines, "sfx": sfx, "chars": chars}
     (ep / "timeline.json").write_text(json.dumps(tl, ensure_ascii=False, indent=1))
     (ep / "timeline.js").write_text("window.TL = " + json.dumps(tl, ensure_ascii=False) + ";\n")
-    print(f"대사 {len(lines)}줄 · 길이 {tl['dur']}초 · 글자 {chars}자")
+    print(f"대사 {len(lines)}줄 · 길이 {tl['dur']}초 · 이번에 새로 만든 글자 {chars}자")
 
 
 if __name__ == "__main__":
