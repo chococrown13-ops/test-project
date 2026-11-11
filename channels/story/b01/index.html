@@ -1,0 +1,48 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>@font-face{font-family:P;font-weight:800;src:url(../../../gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<script src="../../physics/vendor/three-0.149.0.min.js"></script>
+<script src="timeline.js"></script>
+<script src="../tools/engine.js"></script>
+<script>
+// B 「2126년에서 온 택배」 #1 — 미래에서 잘못 배달된 물건을 받은 가족 (30초 샘플)
+const S = Story.init({ title: '2126년에서 온 택배', sub: '#1 걱정해 주는 기계', end: ['2126년에서 온 택배', '다음엔 어떤 물건이 올까요?'], bg: '#e7f0ff' });
+const { scene } = S, M = Story.mesh;
+window.CAST_STYLE = { 택배: { name: '택배 상자', color: '#f2c27a' }, 아들: { name: '아들', color: '#ffe066' }, 엄마: { name: '엄마', color: '#ffb3c7' }, 기계: { name: '2126년 기계', color: '#b9f3ff' } };
+M(new THREE.BoxGeometry(14, 0.2, 10), '#cbb79a', [0, -0.1, 0], scene, { line: 0 }); // 현관 바닥
+M(new THREE.BoxGeometry(14, 7, 0.2), '#f4efe6', [0, 3.4, -2.4], scene, { line: 0 });
+M(new THREE.BoxGeometry(1.6, 3.0, 0.1), '#8a5a3a', [2.6, 1.5, -2.25], scene); M(new THREE.SphereGeometry(0.07, 10, 8), '#ffd54a', [2.05, 1.5, -2.15], scene); // 문
+M(new THREE.BoxGeometry(1.4, 0.06, 0.9), '#6aa36f', [0.3, 0.03, 0.6], scene, { line: 0 }); // 현관 매트
+const box = Story.char({ type: 'box', pos: [0.3, 0, 0.6], color: '#c8955a', blinkOff: 0.4, faceSize: 0.6, props: (h) => {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 256, 64); g.fillStyle = '#222'; g.font = '800 30px P'; g.textAlign = 'center'; g.fillText('발송: 2126.11.11', 128, 42);
+  const lab = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.16), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c) })); lab.position.set(0.25, 0.46, 0.2); lab.rotation.x = -Math.PI / 2; h.add(lab); } });
+const lid = new THREE.Group(); lid.position.set(0, 0.45, -0.45); box.head.add(lid); M(new THREE.BoxGeometry(1.2, 0.06, 0.9), '#b9854d', [0, 0, 0.45], lid);
+const son = Story.char({ pos: [-1.6, 0, 0.2], cloth: '#ffcf33', pants: '#3a5a9a', hair: '#2b1d14', blinkOff: 1.3, lookAt: [0.3, 0, 4] });
+son.g.scale.setScalar(0.82);
+const mom = Story.char({ pos: [-2.7, 0, -0.6], cloth: '#ff8fab', pants: '#5b4b7a', hair: '#3b2416', blinkOff: 2.2, lookAt: [0.3, 0, 4], props: (h) => { M(new THREE.SphereGeometry(0.2, 16, 12), '#3b2416', [0, 0.25, -0.5], h); } });
+const bot = Story.char({ type: 'cloud', pos: [0.3, 0, 0.6], color: '#e9f6ff', blinkOff: 0.9, faceSize: 0.5, props: (h) => {
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.03, 8, 40), new THREE.MeshBasicMaterial({ color: '#7ee7ff' })); ring.rotation.x = Math.PI / 2; ring.position.y = -0.35; h.add(ring); h.userData.ring = ring; } });
+[box, son, mom, bot].forEach((c) => scene.add(c.g));
+const glow = new THREE.PointLight('#8fe9ff', 0, 6); glow.position.set(0.3, 1.4, 1); scene.add(glow);
+const L = S.TL.lines, openAt = L[3].start - 0.6;
+window.render = (t) => S.render(t, {
+  cast: { 택배: box, 아들: son, 엄마: mom, 기계: bot },
+  update: (t) => {
+    const fall = Story.smooth(0.2, 0.9, t); box.g.position.y = (1 - fall) * 6; box.g.rotation.z = (1 - fall) * 0.6;
+    const op = Story.smooth(openAt, openAt + 0.5, t); lid.rotation.x = -op * 1.9;
+    const rise = Story.smooth(openAt + 0.2, openAt + 1.2, t); bot.g.visible = rise > 0.01; bot.g.position.y = -0.6 + rise * 0.9 + Math.sin(t * 2.5) * 0.05 * rise; bot.g.scale.setScalar(0.4 + 0.6 * rise);
+    if (bot.head.userData.ring) bot.head.userData.ring.rotation.z = t * 2; glow.intensity = rise * 1.6;
+  },
+  shot: (t, l) => {
+    if (t < 1.8) return { pos: [0.6, 2.4, 7.5], look: [0.3, 0.9, 0.6], fov: 34 };
+    const who = l ? l.who : null;
+    if (who === '택배') return { pos: [0.6, 1.4, 3.6], look: [0.3, 0.6, 0.6] };
+    if (who === '기계') return { pos: [0.5, 1.9, 3.8], look: [0.3, 1.25, 0.6] };
+    if (who === '아들') return { pos: [-1.0, 1.7, 3.8], look: [-1.6, 1.3, 0.2] };
+    if (who === '엄마') return { pos: [-1.9, 2.2, 3.9], look: [-2.7, 1.75, -0.6] };
+    return { pos: [-0.6, 2.4, 7.0], look: [-0.6, 1.1, 0], fov: 34 };
+  },
+});
+window.DUR = TL.dur;
+window.ready = document.fonts.load("800 40px P").then(() => { window.render(0); return true; });
+</script></body></html>

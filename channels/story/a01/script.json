@@ -1,0 +1,10 @@
+{"start": 1.6, "gap": 0.35, "tail": 2.6,
+ "cast": {"서울": {"voice": "ko-KR-Chirp3-HD-Charon", "rate": 1.08}, "부산": {"voice": "ko-KR-Chirp3-HD-Puck", "rate": 1.12},
+          "인천": {"voice": "ko-KR-Chirp3-HD-Kore", "rate": 1.1}, "울산": {"voice": "ko-KR-Chirp3-HD-Achird", "rate": 1.0}},
+ "lines": [
+  {"who": "서울", "text": "자, 오늘 저녁 메뉴는 내가 정한다. 인구 1등이니까.", "mood": "smug"},
+  {"who": "부산", "text": "인구가 무슨 상관이고! 바다는 내 담당이다, 회 먹자 회!", "mood": "surprised"},
+  {"who": "인천", "text": "회는 무슨. 짜장면이지! 짜장면 박물관도 나한테 있다고.", "mood": "smug", "sfx": [{"kind": "pop", "at": 0.2}]},
+  {"who": "울산", "text": "…나는 그냥 장생포 가서 고래 보고 올게.", "mood": "tired", "pause": 0.3},
+  {"who": "서울", "text": "…결국 또 배달이네.", "mood": "worried", "pause": 0.3, "sfx": [{"kind": "ding", "at": 0.9}]}
+ ]}

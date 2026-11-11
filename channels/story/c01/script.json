@@ -1,0 +1,11 @@
+{"start": 1.6, "gap": 0.3, "tail": 2.6,
+ "cast": {"김치": {"voice": "ko-KR-Chirp3-HD-Algenib", "rate": 1.02}, "우유": {"voice": "ko-KR-Chirp3-HD-Leda", "rate": 1.1},
+          "계란": {"voice": "ko-KR-Chirp3-HD-Puck", "rate": 1.15}},
+ "lines": [
+  {"who": "김치", "text": "자, 냉장고 긴급회의를 시작하겠다.", "mood": "smug"},
+  {"who": "우유", "text": "저… 제 소비기한이 내일까지래요…", "mood": "worried"},
+  {"who": "계란", "text": "난 아직 2주나 남았지롱~", "mood": "happy"},
+  {"who": "김치", "text": "걱정 마라. 나는 시간이 지날수록 더 맛있어진다.", "mood": "smug"},
+  {"who": "우유", "text": "그건 김치 선배님 얘기잖아요!", "mood": "surprised"},
+  {"who": "계란", "text": "쉿! 문 열린다! 다들 얼음!", "mood": "surprised", "pause": 0.3, "sfx": [{"kind": "door", "at": 1.6}]}
+ ]}

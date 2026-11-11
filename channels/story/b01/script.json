@@ -1,0 +1,12 @@
+{"start": 1.8, "gap": 0.35, "tail": 2.6,
+ "cast": {"택배": {"voice": "ko-KR-Wavenet-A", "rate": 1.0, "pitch": 3}, "아들": {"voice": "ko-KR-Chirp3-HD-Zephyr", "rate": 1.12},
+          "엄마": {"voice": "ko-KR-Chirp3-HD-Sulafat", "rate": 1.05}, "기계": {"voice": "ko-KR-Neural2-C", "rate": 0.95, "pitch": 6}},
+ "sfxAbs": [{"t": 0.9, "kind": "thud"}, {"t": 0.6, "kind": "whoosh"}],
+ "lines": [
+  {"who": "택배", "text": "배송 완료. 보낸 날짜, 2126년 11월 11일.", "mood": "normal"},
+  {"who": "아들", "text": "엄마! 백 년 뒤에서 택배가 왔어!", "mood": "surprised"},
+  {"who": "엄마", "text": "또 이상한 거 시켰지? 어디 보자…", "mood": "worried"},
+  {"who": "기계", "text": "안녕하세요. 저는 숙제를 대신 걱정해 주는 기계입니다.", "mood": "happy", "pause": 0.6, "sfx": [{"kind": "magic", "at": -0.6}]},
+  {"who": "아들", "text": "…숙제를 대신 해 주는 게 아니고?", "mood": "tired"},
+  {"who": "기계", "text": "그건 2127년 모델입니다.", "mood": "smug", "sfx": [{"kind": "sting", "at": 1.2}]}
+ ]}

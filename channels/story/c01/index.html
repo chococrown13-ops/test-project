@@ -1,0 +1,41 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>@font-face{font-family:P;font-weight:800;src:url(../../../gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<script src="../../physics/vendor/three-0.149.0.min.js"></script>
+<script src="timeline.js"></script>
+<script src="../tools/engine.js"></script>
+<script>
+// C 「냉장고 속 음식들의 회의」 #1 — 소비기한이 다가오는 음식들 (30초 샘플)
+const S = Story.init({ title: '냉장고 속 회의', sub: '#1 소비기한 비상', end: ['냉장고 속 회의', '다음 회의 안건은 댓글로!'], bg: '#dff1ff' });
+const { scene, renderer } = S, M = Story.mesh;
+window.CAST_STYLE = { 김치: { name: '김치 선배', color: '#ff8f7a' }, 우유: { name: '우유', color: '#a9d1ff' }, 계란: { name: '계란', color: '#ffe08a' } };
+M(new THREE.BoxGeometry(8, 0.12, 4), '#eaf6ff', [0, 0, 0], scene, { line: 0 }); // 선반
+M(new THREE.BoxGeometry(8, 0.08, 4), '#ffffff', [0, 3.3, 0], scene, { line: 0, mat: new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.5 }) });
+M(new THREE.BoxGeometry(8, 5, 0.1), '#f4fbff', [0, 2, -1.6], scene, { line: 0 }); for (const s of [-1, 1]) M(new THREE.BoxGeometry(0.1, 5, 4), '#e8f3fb', [s * 3.6, 2, 0], scene, { line: 0 });
+const cold = new THREE.PointLight('#cfefff', 0.6, 10); cold.position.set(0, 3.0, 0.5); scene.add(cold);
+// 뒤쪽 소품
+M(new THREE.CylinderGeometry(0.22, 0.26, 0.9, 20), '#e2493b', [2.6, 0.5, -1.0], scene); M(new THREE.CylinderGeometry(0.1, 0.1, 0.2, 12), '#f5f5f5', [2.6, 1.05, -1.0], scene);
+M(new THREE.BoxGeometry(0.8, 0.5, 0.6), '#ffe7a3', [-2.7, 0.3, -0.9], scene);
+const C = {
+  김치: Story.char({ type: 'jar', pos: [-1.6, 0.06, 0.1], color: '#eef7fb', lid: '#3fae6a', inner: '#d9452b', blinkOff: 0.4, faceSize: 0.75 }),
+  우유: Story.char({ type: 'carton', pos: [0.1, 0.06, 0.3], color: '#ffffff', roof: '#3d8bff', label: '#3d8bff', blinkOff: 1.2, faceSize: 0.72 }),
+  계란: Story.char({ type: 'egg', pos: [1.6, 0.06, 0.3], color: '#fff2d6', blinkOff: 2.1, faceSize: 0.62 }),
+};
+Object.values(C).forEach((c) => scene.add(c.g));
+const L = S.TL.lines, doorAt = L[L.length - 1].start + 1.6;
+let flash = 0;
+window.render = (t) => S.render(t, {
+  cast: C,
+  update: (t) => {
+    flash = Story.smooth(doorAt, doorAt + 0.35, t);
+    renderer.toneMappingExposure = 1 + flash * 0.9; scene.background.set(flash > 0.5 ? '#ffffff' : '#dff1ff');
+    if (t > doorAt) for (const c of Object.values(C)) { c.head.position.y = c.baseY; c.head.rotation.z = 0; c.face.draw({ mouth: 0, blink: false, mood: 'surprised' }); }
+  },
+  shot: (t, l) => {
+    if (t < 1.6 || !l || t > doorAt) return { pos: [0, 2.0, 7.2], look: [0, 1.0, 0], fov: 32 };
+    const x = C[l.who].g.position.x; return { pos: [x * 0.6, 1.6, 4.4], look: [x, 1.0, 0.2], fov: 30 };
+  },
+});
+window.DUR = TL.dur;
+window.ready = document.fonts.load("800 40px P").then(() => { window.render(0); return true; });
+</script></body></html>
