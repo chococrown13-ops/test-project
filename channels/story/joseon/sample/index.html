@@ -1,0 +1,151 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>@font-face{font-family:P;font-weight:800;src:url(../../../../gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script src="../../../physics/vendor/three-0.149.0.min.js"></script>
+<script src="timeline.js"></script>
+<script src="../../tools/engine2.js"></script>
+<script>
+// 조선으로 회귀하면 — 30초 샘플 (2026년 종로 → 1795년 한양, 안내 정령 댕이 첫 등장)
+const L = TL.lines, idx = (s) => L.findIndex((l) => l.text.includes(s));
+const A = []; L.forEach((l) => (l.acts || []).forEach((a) => A.push({ ...a, t: l.start + (a.at || 0) })));
+const at = (k) => (A.find((a) => a.act === k) || {}).t;
+const FLASH = at('flash'), SPAWN = at('spawn');
+const S = Story.init({ w: 1920, h: 1080, bg: '#1a2142', title: '조선으로 회귀하면', sub: '1795년 한양, 첫날 밤', smallTitle: '조선으로 회귀하면', titleAt: [FLASH + 0.6, FLASH + 3.0],
+  end: ['조선으로 회귀하면', '1화 「한양 첫날 밤, 통금 종이 울린다」 곧 공개'] });
+const { scene, renderer } = S, M = Story.mesh, sm = Story.smooth;
+window.CAST_STYLE = { 민재: { name: '민재', color: '#9be15d' }, 댕이: { name: '댕이', color: '#bfeaff' } };
+scene.children.forEach((o) => { if (o.isHemisphereLight) o.intensity = 0.45; if (o.isDirectionalLight) { o.intensity = 0.55; o.color.set('#b9c8ff'); } });
+
+// ---------- 공통: 하늘 · 별 · 달 ----------
+const stars = new THREE.Group(); scene.add(stars);
+for (let k = 0; k < 140; k++) { const a = k * 2.399, r = 30 + (k % 7) * 4; const st = new THREE.Mesh(new THREE.SphereGeometry(0.06 + (k % 3) * 0.03, 6, 4), new THREE.MeshBasicMaterial({ color: '#ffffff' })); st.position.set(Math.cos(a) * r * 0.9, 9 + (k * 37 % 17), -40 - Math.sin(a) * 6); stars.add(st); }
+const moon = new THREE.Mesh(new THREE.CircleGeometry(1.6, 40), new THREE.MeshBasicMaterial({ color: '#fff6d8' })); moon.position.set(-12, 15, -42); scene.add(moon);
+
+// 종루(보신각 자리) — 두 시대 모두 같은 자리
+function pavilion(parent, x, z, modern) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); parent.add(g);
+  M(new THREE.BoxGeometry(4.4, 0.7, 3.4), modern ? '#b9b2a6' : '#9c9282', [0, 0.35, 0], g);
+  for (const [px, pz] of [[-1.7, -1.2], [1.7, -1.2], [-1.7, 1.2], [1.7, 1.2], [0, 1.2], [0, -1.2]]) M(new THREE.CylinderGeometry(0.13, 0.13, 2.4, 12), '#b1342b', [px, 1.9, pz], g);
+  M(new THREE.BoxGeometry(4.0, 0.3, 3.0), '#3f6b5a', [0, 3.15, 0], g);
+  const roof = M(new THREE.CylinderGeometry(0.6, 3.6, 1.4, 4, 1), '#3b3f48', [0, 3.95, 0], g); roof.rotation.y = Math.PI / 4; roof.scale.set(1.25, 1, 0.95);
+  const bell = M(new THREE.CylinderGeometry(0.42, 0.62, 1.15, 24), '#5c6b4f', [0, 2.35, 0], g); // 큰 종
+  return { g, bell };
+}
+
+// ---------- 2026년 종로 ----------
+const NOW = new THREE.Group(); scene.add(NOW);
+M(new THREE.BoxGeometry(60, 0.1, 30), '#2b3040', [0, -0.05, -6], NOW, { line: 0 });
+for (let k = 0; k < 8; k++) M(new THREE.BoxGeometry(0.6, 0.02, 3.2), '#e9edf5', [-6 + k * 1.1, 0.01, 3.2], NOW, { line: 0, shadow: false });   // 횡단보도
+M(new THREE.BoxGeometry(60, 0.2, 2.6), '#6b6f7a', [0, 0.1, -4.6], NOW, { line: 0 });                                                      // 인도
+function winTex(seed) { const c = document.createElement('canvas'); c.width = 128; c.height = 256; const x = c.getContext('2d'); x.fillStyle = '#28304a'; x.fillRect(0, 0, 128, 256);
+  for (let r = 0; r < 16; r++) for (let q = 0; q < 6; q++) { const on = ((r * 7 + q * 13 + seed) % 5) < 3; x.fillStyle = on ? '#ffe7a6' : '#38415e'; x.fillRect(8 + q * 20, 8 + r * 15, 12, 9); }
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t; }
+[[-14, 9, 4], [-9, 13, 4.5], [-4, 8, 3.5], [8, 12, 4.5], [13, 9, 4], [18, 15, 5], [-19, 11, 4]].forEach(([x, h, w], i) => {
+  const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 4), new THREE.MeshBasicMaterial({ map: winTex(i * 3) })); b.position.set(x, h / 2, -12); NOW.add(b); });
+for (const x of [-7, 0, 7]) { M(new THREE.CylinderGeometry(0.06, 0.08, 4.2, 8), '#59606e', [x, 2.1, -3.6], NOW, { line: 0 }); M(new THREE.SphereGeometry(0.2, 12, 8), null, [x, 4.25, -3.6], NOW, { line: 0, mat: new THREE.MeshBasicMaterial({ color: '#fff3c4' }) }); const pl = new THREE.PointLight('#ffe2a8', 0.5, 9); pl.position.set(x, 4, -3); NOW.add(pl); }
+pavilion(NOW, 4.2, -6.5, true);
+// 배달 오토바이
+const bike = new THREE.Group(); bike.position.set(-2.3, 0, 0.6); bike.rotation.y = 0.5; NOW.add(bike);
+for (const z of [-0.7, 0.7]) { const w = M(new THREE.TorusGeometry(0.34, 0.11, 10, 24), '#1d1d1d', [0, 0.36, z], bike); w.rotation.y = Math.PI / 2; }
+M(new THREE.BoxGeometry(0.4, 0.4, 1.2), '#e0e6ee', [0, 0.72, 0], bike); M(new THREE.BoxGeometry(0.7, 0.6, 0.6), '#4bbf73', [0, 1.2, -0.55], bike); M(new THREE.CylinderGeometry(0.03, 0.03, 0.8, 8), '#333', [0, 1.1, 0.65], bike).rotation.z = Math.PI / 2;
+
+// ---------- 1795년 한양 ----------
+const OLD = new THREE.Group(); scene.add(OLD); OLD.visible = false;
+M(new THREE.BoxGeometry(60, 0.1, 30), '#7d6a52', [0, -0.05, -6], OLD, { line: 0 });
+function giwa(x, z, w, ry = 0) { const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; OLD.add(g);
+  M(new THREE.BoxGeometry(w, 0.4, 2.6), '#8d8577', [0, 0.2, 0], g); M(new THREE.BoxGeometry(w - 0.3, 1.7, 2.2), '#efe6d2', [0, 1.25, 0], g);
+  for (let k = 0; k <= 3; k++) M(new THREE.BoxGeometry(0.14, 1.7, 0.14), '#5a3d28', [-w / 2 + 0.15 + k * (w - 0.3) / 3, 1.25, 1.12], g, { line: 0 });
+  const r = M(new THREE.CylinderGeometry(0.4, 2.2, 1.1, 4, 1), '#363a42', [0, 2.6, 0], g); r.rotation.y = Math.PI / 4; r.scale.set(w / 2.6, 1, 1.1); return g; }
+function choga(x, z, ry = 0) { const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; OLD.add(g);
+  M(new THREE.BoxGeometry(2.4, 1.5, 2.0), '#d9c7a3', [0, 0.75, 0], g); const r = M(new THREE.SphereGeometry(1.6, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), '#c9a35c', [0, 1.45, 0], g); r.scale.set(1, 0.55, 0.9); return g; }
+giwa(-9, -7, 5.2); giwa(-3.4, -8.5, 4.2); choga(-13.5, -5.5, 0.3); choga(10.5, -6.0, -0.3); giwa(15, -8, 5.0); choga(-6.2, -4.6, 0.1);
+const jongru = pavilion(OLD, 4.2, -6.5, false);
+const lanterns = [];
+for (const [x, z] of [[-4.5, -3.2], [1.5, -3.6], [8.5, -3.4], [-11, -3.0]]) { M(new THREE.CylinderGeometry(0.05, 0.05, 2.6, 8), '#4a3324', [x, 1.3, z], OLD, { line: 0 });
+  const lb = M(new THREE.BoxGeometry(0.4, 0.55, 0.4), null, [x, 2.75, z], OLD, { mat: new THREE.MeshBasicMaterial({ color: '#ffcc7a' }) }); const pl = new THREE.PointLight('#ffb35c', 0.7, 8); pl.position.set(x, 2.8, z + 0.4); OLD.add(pl); lanterns.push(lb); }
+// 주막 등 ('酒')
+{ const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); x.fillStyle = '#fff1cf'; x.fillRect(0, 0, 128, 128); x.fillStyle = '#7a2b1e'; x.font = '900 88px serif'; x.textAlign = 'center'; x.fillText('酒', 64, 100);
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.55), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c) })); sign.position.set(-6.2, 2.05, -3.55); OLD.add(sign); }
+// 멀리 횃불 두 개
+const torches = []; for (const x of [11.5, 12.4]) { const f = M(new THREE.SphereGeometry(0.16, 10, 8), null, [x, 1.9, -2.5], OLD, { line: 0, mat: new THREE.MeshBasicMaterial({ color: '#ffb347' }) }); torches.push(f); }
+
+// ---------- 캐릭터 ----------
+const C = {
+  민재: Story.char({ type: 'human', pos: [-0.6, 0, 0.6], cloth: '#2e3447', vest: '#a6e04f', pants: '#2b2f3c', hair: '#1d1712', bag: '#4bbf73', arms: true, restArm: 0.12, faceSize: 0.66, blinkOff: 0.7 }),
+  댕이: Story.char({ type: 'bell', pos: [0.9, 2.3, 0.9], color: '#ffffff', glow: '#cdeeff', faceSize: 0.5, blinkOff: 1.9 }),
+};
+C.민재.g.rotation.y = 0.15; Object.values(C).forEach((c) => scene.add(c.g));
+const dLight = new THREE.PointLight('#d8f3ff', 0.0, 5); C.댕이.head.add(dLight);
+// 접속 빛 알갱이
+const motes = []; for (let k = 0; k < 26; k++) { const m = M(new THREE.SphereGeometry(0.04 + (k % 3) * 0.02, 8, 6), null, [0, 0, 0], scene, { line: 0, shadow: false, mat: new THREE.MeshBasicMaterial({ color: '#e8f8ff' }) }); m.visible = false; motes.push(m); }
+
+// ---------- 게임 창 (퀘스트) · 종 카운터 ----------
+const CARDS = TL.cards || {};
+const spans = []; L.forEach((l) => { if (!l.card) return; const s = spans[spans.length - 1]; if (s && s.k === l.card) s.b = l.start + l.dur + 0.6; else spans.push({ k: l.card, a: l.start, b: l.start + l.dur + 0.6 }); });
+const QUEST_AT = spans.length ? spans[0].a : 1e9;
+window.CAPTION = (g, t, { W, H, U, rr }) => {
+  // 종 카운터 (퀘스트 뒤로 계속)
+  if (t > QUEST_AT) { const a = sm(QUEST_AT, QUEST_AT + 0.4, t); g.save(); g.globalAlpha = a; rr(W - 430 * U, 40 * U, 370 * U, 74 * U, 18 * U); g.fillStyle = 'rgba(10,18,40,.82)'; g.fill(); g.lineWidth = 4 * U; g.strokeStyle = '#7fd8ff'; g.stroke();
+    g.fillStyle = '#ffd54a'; g.font = `800 ${36 * U}px P`; g.textAlign = 'left'; g.fillText('인정 종', W - 400 * U, 79 * U); g.fillStyle = '#fff'; g.textAlign = 'right';
+    const q = Math.floor(t * 3) % 2 ? '?' : '??'; g.fillText(`${q} / 28`, W - 90 * U, 79 * U); g.restore(); g.textAlign = 'center'; }
+  const sp = spans.find((s) => t >= s.a - 0.2 && t <= s.b + 0.3); if (!sp) return;
+  const a = sm(sp.a - 0.15, sp.a + 0.25, t) * (1 - sm(sp.b, sp.b + 0.3, t)); if (a <= 0) return;
+  const c = CARDS[sp.k]; const head = c.t.match(/^\[(.*?)\]\s*(.*)$/) || [null, '', c.t];
+  g.font = `800 ${40 * U}px P`; const cw = Math.max(...c.rows.map((r) => g.measureText(r.split(" — ").pop()).width + (r.includes(" — ") ? 250 : 90) * U), 520 * U) + 70 * U, ch = 170 * U + c.rows.length * 62 * U;
+  const x = 80 * U, y = 150 * U + (1 - a) * 40 * U;
+  g.save(); g.globalAlpha = a;
+  rr(x, y, cw, ch, 22 * U); g.fillStyle = 'rgba(8,16,38,.86)'; g.fill(); g.lineWidth = 5 * U; g.strokeStyle = '#7fd8ff'; g.stroke();
+  rr(x + 22 * U, y - 26 * U, 330 * U, 56 * U, 28 * U); g.fillStyle = '#ffd54a'; g.fill();
+  g.fillStyle = '#1a1430'; g.font = `800 ${32 * U}px P`; g.textAlign = 'center'; g.fillText(head[1], x + 187 * U, y + 3 * U);
+  g.textAlign = 'left'; g.fillStyle = '#ffffff'; g.font = `800 ${52 * U}px P`; g.fillText(head[2], x + 50 * U, y + 92 * U);
+  g.font = `800 ${40 * U}px P`; c.rows.forEach((r, i) => { const [k, v] = r.split(' — '); g.fillStyle = '#7fd8ff'; g.fillText(v ? k : '▸', x + 50 * U, y + 160 * U + i * 62 * U); g.fillStyle = '#ffffff'; g.fillText(v || r, x + (v ? 250 : 90) * U, y + 160 * U + i * 62 * U); });
+  g.restore(); g.textAlign = 'center';
+};
+
+// ---------- 카메라 ----------
+const iMin2 = idx('종각역인데'), iSpawn = idx('접속 완료'), iScream = idx('으악'), iGuide = idx('가이드예요'), iQuest = idx('스물여덟'), iPanic = idx('몇 번째'), iJoke = idx('안 셌어요');
+function base(t, l) {
+  const i = l ? L.indexOf(l) : -1;
+  if (t < FLASH) return { pos: [-3.6 + t * 0.35, 2.6, 8.5], look: [0.6, 1.8, -2], fov: 34 };            // 2026 천천히 밀기
+  if (t < L[iMin2].start + 0.2) return { pos: [-1.2, 2.2, 6.2], look: [0.6, 2.0, -3], fov: 40, cut: t < FLASH + 0.4 };
+  if (t < SPAWN) return { pos: [-0.2, 2.4, 6.0], look: [1.6, 2.2, -4], fov: 42 };                     // 둘러보기
+  if (t < L[iSpawn].start + L[iSpawn].dur) return { pos: [0.6, 2.3, 3.6], look: [0.6, 2.1, 0.6], fov: 34, cut: t < SPAWN + 0.05 };   // 댕이 등장 클로즈업
+  if (i === iScream) return { pos: [-0.9, 2.0, 4.2], look: [-0.5, 1.7, 0.4], fov: 34, cut: true };
+  if (i === iQuest || i === iGuide) return { pos: [0.6, 2.2, 6.6], look: [0.9, 1.7, 0.2], fov: 36 };
+  if (i === iPanic) return { pos: [-0.6, 2.0, 4.6], look: [-0.5, 1.6, 0.4], fov: 36, cut: true };
+  if (i === iJoke) return { pos: [1.0, 2.4, 3.9], look: [0.6, 2.1, 0.7], fov: 34, cut: true };
+  return { pos: [0.3, 2.4, 7.4], look: [0.4, 1.6, 0], fov: 38 };
+}
+const shot = (t, l) => ({ ...base(t, l) });
+
+window.render = (t) => S.render(t, {
+  cast: C, shot, camK: 0.08,
+  update: (t, l) => {
+    const old = t > FLASH + 0.3; OLD.visible = old; NOW.visible = !old;
+    scene.background.set(old ? '#141a33' : '#1a2142');
+    // 섬광
+    const fl = sm(FLASH, FLASH + 0.25, t) * (1 - sm(FLASH + 0.4, FLASH + 1.2, t));
+    renderer.toneMappingExposure = 1 + fl * 3.5;
+    // 민재: 2026엔 휴대폰 보는 자세, 둘러보기, 놀라서 뒤로
+    const mj = C.민재; mj.g.rotation.y = 0.15 + (t > FLASH && t < SPAWN ? Math.sin((t - FLASH) * 1.6) * 0.6 : 0);
+    if (t < FLASH) { mj.arms[1].sh.rotation.set(-1.35, 0, 0.12); mj.mood = 'happy'; } else mj.mood = null;
+    const back = sm(L[iScream].start - 0.1, L[iScream].start + 0.3, t); mj.g.position.x = -0.6 - back * 0.5;
+    // 댕이: 빛 알갱이가 모여 생김 → 둥실둥실, 민재 주변
+    const sp = sm(SPAWN, SPAWN + 0.9, t), dg = C.댕이;
+    dg.g.visible = t > SPAWN + 0.3; const sc = sm(SPAWN + 0.3, SPAWN + 0.9, t); dg.g.scale.setScalar(Math.max(0.001, sc * (1 + Math.sin(sc * Math.PI) * 0.25)));
+    dg.g.position.set(0.9 + Math.sin(t * 0.9) * 0.25, 2.3 + Math.sin(t * 2.4) * 0.12, 0.9 + Math.cos(t * 0.7) * 0.15);
+    if (l && L.indexOf(l) === iJoke) dg.head.rotation.y = Math.sin((t - l.start) * 7) * 0.5; else dg.head.rotation.y = 0;
+    const tail = dg.head.userData.tail; if (tail) tail.rotation.z = Math.sin(t * 3) * 0.35;
+    if (dg.head.userData.halo) dg.head.userData.halo.material.opacity = 0.55 + Math.sin(t * 3) * 0.15;
+    dLight.intensity = t > SPAWN ? 0.9 : 0;
+    motes.forEach((m, k) => { const u = t - SPAWN + 0.6; m.visible = u > 0 && u < 1.3; if (!m.visible) return; const a = k * 2.4, r = (1 - sm(0, 1.1, u)) * (1.4 + (k % 4) * 0.3);
+      m.position.set(0.9 + Math.cos(a + u * 3) * r, 2.3 + Math.sin(a * 1.7) * r * 0.6, 0.9 + Math.sin(a + u * 3) * r * 0.5); });
+    // 종 흔들림 · 등불 깜빡 · 횃불
+    for (const s of TL.sfx) if (s.kind === 'bell' && t > s.t && t < s.t + 1.5) jongru.bell.rotation.z = Math.sin((t - s.t) * 9) * 0.12 * (1 - (t - s.t) / 1.5);
+    lanterns.forEach((lb, k) => lb.material.color.setHSL(0.1, 1, 0.7 + Math.sin(t * 7 + k) * 0.05));
+    torches.forEach((f, k) => { f.position.x = 11.5 + k * 0.9 - Math.max(0, t - 20) * 0.08; f.scale.setScalar(1 + Math.sin(t * 13 + k) * 0.2); });
+  },
+});
+window.DUR = TL.dur;
+window.ready = document.fonts.load("800 40px P").then(() => { window.render(0); return true; });
+</script></body></html>

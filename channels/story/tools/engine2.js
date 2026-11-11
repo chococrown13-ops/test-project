@@ -67,6 +67,8 @@
     egg: { y: 0.72, half: 0.5, faceZ: 0.5, faceY: 0.05, shoulder: -0.05 },
     tofu: { y: 0.42, half: 0.62, faceZ: 0.42, faceY: 0.0, shoulder: -0.05 },
     bottle: { y: 0.82, half: 0.45, faceZ: 0.43, faceY: 0.05, shoulder: 0.0 },
+    human: { y: 1.95, half: 0.45, faceZ: 0.47, faceY: -0.04, shoulder: 0 },   // 팔은 몸통(g)에 붙음
+    bell: { y: 0, half: 0.3, faceZ: 0.33, faceY: -0.02, shoulder: 0 },          // 떠다니는 종 정령(댕이)
   };
   function char(opt) {
     const g = new THREE.Group(); g.position.set(...(opt.pos || [0, 0, 0]));
@@ -88,6 +90,28 @@
         const p = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.125), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false })); p.position.set(0, 0.44, 0.4); p.rotation.x = -0.45; head.add(p); }
     } else if (type === 'tofu') {
       mesh(new THREE.BoxGeometry(1.2, 0.8, 0.8), opt.color, [0, 0, 0], head);
+    } else if (type === 'human') {
+      const skin = opt.skin || '#f3cfb0';
+      mesh(new THREE.CapsuleGeometry(0.4, 0.55, 6, 16), opt.cloth || '#3a3f55', [0, 1.0, 0], g);                  // 몸통
+      if (opt.vest) { const v = mesh(new THREE.CapsuleGeometry(0.43, 0.42, 6, 16), opt.vest, [0, 1.06, 0.02], g, { line: 0 }); v.scale.set(1, 1, 0.98); }
+      for (const sx of [-1, 1]) mesh(new THREE.CapsuleGeometry(0.14, 0.42, 4, 10), opt.pants || '#2f3446', [sx * 0.19, 0.36, 0], g);  // 다리
+      for (const sx of [-1, 1]) mesh(new THREE.BoxGeometry(0.24, 0.12, 0.36), opt.shoes || '#f2f2f2', [sx * 0.19, 0.06, 0.06], g);
+      mesh(new THREE.SphereGeometry(0.5, 32, 24), skin, [0, 0, 0], head);
+      if (opt.hair) { const h = mesh(new THREE.SphereGeometry(0.53, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), opt.hair, [0, 0.05, -0.03], head); h.rotation.x = -0.28; }
+      if (opt.gat) { mesh(new THREE.CylinderGeometry(0.75, 0.75, 0.03, 32), '#1b1b1b', [0, 0.38, 0], head); mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.38, 24), '#1b1b1b', [0, 0.56, 0], head); }
+      if (opt.bag) mesh(new THREE.BoxGeometry(0.72, 0.62, 0.42), opt.bag, [0, 1.15, -0.5], g);                    // 배달 가방
+    } else if (type === 'bell') {
+      const glow = new THREE.MeshToonMaterial({ color: opt.color || '#ffffff', gradientMap: grad, emissive: opt.glow || '#cfefff', emissiveIntensity: 0.55 });
+      mesh(new THREE.CylinderGeometry(0.24, 0.36, 0.5, 36), null, [0, -0.04, 0], head, { mat: glow, line: 1.05 });          // 종 몸통
+      mesh(new THREE.SphereGeometry(0.24, 36, 16, 0, Math.PI * 2, 0, Math.PI / 2), null, [0, 0.2, 0], head, { mat: glow, line: 1.05 }); // 종 머리
+      const lip = mesh(new THREE.TorusGeometry(0.36, 0.035, 10, 36), null, [0, -0.29, 0], head, { mat: glow, line: 1.08 }); lip.rotation.x = Math.PI / 2;
+      mesh(new THREE.TorusGeometry(0.11, 0.035, 10, 24), '#ffffff', [0, 0.4, 0], head, { mat: glow, line: 1.1 });  // 꼭지 고리
+      const tail = new THREE.Group(); tail.position.set(0, -0.3, -0.05); head.add(tail);
+      mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.32, 8), '#9fdcff', [0, -0.16, 0], tail, { line: 0 });
+      mesh(new THREE.SphereGeometry(0.07, 14, 10), null, [0, -0.34, 0], tail, { mat: glow, line: 1.12 });            // 술 끝 방울
+      head.userData.tail = tail;
+      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); const r = x.createRadialGradient(64, 64, 4, 64, 64, 64); r.addColorStop(0, 'rgba(220,245,255,0.9)'); r.addColorStop(1, 'rgba(220,245,255,0)'); x.fillStyle = r; x.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })(), depthWrite: false, blending: THREE.AdditiveBlending }));
+      halo.scale.set(1.5, 1.5, 1); head.add(halo); head.userData.halo = halo;
     } else if (type === 'bottle') {
       mesh(new THREE.CylinderGeometry(0.38, 0.45, 1.25, 28), opt.color, [0, 0, 0], head);
       mesh(new THREE.CylinderGeometry(0.16, 0.3, 0.35, 24), opt.color, [0, 0.8, 0], head); mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.18, 24), opt.cap, [0, 1.05, 0], head);
@@ -96,7 +120,9 @@
     const f = face(opt.faceSize || 0.72); f.plane.position.set(0, B.faceY, B.faceZ); head.add(f.plane);
     const arms = [];
     if (opt.arms) for (const s of [-1, 1]) {
-      const sh = new THREE.Group(); sh.position.set(s * B.half, B.shoulder, 0.05); head.add(sh);
+      const sh = new THREE.Group();
+      if (type === 'human') { sh.position.set(s * 0.44, 1.36, 0); g.add(sh); mesh(new THREE.CapsuleGeometry(0.1, 0.52, 4, 10), opt.vest || opt.cloth || '#3a3f55', [0, -0.34, 0], sh); mesh(new THREE.SphereGeometry(0.12, 14, 10), opt.skin || '#f3cfb0', [0, -0.68, 0], sh, { line: 1.1 }); sh.rotation.z = s * 0.25; arms.push({ sh, s }); continue; }
+      sh.position.set(s * B.half, B.shoulder, 0.05); head.add(sh);
       const arm = mesh(new THREE.CapsuleGeometry(0.05, 0.38, 4, 8), opt.armColor || '#3a2a22', [0, -0.22, 0], sh, { line: 0 });
       mesh(new THREE.SphereGeometry(0.1, 14, 10), opt.handColor || '#ffffff', [0, -0.47, 0], sh, { line: 1.12 });
       sh.rotation.z = s * 0.5; arms.push({ sh, s });
@@ -118,7 +144,7 @@
       else if (gesture === 'hold') { z = s * 0.9; x = -1.2; }
       else if (gesture === 'think' && right) { z = s * 2.0; x = -1.3; }
       else if (gesture === 'think') { z = s * 0.6; x = -0.6; }
-      else { z = s * (0.5 + env * 0.5 + Math.sin(t * 3 + s) * 0.05); }
+      else { z = s * ((ch.opt.restArm ?? 0.5) + env * 0.5 + Math.sin(t * 3 + s) * 0.05); }
       sh.rotation.z += (z - sh.rotation.z) * Math.min(1, k);
       sh.rotation.x += (x - sh.rotation.x) * Math.min(1, k);
     }

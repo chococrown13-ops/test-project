@@ -75,6 +75,9 @@ for s in tl.get("sfx", []):
             tone(t0 + j * 0.07, note(m), 0.6, 0.06, "sine", 0.3 + 0.1 * j, 4)
     elif k == "thud":
         tone(t0, 60, 0.35, 0.3, "sine", 0.5, 6)
+    elif k == "bell":  # 큰 범종: 낮은 울림 + 배음, 길게 사라짐
+        for f, v, d in [(98, 0.22, 5.0), (196, 0.10, 3.5), (262, 0.07, 3.0), (415, 0.05, 2.2), (588, 0.03, 1.6)]:
+            tone(t0, f, 4.5, v, "sine", 0.5, d)
     elif k == "sting":
         for j, m in enumerate([55, 58, 62]):
             tone(t0, note(m), 1.2, 0.08, "tri", 0.3 + 0.2 * j, 3)

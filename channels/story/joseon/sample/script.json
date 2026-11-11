@@ -1,0 +1,114 @@
+{
+ "start": 0.8,
+ "gap": 0.25,
+ "tail": 3.2,
+ "cast": {
+  "민재": {
+   "voice": "ko-KR-Chirp3-HD-Puck",
+   "rate": 1.1
+  },
+  "댕이": {
+   "voice": "ko-KR-Chirp3-HD-Aoede",
+   "rate": 1.12
+  }
+ },
+ "cards": {
+  "c1": {
+   "t": "[퀘스트 발생] 첫날 밤의 잠자리",
+   "rows": [
+    "목표 — 통금 종이 다 울리기 전에 잘 곳 찾기",
+    "제한 시간 — 인정 종 28번"
+   ]
+  }
+ },
+ "lines": [
+  {
+   "who": "민재",
+   "text": "9시 58분, 마지막 배달. 됐다!",
+   "mood": "normal",
+   "pause": 0.6,
+   "acts": [
+    {
+     "act": "city2026",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "민재",
+   "text": "…어? 여기 원래 종각역인데?",
+   "mood": "cry",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "bell",
+     "at": -0.5
+    }
+   ],
+   "acts": [
+    {
+     "act": "flash",
+     "at": -0.5
+    },
+    {
+     "act": "city1795",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "댕이",
+   "text": "띠링! 접속 완료. 어서 오세요, 플레이어 민재 님!",
+   "mood": "normal",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "magic",
+     "at": -0.5
+    }
+   ],
+   "acts": [
+    {
+     "act": "spawn",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "민재",
+   "text": "으악! 날아다니는 종?!",
+   "mood": "surprised"
+  },
+  {
+   "who": "댕이",
+   "text": "종 아니고 댕이예요. 지금부터 제가 가이드예요.",
+   "mood": "normal"
+  },
+  {
+   "who": "댕이",
+   "text": "종이 스물여덟 번 다 울리면, 길에 있는 사람은 잡혀가요.",
+   "mood": "normal",
+   "card": "c1"
+  },
+  {
+   "who": "민재",
+   "text": "지금 몇 번째인데?!",
+   "mood": "surprised",
+   "gesture": "panic",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "bell",
+     "at": -0.5
+    }
+   ],
+   "card": "c1"
+  },
+  {
+   "who": "댕이",
+   "text": "저도 안 셌어요. 헤헤.",
+   "mood": "normal",
+   "card": "c1"
+  }
+ ]
+}

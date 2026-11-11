@@ -27,7 +27,7 @@ from pathlib import Path
 
 # 효과음 낱말 → mix.py 효과음 종류
 SFX = {"문 열리는": "door", "문 닫힘": "thud", "문": "door", "쿵": "thud", "땅": "thud", "탁": "thud", "뽀글": "pop", "쏙": "pop", "찍": "pop",
-       "데구르르": "whoosh", "휙": "whoosh", "두둥": "sting", "반짝": "magic", "띠링": "ding", "딩동": "ding", "땡": "ding", "배송": "ding", "삑": "pop", "지직": "whoosh", "댕": "ding", "찰칵": "pop"}
+       "데구르르": "whoosh", "휙": "whoosh", "두둥": "sting", "반짝": "magic", "띠링": "ding", "딩동": "ding", "땡": "ding", "배송": "ding", "삑": "pop", "지직": "whoosh", "댕": "bell", "찰칵": "pop"}
 # 지문 낱말 → 표정 / 몸짓
 MOOD = [("울", "cry"), ("훌쩍", "cry"), ("덜덜", "scared"), ("떨", "scared"), ("기절", "scared"), ("비명", "scared"), ("놀라", "surprised"), ("헉", "surprised"),
         ("뿌듯", "proud"), ("의기양양", "proud"), ("웃", "happy"), ("신나", "happy"), ("한숨", "tired"), ("시무룩", "tired"), ("화", "angry"), ("버럭", "angry"),
