@@ -110,6 +110,8 @@ def main():
     sfx = [{"t": round(l["start"] + s.get("at", 0), 3), "kind": s["kind"]} for l in lines for s in ([l["sfx"]] if isinstance(l.get("sfx"), dict) else l.get("sfx", []) or [])]
     sfx += sc.get("sfxAbs", [])
     tl = {"dur": round(t - sc.get("gap", 0.3) + sc.get("tail", 2.5), 2), "lines": lines, "sfx": sfx, "chars": chars}
+    if sc.get("cards"):
+        tl["cards"] = sc["cards"]  # 대본 도우미가 만든 정보 카드
     (ep / "timeline.json").write_text(json.dumps(tl, ensure_ascii=False, indent=1))
     (ep / "timeline.js").write_text("window.TL = " + json.dumps(tl, ensure_ascii=False) + ";\n")
     print(f"대사 {len(lines)}줄 · 길이 {tl['dur']}초 · 이번에 새로 만든 글자 {chars}자")

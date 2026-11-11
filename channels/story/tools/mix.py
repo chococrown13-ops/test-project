@@ -82,11 +82,19 @@ for s in tl.get("sfx", []):
 # 대사 (배경음은 대사 동안 살짝 줄임)
 voices = []
 duck = np.ones(N)
+try:  # 문 밖 목소리처럼 먹먹하게 (script.json cast 의 "muffle": true)
+    MUFFLE = {k for k, v in json.loads((ep / "script.json").read_text())["cast"].items() if v.get("muffle")}
+except Exception:
+    MUFFLE = set()
 for ln in tl["lines"]:
     with wave.open(str(ep / "voice" / ln["file"])) as w:
         a = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(float) / 32768
         if w.getnchannels() == 2:
             a = a.reshape(-1, 2).mean(axis=1)
+    if ln["who"] in MUFFLE:
+        for _ in range(3):
+            a = np.convolve(a, np.ones(24) / 24, mode="same")
+        a = a * 1.6 + np.concatenate([np.zeros(2400), a[:-2400]]) * 0.25 if len(a) > 2400 else a
     i0 = int(ln["start"] * SR)
     n = min(len(a), N - i0)
     if n > 0:

@@ -1,0 +1,734 @@
+{
+ "start": 1.5,
+ "gap": 0.32,
+ "tail": 5.0,
+ "cast": {
+  "도윤": {
+   "voice": "ko-KR-Chirp3-HD-Zephyr",
+   "rate": 1.12
+  },
+  "엄마": {
+   "voice": "ko-KR-Chirp3-HD-Sulafat",
+   "rate": 1.05
+  },
+  "택배": {
+   "voice": "ko-KR-Wavenet-A",
+   "rate": 1.0,
+   "pitch": 3.0
+  },
+  "걱정이": {
+   "voice": "ko-KR-Neural2-C",
+   "rate": 1.0,
+   "pitch": 6.0
+  },
+  "보낸이": {
+   "voice": "ko-KR-Chirp3-HD-Charon",
+   "rate": 0.95,
+   "muffle": true
+  }
+ },
+ "cards": {},
+ "lines": [
+  {
+   "who": "택배",
+   "text": "배송 완료. 보낸 날짜, 2126년 11월 11일.",
+   "mood": "normal",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "thud",
+     "at": -0.5
+    },
+    {
+     "kind": "ding",
+     "at": 0
+    }
+   ],
+   "acts": [
+    {
+     "act": "slump",
+     "who": "도윤",
+     "at": -0.5
+    },
+    {
+     "act": "arrive",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "도윤",
+   "text": "…2126년? 백 년 뒤?",
+   "mood": "normal",
+   "jump": true
+  },
+  {
+   "who": "도윤",
+   "text": "엄마! 백 년 뒤에서 택배 왔어!",
+   "mood": "normal"
+  },
+  {
+   "who": "엄마",
+   "text": "또 뭘 시켰어? 카드값은 누가 내!",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "진짜야! 상자가 빛나!",
+   "mood": "normal"
+  },
+  {
+   "who": "엄마",
+   "text": "보낸 사람… 'D.Y. 3세'? 이게 누구야?",
+   "mood": "normal",
+   "pause": 0.6,
+   "acts": [
+    {
+     "act": "kneel",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "도윤",
+   "text": "몰라. 일단 열자!",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "안녕하세요. 2126년 가정용 로봇입니다.",
+   "mood": "normal",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "magic",
+     "at": -0.5
+    }
+   ],
+   "acts": [
+    {
+     "act": "open",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "걱정이",
+   "text": "저는 숙제를 대신…",
+   "mood": "normal",
+   "pause": 0.3
+  },
+  {
+   "who": "도윤",
+   "text": "대신 해 주는 거야?! 대박!",
+   "mood": "surprised",
+   "jump": true
+  },
+  {
+   "who": "걱정이",
+   "text": "걱정해 주는 기계, 걱정이입니다.",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "…대신 걱정을 해 준다고?",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "대신 해 주는 건 없어?",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "그건 2127년 모델입니다.",
+   "mood": "normal",
+   "sfx": [
+    {
+     "kind": "sting",
+     "at": 0
+    }
+   ]
+  },
+  {
+   "who": "도윤",
+   "text": "반품! 반품 버튼 어디 있어?",
+   "mood": "normal",
+   "gesture": "hold",
+   "pause": 0.6,
+   "acts": [
+    {
+     "act": "shake",
+     "who": "도윤",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "택배",
+   "text": "2126년으로 반품하면, 도착까지 100년 걸립니다.",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "그럼 난 백열한 살이잖아!",
+   "mood": "normal"
+  },
+  {
+   "who": "엄마",
+   "text": "그때까지 숙제나 하렴.",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "좋아, 그럼 걱정이나 해 봐. 숙제는 수학 20문제.",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "걱정 게이지 상승. 지금 9시 12분.",
+   "mood": "worried",
+   "pause": 0.6,
+   "acts": [
+    {
+     "act": "gauge",
+     "to": "0.4",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "걱정이",
+   "text": "20문제를 내일 9시까지. 아직 0문제.",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "큰일입니다. 정말 큰일입니다.",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "걱정은 네가 하니까, 난 하나도 안 큰일이지롱.",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "그래, 너 혼자 실컷 걱정해. 난 게임할래.",
+   "mood": "normal",
+   "gesture": "shrug"
+  },
+  {
+   "who": "걱정이",
+   "text": "9시 20분. 아직 0문제. 걱정, 걱정, 걱정.",
+   "mood": "worried",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "pop",
+     "at": -0.5
+    }
+   ],
+   "acts": [
+    {
+     "act": "sofa",
+     "who": "도윤",
+     "at": -0.5
+    },
+    {
+     "act": "spin",
+     "who": "걱정이",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "걱정이",
+   "text": "선생님 표정 예측 중… 실망 92퍼센트.",
+   "mood": "worried",
+   "pause": 0.6,
+   "acts": [
+    {
+     "act": "whisper",
+     "who": "도윤",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "도윤",
+   "text": "조용히 좀 해!",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "걱정을 멈추면 제가 꺼집니다.",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "그런 기능은 왜 넣었어?!",
+   "mood": "surprised"
+  },
+  {
+   "who": "엄마",
+   "text": "어머, 얘 나보다 잔소리를 잘하네.",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "잔소리가 아닙니다. 걱정입니다.",
+   "mood": "normal"
+  },
+  {
+   "who": "엄마",
+   "text": "그게 그거야. 걱정아, 내일 비 온대?",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "비 확률 30퍼센트. 우산을 깜빡하실 확률 걱정 중.",
+   "mood": "worried",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "pop",
+     "at": -0.5
+    }
+   ],
+   "acts": [
+    {
+     "act": "orbit",
+     "who": "엄마",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "엄마",
+   "text": "어머, 딱 내 맘이네. 엄마가 이 기계 쓸래.",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "안 돼! 내 택배야!",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "좋아, 작전 변경이다.",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "걱정아. 숙제 말고 다른 걸 걱정해 봐.",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "무엇을 걱정할까요?",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "음… 엄마가 걱정하는 거!",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "이번 달 가스비. 아빠 생일 선물. 냉장고 속 두부.",
+   "mood": "worried",
+   "pause": 0.6,
+   "acts": [
+    {
+     "act": "gauge",
+     "to": "0.75",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "엄마",
+   "text": "그걸 네가 어떻게 알아?!",
+   "mood": "surprised"
+  },
+  {
+   "who": "걱정이",
+   "text": "장바구니 앱, 아직 결제 안 함. 쌀 떨어짐.",
+   "mood": "normal"
+  },
+  {
+   "who": "엄마",
+   "text": "쉿! 쉿! 그만!",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "이거 완전 대박인데?",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "게임 시작 감지. 걱정 두 배.",
+   "mood": "normal",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "ding",
+     "at": -0.5
+    }
+   ],
+   "acts": [
+    {
+     "act": "game",
+     "who": "도윤",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "도윤",
+   "text": "넌 엄마 걱정하라니까!",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "엄마 님의 걱정 1위가 도윤 님입니다.",
+   "mood": "normal"
+  },
+  {
+   "who": "엄마",
+   "text": "그건 맞네.",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "걱정 범위 확장. 동네. 나라. 지구.",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "지구 평균 기온… 남은 숙제 20문제… 쌀…",
+   "mood": "worried",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "pop",
+     "at": -0.5
+    }
+   ],
+   "acts": [
+    {
+     "act": "smoke",
+     "who": "걱정이",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "엄마",
+   "text": "얘, 얘 왜 이래! 연기 나!",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "걱정 게이지 초과. 곧 꺼집니다.",
+   "mood": "normal",
+   "pause": 0.6,
+   "acts": [
+    {
+     "act": "gauge",
+     "to": "1",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "도윤",
+   "text": "어? 잠깐, 꺼지면 안 돼!",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "마지막 걱정… 도윤 님이 숙제를 안 하면…",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "내일 아침… 도윤 님 혼자… 혼날…",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "엄마! 어떻게 해!",
+   "mood": "worried",
+   "gesture": "panic",
+   "pause": 0.6,
+   "acts": [
+    {
+     "act": "dim",
+     "who": "걱정이",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "엄마",
+   "text": "걱정을 줄여 주면 되지 않을까?",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "걱정을… 줄여?",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "…알았어. 하면 되잖아, 하면!",
+   "mood": "normal",
+   "gesture": "hold"
+  },
+  {
+   "who": "도윤",
+   "text": "1번. 3 곱하기 7은… 21!",
+   "mood": "normal",
+   "pause": 0.6,
+   "acts": [
+    {
+     "act": "solve",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "걱정이",
+   "text": "걱정 게이지… 하강. 남은 문제 19.",
+   "mood": "worried"
+  },
+  {
+   "who": "도윤",
+   "text": "2번! 3번! 4번!",
+   "mood": "normal"
+  },
+  {
+   "who": "엄마",
+   "text": "저렇게 빨리 푸는 건 처음 보네.",
+   "mood": "happy",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "whoosh",
+     "at": -0.5
+    }
+   ],
+   "acts": [
+    {
+     "act": "clock",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "도윤",
+   "text": "12번… 12 나누기 4는… 3!",
+   "mood": "normal",
+   "gesture": "point",
+   "pause": 0.6,
+   "acts": [
+    {
+     "act": "snack",
+     "who": "엄마",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "걱정이",
+   "text": "걱정 게이지 절반. 도윤 님, 조금 멋있습니다.",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "조금?! 많이 멋있지!",
+   "mood": "surprised"
+  },
+  {
+   "who": "도윤",
+   "text": "17번… 이거 어려운데.",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "걱정 게이지 상승 조짐.",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "아니야! 풀 수 있어! 18!",
+   "mood": "angry"
+  },
+  {
+   "who": "걱정이",
+   "text": "남은 문제 2. 1. …0.",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "걱정 0. 이제 제가 할 일이 없습니다.",
+   "mood": "worried",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "magic",
+     "at": -0.5
+    },
+    {
+     "kind": "magic",
+     "at": -0.5
+    }
+   ],
+   "acts": [
+    {
+     "act": "gauge",
+     "to": "0",
+     "at": -0.5
+    },
+    {
+     "act": "land",
+     "who": "도윤",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "도윤",
+   "text": "10시 58분… 내가 다 했어…",
+   "mood": "normal"
+  },
+  {
+   "who": "엄마",
+   "text": "숙제를 대신 걱정해 주니까, 결국 네가 했네.",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "2126년 사용 설명서 1번입니다.",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "걱정은 대신, 숙제는 본인이.",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "그럼 숙제를 대신 해 주는 건?",
+   "mood": "normal"
+  },
+  {
+   "who": "걱정이",
+   "text": "그건 2127년 모델입니다.",
+   "mood": "normal"
+  },
+  {
+   "who": "엄마",
+   "text": "엄마는 이 모델이 딱 좋다.",
+   "mood": "happy",
+   "pause": 0.6,
+   "acts": [
+    {
+     "act": "pat",
+     "who": "도윤",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "도윤",
+   "text": "…근데 너 내일도 걱정해 줄 거지?",
+   "mood": "worried",
+   "gesture": "hold"
+  },
+  {
+   "who": "걱정이",
+   "text": "내일 숙제는 국어 2쪽입니다. 벌써 걱정됩니다.",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "그 걱정은 내일 해!",
+   "mood": "tired"
+  },
+  {
+   "who": "보낸이",
+   "text": "할아버지, 저예요. 100년 뒤의 증손자.",
+   "mood": "normal",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "magic",
+     "at": -0.5
+    }
+   ],
+   "acts": [
+    {
+     "act": "holo",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "보낸이",
+   "text": "이 기계는 시작일 뿐이에요.",
+   "mood": "normal"
+  },
+  {
+   "who": "보낸이",
+   "text": "다음 택배는 꼭… 엄마 몰래 열어 주세요.",
+   "mood": "normal"
+  },
+  {
+   "who": "엄마",
+   "text": "…할아버지? 도윤아, 너 증손자가 있어?",
+   "mood": "normal",
+   "pause": 0.6
+  },
+  {
+   "who": "도윤",
+   "text": "나 열한 살인데?!",
+   "mood": "surprised"
+  },
+  {
+   "who": "도윤",
+   "text": "증손자면… 내 아들의 아들의 아들?",
+   "mood": "normal"
+  },
+  {
+   "who": "엄마",
+   "text": "그러니까 너 장가는 가는구나.",
+   "mood": "normal"
+  },
+  {
+   "who": "도윤",
+   "text": "엄마! 지금 그게 중요해?!",
+   "mood": "angry"
+  },
+  {
+   "who": "택배",
+   "text": "배송 완료. 보낸 날짜, 2126년 11월 12일.",
+   "mood": "normal",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "ding",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "엄마",
+   "text": "…또 뭘 시켰어?",
+   "mood": "normal"
+  }
+ ]
+}
