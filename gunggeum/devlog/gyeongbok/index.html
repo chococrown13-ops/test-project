@@ -1,0 +1,124 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(../../tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(../../tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(../../tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}canvas{display:block}
+</style></head><body><canvas id="c" width="1080" height="1920"></canvas>
+<script src="map/map.js"></script>
+<script src="../../tools/mapkit.js"></script>
+<script>
+// 도시의 나이테 · 원래 ○○이었다 #13 「경복궁 앞엔 원래 총독부가 있었다」 — render(t) 한 번 = 한 프레임.
+// 실제 OpenStreetMap 바탕(확대 17). 광화문광장에서 궁궐 축(광화문→흥례문→근정전)을 따라 올라가,
+// 흥례문 자리에 회색 돌 블록(총독부, 위에서 본 '日' 모양 · 대략)을 겹친다. 옛 시절은 종이 톤.
+// 1927 광화문 이동은 건춘문 북쪽 점(대략)으로만 — 거리·각도는 출처가 엇갈려 쓰지 않음.
+const W=1080,H=1920,g=document.getElementById('c').getContext('2d');
+const clamp01=x=>Math.max(0,Math.min(1,x));
+function smooth(a,b,t){const u=clamp01((t-a)/(b-a));return u*u*(3-2*u)}
+const lerp=(a,b,u)=>a+(b-a)*u;
+function fade(t,a,b){return Math.min(smooth(a,a+.45,t),1-smooth(b-.45,b,t))}
+let M,PAL;
+const P=n=>MapKit.place(M,n);
+// 총독부 자리(대략): 흥례문 권역, 궁궐 축을 가로막는 가로로 긴 블록
+const BX=921,BY=1384,BW=140,BH=74;
+const OLDGATE=[1226,1172];   // 1927 옮긴 자리: 건춘문 북쪽, 지금 민속박물관 정문 쪽(대략)
+// 카메라 키프레임 [시각, cx, cy, z]
+const CAM=[[0,990,1500,1.22],[1.6,990,1500,1.22],[4.6,991,1420,2.35],[8.0,991,1420,2.35],[10.0,1100,1355,1.55],[13.0,1100,1355,1.55],[15.0,996,1360,2.0],[18.0,996,1380,2.0],[19.6,991,1420,2.4],[23.0,991,1420,2.3],[25.2,995,1430,1.4],[30,995,1440,1.3]];
+function camAt(t){let i=0;while(i<CAM.length-2&&t>CAM[i+1][0])i++;const a=CAM[i],b=CAM[i+1];const u=smooth(a[0],b[0],t);
+  return{cx:lerp(a[1],b[1],u),cy:lerp(a[2],b[2],u),z:lerp(a[3],b[3],u)}}
+function toS(c,x,y){return[(x-c.cx)*c.z+W/2,(y-c.cy)*c.z+H*0.58]}
+function world(c,fn){g.save();g.translate(W/2,H*0.58);g.scale(c.z,c.z);g.translate(-c.cx,-c.cy);fn();g.restore()}
+function topText(year,head,sub,a){if(a<=0)return;g.save();g.globalAlpha=a;const y0=(1-a)*20;
+  g.textAlign='center';g.fillStyle='#FFD54A';g.font='800 118px P';g.fillText(year,W/2,320+y0);
+  g.fillStyle='#fff';g.font='800 62px P';g.fillText(head,W/2,420+y0);g.font='600 42px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText(sub,W/2,488+y0);g.restore()}
+function srcLine(s,a){if(a<=0||!s)return;g.save();g.globalAlpha=a;g.font='400 30px P';g.fillStyle='rgba(255,255,255,.88)';g.textAlign='center';g.fillText(s,W/2,H-90);g.restore()}
+// 총독부 블록 (월드 좌표). body=몸체 불투명도, dome=가운데 첨탑 불투명도
+function building(body,dome){
+  if(body>0){g.save();g.globalAlpha=body;
+    g.fillStyle='rgba(70,76,88,.18)';g.fillRect(BX+5,BY+6,BW,BH);                  // 그림자
+    g.fillStyle='#8d939e';g.fillRect(BX,BY,BW,BH);
+    g.fillStyle='#c8cdd5';g.fillRect(BX+12,BY+14,BW/2-20,BH-28);g.fillRect(BX+BW/2+8,BY+14,BW/2-20,BH-28); // 안뜰 두 개('日')
+    g.strokeStyle='#4b505a';g.lineWidth=2.5;g.strokeRect(BX,BY,BW,BH);g.restore()}
+  if(dome>0){g.save();g.globalAlpha=dome;g.fillStyle='#5f6672';g.beginPath();g.arc(BX+BW/2,BY+BH/2,13,0,7);g.fill();
+    g.fillStyle='#aab1bb';g.beginPath();g.arc(BX+BW/2-3,BY+BH/2-3,6,0,7);g.fill();g.restore()}
+}
+function axis(a,col){if(a<=0)return;const p1=P('광화문'),p3=P('근정전');g.save();g.globalAlpha=a;g.strokeStyle=col;g.lineWidth=6;g.setLineDash([16,11]);
+  g.beginPath();g.moveTo(p1.x,p1.y+30);g.lineTo(p3.x,p3.y);g.stroke();g.restore()}
+function arrow(x1,y1,x2,y2,u,a,col){if(a<=0||u<=0)return;const mx=(x1+x2)/2+70,my=(y1+y2)/2+40;g.save();g.globalAlpha=a;g.strokeStyle=col;g.lineWidth=5;g.setLineDash([12,9]);
+  g.beginPath();const N=40;let px,py;for(let i=0;i<=N*u;i++){const s=i/N;px=(1-s)*(1-s)*x1+2*(1-s)*s*mx+s*s*x2;py=(1-s)*(1-s)*y1+2*(1-s)*s*my+s*s*y2;i?g.lineTo(px,py):g.moveTo(px,py)}g.stroke();g.restore()}
+const STOPS=[
+ {a:3.4,b:8.0,year:'1916',head:'궁궐 안에 거대한 돌 건물 공사',sub:'흥례문과 회랑을 헐고 지었어요',src:'출처: 국가기록원 「조선총독부 청사」 · 서울신문'},
+ {a:8.4,b:13.0,year:'1927',head:'광화문이 옆으로 밀려났어요',sub:'건춘문 북쪽, 지금 민속박물관 정문 자리로',src:'출처: 국가기록원 「광화문」'},
+ {a:13.4,b:18.0,year:'1962·1986',head:'중앙청 → 국립중앙박물관',sub:'광복 뒤에도 수십 년 그대로 쓰였어요',src:'출처: 국가기록원'},
+ {a:18.4,b:23.0,year:'1995~96',head:'광복 50주년, 첨탑부터 헐었어요',sub:'1995년 8월 15일 시작, 1996년 철거 끝',src:'출처: 국가기록원 정책기록'},
+ {a:23.4,b:28.0,year:'2001·2010',head:'흥례문, 광화문이 제자리로',sub:'2001 흥례문 · 2010년 8월 15일 광화문',src:'출처: 서울신문 · 국가기록원'}];
+function render(t){
+  g.fillStyle='#000';g.fillRect(0,0,W,H);
+  const c=camAt(t);
+  const old=smooth(2.9,3.9,t)*(1-smooth(23.2,24.6,t));     // 옛 시절은 종이 톤
+  const body=smooth(4.0,5.2,t)*(1-smooth(20.6,22.4,t));     // 총독부 몸체
+  const dome=smooth(4.0,5.2,t)*(1-smooth(19.2,20.0,t));     // 첨탑 먼저 사라짐
+  world(c,()=>{
+    MapKit.drawBase(g,M,{mix:{from:'light',to:'paper',u:old}});
+    // 경복궁 노란 테두리: 첫 장면 · 마지막
+    const hero=Math.max(1-smooth(2.8,3.6,t),smooth(23.6,24.8,t));
+    MapKit.poly(g,PAL,{fill:'rgba(255,213,74,'+(.12*hero)+')',stroke:'rgba(255,179,0,'+hero+')',width:6});
+    // 궁궐 축: 지금(노랑) · 가로막힘(빨강 끊김)
+    axis(Math.max(1-smooth(2.8,3.6,t),smooth(25.0,26.2,t)),'#FFB300');
+    axis(fade(t,4.8,8.0)*.9,'rgba(220,70,60,.85)');
+    building(body,dome);
+    // 1927 광화문 이동
+    const gv=fade(t,8.6,13.0),go=P('광화문');
+    arrow(go.x,go.y,OLDGATE[0],OLDGATE[1],smooth(9.0,10.6,t),gv,'#d2453b');
+    if(gv>0){g.save();g.globalAlpha=gv;g.strokeStyle='#d2453b';g.lineWidth=4;g.setLineDash([6,5]);g.beginPath();g.arc(go.x,go.y,16,0,7);g.stroke();g.setLineDash([]);
+      g.globalAlpha=gv*smooth(10.2,10.8,t);g.fillStyle='#d2453b';g.beginPath();g.arc(OLDGATE[0],OLDGATE[1],15,0,7);g.fill();g.restore()}
+    // 철거 먼지(첨탑 → 몸체)
+    const dust=fade(t,19.0,22.6);
+    if(dust>0){g.save();for(let i=0;i<26;i++){const r=(i*73%100)/100,q=(i*37%100)/100;g.globalAlpha=dust*.35*(1-((t*0.6+r)%1));
+      g.fillStyle='#e9e4da';g.beginPath();g.arc(BX+r*BW,BY+q*BH-((t*14+i*5)%30),5+((i*7)%6),0,7);g.fill()}g.restore()}
+  });
+  // 이름표
+  const gw=P('광화문'),hr=P('흥례문'),gj=P('근정전'),sq=P('광화문광장'),gc=P('건춘문');
+  const now0=1-smooth(2.95,3.4,t),now1=smooth(24.2,25.0,t)*(1-smooth(27.6,28.1,t));
+  let [x,y]=toS(c,gw.x,gw.y);MapKit.pin(g,x,y,'광화문',{alpha:Math.max(now0,now1),kind:'hero',size:36,dy:80});
+  [x,y]=toS(c,gj.x,gj.y);MapKit.pin(g,x,y,'근정전',{alpha:Math.max(now0,now1),size:34,dy:-70});
+  [x,y]=toS(c,sq.x,sq.y);MapKit.pin(g,x,y,'광화문광장',{alpha:now0,size:32,dy:-64});
+  [x,y]=toS(c,hr.x,hr.y);MapKit.pin(g,x,y,'흥례문',{alpha:Math.max(now0,smooth(23.8,24.6,t)*(1-smooth(27.6,28.1,t))),size:32,dy:-64});
+  // 옛 장면에도 지금 이름 흐리게 ("같은 자리")
+  [x,y]=toS(c,gj.x,gj.y);MapKit.pin(g,x,y,'지금 근정전',{alpha:.75*smooth(4.4,5.2,t)*(1-smooth(23.4,24.0,t))*(1-fade(t,8.6,13.0)*.6),size:28,dy:-66});
+  [x,y]=toS(c,gw.x,gw.y);MapKit.pin(g,x,y,'지금 광화문 자리',{alpha:.7*fade(t,4.4,8.2),size:26,dy:70});
+  [x,y]=toS(c,gw.x,gw.y);MapKit.pin(g,x,y,'원래 자리',{alpha:fade(t,9.0,13.0),size:30,dy:70});
+  [x,y]=toS(c,OLDGATE[0],OLDGATE[1]);MapKit.pin(g,x,y,'옮긴 자리 (대략)',{alpha:fade(t,10.4,13.0),size:30,dy:-64});
+  [x,y]=toS(c,gc.x,gc.y);MapKit.pin(g,x,y,'건춘문',{alpha:.8*fade(t,9.4,13.0),size:26,dy:60});
+  [x,y]=toS(c,BX+BW/2,BY+BH+44);
+  MapKit.label(g,x,y,'조선총독부 청사 (대략)',{alpha:fade(t,5.0,8.0),size:40,color:'#fff'});
+  MapKit.label(g,x,y,'중앙청',{alpha:fade(t,13.8,15.8),size:52,color:'#fff'});
+  MapKit.label(g,x,y,'국립중앙박물관',{alpha:fade(t,15.9,18.0),size:48,color:'#fff'});
+  MapKit.label(g,x,y,'철거',{alpha:fade(t,19.0,22.8),size:56,color:'#ffd9a0'});
+  [x,y]=toS(c,BX+BW/2,BY-40);
+  MapKit.label(g,x,y,'궁궐을 가로막았어요',{alpha:fade(t,5.6,8.0),size:38,color:'#ffb4aa'});
+  // 위·아래 그늘 + 태그
+  let gr=g.createLinearGradient(0,0,0,720);gr.addColorStop(0,'rgba(8,14,24,.84)');gr.addColorStop(1,'rgba(8,14,24,0)');g.fillStyle=gr;g.fillRect(0,0,W,720);
+  gr=g.createLinearGradient(0,H-300,0,H);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,0,.6)');g.fillStyle=gr;g.fillRect(0,H-300,W,300);
+  g.font='800 32px P';g.textAlign='left';const tag='도시의 나이테 · 원래 ○○이었다 #13';const tw=g.measureText(tag).width+48;g.fillStyle='rgba(255,213,74,.95)';MapKit._round(g,56,72,tw,60,30);g.fill();g.fillStyle='#1b1430';g.fillText(tag,80,113);
+  const h=1-smooth(2.85,3.3,t);  // 첫 프레임부터 훅 문장이 보이게
+  if(h>0){g.save();g.globalAlpha=h;g.textAlign='center';g.fillStyle='#fff';g.font='800 100px P';g.fillText('경복궁 앞엔 원래',W/2,330);g.fillStyle='#FFD54A';g.font='800 128px P';g.fillText('총독부가 있었다',W/2,466);g.font='600 44px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('광화문과 근정전 사이, 지금 흥례문 자리',W/2,540);g.restore()}
+  for(const s of STOPS)topText(s.year,s.head,s.sub,fade(t,s.a,s.b));
+  for(const s of STOPS)srcLine(s.src,fade(t,s.a,s.b));
+  // 지도 장치
+  MapKit.inset(g,M,56,1260,170,{alpha:1,t,label:'서울'});
+  MapKit.north(g,990,1500);MapKit.scale(g,M,70,1580,c.z);
+  MapKit.legend(g,70,1660,[['#8d939e','조선총독부 청사 자리(대략)'],['#dc463c','가로막힌 궁궐 축']],{alpha:fade(t,4.6,8.2)});
+  MapKit.legend(g,70,1660,[['#d2453b','1927 광화문 옮긴 자리(대략)']],{alpha:fade(t,8.8,13.0)});
+  MapKit.legend(g,70,1660,[['#8d939e','청사 자리(대략)']],{alpha:fade(t,13.6,22.8)});
+  MapKit.legend(g,70,1660,[['#ffb300','지금 경복궁 · 궁궐 축']],{alpha:fade(t,24.4,28)});
+  // 끝
+  const e=smooth(28,28.7,t);
+  if(e>0){g.fillStyle='rgba(10,14,28,'+(.66*e)+')';g.fillRect(0,0,W,H);g.save();g.globalAlpha=e;g.textAlign='center';g.fillStyle='#fff';g.font='800 74px P';g.fillText('다음엔 어떤 동네가',W/2,840);g.fillStyle='#FFD54A';g.font='800 90px P';g.fillText('궁금하세요?',W/2,950);
+    g.font='600 42px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('댓글로 신청해 주세요',W/2,1040);g.font='400 30px P';g.fillStyle='rgba(255,255,255,.85)';g.fillText('그림은 기록을 바탕으로 단순화한 거예요',W/2,H-90);g.restore()}
+  MapKit.credit(g,M,W,H);
+}
+window.render=render;
+window.ready=Promise.all([document.fonts.load('800 40px P'),document.fonts.load('600 40px P'),document.fonts.load('400 40px P')]).then(()=>MapKit.load('map/')).then(m=>{M=m;PAL=MapKit.area(M,'경복궁, 종로구, 서울');render(0);return true});
+</script></body></html>
