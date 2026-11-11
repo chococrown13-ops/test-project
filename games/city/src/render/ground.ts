@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { CELL, Ground, KINDS, Level, N, Zone, ZONE_DEPTH } from '../sim/defs';
-import { roadDistance } from '../sim/tools';
+import { CELL, Ground, KINDS, type BuildingKind, Level, N, Zone, ZONE_DEPTH } from '../sim/defs';
+import { placeProblem, roadDistance } from '../sim/tools';
 import { curveInfo } from '../sim/curves';
 import { LOT_SPACES } from '../sim/parking';
 import { isRamp } from '../sim/graph';
@@ -58,6 +58,8 @@ export class GroundLayer {
   month = 3;
   overlay: Overlay = 'none';
   showZoneable = false;
+  /** While placing a facility with a site rule (정수장 by water, 전망타워 on a hill): where it can go. */
+  showSites: BuildingKind | null = null;
 
   constructor(w: World) {
     const R = N * TX;
@@ -219,6 +221,19 @@ export class GroundLayer {
     const R = N * TX, d = this.data;
     const ov = this.overlay;
     const near = this.showZoneable;
+    // Cells some valid placement of the site-bound facility would cover.
+    let sites: Uint8Array | null = null;
+    if (this.showSites) {
+      sites = new Uint8Array(N * N);
+      const s = KINDS[this.showSites].size;
+      const money = w.money;
+      w.money = 1e12; // where it fits, whatever it costs today
+      for (let y = 0; y + s <= N; y++) for (let x = 0; x + s <= N; x++) {
+        if (placeProblem(w, this.showSites, x, y)) continue;
+        for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) sites[(y + dy) * N + x + dx] = 1;
+      }
+      w.money = money;
+    }
     const cover = curveInfo(w).cover;
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const i = idx(x, y);
@@ -249,6 +264,10 @@ export class GroundLayer {
         rgb = [rgb[0] * 0.8 + 255 * 0.2, rgb[1] * 0.8 + 255 * 0.2, rgb[2] * 0.8 + 255 * 0.2];
         line = true;
       }
+      if (sites?.[i]) {
+        rgb = [rgb[0] * 0.55 + 120 * 0.45, rgb[1] * 0.55 + 205 * 0.45, rgb[2] * 0.55 + 255 * 0.45];
+        line = true;
+      }
       if (ov !== 'none' && w.ground[i] !== Ground.Water) {
         const v = overlayValue(w, ov, i);
         if (v !== null) { const c = heat(v); rgb = [rgb[0] * 0.25 + c[0] * 0.75, rgb[1] * 0.25 + c[1] * 0.75, rgb[2] * 0.25 + c[2] * 0.75]; }
@@ -275,7 +294,11 @@ export class GroundLayer {
     const season = seasonOf(this.month);
     const cover = curveInfo(w).cover;
     let n = 0;
-    const put = (wx: number, wz: number, k: number, seed: number, cherry = 0) => {
+    // Gather every tree first, then thin evenly if there are more than the cap, so a densely
+    // wooded real map loses a few trees everywhere instead of all of them past some row.
+    const want: [number, number, number, number, number][] = [];
+    const put = (wx: number, wz: number, k: number, seed: number, cherry = 0) => { want.push([wx, wz, k, seed, cherry]); };
+    const plant = (wx: number, wz: number, k: number, seed: number, cherry: number) => {
       if (n >= MAX_TREES) return;
       q.setFromAxisAngle(up, seed * 6.28);
       s.setScalar(k);
@@ -316,6 +339,8 @@ export class GroundLayer {
       const cherry = bank(w, x, y) ? 0.8 : 0.15;
       for (let k = 0; k < count; k++) put(x * CELL + 1.5 + hash(x + k * 13, y) * 7, y * CELL + 1.5 + hash(y + k * 7, x) * 7, 0.75 + hash(k, x + y) * 0.6, hash(x * 3 + k, y), cherry);
     }
+    const keep = Math.min(1, MAX_TREES / Math.max(1, want.length));
+    for (const t of want) if (keep >= 1 || hash(t[0] * 0.37, t[1] * 0.53) < keep) plant(t[0], t[1], t[2], t[3], t[4]);
     this.trees.count = n;
     this.trees.instanceMatrix.needsUpdate = true;
     if (this.trees.instanceColor) this.trees.instanceColor.needsUpdate = true;
