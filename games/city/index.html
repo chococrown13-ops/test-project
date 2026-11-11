@@ -60,9 +60,14 @@
     <div id="start" class="overlay">
       <div class="card hero">
         <h1>한강도시</h1>
-        <p class="lead">강가, 바닷가, 산골 어디든 빈 땅에 우리 도시를 세워 보세요. 도로를 깔고 구역을 나누고 전기와 물을 대면 사람들이 이사 와요.</p>
+        <p class="lead">대한민국 어느 시·군의 실제 땅 1.28km 사방에 우리 도시를 세워 보세요. 도로를 깔고 구역을 나누고 전기와 물을 대면 사람들이 이사 와요.</p>
         <label class="field" for="nameInput">도시 이름<input id="nameInput" maxlength="10" value="새솔시" autocomplete="off" /></label>
-        <div class="field" role="group" aria-labelledby="mapLabel"><span id="mapLabel">지형</span><div id="mapChips" class="chips"></div><p id="mapDesc" class="map-desc"></p></div>
+        <div class="field" role="group" aria-labelledby="mapLabel">
+          <span id="mapLabel">땅</span>
+          <div id="mapMode" class="chips"><button type="button" data-mode="real" aria-pressed="true">대한민국 실제 지도</button><button type="button" data-mode="fake" aria-pressed="false">가상 지형</button></div>
+          <div id="realBox" class="draw"></div>
+          <div id="fakeBox" hidden><div id="mapChips" class="chips"></div><p id="mapDesc" class="map-desc"></p></div>
+        </div>
         <div class="row">
           <button id="newBtn" class="btn primary">새 도시 시작</button>
           <button id="loadBtn" class="btn" hidden>이어하기</button>
@@ -71,6 +76,7 @@
           <div><dt>PC</dt><dd>좌클릭으로 건설, 우클릭 드래그로 회전, 휠로 확대, WASD로 이동</dd></div>
           <div><dt>모바일</dt><dd>한 손가락으로 건설(선택 중일 땐 이동), 두 손가락으로 이동, 확대, 회전</dd></div>
         </dl>
+        <p class="map-desc credit">지도 데이터: 행정구역 통계청(southkorea-maps), 토지피복 © ESA WorldCover 2021 (CC BY 4.0), 고도 AWS Terrain Tiles (Mapzen, SRTM 등)</p>
       </div>
     </div>
 

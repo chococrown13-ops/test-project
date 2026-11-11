@@ -76,7 +76,7 @@ export class GroundLayer {
     const pos0 = geo.attributes.position as THREE.BufferAttribute;
     for (let v = 0; v < pos0.count; v++) uv.setXY(v, pos0.getX(v) / SIZE, pos0.getZ(v) / SIZE);
     this.geo = geo;
-    this.field = terrainField(w.seed, w.map);
+    this.field = terrainField(w);
     this.shape(w);
     // Flat shading shows the hills as low-poly facets; flat land is unaffected.
     const landMat = new THREE.MeshStandardMaterial({ map: this.tex, roughness: 1, flatShading: true });
@@ -130,8 +130,8 @@ export class GroundLayer {
       rect(-F, -F, SIZE + F, 0);
       rect(-F, SIZE, SIZE + F, SIZE + F);
       const big = (x: number) => { const g = edgeWater(x); return g && g.z1 - g.z0 > CELL * 3 ? g : null; };
-      side(-F, 0, w.map === 'river' ? big(0) : null);
-      side(SIZE, SIZE + F, w.map === 'river' ? big(N - 1) : null);
+      side(-F, 0, w.map === 'river' || w.real ? big(0) : null);
+      side(SIZE, SIZE + F, w.map === 'river' || w.real ? big(N - 1) : null);
     }
 
     const waterMat = new THREE.MeshStandardMaterial({ color: '#2f7fb8', roughness: 0.08, metalness: 0.15 });
@@ -307,7 +307,9 @@ export class GroundLayer {
         continue;
       }
       if (w.zone[i] || altBlocks(w, i)) continue;
-      const f = noise(x / 9, y / 9) * 0.75 + noise(x / 3.5 + 40, y / 3.5) * 0.25;
+      // On a real map the land cover says where the woods are.
+      const real = w.real?.cells[i];
+      const f = real === 1 ? 0.6 + noise(x / 3.5 + 40, y / 3.5) * 0.12 : real === 0 ? noise(x / 3.5 + 40, y / 3.5) * 0.6 : noise(x / 9, y / 9) * 0.75 + noise(x / 3.5 + 40, y / 3.5) * 0.25;
       if (f < 0.52) continue;
       const count = f > 0.66 ? 3 : f > 0.58 ? 2 : 1;
       // Cherry trees line the riverbanks.

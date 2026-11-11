@@ -20,6 +20,7 @@ function unb64<T extends ArrayBufferView>(s: string, make: (buf: ArrayBuffer) =>
 export function serialize(w: World): string {
   const o: Record<string, unknown> = { ...w, buildings: [...w.buildings.values()] };
   for (const k of ARRAYS) o[k] = b64(w[k]);
+  if (w.real) o.real = { ...w.real, cells: b64(w.real.cells) };
   return JSON.stringify(o);
 }
 
@@ -38,6 +39,7 @@ export function deserialize(json: string): World {
   w.lines ??= [];
   w.curves ??= [];
   w.map ??= 'river';
+  if (o.real) w.real = { ...o.real, cells: unb64(o.real.cells, (b) => new Uint8Array(b)) };
   w.noAvenueParking ??= false;
   w.stats.parkDemand ??= 0;
   w.stats.parkUnmet ??= 0;

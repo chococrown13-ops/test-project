@@ -171,6 +171,19 @@ body { background: var(--color-paper); -webkit-user-select: none; user-select: n
 .field input:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 1px; }
 .row { display: flex; gap: var(--space-sm); margin-top: var(--space-md); }
 .row .btn { flex: 1; min-height: 48px; font-size: var(--text-md); }
+.draw { display: grid; gap: var(--space-xs); }
+.draw-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); }
+.draw select { min-height: 36px; padding: 0 var(--space-xs); border: 1px solid var(--color-muted); border-radius: var(--radius-input); background: var(--color-card); color: var(--color-ink); font: inherit; font-size: var(--text-sm); }
+.draw select:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 1px; }
+.draw-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-xs); }
+.draw-card { display: grid; gap: 2px; padding: var(--space-2xs); border: 0; border-radius: var(--radius-input); background: var(--color-paper-3); color: var(--color-ink); text-align: left; cursor: pointer; font: inherit; }
+.draw-card canvas { width: 100%; aspect-ratio: 1; border-radius: calc(var(--radius-input) - 2px); image-rendering: pixelated; background: var(--color-paper-2); }
+.draw-card .n { font-weight: 700; font-size: var(--text-sm); line-height: 1.25; }
+.draw-card .p { font-size: var(--text-xs); color: var(--color-ink-2); }
+.draw-card:hover { box-shadow: inset 0 0 0 1px var(--color-rule); }
+.draw-card[aria-pressed='true'] { box-shadow: inset 0 0 0 2px var(--color-ink); background: var(--color-card); }
+.draw-card:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 1px; }
+.credit { margin-top: var(--space-md); opacity: 0.8; }
 .map-desc { margin: 0; min-height: 1.4em; font-size: var(--text-xs); color: var(--color-ink-2); }
 .howto { display: grid; gap: var(--space-xs); margin: var(--space-lg) 0 0; font-size: var(--text-xs); color: var(--color-ink-2); }
 .howto div { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: var(--space-xs); }
