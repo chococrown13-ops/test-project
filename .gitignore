@@ -29,3 +29,4 @@ gunggeum/devlog/*/map/map.js
 channels/story/*/voice/
 channels/story/*/*/voice/
 channels/*/*/*/*.mp4
+__pycache__/
