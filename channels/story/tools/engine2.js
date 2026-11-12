@@ -359,5 +359,14 @@
     if (cur >= 0) { const k = Math.min(1, (t - plan[cur][0]) / fade); put(cur, k); put(cur - 1, 1 - k); }
     R.mixer.update(0);
   }
-  window.Story = { init, char, mesh, toon, outline, face, smooth, clamp01, glow, loadGLB, model, rigChar, anim, hats: hats(), bone: (ch, name) => { let b = null; ch.rig.root.traverse((o) => { if (o.name === name) b = o; }); return b; } };
+  // 발·엉덩이가 바닥 아래로 들어가면(앉은 자세 등) 그만큼 몸을 올림. floor = 딛고 있는 면의 높이(월드 y)
+  const _gv = new THREE.Vector3();
+  function groundSnap(ch, floor = ch.g.position.y) {
+    if (!ch.rig) return 0; ch.g.updateMatrixWorld(true); let min = Infinity;
+    ch.g.traverse((o) => { if (!o.isSkinnedMesh || !o.visible || o.material.side === THREE.BackSide) return; const pos = o.geometry.attributes.position;
+      if (!o.userData.low) { let lo = Infinity, hi = -Infinity; for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); lo = Math.min(lo, y); hi = Math.max(hi, y); }   // 아래쪽 40% 정점만 검사(빠르게)
+        o.userData.low = []; for (let i = 0; i < pos.count; i++) if (pos.getY(i) < lo + (hi - lo) * 0.4) o.userData.low.push(i); }
+      for (const i of o.userData.low) { _gv.fromBufferAttribute(pos, i); o.boneTransform(i, _gv); _gv.applyMatrix4(o.matrixWorld); if (_gv.y < min) min = _gv.y; } });
+    const d = floor - min; if (d > 0 && d < 3) { ch.g.position.y += d; ch.g.updateMatrixWorld(true); } return d; }
+  window.Story = { init, char, mesh, toon, outline, face, smooth, clamp01, glow, loadGLB, model, rigChar, anim, groundSnap, hats: hats(), bone: (ch, name) => { let b = null; ch.rig.root.traverse((o) => { if (o.name === name) b = o; }); return b; } };
 })();

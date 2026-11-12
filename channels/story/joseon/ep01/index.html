@@ -285,6 +285,8 @@ function place(t) {
   Story.anim(C.선비1, t, room ? (sl ? [[0, 'idle']] : [[0, 'sit', { loop: false }], [ANJU - 0.4, 'pick-up', { loop: false }], [ANJU + 1.2, 'sit', { loop: false }]]) : PLAN.선비1);
   Story.anim(C.선비2, t, room ? [[0, 'idle']] : PLAN.선비2);
   for (const n of ['선비1', '선비2']) C[n].mood = room && (n === '선비2' || sl) ? 'tired' : null;   // 자는 사람은 눈 감음
+  // 바닥 뚫림 막기: 서 있는 면(주모는 마루 0.45, 누운 선비는 이불 0.18) 아래로 내려간 만큼 올림
+  window._lift = 0; for (const [n, ch] of Object.entries(C)) if (ch.rig && ch.g.visible) window._lift = Math.max(window._lift, Story.groundSnap(ch, n === '주모' && room ? 0.45 : ch.g.rotation.x ? 0.18 : ch.g.position.y > 0.5 ? -9 : ch.g.position.y));
   // 손 소품
   hotpack.visible = room && t > HOTPACK - 0.6 && t < HOTPACK + 5; card.visible = room && t > CARD - 0.3 && t < CARD + 2.6; bill.visible = room && t > line('오만 원').start && t < end(line('그림은 곱네')) + 0.3;
   bowl.visible = room && t > GUKBAP - 1 && t < ROOM;
@@ -346,7 +348,8 @@ function base(t, l) {
   if (C[l.who] && C[l.who].g.visible) { const prev = L[i - 1]; if (i % 4 === 2 && prev && C[prev.who] && prev.who !== l.who && C[prev.who].g.visible) return two(l.who, prev.who); return close(l.who, 5.6, i % 2 ? 0.25 : -0.25); }
   return two('민재', '댕이');
 }
-const shot = (t, l) => ({ ...base(t, l) });
+const DBGCAM = Q.get('cam') && Q.get('cam').split(',').map(Number);   // 점검용: ?cam=x,y,z,lx,ly,lz
+const shot = (t, l) => (DBGCAM ? { pos: DBGCAM.slice(0, 3), look: DBGCAM.slice(3), fov: 30 } : { ...base(t, l) });
 
 // ---------- 빛나는 것 표시 ----------
 [moon, bolt, kickLight, ...heads, ...lamps2026, ...lanterns.map((o) => o.lb), flame, sideDoor, C.순라군.flame, C.순라군B.flame].forEach((o) => o && Story.glow(o));
