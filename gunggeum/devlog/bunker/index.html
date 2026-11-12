@@ -1,0 +1,168 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(../../tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(../../tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(../../tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}canvas{display:block}
+</style></head><body><canvas id="c" width="1080" height="1920"></canvas>
+<script src="map/map.js"></script>
+<script src="../../tools/mapkit.js"></script>
+<script>
+// 도시의 나이테 · 원래 ○○이었다 #14 「여의도 버스 정류장 밑엔 비밀 벙커가 있었다」 — render(t) 한 번 = 한 프레임.
+// 이번 편만의 연출: 실제 지도(OpenStreetMap)에서 환승센터로 다가간 뒤, 땅을 잘라 옆에서 본 "단면 그림"으로 내려가요.
+// 벙커 자리는 옛 도면이 없어 환승센터 자리에 "(대략)". 단면 속 방 크기·모양은 그림(실제 비율 아님).
+const W=1080,H=1920,g=document.getElementById('c').getContext('2d');
+const clamp01=x=>Math.max(0,Math.min(1,x));
+function smooth(a,b,t){const u=clamp01((t-a)/(b-a));return u*u*(3-2*u)}
+const lerp=(a,b,u)=>a+(b-a)*u;
+function fade(t,a,b){return Math.min(smooth(a,a+.45,t),1-smooth(b-.45,b,t))}
+let M,PARK;
+const P=n=>MapKit.place(M,n);
+let BK;  // 벙커 자리(대략) = 환승센터
+// 카메라: 넓게(공원·역) → 환승센터로 다가감 → (단면) → 끝에 다시 지도, 살짝 물러남
+function camAt(t){
+  const u=smooth(1.0,4.6,t),back=smooth(22.6,26.5,t);
+  const z=lerp(1.05,2.2,u)-back*0.75;
+  return{cx:lerp(1030,BK.x,u),cy:lerp(1470,BK.y,u),z};
+}
+function toS(c,x,y){return[(x-c.cx)*c.z+W/2,(y-c.cy)*c.z+H*0.58]}
+function world(c,fn){g.save();g.translate(W/2,H*0.58);g.scale(c.z,c.z);g.translate(-c.cx,-c.cy);fn();g.restore()}
+function topText(year,head,sub,a){if(a<=0)return;g.save();g.globalAlpha=a;const y0=(1-a)*20;
+  g.textAlign='center';g.fillStyle='#FFD54A';g.font='800 112px P';g.fillText(year,W/2,310+y0);
+  g.fillStyle='#fff';g.font='800 62px P';g.fillText(head,W/2,410+y0);g.font='600 40px P';g.fillStyle='rgba(255,255,255,.92)';
+  sub.split('|').forEach((s,i)=>g.fillText(s,W/2,476+i*52+y0));g.restore()}
+function srcLine(s,a){if(a<=0||!s)return;g.save();g.globalAlpha=a;g.font='400 30px P';g.fillStyle='rgba(255,255,255,.88)';g.textAlign='center';g.fillText(s,W/2,H-90);g.restore()}
+function chip(x,y,text,{bg='#FFD54A',fg='#1b1430',size=30,alpha=1,italic=false}={}){if(alpha<=0)return;g.save();g.globalAlpha=alpha;g.font=(italic?'italic ':'')+'800 '+size+'px P';
+  const w=g.measureText(text).width+size*1.1,h=size*1.6;g.fillStyle=bg;MapKit._round(g,x-w/2,y-h/2,w,h,h/2);g.fill();g.fillStyle=fg;g.textAlign='center';g.textBaseline='middle';g.fillText(text,x,y+1);g.restore()}
+const STOPS=[
+ {a:3.4,b:8.9,year:'2005',head:'공사하다 땅 밑 방을 찾았어요',sub:'버스환승센터 공사 중|옛 중소기업전시장 앞 도로 아래',src:'출처: 서울신문(2015.10.1) · 서울시 미디어허브'},
+ {a:9.3,b:13.9,year:'1976~77',head:'만든 기록이 없어요',sub:'서울시 항공사진: 1976년 11월엔 없고|1977년 11월엔 출입구가 보여요',src:'출처: 서울시 항공사진 설명(서울신문 2015.10.1)'},
+ {a:14.3,b:18.4,year:'1977',head:'국군의 날 사열 단상 바로 밑',sub:'그래서 대통령 경호용 시설로 추정해요',src:'출처: 서울신문(2015.10.1)'},
+ {a:18.8,b:22.9,year:'그 안엔',head:'소파·화장실·샤워장',sub:'작은 방(약 66㎡)과|기계실 등 넓은 공간(약 595㎡)',src:'출처: 서울신문(2015.10.1)'},
+ {a:23.3,b:28.0,year:'2013 → 2017',head:'비밀 벙커가 미술관으로',sub:'2013 서울 미래유산 · 2015 첫 시민 공개|2017년 10월 「SeMA 벙커」 문을 열었어요',src:'출처: 서울시 미디어허브 · 서울시 문화분야 누리집'}];
+
+// ── 단면 그림 (땅을 잘라 옆에서 본 모습) ──
+const SX=60,SY=680,SW=960,SH=900,GY=SY+250;   // 패널, 땅 높이
+const BX=SX+150,BY=GY+190,BW=700,BH=300;          // 벙커(그림)
+function bus(x,y,a){g.save();g.globalAlpha*=a;g.fillStyle='#3a9a5b';MapKit._round(g,x,y-70,190,62,12);g.fill();
+  g.fillStyle='#d6eef7';for(let i=0;i<5;i++)g.fillRect(x+14+i*34,y-60,26,22);g.fillStyle='#1d2430';
+  g.beginPath();g.arc(x+40,y-6,13,0,7);g.arc(x+150,y-6,13,0,7);g.fill();g.restore()}
+function shelter(x,y){g.fillStyle='#c9d3de';g.fillRect(x,y-110,8,110);g.fillRect(x+120,y-110,8,110);g.fillStyle='#9fb0c2';g.fillRect(x-14,y-120,156,14);
+  g.fillStyle='#FFD54A';g.fillRect(x+40,y-100,48,28);g.fillStyle='#1b1430';g.font='800 20px P';g.textAlign='center';g.fillText('BUS',x+64,y-79)}
+function sofa(x,y){g.fillStyle='#b98a5e';MapKit._round(g,x,y-50,120,50,10);g.fill();g.fillStyle='#d4a575';MapKit._round(g,x+10,y-78,100,34,10);g.fill()}
+function toilet(x,y){g.fillStyle='#eef3f7';MapKit._round(g,x,y-70,26,44,6);g.fill();g.beginPath();g.ellipse(x+40,y-26,30,12,0,0,7);g.fill();g.fillRect(x+24,y-26,30,26)}
+function shower(x,y){g.strokeStyle='#cfd8e2';g.lineWidth=6;g.beginPath();g.moveTo(x,y);g.lineTo(x,y-150);g.lineTo(x+40,y-150);g.stroke();
+  g.fillStyle='#cfd8e2';g.fillRect(x+30,y-150,30,10);g.fillStyle='rgba(140,200,255,.8)';for(let i=0;i<5;i++)g.fillRect(x+34+i*5,y-130+((i*13)%20),3,26)}
+function machine(x,y,w){g.fillStyle='#6b7480';g.fillRect(x,y-90,w,90);g.strokeStyle='#4b535e';g.lineWidth=4;for(let i=1;i<4;i++){g.beginPath();g.moveTo(x+w*i/4,y-90);g.lineTo(x+w*i/4,y);g.stroke()}
+  g.fillStyle='#9aa4b0';g.beginPath();g.arc(x+w/2,y-130,30,0,7);g.fill()}
+function stand(x,y,a){if(a<=0)return;g.save();g.globalAlpha=a;g.fillStyle='#8c2f2f';g.fillRect(x-150,y-46,300,46);g.fillStyle='#b24040';g.fillRect(x-170,y-60,340,16);
+  g.fillStyle='#e9e2d0';g.fillRect(x-60,y-150,120,90);g.fillStyle='#c9bfa5';g.fillRect(x-80,y-160,160,14);
+  for(const fx of [x-130,x+130]){g.fillStyle='#ddd';g.fillRect(fx,y-200,5,140);g.fillStyle='#3b6fb6';g.fillRect(fx+5,y-200,52,34)}g.restore()}
+function section(t,a){if(a<=0)return;
+  g.save();g.globalAlpha=a;const dy=(1-a)*80;g.translate(0,dy);
+  MapKit._round(g,SX,SY,SW,SH,26);g.save();g.clip();
+  // 하늘·땅
+  let gr=g.createLinearGradient(0,SY,0,GY);gr.addColorStop(0,'#253a55');gr.addColorStop(1,'#47658a');g.fillStyle=gr;g.fillRect(SX,SY,SW,GY-SY);
+  gr=g.createLinearGradient(0,GY,0,SY+SH);gr.addColorStop(0,'#6e5a44');gr.addColorStop(1,'#3a2f25');g.fillStyle=gr;g.fillRect(SX,GY,SW,SY+SH-GY);
+  g.strokeStyle='rgba(255,255,255,.07)';g.lineWidth=3;for(let i=1;i<9;i++){g.beginPath();for(let x=SX;x<=SX+SW;x+=40){const yy=GY+i*72+Math.sin(x*.013+i)*8;x==SX?g.moveTo(x,yy):g.lineTo(x,yy)}g.stroke()}
+  // 도로 + 버스(지금)
+  g.fillStyle='#2b2f36';g.fillRect(SX,GY-18,SW,26);g.fillStyle='#f4f4f4';for(let x=SX+20;x<SX+SW;x+=90)g.fillRect(x,GY-8,46,5);
+  const now=1-smooth(13.9,14.6,t)*(1-smooth(18.4,19.0,t));   // 1977 장면에선 버스·정류장 대신 사열 단상
+  g.globalAlpha=a*now;shelter(SX+90,GY-18);bus(SX+300+((t*60)%520)-120,GY-18,1);g.globalAlpha=a;
+  g.font='800 30px P';g.textAlign='left';g.fillStyle='rgba(255,255,255,'+(.9*now)+')';g.fillText('지금 여의도 환승센터 (버스 정류장)',SX+30,SY+52);
+  stand(SX+SW/2+40,GY-18,smooth(14.3,15.0,t)*(1-smooth(18.4,19.0,t)));
+  chip(SX+SW/2+40,SY+60,'1977 국군의 날 사열 단상 자리',{alpha:fade(t,14.5,18.4),size:30});
+  // 계단(출입구) + 벙커
+  const reveal=smooth(4.2,6.0,t);
+  g.save();g.globalAlpha=a*reveal;
+  g.fillStyle='#55606c';for(let i=0;i<8;i++)g.fillRect(BX-90+i*0,GY+8+i*(BY-GY)/8,70,(BY-GY)/8+1);
+  g.fillStyle='#4a535f';g.fillRect(BX-90,GY+8,70,BY-GY);g.strokeStyle='#8c96a2';g.lineWidth=4;for(let i=0;i<8;i++){g.beginPath();g.moveTo(BX-90,GY+20+i*22);g.lineTo(BX-20,GY+20+i*22);g.stroke()}
+  g.fillStyle='#5f6874';g.fillRect(BX-20,BY+BH-110,30,110);
+  g.fillStyle='#4f5762';g.fillRect(BX,BY,BW,BH);
+  const glow=.6+.4*Math.sin(t*3);g.strokeStyle='rgba(255,213,74,'+glow+')';g.lineWidth=8;g.strokeRect(BX,BY,BW,BH);
+  // 칸막이: 작은 방 | 넓은 공간
+  g.fillStyle='#3b424c';g.fillRect(BX+190,BY,12,BH);
+  g.restore();
+  const q=smooth(4.6,5.6,t)*(1-smooth(8.4,8.9,t));
+  if(q>0){g.save();g.globalAlpha=a*q;g.fillStyle='#FFD54A';g.font='800 150px P';g.textAlign='center';g.fillText('?',BX+BW/2,BY+BH/2+52);g.restore()}
+  chip(BX+BW/2,BY-46,'도로 밑에서 발견된 방 (2005)',{alpha:fade(t,5.2,8.9),size:30});
+  // 그 안엔
+  const inside=smooth(19.0,20.0,t)*(1-smooth(22.6,23.0,t));
+  if(inside>0){g.save();g.globalAlpha=a*inside;const fy=BY+BH;
+    sofa(BX+20,fy-14);toilet(BX+44,fy-110);shower(BX+150,fy-150);
+    machine(BX+260,fy,150);machine(BX+450,fy,120);machine(BX+600,fy,80);
+    chip(BX+96,BY+44,'방 약 66㎡',{size:26,alpha:1});chip(BX+445,BY+44,'기계실 등 약 595㎡',{size:26,alpha:1});g.restore()}
+  chip(SX+SW/2,SY+SH-46,'단면 그림 · 크기와 모양은 단순화했어요',{bg:'rgba(10,14,28,.7)',fg:'rgba(255,255,255,.92)',size:26});
+  // 1976.11 / 1977.11 항공사진 비교 (흑백 그림 두 칸)
+  const cmp=fade(t,9.4,13.9);
+  if(cmp>0){g.globalAlpha=a*cmp;g.fillStyle='rgba(12,14,18,.92)';g.fillRect(SX,SY,SW,SH);
+    const pw=420,ph=560,py=SY+130;
+    [[SX+40,'1976.11','흔적 없음',false],[SX+SW-40-pw,'1977.11','출입구가 보임',true]].forEach(([px,yr,cap,ent],i)=>{
+      const k=smooth(9.6+i*1.2,10.3+i*1.2,t);g.save();g.globalAlpha=a*cmp*k;
+      g.fillStyle='#8e8e8e';g.fillRect(px,py,pw,ph);
+      g.fillStyle='#bdbdbd';g.save();g.beginPath();g.rect(px,py,pw,ph);g.clip();
+      g.translate(px+pw/2,py+ph/2);g.rotate(-0.55);g.fillStyle='#5a5a5a';g.fillRect(-60,-500,120,1000);   // 넓은 길
+      g.fillStyle='#a9a9a9';g.fillRect(-300,-500,180,1000);g.fillRect(120,-500,200,1000);
+      g.strokeStyle='#d0d0d0';g.lineWidth=3;g.setLineDash([20,16]);g.beginPath();g.moveTo(0,-500);g.lineTo(0,500);g.stroke();g.setLineDash([]);
+      if(ent){g.fillStyle='#1c1c1c';g.fillRect(-150,-20,46,46);g.strokeStyle='#FFD54A';g.lineWidth=6;g.strokeRect(-160,-30,66,66)}
+      g.restore();
+      g.strokeStyle='#fff';g.lineWidth=4;g.strokeRect(px,py,pw,ph);
+      g.fillStyle='#fff';g.font='800 56px P';g.textAlign='center';g.fillText(yr,px+pw/2,py-36);
+      chip(px+pw/2,py+ph+56,cap,{size:32,bg:ent?'#FFD54A':'#d8dde3'});
+      g.restore();g.globalAlpha=a*cmp});
+    g.fillStyle='rgba(255,255,255,.85)';g.font='600 28px P';g.textAlign='center';g.fillText('서울시 항공사진 설명을 단순화한 그림 (실제 사진 아님)',SX+SW/2,SY+SH-40);
+    g.globalAlpha=a}
+  g.restore();
+  // 패널 테두리
+  g.strokeStyle='rgba(255,255,255,.35)';g.lineWidth=3;MapKit._round(g,SX,SY,SW,SH,26);g.stroke();
+  g.restore();
+  // 추정 꼬리표 (기울임)
+  chip(W/2,SY+SH+70+dy,'대통령 경호용 시설? — 추정',{alpha:a*fade(t,15.2,18.4),size:36,italic:true,bg:'rgba(255,255,255,.95)'});
+  chip(W/2,SY+SH+70+dy,'누가 만들었는지 기록 없음 — 시기는 추정',{alpha:a*fade(t,10.6,13.9),size:32,italic:true,bg:'rgba(255,255,255,.95)'});
+}
+
+function render(t){
+  g.fillStyle='#000';g.fillRect(0,0,W,H);
+  const c=camAt(t);
+  const sec=smooth(4.0,5.0,t)*(1-smooth(22.6,23.4,t));
+  world(c,()=>{
+    MapKit.drawBase(g,M,{tone:'light',veil:'rgba(8,14,24,'+(.55*sec)+')'});
+    MapKit.poly(g,PARK,{fill:'rgba(80,170,100,.18)',stroke:'rgba(60,150,80,.7)',width:4});
+    // 벙커 자리(대략) 노란 원
+    const hr=1-sec*.6;g.save();g.globalAlpha=hr;g.fillStyle='rgba(255,213,74,.35)';g.strokeStyle='#ffb300';g.lineWidth=6/c.z+2;
+    g.beginPath();g.arc(BK.x,BK.y,46,0,7);g.fill();g.stroke();g.restore();
+  });
+  // 이름표 (지도 장면)
+  const mapA=1-sec;
+  const st=P('여의도역'),pk=P('여의도공원');
+  let [x,y]=toS(c,st.x,st.y);MapKit.pin(g,x,y,'여의도역',{alpha:mapA*(t<4.5||t>22?1:0)*(1-smooth(27.4,27.9,t)),size:32,dy:70});
+  {let cx=0,cy=0;PARK.forEach(q=>{cx+=q[0];cy+=q[1]});cx/=PARK.length;cy/=PARK.length;[x,y]=toS(c,cx-120,cy-150);MapKit.label(g,x,y,'여의도공원',{alpha:mapA*(t<4.5||t>22?1:0)*(1-smooth(27.4,27.9,t)),size:40,color:'#c8f0d0'});}
+  [x,y]=toS(c,BK.x,BK.y);MapKit.pin(g,x,y,'여의도 환승센터',{alpha:mapA*(1-smooth(23.4,24,t)),kind:'hero',size:36,dy:-90});
+  MapKit.pin(g,x,y,'SeMA 벙커 (환승센터 밑, 대략)',{alpha:smooth(24,24.7,t)*(1-smooth(27.4,27.9,t)),kind:'hero',size:34,dy:-90});
+  // 2013·2015·2017 칩
+  const yrs=[['2013 서울 미래유산',24.4],['2015 첫 시민 공개',25.0],['2017.10 SeMA 벙커 개관',25.6]];
+  yrs.forEach(([s,a0],i)=>chip(W/2+80,1240+i*72,s,{alpha:smooth(a0,a0+.4,t)*(1-smooth(27.6,28,t)),size:34,bg:i==2?'#FFD54A':'rgba(255,255,255,.95)'}));
+  section(t,sec);
+  // 위·아래 그늘 + 태그
+  let gr=g.createLinearGradient(0,0,0,660);gr.addColorStop(0,'rgba(8,14,24,.86)');gr.addColorStop(1,'rgba(8,14,24,0)');g.fillStyle=gr;g.fillRect(0,0,W,660);
+  gr=g.createLinearGradient(0,H-300,0,H);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,0,.6)');g.fillStyle=gr;g.fillRect(0,H-300,W,300);
+  g.font='800 32px P';g.textAlign='left';const tag='도시의 나이테 · 원래 ○○이었다 #14';const tw=g.measureText(tag).width+48;g.fillStyle='rgba(255,213,74,.95)';MapKit._round(g,56,72,tw,60,30);g.fill();g.fillStyle='#1b1430';g.fillText(tag,80,113);
+  const h=1-smooth(2.85,3.3,t);  // 첫 프레임부터 훅 문장
+  if(h>0){g.save();g.globalAlpha=h;g.textAlign='center';g.fillStyle='#fff';g.font='800 84px P';g.fillText('여의도 버스 정류장 밑엔',W/2,320);g.fillStyle='#FFD54A';g.font='800 110px P';g.fillText('비밀 벙커가 있었다',W/2,450);g.font='600 44px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('매일 버스를 갈아타는 바로 그 도로 밑',W/2,528);g.restore()}
+  for(const s of STOPS)topText(s.year,s.head,s.sub,fade(t,s.a,s.b));
+  for(const s of STOPS)srcLine(s.src,fade(t,s.a,s.b));
+  // 지도 장치 (지도 보일 때)
+  const ma=1-sec;
+  if(ma>0){MapKit.inset(g,M,56,1260,170,{alpha:ma,t,label:'서울'});
+    MapKit.north(g,990,1500,{alpha:ma});MapKit.scale(g,M,70,1580,c.z,{alpha:ma});
+    MapKit.legend(g,70,1660,[['#ffb300','벙커 자리(대략)'],['#5aa96a','여의도공원']],{alpha:ma*(1-smooth(27.6,28,t))});}
+  // 끝
+  const e=smooth(28,28.7,t);
+  if(e>0){g.fillStyle='rgba(10,14,28,'+(.7*e)+')';g.fillRect(0,0,W,H);g.save();g.globalAlpha=e;g.textAlign='center';g.fillStyle='#fff';g.font='800 74px P';g.fillText('우리 동네 땅 밑엔',W/2,840);g.fillStyle='#FFD54A';g.font='800 90px P';g.fillText('뭐가 있을까요?',W/2,950);
+    g.font='600 42px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('댓글로 신청해 주세요',W/2,1040);g.font='400 30px P';g.fillStyle='rgba(255,255,255,.85)';g.fillText('그림은 기록을 바탕으로 단순화한 거예요',W/2,H-90);g.restore()}
+  MapKit.credit(g,M,W,H);
+}
+window.render=render;
+window.ready=Promise.all([document.fonts.load('800 40px P'),document.fonts.load('600 40px P'),document.fonts.load('400 40px P'),document.fonts.load('italic 800 40px P')]).then(()=>MapKit.load('map/')).then(m=>{M=m;PARK=MapKit.area(M,'여의도공원, 영등포구, 서울');BK=P('여의도환승센터');render(0);return true});
+</script></body></html>
