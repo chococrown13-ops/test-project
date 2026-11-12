@@ -27,8 +27,8 @@
     tex.anisotropy = 4;
     let last = '';
     function draw({ shape = 'X', blink = false, mood = 'normal', look = 0 } = {}) {
-      const key = `${shape}|${blink}|${mood}|${look.toFixed(2)}`; if (key === last) return; last = key;
-      g.clearRect(0, 0, 256, 256);
+      const key = `${shape}|${blink}|${mood}|${look.toFixed(2)}|${api.bg}`; if (key === last) return; last = key;
+      g.clearRect(0, 0, 256, 256); if (api.bg) { g.fillStyle = api.bg; g.beginPath(); g.roundRect ? g.roundRect(0, 0, 256, 256, 40) : g.rect(0, 0, 256, 256); g.fill(); }
       g.fillStyle = 'rgba(255,110,110,.35)'; g.beginPath(); g.ellipse(62, 150, 22, 13, 0, 0, 7); g.ellipse(194, 150, 22, 13, 0, 0, 7); g.fill();
       const ey = 112, big = mood === 'surprised' || mood === 'scared' ? 1.35 : 1, lx = look * 8;
       for (const x of [86, 170]) {
@@ -58,7 +58,7 @@
       }
       tex.needsUpdate = true;
     }
-    draw(); return { plane, draw };
+    const api = { plane, draw, bg: null }; draw(); return api;
   }
 
   // ---- 캐릭터: 몸통 종류 + (선택) 팔 ----
@@ -262,5 +262,71 @@
     return { scene, cam, renderer, render, lineAt, TL, W, H };
   }
   const glow = (o) => { o.traverse((c) => c.layers.enable(1)); return o; };   // 빛 번짐 대상 표시
-  window.Story = { init, char, mesh, toon, outline, face, smooth, clamp01, glow };
+
+  // ---- 무료 3D 모델(glTF/GLB) 쓰기: three-gltf 번들(vendor/three-gltf-0.149.0.min.js) + models.js(pack_assets.py) 필요 ----
+  const glbCache = {};
+  function loadGLB(name) {   // window.GLB[name] → Promise(gltf)
+    if (glbCache[name]) return glbCache[name];
+    const e = window.GLB[name]; const bin = Uint8Array.from(atob(e.glb), (c) => c.charCodeAt(0)).buffer;
+    const mgr = new THREE.LoadingManager(); mgr.setURLModifier((u) => (/colormap\.png$/.test(u) ? window.GLB_TEX[e.pack] : u));
+    return (glbCache[name] = new Promise((ok, no) => new THREE.GLTFLoader(mgr).parse(bin, '', ok, no)));
+  }
+  const brightGrad = (() => { const d = new Uint8Array([165, 220, 255]); const tx = new THREE.DataTexture(d, 3, 1, THREE.RedFormat); tx.minFilter = tx.magFilter = THREE.NearestFilter; tx.needsUpdate = true; return tx; })();
+  // 모델 얼굴의 원래 눈·입(어두운 색 조각)을 피부색으로 덮기 → 우리 얼굴 그림(입 모양 맞추기)을 올릴 자리
+  function clearFace(geo, img) {
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    const px = x.getImageData(0, 0, c.width, c.height).data, lum = (u, v) => { const i = (Math.min(c.height - 1, Math.floor(v * c.height)) * c.width + Math.min(c.width - 1, Math.floor(u * c.width))) * 4; return 0.3 * px[i] + 0.59 * px[i + 1] + 0.11 * px[i + 2]; };
+    const P = geo.attributes.position, N = geo.attributes.normal, UV = geo.attributes.uv, cnt = {};
+    let ymin = 1e9, ymax = -1e9; for (let i = 0; i < P.count; i++) if (N.getZ(i) > 0.7) { ymin = Math.min(ymin, P.getY(i)); ymax = Math.max(ymax, P.getY(i)); }
+    const isFace = (i) => N.getZ(i) > 0.5 && P.getY(i) > ymin + (ymax - ymin) * 0.05 && P.getY(i) < ymin + (ymax - ymin) * 0.58;   // 눈·입만 (위쪽 앞머리는 그대로)
+    for (let i = 0; i < P.count; i++) if (isFace(i) && lum(UV.getX(i), UV.getY(i)) > 90) { const k = UV.getX(i).toFixed(3) + ',' + UV.getY(i).toFixed(3); cnt[k] = (cnt[k] || 0) + 1; }
+    const best = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]; if (!best) return;
+    const [su, sv] = best[0].split(',').map(Number);
+    for (let i = 0; i < P.count; i++) if (isFace(i) && lum(UV.getX(i), UV.getY(i)) <= 90) UV.setXY(i, su, sv);
+    UV.needsUpdate = true;
+  }
+  function inkFor(mesh, w) {   // 뼈대로 움직이는 몸에도 맞는 외곽선 (법선 방향으로 부풀린 뒷면)
+    const m = new THREE.MeshBasicMaterial({ color: '#2a1f1a', side: THREE.BackSide });
+    m.onBeforeCompile = (sh) => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n transformed += normalize(objectNormal) * ${w.toFixed(4)};`); };
+    const o = mesh.isSkinnedMesh ? new THREE.SkinnedMesh(mesh.geometry, m) : new THREE.Mesh(mesh.geometry, m);
+    if (mesh.isSkinnedMesh) o.bind(mesh.skeleton, mesh.bindMatrix);
+    o.position.copy(mesh.position); o.quaternion.copy(mesh.quaternion); o.scale.copy(mesh.scale); o.frustumCulled = false; return o;
+  }
+  // 모델 → 우리 그림체(툰 + 외곽선). opt: { scale, line(외곽선 굵기, 모델 단위), toon(true) }
+  function model(gltf, opt = {}) {
+    const root = opt.rigged ? THREE.SkeletonUtils.clone(gltf.scene) : gltf.scene.clone(true);
+    const meshes = []; root.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    const gmap = opt.bright ? brightGrad : grad;
+    for (const m of meshes) {
+      const src = m.material; m.castShadow = m.receiveShadow = true;
+      if (opt.clearFace && m.name.includes(opt.clearFace) && src.map) clearFace(m.geometry, src.map.image);
+      if (opt.toon !== false) m.material = new THREE.MeshToonMaterial({ color: '#ffffff', map: src.map || null, gradientMap: gmap });
+      if (m.material.map) m.material.map.encoding = THREE.sRGBEncoding;
+      if (opt.line) m.parent.add(inkFor(m, opt.line));
+    }
+    const g = new THREE.Group(); g.add(root); root.scale.setScalar(opt.scale || 1); return { g, root };
+  }
+  // 움직이는 캐릭터(엔진 캐릭터와 같은 모양으로): 얼굴 판은 머리 뼈에 붙여 입 모양·표정을 그대로 씀
+  function rigChar(gltf, opt = {}) {
+    const { g, root } = model(gltf, { ...opt, rigged: true });
+    g.position.set(...(opt.pos || [0, 0, 0]));
+    const head = new THREE.Group();           // 엔진이 흔드는 '머리'(보이지 않는 자리표시) — 실제 흔들림은 뼈에 옮김
+    let headBone = null; root.traverse((o) => { if (o.name === (opt.headBone || 'head')) headBone = o; });
+    const f = face(opt.faceSize || 0.3);
+    if (opt.faceBg) f.bg = opt.faceBg;
+    if (headBone) { f.plane.position.set(...(opt.faceAt || [0, 0.16, 0.172])); headBone.add(f.plane); }
+    const mixer = new THREE.AnimationMixer(root), actions = {};
+    for (const c of gltf.animations) { const a = mixer.clipAction(c); a.play(); a.setEffectiveWeight(0); actions[c.name] = a; }
+    return { g, head, face: f, arms: [], opt, baseY: 0, rig: { root, mixer, actions, headBone } };
+  }
+  // 정해진 순서대로 동작 재생(되감아도 늘 같은 그림): plan = [[시작초, '동작이름', {loop:true, speed:1}], …]
+  function anim(ch, t, plan, fade = 0.25) {
+    const R = ch.rig; let cur = -1; for (let i = 0; i < plan.length; i++) if (plan[i][0] <= t) cur = i;
+    for (const a of Object.values(R.actions)) a.setEffectiveWeight(0);
+    const put = (i, w) => { if (i < 0 || w <= 0) return; const [t0, name, o = {}] = plan[i]; const a = R.actions[name]; if (!a) return;
+      const d = a.getClip().duration, u = Math.max(0, (t - t0) * (o.speed || 1)); a.time = o.loop === false ? Math.min(u, d - 1e-3) : u % d; a.setEffectiveWeight(w); };
+    if (cur >= 0) { const k = Math.min(1, (t - plan[cur][0]) / fade); put(cur, k); put(cur - 1, 1 - k); }
+    R.mixer.update(0);
+  }
+  window.Story = { init, char, mesh, toon, outline, face, smooth, clamp01, glow, loadGLB, model, rigChar, anim };
 })();
