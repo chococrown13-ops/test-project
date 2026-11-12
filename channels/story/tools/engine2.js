@@ -160,7 +160,8 @@
     }
   }
 
-  function init({ w = 1920, h = 1080, title = '', sub = '', end = [], bg = '#dff1ff', exposure = 1.0, titleAt = [0, 3], endAt = null, smallTitle = null }) {
+  function init({ w = 1920, h = 1080, title = '', sub = '', end = [], bg = '#dff1ff', exposure = 1.0, titleAt = [0, 3], endAt = null, smallTitle = null, post = null }) {
+    // post(후처리, 0원): { bloom: 0~1 빛 번짐, vignette: 0~1 가장자리 어둡게, grade: 'saturate(1.1) contrast(1.05)' 같은 색 보정, grain: 0~1 필름 입자 }
     const W = w, H = h, U = Math.min(W, H) / 1080; // 글자 크기 단위
     const out = document.getElementById('c'); out.width = W; out.height = H; const og = out.getContext('2d');
     const gl = document.createElement('canvas'); gl.width = W; gl.height = H;
@@ -180,10 +181,37 @@
       if (l.cues) { let v = 'X'; for (const [s, m] of l.cues) { if (s <= lt) v = m; else break; } return v; }
       const e = l.env[Math.floor(lt * 24)] || 0; return e > 0.5 ? 'D' : e > 0.3 ? 'C' : e > 0.12 ? 'B' : 'X';
     }
+    // ---- 후처리: 빛 번짐(블룸) · 색 보정 · 비네트 · 필름 입자 (2D 캔버스 필터라 추가 프로그램 없이 됨) ----
+    const glowGL = document.createElement('canvas'); glowGL.width = Math.round(W / 4); glowGL.height = Math.round(H / 4);
+    let glowR = null; const BLACK = new THREE.MeshBasicMaterial({ color: '#000000' }), HIDE_S = new THREE.SpriteMaterial({ opacity: 0, transparent: true });
+    function renderGlow() {   // 층 1(Story.glow 로 표시한 등불·달·번개 등)만 검은 바탕에 작게 그림
+      if (!post || !post.bloom) return;
+      if (!glowR) { glowR = new THREE.WebGLRenderer({ canvas: glowGL, antialias: false, preserveDrawingBuffer: true }); glowR.setSize(glowGL.width, glowGL.height, false); glowR.outputEncoding = THREE.sRGBEncoding; }
+      // 빛나지 않는 물체는 검게 그려 앞을 가리게 함(창문 빛이 사람 얼굴 위로 번지지 않게)
+      const bg = scene.background, fog = scene.fog, saved = []; scene.background = new THREE.Color('#000000'); scene.fog = null;
+      scene.traverse((o) => { if ((o.isMesh || o.isLine || o.isSprite) && !o.layers.isEnabled(1) && o.visible) { saved.push([o, o.material]); o.material = o.isSprite ? HIDE_S : BLACK; } });
+      glowR.toneMappingExposure = renderer.toneMappingExposure; glowR.render(scene, cam);
+      for (const [o, m] of saved) o.material = m; scene.background = bg; scene.fog = fog;
+    }
+    const small = document.createElement('canvas'); small.width = Math.round(W / 4); small.height = Math.round(H / 4); const sg = small.getContext('2d');
+    const grainC = document.createElement('canvas'); grainC.width = grainC.height = 256; const gg = grainC.getContext('2d');
+    function postDraw(t) {
+      const P = post || {};
+      og.save(); if (P.grade) og.filter = P.grade; og.drawImage(gl, 0, 0); og.restore();
+      if (P.bloom) {   // 빛나는 물체(층 1)만 따로 그린 그림을 흐리게 키워서 더하기
+        sg.clearRect(0, 0, small.width, small.height); sg.drawImage(glowGL, 0, 0, small.width, small.height);
+        og.save(); og.globalCompositeOperation = 'lighter'; og.globalAlpha = P.bloom; og.filter = `blur(${Math.round(10 * U)}px)`; og.drawImage(small, 0, 0, W, H);
+        og.globalAlpha = P.bloom * 0.6; og.filter = `blur(${Math.round(28 * U)}px)`; og.drawImage(small, 0, 0, W, H); og.restore();
+      }
+      if (P.vignette) { const r = og.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.95); r.addColorStop(0, 'rgba(0,0,0,0)'); r.addColorStop(1, `rgba(0,0,0,${P.vignette})`); og.fillStyle = r; og.fillRect(0, 0, W, H); }
+      if (P.grain) { const im = gg.createImageData(256, 256); let seed = Math.floor(t * 24) * 9301 + 49297;
+        for (let i = 0; i < im.data.length; i += 4) { seed = (seed * 9301 + 49297) % 233280; const v = seed / 233280 * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255 * P.grain * 0.18; }
+        gg.putImageData(im, 0, 0); og.save(); og.globalCompositeOperation = 'overlay'; og.fillStyle = og.createPattern(grainC, 'repeat'); og.fillRect(0, 0, W, H); og.restore(); }
+    }
     function rr(x, y, w, h, r) { og.beginPath(); og.moveTo(x + r, y); og.arcTo(x + w, y, x + w, y + h, r); og.arcTo(x + w, y + h, x, y + h, r); og.arcTo(x, y + h, x, y, r); og.arcTo(x, y, x + w, y, r); og.closePath(); }
     function wrap(s, max) { const out = []; let cur = ''; for (const wd of s.split(' ')) { const tt = cur ? cur + ' ' + wd : wd; if (og.measureText(tt).width > max && cur) { out.push(cur); cur = wd; } else cur = tt; } if (cur) out.push(cur); return out; }
     function overlay(t) {
-      og.drawImage(gl, 0, 0); og.textAlign = 'center'; og.textBaseline = 'middle';
+      postDraw(t); og.textAlign = 'center'; og.textBaseline = 'middle';
       const big = (titleAt[0] > 0 ? smooth(titleAt[0], titleAt[0] + 0.3, t) : 1) * (1 - smooth(titleAt[1], titleAt[1] + 0.5, t));
       if (big > 0) { og.globalAlpha = big; og.fillStyle = 'rgba(20,16,30,.55)'; og.fillRect(0, H * 0.36, W, H * 0.28); og.fillStyle = '#fff'; og.font = `800 ${96 * U}px P`; og.fillText(title, W / 2, H * 0.46); og.fillStyle = '#ffd54a'; og.font = `800 ${56 * U}px P`; og.fillText(sub, W / 2, H * 0.55); og.globalAlpha = 1; }
       const st = smallTitle || title; og.font = `800 ${38 * U}px P`; const tw = og.measureText(st).width + 60 * U; og.globalAlpha = t < titleAt[0] ? 0 : 1 - big; rr((W - tw) / 2, 36 * U, tw, 66 * U, 33 * U); og.fillStyle = 'rgba(20,16,30,.7)'; og.fill(); og.fillStyle = '#fff'; og.fillText(st, W / 2, 70 * U); og.globalAlpha = 1;
@@ -229,9 +257,10 @@
       for (let u = lastT + 1 / 24; u < t - 1e-6; u += 1 / 24) frame(u, args, 1 / 24);
       frame(t, args, 1 / 24); lastT = t;
       cam.position.copy(camPos); cam.lookAt(camLook); const s = args.shot(t, lineAt(t)); cam.fov = s.fov || 30; cam.updateProjectionMatrix();
-      renderer.render(scene, cam); overlay(t);
+      renderer.render(scene, cam); renderGlow(); overlay(t);
     }
     return { scene, cam, renderer, render, lineAt, TL, W, H };
   }
-  window.Story = { init, char, mesh, toon, outline, face, smooth, clamp01 };
+  const glow = (o) => { o.traverse((c) => c.layers.enable(1)); return o; };   // 빛 번짐 대상 표시
+  window.Story = { init, char, mesh, toon, outline, face, smooth, clamp01, glow };
 })();

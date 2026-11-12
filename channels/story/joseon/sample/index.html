@@ -6,16 +6,30 @@
 <script src="../../tools/engine2.js"></script>
 <script>
 // 조선으로 회귀하면 — 샘플 (비 오는 2026년 종로 → 트럭·번개·멈춘 시간·시간 이동 → 1795년 한양, 안내 정령 댕이 첫 등장)
+function Q_POST() { return new URLSearchParams(location.search).get('post') === '0' ? null : { bloom: 0.75, vignette: 0.5, grade: 'saturate(1.12) contrast(1.06)', grain: 0.5 }; }  // ?post=0 이면 후처리 끔(비교용)
 const L = TL.lines, idx = (s) => L.findIndex((l) => l.text.includes(s));
 const A = []; L.forEach((l) => (l.acts || []).forEach((a) => A.push({ ...a, t: l.start + (a.at || 0) })));
 const at = (k) => (A.find((a) => a.act === k) || {}).t;
 const THUNDER = at('thunder'), TRUCK = at('truck'), STRIKE = at('strike'), FREEZE = at('freeze'), LAND = at('land'), SPAWN = at('spawn');
 const WARP = L[idx('시간 이동')].start + 0.9, FLASH = WARP + 1.2;   // FLASH: 소용돌이 속에서 무대가 1795로 바뀌는 순간
 const S = Story.init({ w: 1920, h: 1080, bg: '#1a2142', title: '조선으로 회귀하면', sub: '1795년 한양, 첫날 밤', smallTitle: '조선으로 회귀하면', titleAt: [LAND + 0.4, LAND + 2.6],
-  end: ['조선으로 회귀하면', '1화 「한양 첫날 밤, 통금 종이 울린다」 곧 공개'] });
+  end: ['조선으로 회귀하면', '1화 「한양 첫날 밤, 통금 종이 울린다」 곧 공개'],
+  post: Q_POST() });
 const { scene, renderer } = S, M = Story.mesh, sm = Story.smooth;
 window.CAST_STYLE = { 민재: { name: '민재', color: '#ffb35c' }, 댕이: { name: '댕이', color: '#bfeaff' }, 목소리: { name: '???', color: '#bfeaff' } };
 scene.children.forEach((o) => { if (o.isHemisphereLight) o.intensity = 0.45; if (o.isDirectionalLight) { o.intensity = 0.55; o.color.set('#b9c8ff'); } });
+const POST = !!Q_POST();
+if (POST) {
+  scene.fog = new THREE.Fog('#141a33', 16, 48);                                     // 밤 안개: 먼 곳이 흐려져 깊이감
+  const rim = new THREE.DirectionalLight('#8fb8ff', 0.7); rim.position.set(-2, 6, -12); scene.add(rim);   // 뒤에서 비추는 테두리 빛
+}
+// 무늬 텍스처 (코드로 그림): 기와 줄 · 흙길 · 한지
+function canvasTex(w, h, draw, rep = [1, 1]) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...rep); return t; }
+const roofTex = canvasTex(256, 64, (x, w, h) => { x.fillStyle = '#4a4f5a'; x.fillRect(0, 0, w, h); for (let i = 0; i < w; i += 16) { x.fillStyle = '#2f333b'; x.fillRect(i, 0, 5, h); x.fillStyle = '#5d6370'; x.fillRect(i + 7, 0, 3, h); } }, [3, 1]);
+const dirtTex = canvasTex(256, 256, (x, w, h) => { x.fillStyle = '#7d6a52'; x.fillRect(0, 0, w, h); for (let i = 0; i < 1400; i++) { const a = Math.sin(i * 12.99) * 43758 % 1, b = Math.sin(i * 78.23) * 12345 % 1; x.fillStyle = i % 3 ? 'rgba(60,45,30,.25)' : 'rgba(170,150,120,.25)'; x.fillRect(Math.abs(a) * w, Math.abs(b) * h, 2 + (i % 4), 2); } }, [14, 7]);
+const hanjiTex = canvasTex(128, 128, (x, w, h) => { x.fillStyle = '#efe6d2'; x.fillRect(0, 0, w, h); x.strokeStyle = 'rgba(120,90,60,.35)'; x.lineWidth = 3; for (let i = 0; i <= 4; i++) { x.beginPath(); x.moveTo(i * 32, 0); x.lineTo(i * 32, h); x.moveTo(0, i * 32); x.lineTo(w, i * 32); x.stroke(); } }, [3, 1]);
+const asphaltTex = canvasTex(256, 256, (x, w, h) => { x.fillStyle = '#2b3040'; x.fillRect(0, 0, w, h); for (let i = 0; i < 900; i++) { const a = Math.sin(i * 3.1) * 999 % 1, b = Math.sin(i * 7.7) * 999 % 1; x.fillStyle = 'rgba(160,180,220,.08)'; x.fillRect(Math.abs(a) * w, Math.abs(b) * h, 3, 1); } }, [12, 6]);
+const tex = (color, map) => POST ? Story.toon(color, { map }) : undefined;
 
 // ---------- 공통: 하늘 · 별 · 달 ----------
 const stars = new THREE.Group(); scene.add(stars);
@@ -28,14 +42,17 @@ function pavilion(parent, x, z, modern) {
   M(new THREE.BoxGeometry(4.4, 0.7, 3.4), modern ? '#b9b2a6' : '#9c9282', [0, 0.35, 0], g);
   for (const [px, pz] of [[-1.7, -1.2], [1.7, -1.2], [-1.7, 1.2], [1.7, 1.2], [0, 1.2], [0, -1.2]]) M(new THREE.CylinderGeometry(0.13, 0.13, 2.4, 12), '#b1342b', [px, 1.9, pz], g);
   M(new THREE.BoxGeometry(4.0, 0.3, 3.0), '#3f6b5a', [0, 3.15, 0], g);
-  const roof = M(new THREE.CylinderGeometry(0.6, 3.6, 1.4, 4, 1), '#3b3f48', [0, 3.95, 0], g); roof.rotation.y = Math.PI / 4; roof.scale.set(1.25, 1, 0.95);
+  const roof = M(new THREE.CylinderGeometry(0.6, 3.6, 1.4, 4, 1), '#3b3f48', [0, 3.95, 0], g, { mat: tex('#ffffff', roofTex) }); roof.rotation.y = Math.PI / 4; roof.scale.set(1.25, 1, 0.95);
   const bell = M(new THREE.CylinderGeometry(0.42, 0.62, 1.15, 24), '#5c6b4f', [0, 2.35, 0], g); // 큰 종
   return { g, bell };
 }
 
+const glowTex = canvasTex(128, 128, (x, w) => { const r = x.createRadialGradient(64, 64, 2, 64, 64, 64); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.3, 'rgba(255,255,255,.35)'); r.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = r; x.fillRect(0, 0, 128, 128); });
+if (POST) { const mh = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#fff3cc', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })); mh.scale.set(9, 9, 1); mh.position.copy(moon.position); scene.add(mh); window.__moonHalo = mh; }
+moon.material.fog = false; stars.children.forEach((st) => (st.material.fog = false));
 // ---------- 2026년 종로 ----------
 const NOW = new THREE.Group(); scene.add(NOW);
-M(new THREE.BoxGeometry(60, 0.1, 30), '#2b3040', [0, -0.05, -6], NOW, { line: 0 });
+M(new THREE.BoxGeometry(60, 0.1, 30), '#2b3040', [0, -0.05, -6], NOW, { line: 0, mat: tex('#ffffff', asphaltTex) });
 for (let k = 0; k < 8; k++) M(new THREE.BoxGeometry(0.6, 0.02, 3.2), '#e9edf5', [-6 + k * 1.1, 0.01, 3.2], NOW, { line: 0, shadow: false });   // 횡단보도
 M(new THREE.BoxGeometry(60, 0.2, 2.6), '#6b6f7a', [0, 0.1, -4.6], NOW, { line: 0 });                                                      // 인도
 function winTex(seed) { const c = document.createElement('canvas'); c.width = 128; c.height = 256; const x = c.getContext('2d'); x.fillStyle = '#28304a'; x.fillRect(0, 0, 128, 256);
@@ -70,18 +87,19 @@ const boltGlow = new THREE.PointLight('#cfe6ff', 0, 30); boltGlow.position.set(4
 
 // ---------- 1795년 한양 ----------
 const OLD = new THREE.Group(); scene.add(OLD); OLD.visible = false;
-M(new THREE.BoxGeometry(60, 0.1, 30), '#7d6a52', [0, -0.05, -6], OLD, { line: 0 });
+M(new THREE.BoxGeometry(60, 0.1, 30), '#7d6a52', [0, -0.05, -6], OLD, { line: 0, mat: tex('#ffffff', dirtTex) });
 function giwa(x, z, w, ry = 0) { const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; OLD.add(g);
-  M(new THREE.BoxGeometry(w, 0.4, 2.6), '#8d8577', [0, 0.2, 0], g); M(new THREE.BoxGeometry(w - 0.3, 1.7, 2.2), '#efe6d2', [0, 1.25, 0], g);
+  M(new THREE.BoxGeometry(w, 0.4, 2.6), '#8d8577', [0, 0.2, 0], g); M(new THREE.BoxGeometry(w - 0.3, 1.7, 2.2), '#efe6d2', [0, 1.25, 0], g, { mat: tex('#ffffff', hanjiTex) });
   for (let k = 0; k <= 3; k++) M(new THREE.BoxGeometry(0.14, 1.7, 0.14), '#5a3d28', [-w / 2 + 0.15 + k * (w - 0.3) / 3, 1.25, 1.12], g, { line: 0 });
-  const r = M(new THREE.CylinderGeometry(0.4, 2.2, 1.1, 4, 1), '#363a42', [0, 2.6, 0], g); r.rotation.y = Math.PI / 4; r.scale.set(w / 2.6, 1, 1.1); return g; }
+  const r = M(new THREE.CylinderGeometry(0.4, 2.2, 1.1, 4, 1), '#363a42', [0, 2.6, 0], g, { mat: tex('#ffffff', roofTex) }); r.rotation.y = Math.PI / 4; r.scale.set(w / 2.6, 1, 1.1); return g; }
 function choga(x, z, ry = 0) { const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; OLD.add(g);
   M(new THREE.BoxGeometry(2.4, 1.5, 2.0), '#d9c7a3', [0, 0.75, 0], g); const r = M(new THREE.SphereGeometry(1.6, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), '#c9a35c', [0, 1.45, 0], g); r.scale.set(1, 0.55, 0.9); return g; }
 giwa(-9, -7, 5.2); giwa(-3.4, -8.5, 4.2); choga(-13.5, -5.5, 0.3); choga(10.5, -6.0, -0.3); giwa(15, -8, 5.0); choga(-6.2, -4.6, 0.1);
 const jongru = pavilion(OLD, 4.2, -6.5, false);
 const lanterns = [];
 for (const [x, z] of [[-4.5, -3.2], [1.5, -3.6], [8.5, -3.4], [-11, -3.0]]) { M(new THREE.CylinderGeometry(0.05, 0.05, 2.6, 8), '#4a3324', [x, 1.3, z], OLD, { line: 0 });
-  const lb = M(new THREE.BoxGeometry(0.4, 0.55, 0.4), null, [x, 2.75, z], OLD, { mat: new THREE.MeshBasicMaterial({ color: '#ffcc7a' }) }); const pl = new THREE.PointLight('#ffb35c', 0.7, 8); pl.position.set(x, 2.8, z + 0.4); OLD.add(pl); lanterns.push(lb); }
+  const lb = M(new THREE.BoxGeometry(0.4, 0.55, 0.4), null, [x, 2.75, z], OLD, { mat: new THREE.MeshBasicMaterial({ color: '#ffcc7a' }) }); const pl = new THREE.PointLight('#ffb35c', 0.7, 8); pl.position.set(x, 2.8, z + 0.4); OLD.add(pl); lanterns.push(lb);
+  if (POST) { const h = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#ffb35c', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })); h.scale.set(2.2, 2.2, 1); h.position.set(x, 2.75, z + 0.1); OLD.add(h); } }
 // 주막 등 ('酒')
 { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); x.fillStyle = '#fff1cf'; x.fillRect(0, 0, 128, 128); x.fillStyle = '#7a2b1e'; x.font = '900 88px serif'; x.textAlign = 'center'; x.fillText('酒', 64, 100);
   const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.55), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c) })); sign.position.set(-6.2, 2.05, -3.55); OLD.add(sign); }
@@ -160,11 +178,15 @@ function base(t, l) {
 }
 const shot = (t, l) => ({ ...base(t, l) });
 
+// 실제로 빛나는 것들 표시 (빛 번짐은 이것들에만)
+[moon, bolt, kickLight, ...heads, ...lanterns, ...torches].forEach((o) => o && Story.glow(o));
+scene.traverse((o) => { if (o.isSprite && o !== C.댕이.head.userData.halo) Story.glow(o); });
+OLD.children.forEach((o) => { if (o.isMesh && o.geometry.type === 'PlaneGeometry') Story.glow(o); });   // 주막 등
 window.render = (t) => S.render(t, {
   cast: C, shot, camK: 0.1,
   update: (t, l) => {
     const old = t > FLASH; OLD.visible = old; NOW.visible = !old; rain.visible = !old;
-    scene.background.set(old ? '#141a33' : '#151a2e'); stars.visible = old; moon.visible = old;
+    scene.background.set(old ? '#141a33' : '#151a2e'); stars.visible = old; moon.visible = old; if (window.__moonHalo) window.__moonHalo.visible = old; if (scene.fog) scene.fog.color.set(old ? '#141a33' : '#1b2238');
     const frozen = t >= FREEZE && t < FLASH;
     // 빗줄기: 멈추면 그대로
     if (!old) setRain(Math.min(t, FREEZE), rideX(Math.min(t, FREEZE)));
