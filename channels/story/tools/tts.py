@@ -131,6 +131,7 @@ def main():
                 if qa[-1]["model"] != c["model"]:   # 한도 때문에 바뀐 모델은 그 인물 남은 줄에도 계속 씀
                     c["fallback"] = [m for m in c.get("fallback", []) if m != qa[-1]["model"]]; c["model"] = qa[-1]["model"]
                 print(f"  {i:03d} {ln['who']} {qa[-1]['score']} ×{qa[-1]['tries']} {qa[-1]['model']}", flush=True)
+                (ep / "voice" / f"{i:02d}.qa").write_text(json.dumps({"i": i, "who": ln["who"], **qa[-1]}, ensure_ascii=False))
             else:
                 path.write_bytes(synth(say, c["voice"], c.get("rate", 1.0), c.get("pitch", 0)))  # LINEAR16 는 wav 머리말이 붙어 옴
             keyf.write_text(key)
@@ -154,7 +155,8 @@ def main():
     tl = {"dur": round(t - sc.get("gap", 0.3) + sc.get("tail", 2.5), 2), "lines": lines, "sfx": sfx, "chars": chars}
     if sc.get("cards"):
         tl["cards"] = sc["cards"]  # 대본 도우미가 만든 정보 카드
-    if qa:   # 받아쓰기 점검 기록(사람이 다시 볼 줄: 점수 0.85 미만)
+    if gv:   # 받아쓰기 점검 기록(사람이 다시 볼 줄: 점수 0.85 미만). 이어서 만든 경우도 줄마다 남긴 기록을 모음
+        qa = [json.loads(p.read_text()) for p in sorted((ep / "voice").glob("*.qa"))]
         (ep / "voice_check.json").write_text(json.dumps(qa, ensure_ascii=False, indent=1))
         bad = [q for q in qa if q["score"] < 0.85]
         print(f"받아쓰기 점검: {len(qa)}줄 중 다시 볼 줄 {len(bad)}개")

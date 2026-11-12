@@ -19,6 +19,10 @@ BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 ASR_MODEL = "gemini-3.8-flash"
 
 
+class EmptyAudio(Exception):
+    """소리 없이 돌아온 답."""
+
+
 class QuotaError(Exception):
     """하루 요청 한도를 다 씀(모델마다 따로 셈)."""
 
@@ -52,7 +56,11 @@ def prompt(profile, scene, note, prev):
 def synth_once(text, voice, direction, model):
     body = {"contents": [{"parts": [{"text": direction + text}]}],
             "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}}}}
-    part = _post(model, body)["candidates"][0]["content"]["parts"][0]["inlineData"]
+    res = _post(model, body)
+    try:
+        part = res["candidates"][0]["content"]["parts"][0]["inlineData"]
+    except (KeyError, IndexError):   # 가끔 소리 없이 빈 답이 옴(finishReason OTHER 등) → 다시 시도
+        raise EmptyAudio(str(res.get("candidates", [{}])[0].get("finishReason", "?")))
     raw, mt = base64.b64decode(part["data"]), part.get("mimeType", "")
     if raw[:4] == b"RIFF":
         return raw
@@ -94,6 +102,8 @@ def synth(text, voice, direction, model="gemini-3.8-flash-tts", tries=4, log=Non
         while True:
             try:
                 wav = trim(synth_once(text, voice, direction, models[0])); break
+            except EmptyAudio:
+                wav = None; break
             except QuotaError:
                 if best is not None:
                     models = []
@@ -103,6 +113,8 @@ def synth(text, voice, direction, model="gemini-3.8-flash-tts", tries=4, log=Non
                 models.pop(0)
         if not models:
             break
+        if wav is None:
+            continue
         w = wave.open(io.BytesIO(wav)); dur = w.getnframes() / w.getframerate()
         heard = transcribe(wav)
         sim = difflib.SequenceMatcher(None, _hangul(text), _hangul(heard)).ratio()
@@ -112,6 +124,8 @@ def synth(text, voice, direction, model="gemini-3.8-flash-tts", tries=4, log=Non
             best = (score, wav, heard, k + 1, models[0])
         if sim >= 0.85 and ok_len:
             break
+    if best is None:
+        raise SystemExit("소리를 못 받음(빈 답만 옴): " + text[:20])
     if log is not None:
         log.append({"text": text, "heard": best[2], "score": round(best[0], 2), "tries": best[3], "model": best[4]})
     return best[1]
