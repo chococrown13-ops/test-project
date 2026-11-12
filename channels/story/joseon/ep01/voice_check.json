@@ -1,0 +1,1118 @@
+[
+ {
+  "i": 100,
+  "who": "댕이",
+  "text": "맞아요. 옛 주막에선 술이나 밥을 사 먹으면,",
+  "heard": "맞아요. 옛 주막에선 술이나 밥을 사 먹으면",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 101,
+  "who": "댕이",
+  "text": "대체로 잠은 공짜였어요.",
+  "heard": "대체로 잠은 공짜였어요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 102,
+  "who": "민재",
+  "text": "밥 먹으면 숙박 무료? 여기 혜자네.",
+  "heard": "밥 먹으면 숙박 무료? 여기 혜자네",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 103,
+  "who": "민재",
+  "text": "오, 술 시키면 안주가 공짜네?",
+  "heard": "오 술 시키면 안주가 공짜네?",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 104,
+  "who": "댕이",
+  "text": "옛 주막에선 술을 한두 잔씩 많이 마셨거든요.",
+  "heard": "옛 주막에선 술을 한두 잔씩 많이 마셨거든요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 105,
+  "who": "댕이",
+  "text": "한 잔마다 공짜 안주가 한 점씩.",
+  "heard": "한 잔마다 공짜 안주가 한 점씩",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 106,
+  "who": "댕이",
+  "text": "아, 그건 추천하지 않,",
+  "heard": "아, 그건 추천하지 않",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 107,
+  "who": "돌쇠",
+  "text": "아저씨! 술 안 시켰잖아요!",
+  "heard": "아저씨, 술 안 시켰잖아요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 108,
+  "who": "민재",
+  "text": "아, 깜짝이야! 너 어디서 나왔어?",
+  "heard": "아 깜짝이야. 너 어디서 나왔어?",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 109,
+  "who": "민재",
+  "text": "댕이 너, 알았으면 미리 말해 줬어야지!",
+  "heard": "탱이 또 알았으면 미리 말해줬어야지.",
+  "score": 0.87,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 110,
+  "who": "댕이",
+  "text": "저 아이가 '중노미'예요. 주막에서 심부름하는 아이죠.",
+  "heard": "저 아이가 중노미예요. 주막에서 심부름하는 아이죠.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 111,
+  "who": "댕이",
+  "text": "안주를 굽고, 공짜 안주만 집어 먹는 손님을 지켜보는 일도 해요.",
+  "heard": "안주를 굽고 공짜 안주만 집어먹는 손님을 지켜보는 일도 해요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 112,
+  "who": "민재",
+  "text": "조선에도 씨씨티비가 있었네.",
+  "heard": "조선에도 CCTV가 있었네.",
+  "score": 0.8,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 113,
+  "who": "민재",
+  "text": "알았어, 알았어. 손 안 대.",
+  "heard": "알았어, 알았어. 손 안 대.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 114,
+  "who": "주모",
+  "text": "우리 돌쇠 눈은 못 속여요.",
+  "heard": "우리 돌쇠는 못 속여요",
+  "score": 0.84,
+  "tries": 4,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 115,
+  "who": "댕이",
+  "text": "주모 자리 보세요. 부엌이 마루에 딱 붙어 있어서,",
+  "heard": "주모, 자, 이 보세요. 부엌이 마루에 딱 붙어 있어서",
+  "score": 0.95,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 116,
+  "who": "댕이",
+  "text": "앉은 채로 국을 떠요.",
+  "heard": "앉은 채로 국을 떠요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 117,
+  "who": "민재",
+  "text": "주방이랑 카운터가 붙어 있는 거네. 동선 완벽하다.",
+  "heard": "주방이랑 카운터가 붙어 있는 거네? 동선 완벽하다.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 118,
+  "who": "민재",
+  "text": "와, 사람 진짜 많다. 무슨 날이에요?",
+  "heard": "와, 사람 진짜 많다. 무슨 날이에요?",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 119,
+  "who": "윤진사",
+  "text": "과거가 다가와서 그렇소. 팔도 선비가 다 올라왔지.",
+  "heard": "과거가 다가와서 그렇소. 팔도 선비가 다 올라왔지.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 120,
+  "who": "댕이",
+  "text": "서울에서 과거가 열리면, 주막은 선비들로 꽉 찼어요.",
+  "heard": "서울에서 과거가 열리면 주막은 선비들로 꽉 찼어요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 121,
+  "who": "댕이",
+  "text": "그리고 잠자리는 대개 선착순. 먼저 온 사람이 따뜻한 아랫목이에요.",
+  "heard": "그리고 잠자리는 대개 선착순. 먼저 온 사람이 따뜻한 아랫목이에요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 122,
+  "who": "민재",
+  "text": "선착순이면 난 끝이네. 마지막 종 치고 들어왔으니까.",
+  "heard": "선착순이면 난 끝이네. 마지막 종 치고 들어왔으니까.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 123,
+  "who": "민재",
+  "text": "저 방은 왜 저렇게 넓어요?",
+  "heard": "어우, 저 방은 왜 저렇게 넓어요?",
+  "score": 0.91,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 124,
+  "who": "돌쇠",
+  "text": "높은 양반 방이요. 돈 많이 내도 아무나 못 들어가요.",
+  "heard": "높은 양반방이요? 돈 많이 내도 아무나 못 들어가요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 125,
+  "who": "댕이",
+  "text": "주막에선 돈만 낸다고 좋은 방에 못 가요.",
+  "heard": "주막에선 돈만 낸다고 좋은 방에 못 가요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 126,
+  "who": "댕이",
+  "text": "신분이 낮으면 구석방이나 마루방.",
+  "heard": "신분이 낮으면 구석방이나 마루방",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 127,
+  "who": "민재",
+  "text": "돈으로도 안 되는 브이아이피석이라니. 이건 2026년보다 빡세네.",
+  "heard": "돈으로도 안 되는 VIP석이라니 하, 이건 2026년보다 빡세네.",
+  "score": 0.86,
+  "tries": 2,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 128,
+  "who": "윤진사",
+  "text": "이리 오시오, 괴이한 사람. 아랫목은 아니어도 바닥보단 낫소.",
+  "heard": "이리 오시오, 괴이한 사람. 아랫목은 아니어도 바닥보단 낫소.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 129,
+  "who": "민재",
+  "text": "진사님, 아까 왜 저를 구해 주셨어요?",
+  "heard": "진사님, 아까 왜 저를 구해 주셨어요?",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 130,
+  "who": "윤진사",
+  "text": "종소리 속에서 넋 나간 얼굴을 보니,",
+  "heard": "종소리 속에서 넋 나간 얼굴을 보니",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 131,
+  "who": "윤진사",
+  "text": "처음 한양에 온 내 모습 같았소.",
+  "heard": "처음 한양에 온 내 모습 같았어",
+  "score": 0.92,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 132,
+  "who": "윤진사",
+  "text": "그런데 그대, 아까부터 허공에 대고 누구랑 얘기하오?",
+  "heard": "그런데 그대 아까부터 허공에 대고 누구랑 얘기하오?",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 133,
+  "who": "댕이",
+  "text": "안녕하세요~ 안 보이시죠~",
+  "heard": "안녕하세요. 잘 보이시죠?",
+  "score": 0.9,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 134,
+  "who": "민재",
+  "text": "아, 아니에요! 그냥, 버릇이에요.",
+  "heard": "아니에요. 그냥 버릇이에요.",
+  "score": 0.96,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 135,
+  "who": "윤진사",
+  "text": "말투도, 옷도, 버릇도 괴이하구려. 어디서 왔소?",
+  "heard": "말투도 옷도 버릇도 괴이하구려. 어디서 왔어?",
+  "score": 0.94,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 136,
+  "who": "민재",
+  "text": "230년 뒤에서요.",
+  "heard": "이백삼십 년 뒤에서요.",
+  "score": 0.71,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 137,
+  "who": "윤진사",
+  "text": "허허, 농이 깊구려.",
+  "heard": "하하 농이 깊구려.",
+  "score": 0.71,
+  "tries": 4,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 138,
+  "who": "민재",
+  "text": "진사님은 과거 붙으면 뭐 하고 싶으세요?",
+  "heard": "진사님은 과거 붙으면 뭐 하고 싶으세요?",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 139,
+  "who": "윤진사",
+  "text": "고향 고을의 억울한 백성을 돕고 싶소. 그대는?",
+  "heard": "고향 고을의 억울한 백성을 돕고 싶소. 그대는",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 140,
+  "who": "민재",
+  "text": "저는, 집에 가고 싶어요. 배달 하나 남았거든요.",
+  "heard": "저는 집에 가고 싶어요. 배달 하나 남았거든요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 141,
+  "who": "민재",
+  "text": "댕이야. 나 돌아갈 수 있어?",
+  "heard": "탱이야, 나 돌아갈 수 있어?",
+  "score": 0.9,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 142,
+  "who": "댕이",
+  "text": "그건 메인 퀘스트를 다 깨면 알려 드릴게요.",
+  "heard": "그건 메인 퀘스트를 다 깨면 알려 드릴게요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 143,
+  "who": "민재",
+  "text": "메인 퀘스트가 뭔데?",
+  "heard": "메인 퀘스트가 뭔데?",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 144,
+  "who": "댕이",
+  "text": "비밀이에요. 대신 내일 퀘스트는 미리 알려 드릴 수 있어요.",
+  "heard": "비밀이에요. 대신 내일 퀘스트는 미리 알려드릴 수 있어요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 145,
+  "who": "민재",
+  "text": "내일? 통금은 새벽 네 시에 풀린다면서. 이제 끝난 거 아니야?",
+  "heard": "네... 네? 통금은 새벽 4시에 풀린다면서. 이제 끝난 거 아니야?",
+  "score": 0.89,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 146,
+  "who": "댕이",
+  "text": "다음 퀘스트 예고. 민재 님, 호패 있으세요?",
+  "heard": "다음 퀘스트 예고. 민재 님, 호프에 있으세요?",
+  "score": 0.91,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 147,
+  "who": "민재",
+  "text": "호패?",
+  "heard": "뷔페?",
+  "score": 0.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 148,
+  "who": "댕이",
+  "text": "조선에선 열여섯 살 넘은 남자라면, 다 호패를 차고 다녀야 해요.",
+  "heard": "조선에선 16살 넘은 남자라면 다 호패를 차고 다녀야 해요.",
+  "score": 0.94,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 149,
+  "who": "댕이",
+  "text": "오늘날로 치면 신분증이죠.",
+  "heard": "오늘날로 치면 신분증이죠.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 150,
+  "who": "민재",
+  "text": "신분증 없으면, 또 잡혀가?",
+  "heard": "어, 신분증 없으면 또 잡혀가?",
+  "score": 0.95,
+  "tries": 2,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 151,
+  "who": "댕이",
+  "text": "날이 밝으면 알게 될 거예요. 헤헤.",
+  "heard": "날이 밝으면 알게 될 거예요.",
+  "score": 0.92,
+  "tries": 2,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 152,
+  "who": "댕이",
+  "text": "새벽 네 시. 서른세 번. 파루예요. 문이 열려요.",
+  "heard": "새벽 네 시 서른세 번 8호예요. 문이 열려요.",
+  "score": 0.91,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 153,
+  "who": "민재",
+  "text": "여기 원래 출근길 지옥인데, 230년 전에도 똑같네.",
+  "heard": "여기 원래 출근길 지옥인데 230년 전에도 똑같네.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 154,
+  "who": "댕이",
+  "text": "띠링! 1일 차 생존 성공. 오늘 모은 도감을 정리할게요.",
+  "heard": "띠링 1일 차 생존 성공 오늘 모은 도감을 정리할게요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 155,
+  "who": "댕이",
+  "text": "여러분이 1795년 한양에 떨어진다면, 첫 번째로 뭘 하시겠어요?",
+  "heard": "여러분이 1795년 한양에 떨어진다면 첫 번째로 뭘 하시겠어요?",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 156,
+  "who": "민재",
+  "text": "저는 일단, 핫팩 사재기요.",
+  "heard": "저는 일단 핫팩 사재기요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 157,
+  "who": "댕이",
+  "text": "댓글로 공략 남겨 주세요. 다음 플레이어에게 도움이 될 거예요!",
+  "heard": "댓글로 공략 남겨 주세요. 다음 플레이어에게 도움이 될 거예요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 34,
+  "who": "민재",
+  "text": "어? 진짜네?",
+  "heard": "어! 진짜네?",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 35,
+  "who": "댕이",
+  "text": "한양은 성곽으로 둘러싸인 도시예요. 문은 동서남북에 하나씩 큰 문.",
+  "heard": "한양은 성곽으로 둘러싸인 도시예요. 문은 동서남북에 하나씩 큰 문",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 36,
+  "who": "댕이",
+  "text": "동쪽 흥인지문, 서쪽 돈의문, 남쪽 숭례문, 북쪽 숙정문.",
+  "heard": "동쪽 흥인지문, 서쪽 돈의문, 남쪽 숭례문, 북쪽 숙정문.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 37,
+  "who": "댕이",
+  "text": "인정 종이 다 울리면 이 문들이 전부 닫혀요.",
+  "heard": "인정종이 다 울리면 이 문들이 전부 닫혀요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 38,
+  "who": "댕이",
+  "text": "오늘은 성 밖으로 못 나가요.",
+  "heard": "오늘은 성 밖으로 못 나가요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 39,
+  "who": "민재",
+  "text": "여기 원래 버스 타면 15분 거리인데!",
+  "heard": "여기 원래 버스 타면 15분 거리인데",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 40,
+  "who": "민재",
+  "text": "근데 걸리면 뭐, 벌금 정도겠지?",
+  "heard": "근데 걸리면 뭐 벌금 정도겠지",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 41,
+  "who": "댕이",
+  "text": "생존 팁 나갑니다.",
+  "heard": "생존 팁 나갑니다.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 42,
+  "who": "댕이",
+  "text": "통금을 어기다 잡히면 경수소라는 곳에 갇혀요.",
+  "heard": "통금을 어기다 잡히면 경수소라는 곳에 갇혀요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 43,
+  "who": "댕이",
+  "text": "그리고 다음 날 곤장을 맞아요.",
+  "heard": "그리고 다음 날 곤장을 맞아요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 44,
+  "who": "댕이",
+  "text": "어긴 시각에 따라 열 대에서 서른 대까지.",
+  "heard": "어긴 시각에 따라 열 대에서 서른 대까지",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 45,
+  "who": "민재",
+  "text": "서른 대?",
+  "heard": "서른대?",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 46,
+  "who": "댕이",
+  "text": "체력 바 보이세요? 서른 대면 그거 다 닳아요.",
+  "heard": "체력 바 보이세요? 서른 되면 그거 다 닳아요.",
+  "score": 0.94,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 47,
+  "who": "민재",
+  "text": "아니 잠깐, 나 지금 몇 번째 종인지도 몰라!",
+  "heard": "아니 잠깐 나 지금 몇 번째 중인지도 몰라",
+  "score": 0.94,
+  "tries": 1,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 48,
+  "who": "민재",
+  "text": "호텔! 모텔! 게스트하우스! 아무거나!",
+  "heard": "호텔 모텔 게스트하우스 아무거나",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 49,
+  "who": "민재",
+  "text": "아니 간판이 하나도 없잖아!",
+  "heard": "아니 간판이 하나도 없잖아",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 50,
+  "who": "댕이",
+  "text": "힌트 드릴까요? 1회 무료예요.",
+  "heard": "힌트 드릴까요? 1회 무료예요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 51,
+  "who": "민재",
+  "text": "줘! 빨리!",
+  "heard": "줘, 빨리!",
+  "score": 1.0,
+  "tries": 3,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 52,
+  "who": "댕이",
+  "text": "'酒' 자를 찾으세요. 아니면 등을 단 집이요.",
+  "heard": "술자를 찾으세요? 아니면 등을 단 집이요.",
+  "score": 0.97,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 53,
+  "who": "돌쇠",
+  "text": "아저씨, 아까 그 이상한 옷 입은 아저씨죠?",
+  "heard": "아저씨, 아까 그 이상한 옷 입은 아저씨도",
+  "score": 0.94,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 54,
+  "who": "돌쇠",
+  "text": "근데 아까부터 누구랑 얘기해요? 아무도 없는데.",
+  "heard": "근데 아까부터 누구랑 얘기해요? 아무도 없는데.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 55,
+  "who": "민재",
+  "text": "어? 아, 혼잣말! 꼬마야, 여기 잘 데 없냐?",
+  "heard": "어, 아, 혼잣말. 꼬마야, 여기 잘 데 없냐?",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 56,
+  "who": "돌쇠",
+  "text": "주막 가요. 우리 주막! 저기 등 달린 집이요.",
+  "heard": "주막 가요, 우리 주막? 저기 등 달린 집이요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 57,
+  "who": "댕이",
+  "text": "정답! 조선의 여행자들은 '주막'에서 묵었어요.",
+  "heard": "정답! 조선의 여행자들은 주막에서 묵었어요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 58,
+  "who": "댕이",
+  "text": "술이랑 밥을 팔고, 잠자리도 내주는 집.",
+  "heard": "술이랑 밥을 팔고 잠자리도 내주는 집",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 59,
+  "who": "댕이",
+  "text": "술집, 식당, 여관을 합친 곳이죠.",
+  "heard": "술집 식당 여관을 합친 곳이죠",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 60,
+  "who": "댕이",
+  "text": "간판은 없지만 이름은 있어요. 손님들이 붙여 준 별명이요.",
+  "heard": "간판은 없지만 이름은 있어요. 손님들이 붙여 준 별명이요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 61,
+  "who": "댕이",
+  "text": "오동나무가 있으면 오동나무집, 우물이 있으면 우물집.",
+  "heard": "오동나무가 있으면 오동나무집? 우물이 있으면 우물집.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 62,
+  "who": "민재",
+  "text": "그럼 여긴, 등불집?",
+  "heard": "그럼 여긴 등불제?",
+  "score": 0.86,
+  "tries": 2,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 63,
+  "who": "돌쇠",
+  "text": "아니요, 혹부리집이요. 주모님 목덜미에 혹이 있어서.",
+  "heard": "아니요, 혹부리 집이요. 주원 님 목덜미에 혹이 있어서",
+  "score": 0.95,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 64,
+  "who": "민재",
+  "text": "그건 본인 앞에서 부르면 안 되는 이름 같은데.",
+  "heard": "그건 본인 앞에서 부르면 안 되는 이름 같은데",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 65,
+  "who": "댕이",
+  "text": "띠링! 경고, 경고! 마지막 종이에요!",
+  "heard": "띠링. 경고, 경고. 마지막 종이에요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 66,
+  "who": "순라군",
+  "text": "거기 서라!",
+  "heard": "거기 서라!",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 67,
+  "who": "민재",
+  "text": "아, 아니요! 저 지금 주막 들어가는 중이에요! 딱 열 걸음!",
+  "heard": "아, 아니요. 저 지금 주막 들어가는 중이에요. 딱 열 걸어",
+  "score": 0.95,
+  "tries": 1,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 68,
+  "who": "순라군",
+  "text": "인정이 다 울렸는데 길에 있는 자는 누구냐! 차림새도 괴이하구나.",
+  "heard": "인정이 다 울렸는데 길에 있는 자는 누구냐? 차림새도 괴이하구나.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 69,
+  "who": "순라군",
+  "text": "수상하다. 경수소로 가자.",
+  "heard": "수상하다. 경무소로 가자.",
+  "score": 0.9,
+  "tries": 3,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 70,
+  "who": "민재",
+  "text": "댕이야, 스킵! 이 장면 스킵!",
+  "heard": "댕이야 스킵 이 장면 스킵",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 71,
+  "who": "댕이",
+  "text": "스킵 기능은 없어요. 대신, 저 문을 보세요.",
+  "heard": "스킵 기능은 없어요. 대신 저 문을 보세요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 72,
+  "who": "윤진사",
+  "text": "잠깐! 그 사람은 내 일행이오.",
+  "heard": "잠깐, 그 사람은 내 일행이오.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 73,
+  "who": "순라군",
+  "text": "진사 어른의 일행이십니까?",
+  "heard": "진사 어른의 일행이십니까",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 74,
+  "who": "윤진사",
+  "text": "과거 보러 같이 올라온 하인이오. 촌사람이라 길을 잃었소.",
+  "heard": "과거 보러 같이 올라온 하인이오, 촌사람이라 길을 잃었소.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 75,
+  "who": "순라군",
+  "text": "다음엔 인정 전에 들어가시오.",
+  "heard": "다음엔 인정전에 들어가시오",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 76,
+  "who": "댕이",
+  "text": "띠링! 퀘스트 완료. 보상: 하룻밤 잠자리, 아마도요.",
+  "heard": "띠링! 퀘스트 완료. 보상, 하룻밤 잠자리? 아마도요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 77,
+  "who": "민재",
+  "text": "살았다, 근데 하인이라뇨?",
+  "heard": "살았다. 근데 하인이라뇨.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 78,
+  "who": "윤진사",
+  "text": "살려 줬으면 고맙다고 해야지, 괴이한 사람.",
+  "heard": "살려줬으면 고맙다고 해야지 괴이한 사람",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 79,
+  "who": "주모",
+  "text": "어서 와요. 밥이오, 술이오?",
+  "heard": "어서 와요. 밥이여, 술이여?",
+  "score": 0.8,
+  "tries": 3,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 80,
+  "who": "민재",
+  "text": "밥이요! 국밥 하나요! 계산은 카드로,",
+  "heard": "하, 밥이요. 국밥 하나요. 계산은 카드로",
+  "score": 0.97,
+  "tries": 1,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 81,
+  "who": "주모",
+  "text": "이게 뭐요? 얇은 나무패인가?",
+  "heard": "이게 뭐요? 얇은 나무 패인가?",
+  "score": 1.0,
+  "tries": 2,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 82,
+  "who": "민재",
+  "text": "아니 그럼, 현금! 오만 원짜리!",
+  "heard": "아니 그럼 현금 5만 원짜리",
+  "score": 0.95,
+  "tries": 1,
+  "model": "gemini-2.5-pro-preview-tts"
+ },
+ {
+  "i": 83,
+  "who": "주모",
+  "text": "그림은 곱네. 근데 이걸로 뭘 하라고?",
+  "heard": "그림은 곱네. 근데 이걸로 뭘 하라고?",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 84,
+  "who": "댕이",
+  "text": "아쉽지만 그 돈은 이 세계에서 못 써요.",
+  "heard": "아쉽지만 그 돈은 이 세계에서 못 써요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 85,
+  "who": "댕이",
+  "text": "지금 조선 돈은 '상평통보'라는 동전이에요. 흔히 엽전이라고 하죠.",
+  "heard": "지금 조선 돈은 상평통보라는 동전이에요. 흔히 엽전이라고 하죠.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 86,
+  "who": "댕이",
+  "text": "1678년 숙종 때부터,",
+  "heard": "1678년 숙종 때부터",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 87,
+  "who": "댕이",
+  "text": "조선에서 쓸 수 있는 돈은 이것 하나뿐이에요.",
+  "heard": "조선에서 쓸 수 있는 돈은 이것 하나뿐이에요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 88,
+  "who": "민재",
+  "text": "그럼 나 무일푼이야?",
+  "heard": "그럼 난 무일푼이야?",
+  "score": 0.88,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 89,
+  "who": "돌쇠",
+  "text": "아저씨, 그 반짝이는 건요?",
+  "heard": "아저씨, 그 반짝이는 뭐예요?",
+  "score": 0.86,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 90,
+  "who": "민재",
+  "text": "이거? 핫팩. 흔들면 따뜻해져.",
+  "heard": "이거? 핫팩. 흔들면 따뜻해져.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 91,
+  "who": "돌쇠",
+  "text": "주모님! 이거 불도 없는데 뜨거워요!",
+  "heard": "주모님, 이거 불도 없는데 뜨거워요!",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 92,
+  "who": "주모",
+  "text": "국밥 한 그릇에, 그거.",
+  "heard": "국밥 한 그릇에 그거",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ },
+ {
+  "i": 93,
+  "who": "민재",
+  "text": "콜!",
+  "heard": "콜",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 94,
+  "who": "댕이",
+  "text": "띠링! 첫 거래 성공. 업적 달성: 조선의 물물교환왕.",
+  "heard": "띠링! 첫 거래 성공. 업적 달성! 조선의 물물 교환왕.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 95,
+  "who": "댕이",
+  "text": "주막의 대표 메뉴, 장국밥이에요.",
+  "heard": "주막의 대표 메뉴 장국밥이에요.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 96,
+  "who": "댕이",
+  "text": "양지머리로만 국물을 내서 맛이 순하죠.",
+  "heard": "양지머리로만 국물을 내서 맛이 순하죠.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 97,
+  "who": "민재",
+  "text": "와. 이거 2026년에 팔아도 줄 서겠다.",
+  "heard": "와 이거 2026년에 팔아도 줄 서겠다",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 98,
+  "who": "민재",
+  "text": "근데 방값은 얼마예요?",
+  "heard": "근데 방값은 얼마예요?",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 99,
+  "who": "주모",
+  "text": "방값? 밥 먹었으면 그냥 자는 거지.",
+  "heard": "방값? 밥 먹었으면 그냥 자는 거지.",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-2.5-flash-preview-tts"
+ }
+]
