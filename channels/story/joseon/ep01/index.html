@@ -334,14 +334,14 @@ function base(t, l) {
   } else if (t < T_DAWN) {
     if (t < T_ROOM + 2.2) return { pos: [X0 + 1.0, 3.6, 9.5], look: [X0 + 1.4, 1.0, -0.8], fov: 40, cut: t < T_ROOM + 0.05 };                     // 주막 안 전체
     if (t > ROOM - 0.4 && t < ROOM + 4.4) return { pos: [X0 - 0.5, 3.4, 8.8], look: [X0 - 2.2, 0.8, -1.4], fov: 42, cut: t < ROOM };
-    if (t > LADLE - 0.5 && t < end(line('앉은 채로 국을'))) return { pos: [X0 + 1.4, 2.6, 4.2], look: [X0 + 5.2, 1.0, -1.8], fov: 38 };
+    if (t > LADLE - 0.5 && t < end(line('앉은 채로 국을'))) return { ...close('주모', 6.6, 0.6), fov: 38 };
     if (t > CORNER - 0.4 && t < end(line('VIP석'))) return { pos: [X0 + 0.6, 2.8, 7.6], look: [X0 - 4.0, 1.4, -0.4], fov: 40 };
     if (t > SHARE + 1.6 && t < DIM - 0.4 && l && (i % 3 !== 1 || l.who === '댕이')) return two('민재', '윤진사', 5.4);
     if (t > DIM - 0.4 && t < DAWN) return i % 3 === 0 ? { pos: [X0 - 0.2, 2.2, 3.6], look: [X0 - 0.6, 1.2, -0.8], fov: 38 } : close(l && C[l.who] && l.who !== '댕이' ? l.who : '민재', 4.8);
     if (t > DAWN - 0.3) return { pos: [X0 + 1.6, 4.6, 6.0], look: [X0 - 1.0, 1.6, -3.2], fov: 42 };                                            // 창이 밝아짐
   } else return t < MORNING + 0.6 ? { pos: [JX + 2.4, 2.0, JZ + 6.4], look: [JX + 0.4, 1.4, JZ + 1.0], fov: 38, cut: t < T_DAWN + 0.05 } : { pos: [JX - 1.2, 2.8, JZ + 11], look: [JX - 1.4, 1.4, JZ + 3.2], fov: 40 };
   if (!l) return { ...two('민재', '댕이', 6.0) };
-  if (l.who === '주모' && t >= T_ROOM && t < T_DAWN) return i % 2 ? { pos: [X0 + 7.2, 2.7, 2.6], look: [X0 + 4.2, 1.5, -1.4], fov: 36 } : { pos: [X0 + 3.4, 3.0, 4.6], look: [X0 + 3.6, 1.2, -1.0], fov: 40 };
+  if (l.who === '주모' && t >= T_ROOM && t < T_DAWN) return close('주모', i % 2 ? 5.0 : 6.2, i % 2 ? 0 : 0.45);
   if (l.who === '댕이' || l.who === '목소리') { if (i % 3 === 0) return two('민재', '댕이', 5.2); const h = headPos(C.댕이), m = C.민재.g.position, sx = Math.sign(h.x - m.x) || 1; const s = { pos: [h.x + sx * 1.6, h.y + 0.3, h.z + 3.6], look: [h.x - sx * 0.3, h.y - 0.25, h.z], fov: 36 }; return blocked(s.pos, s.look, ['댕이']) ? two('민재', '댕이', 5.2) : s; }
   if (C[l.who] && C[l.who].g.visible) { const prev = L[i - 1]; if (i % 4 === 2 && prev && C[prev.who] && prev.who !== l.who && C[prev.who].g.visible) return two(l.who, prev.who); return close(l.who, 5.6, i % 2 ? 0.25 : -0.25); }
   return two('민재', '댕이');
