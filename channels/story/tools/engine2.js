@@ -160,14 +160,14 @@
     }
   }
 
-  function init({ w = 1920, h = 1080, title = '', sub = '', end = [], bg = '#dff1ff', exposure = 1.0, titleAt = [0, 3], endAt = null, smallTitle = null, post = null, ss = 1 }) {
+  function init({ w = 1920, h = 1080, title = '', sub = '', end = [], bg = '#dff1ff', exposure = 1.0, titleAt = [0, 3], endAt = null, smallTitle = null, post = null, ss = 1, aa = true, softShadow = true, logDepth = true }) {
     // ss: 크게 그려서 줄이기(1.5면 1.5배로 그림) → 비스듬한 선이 계단처럼 깨지는 것 줄임
     // post(후처리, 0원): { bloom: 0~1 빛 번짐, vignette: 0~1 가장자리 어둡게, grade: 'saturate(1.1) contrast(1.05)' 같은 색 보정, grain: 0~1 필름 입자 }
     const W = w, H = h, U = Math.min(W, H) / 1080; // 글자 크기 단위
     const out = document.getElementById('c'); out.width = W; out.height = H; const og = out.getContext('2d');
     const gl = document.createElement('canvas'); gl.width = Math.round(W * ss); gl.height = Math.round(H * ss);
-    const renderer = new THREE.WebGLRenderer({ canvas: gl, antialias: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true });
-    renderer.setSize(gl.width, gl.height, false); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    const renderer = new THREE.WebGLRenderer({ canvas: gl, antialias: aa, preserveDrawingBuffer: true, logarithmicDepthBuffer: logDepth });   // ss 로 크게 그릴 땐 aa 를 꺼도 매끈함(속도↑)
+    renderer.setSize(gl.width, gl.height, false); renderer.shadowMap.enabled = true; renderer.shadowMap.type = softShadow ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMappingExposure = exposure;
     const scene = new THREE.Scene(); scene.background = new THREE.Color(bg);
     const cam = new THREE.PerspectiveCamera(30, W / H, 0.3, 200);

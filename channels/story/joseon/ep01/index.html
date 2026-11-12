@@ -26,7 +26,7 @@ const titleLine = L.find((l) => l.card === 'c2') || line('정조 19년');
 const S = Story.init({ w: 1920, h: 1080, bg: '#1a2142', title: '조선으로 회귀하면', sub: '1화 · 한양 첫날 밤, 통금 종이 울린다', smallTitle: '조선으로 회귀하면 1화',
   titleAt: [titleLine.start - 0.2, titleLine.start + 2.8],
   end: ['조선으로 회귀하면 1화 끝', '다음 화: 호패를 만들어라', '댓글로 공략을 남겨 주세요'],
-  post: Q.get('post') === '0' ? null : { bloom: 0.75, vignette: 0.45, grade: 'saturate(1.12) contrast(1.06)' }, ss: +(Q.get('ss') || 1.5) });
+  post: Q.get('post') === '0' ? null : { bloom: 0.75, vignette: 0.45, grade: 'saturate(1.12) contrast(1.06)' }, ss: +(Q.get('ss') || 1.5), aa: Q.get('aa') === '1', softShadow: Q.get('soft') === '1', logDepth: Q.get('logd') !== '0' });
 const { scene, renderer } = S, M = Story.mesh, sm = Story.smooth, POST = Q.get('post') !== '0';
 window.CAST_STYLE = { 민재: { name: '민재', color: '#ffb35c' }, 댕이: { name: '댕이', color: '#bfeaff' }, 목소리: { name: '???', color: '#bfeaff' }, 윤진사: { name: '윤 진사', color: '#e8e2d2' },
   주모: { name: '주모', color: '#f2c879' }, 순라군: { name: '순라군', color: '#9fb4e6' }, 돌쇠: { name: '돌쇠', color: '#d9c39a' } };
