@@ -71,7 +71,7 @@ const torches = []; for (const x of [11.5, 12.4]) { const f = M(new THREE.Sphere
 
 // ---------- 캐릭터 ----------
 const C = {
-  민재: Story.char({ type: 'human', pos: [-0.6, 0, 0.6], cloth: '#2e3447', vest: '#a6e04f', pants: '#2b2f3c', hair: '#1d1712', bag: '#4bbf73', arms: true, restArm: 0.12, faceSize: 0.66, blinkOff: 0.7 }),
+  민재: Story.char({ type: 'human', pos: [-0.6, 0, 0.6], cloth: '#26314d', vest: '#ff9d2e', stripes: true, pants: '#2b2f3c', hair: '#2a1d16', bangs: true, ears: true, skin: '#f6d2b4', bag: '#2f8f5a', arms: true, restArm: 0.12, faceSize: 0.6, blinkOff: 0.7 }),
   댕이: Story.char({ type: 'bell', pos: [0.9, 2.3, 0.9], color: '#ffffff', glow: '#cdeeff', faceSize: 0.5, blinkOff: 1.9 }),
 };
 C.민재.g.rotation.y = 0.15; Object.values(C).forEach((c) => scene.add(c.g));

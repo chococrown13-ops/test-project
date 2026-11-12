@@ -21,9 +21,10 @@
   // Rhubarb 모양: A 다문 입(ㅁㅂㅍ) · B 살짝 · C 중간(ㅔ) · D 크게(ㅏ) · E 둥글게(ㅗ) · F 오므림(ㅜ) · G 윗니(ㅍ/f) · H 혀(ㄹ) · X 쉼
   const SHAPE = { A: [18, 2, 0], B: [20, 7, 0], C: [24, 14, 0], D: [26, 24, 0], E: [17, 17, 1], F: [11, 10, 1], G: [22, 8, 2], H: [22, 14, 3], X: [0, 0, 0] };
   function face(size = 1) {
-    const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+    const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d'); g.scale(2, 2); // 2배 해상도(좌표는 256 기준)
     const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding;
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    tex.anisotropy = 4;
     let last = '';
     function draw({ shape = 'X', blink = false, mood = 'normal', look = 0 } = {}) {
       const key = `${shape}|${blink}|${mood}|${look.toFixed(2)}`; if (key === last) return; last = key;
@@ -97,7 +98,11 @@
       for (const sx of [-1, 1]) mesh(new THREE.CapsuleGeometry(0.14, 0.42, 4, 10), opt.pants || '#2f3446', [sx * 0.19, 0.36, 0], g);  // 다리
       for (const sx of [-1, 1]) mesh(new THREE.BoxGeometry(0.24, 0.12, 0.36), opt.shoes || '#f2f2f2', [sx * 0.19, 0.06, 0.06], g);
       mesh(new THREE.SphereGeometry(0.5, 32, 24), skin, [0, 0, 0], head);
-      if (opt.hair) { const h = mesh(new THREE.SphereGeometry(0.53, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), opt.hair, [0, 0.05, -0.03], head); h.rotation.x = -0.28; }
+      if (opt.hair) { const h = mesh(new THREE.SphereGeometry(0.53, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), opt.hair, [0, 0.05, -0.03], head); h.rotation.x = opt.bangs ? -0.55 : -0.28; }
+      if (opt.hair && opt.bangs) for (const [x, y, z, r, rz] of [[-0.24, 0.34, 0.33, 0.2, 0.5], [0.0, 0.38, 0.36, 0.21, 0.0], [0.23, 0.35, 0.33, 0.19, -0.6], [0.36, 0.22, 0.2, 0.15, -0.9]]) {
+        const b = mesh(new THREE.SphereGeometry(r, 20, 14), opt.hair, [x, y, z], head, { line: 1.04 }); b.scale.set(1.25, 0.62, 0.7); b.rotation.z = rz; }
+      if (opt.ears) for (const sx of [-1, 1]) { const e = mesh(new THREE.SphereGeometry(0.11, 14, 10), opt.skin || '#f3cfb0', [sx * 0.49, -0.02, 0], head); e.scale.set(0.6, 1, 0.8); }
+      if (opt.stripes) for (const y of [0.92, 1.2]) mesh(new THREE.CylinderGeometry(0.455, 0.455, 0.06, 28), '#f4f7fb', [0, y, 0.02], g, { line: 0 });  // 조끼 반사띠
       if (opt.gat) { mesh(new THREE.CylinderGeometry(0.75, 0.75, 0.03, 32), '#1b1b1b', [0, 0.38, 0], head); mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.38, 24), '#1b1b1b', [0, 0.56, 0], head); }
       if (opt.bag) mesh(new THREE.BoxGeometry(0.72, 0.62, 0.42), opt.bag, [0, 1.15, -0.5], g);                    // 배달 가방
     } else if (type === 'bell') {
@@ -118,6 +123,11 @@
       if (opt.label) mesh(new THREE.CylinderGeometry(0.4, 0.46, 0.5, 28), opt.label, [0, -0.15, 0], head, { line: 0 });
     }
     const f = face(opt.faceSize || 0.72); f.plane.position.set(0, B.faceY, B.faceZ); head.add(f.plane);
+    if (type === 'human') {  // 얼굴을 머리 둥근 면에 입힘 (구의 앞쪽 조각)
+      const R = 0.506, ang = (opt.faceSize || 0.72) / 0.5, dn = 0.1;
+      f.plane.geometry.dispose(); f.plane.geometry = new THREE.SphereGeometry(R, 48, 32, Math.PI / 2 - ang / 2, ang, Math.PI / 2 - ang / 2 + dn, ang);
+      f.plane.position.set(0, 0, 0);
+    }
     const arms = [];
     if (opt.arms) for (const s of [-1, 1]) {
       const sh = new THREE.Group();
