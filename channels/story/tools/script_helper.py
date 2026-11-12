@@ -84,7 +84,7 @@ def parse(md):
         elif s.startswith(">"):
             t, tg = tags(s.lstrip("> ").strip())
             title, _, rows = t.partition(":")
-            items.append({"kind": "card", "title": title.strip(), "rows": [r.strip() for r in rows.split("·") if r.strip()] if rows else [], **tg})
+            items.append({"kind": "card", "title": title.strip(), "rows": [r.strip() for r in re.split(r"\s+·\s+", rows) if r.strip()] if rows else [], **tg})
         elif s.startswith("**"):
             m = re.match(r"\*\*(.+?)\*\*\s*[:：]\s*(.*)", s)
             if not m:

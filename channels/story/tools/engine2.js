@@ -274,7 +274,7 @@
   }
   const brightGrad = (() => { const d = new Uint8Array([165, 220, 255]); const tx = new THREE.DataTexture(d, 3, 1, THREE.RedFormat); tx.minFilter = tx.magFilter = THREE.NearestFilter; tx.needsUpdate = true; return tx; })();
   // 모델 얼굴의 원래 눈·입(어두운 색 조각)을 피부색으로 덮기 → 우리 얼굴 그림(입 모양 맞추기)을 올릴 자리
-  function clearFace(geo, img) {
+  function clearFace(geo, img, faceCell) {   // faceCell: 피부색 칸 '열,줄' (주면 그 색으로 확실히)
     const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d'); x.drawImage(img, 0, 0);
     const px = x.getImageData(0, 0, c.width, c.height).data, at = (u, v) => (Math.min(c.height - 1, Math.floor(v * c.height)) * c.width + Math.min(c.width - 1, Math.floor(u * c.width))) * 4, lum = (u, v) => { const i = at(u, v); return 0.3 * px[i] + 0.59 * px[i + 1] + 0.11 * px[i + 2]; };
     const P = geo.attributes.position, N = geo.attributes.normal, UV = geo.attributes.uv, cnt = {};
@@ -282,11 +282,33 @@
     let xmax = 0; for (let i = 0; i < P.count; i++) if (N.getZ(i) > 0.7) xmax = Math.max(xmax, Math.abs(P.getX(i)));
     const isFace = (i) => N.getZ(i) > 0.5 && Math.abs(P.getX(i)) < xmax * 0.72 && P.getY(i) > ymin + (ymax - ymin) * 0.05 && P.getY(i) < ymin + (ymax - ymin) * 0.58;   // 가운데 얼굴만 (옆머리는 그대로)   // 눈·입만 (위쪽 앞머리는 그대로)
     for (let i = 0; i < P.count; i++) if (isFace(i) && lum(UV.getX(i), UV.getY(i)) > 90) { const k = UV.getX(i).toFixed(3) + ',' + UV.getY(i).toFixed(3); cnt[k] = (cnt[k] || 0) + 1; }
-    const best = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]; if (!best) return;
-    const [su, sv] = best[0].split(',').map(Number);
+    const best = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]; if (!best && !faceCell) return;
+    let [su, sv] = best ? best[0].split(',').map(Number) : [0, 0];
+    if (faceCell) { const [fc, fr] = faceCell.split(',').map(Number); su = (fc + 0.5) / 16; sv = (fr + 0.5) / 4; }
     const s0 = at(su, sv), dist = (u, v) => { const i = at(u, v); return Math.abs(px[i] - px[s0]) + Math.abs(px[i + 1] - px[s0 + 1]) + Math.abs(px[i + 2] - px[s0 + 2]); };
-    for (let i = 0; i < P.count; i++) if (isFace(i) && (lum(UV.getX(i), UV.getY(i)) <= 90 || dist(UV.getX(i), UV.getY(i)) > 120)) UV.setXY(i, su, sv);   // 눈동자·흰자·하이라이트까지 피부색으로
+    for (let i = 0; i < P.count; i++) if (isFace(i) && (lum(UV.getX(i), UV.getY(i)) <= 90 || dist(UV.getX(i), UV.getY(i)) > 60)) UV.setXY(i, su, sv);   // 눈동자·흰자·하이라이트까지 피부색으로
     UV.needsUpdate = true;
+  }
+  // 옷·머리 색 바꾸기: Kenney 색 그림은 32×128 칸(색 띠)으로 나뉨 → '열,줄' 칸을 새 색으로 (밝기 차이는 그대로 살림)
+  function recolorTex(tex, cells) {
+    const img = tex.image, c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    const d = x.getImageData(0, 0, c.width, c.height), px = d.data, cw = c.width / 16, ch = c.height / 4;
+    for (const [cell, hex] of Object.entries(cells)) {
+      const [col, row] = cell.split(',').map(Number), to = new THREE.Color(hex); const i0 = ((row * ch + ch / 2) * c.width + (col * cw + cw / 2)) * 4;
+      const base = Math.max(1, 0.3 * px[i0] + 0.59 * px[i0 + 1] + 0.11 * px[i0 + 2]);
+      for (let y = row * ch; y < (row + 1) * ch; y++) for (let xx = col * cw; xx < (col + 1) * cw; xx++) { const i = (y * c.width + xx) * 4, k = (0.3 * px[i] + 0.59 * px[i + 1] + 0.11 * px[i + 2]) / base;
+        px[i] = Math.min(255, to.r * 255 * k); px[i + 1] = Math.min(255, to.g * 255 * k); px[i + 2] = Math.min(255, to.b * 255 * k); }
+    }
+    x.putImageData(d, 0, 0); const t = new THREE.CanvasTexture(c); t.flipY = tex.flipY; t.encoding = THREE.sRGBEncoding; t.magFilter = tex.magFilter; t.minFilter = tex.minFilter; t.wrapS = tex.wrapS; t.wrapT = tex.wrapT; return t;
+  }
+  // 머리 뼈에 소품 달기(갓·전립 등): add(group, 머리뼈)
+  function hats() {
+    const gat = () => { const g = new THREE.Group(); const m = new THREE.MeshToonMaterial({ color: '#1c1c22', gradientMap: grad, transparent: true, opacity: 0.88 });
+      mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.012, 40), null, [0, 0, 0], g, { mat: m, line: 1.02 }); mesh(new THREE.CylinderGeometry(0.115, 0.13, 0.17, 28), null, [0, 0.09, 0], g, { mat: m, line: 1.04 });
+      for (const s of [-1, 1]) { const st = mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.34, 6), '#2a2a30', [s * 0.2, -0.17, 0.05], g, { line: 0 }); st.rotation.z = s * 0.15; } return g; };   // 갓 + 갓끈
+    const jeollip = () => { const g = new THREE.Group(); mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.02, 32), '#1c1c22', [0, 0, 0], g, { line: 1.03 }); const dome = mesh(new THREE.SphereGeometry(0.16, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), '#1c1c22', [0, 0.01, 0], g, { line: 1.04 });
+      mesh(new THREE.SphereGeometry(0.05, 12, 8), '#c0392b', [0, 0.18, 0], g, { line: 1.1 }); for (let k = 0; k < 6; k++) { const f = mesh(new THREE.ConeGeometry(0.02, 0.12, 6), '#d6453a', [Math.cos(k) * 0.03, 0.22, Math.sin(k) * 0.03], g, { line: 0 }); f.rotation.z = Math.cos(k) * 0.5; } return g; };   // 전립 + 붉은 술
+    return { gat, jeollip };
   }
   function inkFor(mesh, w) {   // 뼈대로 움직이는 몸에도 맞는 외곽선 (법선 방향으로 부풀린 뒷면)
     // 각진 모델은 모서리마다 법선이 갈라져 외곽선이 끊김 → 같은 자리 꼭짓점의 법선을 평균 낸 '외곽선용 법선'으로 부풀림
@@ -307,7 +329,8 @@
     const gmap = opt.bright ? brightGrad : grad;
     for (const m of meshes) {
       const src = m.material; m.castShadow = m.receiveShadow = true;
-      if (opt.clearFace && m.name.includes(opt.clearFace) && src.map) clearFace(m.geometry, src.map.image);
+      if (opt.clearFace && m.name.includes(opt.clearFace) && src.map) clearFace(m.geometry, src.map.image, opt.faceCell);
+      if (opt.recolor && src.map) for (const [part, cells] of Object.entries(opt.recolor)) if (m.name.includes(part)) src.map = recolorTex(src.map, cells);
       if (opt.toon !== false) m.material = new THREE.MeshToonMaterial({ color: '#ffffff', map: src.map || null, gradientMap: gmap, side: opt.rigged ? THREE.DoubleSide : THREE.FrontSide });   // 캐릭터는 양면(머리카락과 귀 사이 틈으로 뒤가 비쳐 보이던 것 막기)
       if (m.material.map) m.material.map.encoding = THREE.sRGBEncoding;
       if (opt.line) m.parent.add(inkFor(m, opt.line));
@@ -336,5 +359,5 @@
     if (cur >= 0) { const k = Math.min(1, (t - plan[cur][0]) / fade); put(cur, k); put(cur - 1, 1 - k); }
     R.mixer.update(0);
   }
-  window.Story = { init, char, mesh, toon, outline, face, smooth, clamp01, glow, loadGLB, model, rigChar, anim };
+  window.Story = { init, char, mesh, toon, outline, face, smooth, clamp01, glow, loadGLB, model, rigChar, anim, hats: hats(), bone: (ch, name) => { let b = null; ch.rig.root.traverse((o) => { if (o.name === name) b = o; }); return b; } };
 })();
