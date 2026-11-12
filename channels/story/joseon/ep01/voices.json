@@ -1,35 +1,62 @@
 {
  "engine": "gemini",
- "model": "gemini-3.8-flash-tts",
  "scene": "Korean web animation 「조선으로 회귀하면」 episode 1. A delivery rider from 2026 is stuck in 1795 Hanyang (Joseon-era Seoul) on the night of the curfew bell.",
  "cast": {
   "민재": {
    "voice": "Puck",
-   "profile": "Minjae: 27-year-old Korean male delivery rider. Playful, flustered, talks casually like to a friend, Seoul accent."
+   "profile": "Minjae: 27-year-old Korean male delivery rider. Playful, flustered, talks casually like to a friend, Seoul accent.",
+   "model": "gemini-2.5-pro-preview-tts",
+   "fallback": [
+    "gemini-3.8-flash-lite-tts"
+   ]
   },
   "댕이": {
    "voice": "Leda",
-   "profile": "Daengi: a small guide spirit born from a bell's chime, acting as a game guide. Refined, poised and witty: a smooth, elegant, confident voice like a sophisticated premium AI concierge. Playful only in subtle, understated ways; never childish or squeaky."
+   "profile": "Daengi: a small guide spirit born from a bell's chime, acting as a game guide. Refined, poised and witty: a smooth, elegant, confident voice like a sophisticated premium AI concierge. Playful only in subtle, understated ways; never childish or squeaky.",
+   "model": "gemini-3.1-flash-tts-preview",
+   "fallback": [
+    "gemini-3.8-flash-lite-tts"
+   ]
   },
   "목소리": {
    "voice": "Leda",
-   "profile": "A hidden system voice (Daengi before appearing): crisp, elegant game announcement, slightly mysterious and composed."
+   "profile": "A hidden system voice (Daengi before appearing): crisp, elegant game announcement, slightly mysterious and composed.",
+   "model": "gemini-3.1-flash-tts-preview",
+   "fallback": [
+    "gemini-3.8-flash-lite-tts"
+   ]
   },
   "돌쇠": {
    "voice": "Zephyr",
-   "profile": "Dolsoe: a 10-year-old boy errand runner at an inn. Smart, sassy, talks fast."
+   "profile": "Dolsoe: a 10-year-old boy errand runner at an inn. Smart, sassy, talks fast.",
+   "model": "gemini-2.5-flash-preview-tts",
+   "fallback": [
+    "gemini-3.8-flash-lite-tts"
+   ]
   },
   "순라군": {
    "voice": "Alnilam",
-   "profile": "A Joseon-era night patrol soldier. Deep, intimidating, old-fashioned historical-drama speech."
+   "profile": "A Joseon-era night patrol soldier. Deep, intimidating, old-fashioned historical-drama speech.",
+   "model": "gemini-2.5-flash-preview-tts",
+   "fallback": [
+    "gemini-3.8-flash-lite-tts"
+   ]
   },
   "윤진사": {
    "voice": "Iapetus",
-   "profile": "Scholar Yoon: a calm, dignified scholar in his 30s from the Joseon era. Historical-drama speech, quietly kind."
+   "profile": "Scholar Yoon: a calm, dignified scholar in his 30s from the Joseon era. Historical-drama speech, quietly kind.",
+   "model": "gemini-2.5-flash-preview-tts",
+   "fallback": [
+    "gemini-3.8-flash-lite-tts"
+   ]
   },
   "주모": {
    "voice": "Gacrux",
-   "profile": "Jumo: the innkeeper woman in her 40s. Hearty, quick-witted, brisk merchant tone."
+   "profile": "Jumo: the innkeeper woman in her 40s. Hearty, quick-witted, brisk merchant tone.",
+   "model": "gemini-2.5-flash-preview-tts",
+   "fallback": [
+    "gemini-3.8-flash-lite-tts"
+   ]
   }
  },
  "notes": {

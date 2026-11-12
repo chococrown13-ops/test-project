@@ -19,6 +19,10 @@ BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 ASR_MODEL = "gemini-3.8-flash"
 
 
+class QuotaError(Exception):
+    """하루 요청 한도를 다 씀(모델마다 따로 셈)."""
+
+
 def _post(model, body, timeout=180):
     req = urllib.request.Request(f"{BASE}/{model}:generateContent", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
     for i in range(6):
@@ -26,6 +30,10 @@ def _post(model, body, timeout=180):
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return json.load(r)
         except urllib.error.HTTPError as e:
+            if e.code == 429:
+                msg = e.read().decode("utf8", "replace")
+                if "per_day" in msg or "PerDay" in msg:
+                    raise QuotaError(model)
             if e.code in (429, 500, 502, 503, 504) and i < 5:
                 time.sleep(10 * (i + 1)); continue
             raise SystemExit(f"Gemini 오류 {e.code}")  # 키가 섞이지 않게 코드만
@@ -56,7 +64,10 @@ def synth_once(text, voice, direction, model):
 def transcribe(wav_bytes):
     body = {"contents": [{"parts": [{"inlineData": {"mimeType": "audio/wav", "data": base64.b64encode(wav_bytes).decode()}},
                                     {"text": "이 오디오에서 들리는 말을 한국어로 그대로 받아 적어 주세요. 받아쓴 글만 출력."}]}]}
-    return _post(ASR_MODEL, body)["candidates"][0]["content"]["parts"][0]["text"].strip()
+    try:
+        return _post(ASR_MODEL, body)["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except QuotaError:
+        raise SystemExit(f"받아쓰기 모델 하루 한도 끝: {ASR_MODEL}")
 
 
 def trim(wav_bytes, thr=0.02, margin=0.06):
@@ -75,20 +86,32 @@ def _hangul(x):
     return re.sub(r"[^가-힣]", "", x)
 
 
-def synth(text, voice, direction, model="gemini-3.8-flash-tts", tries=5, log=None):
-    """연기 지시를 읽지 않았는지·대사를 빠뜨리지 않았는지 받아쓰기로 확인. 가장 잘 맞는 것을 돌려줌."""
-    best = None
+def synth(text, voice, direction, model="gemini-3.8-flash-tts", tries=4, log=None, fallback=()):
+    """연기 지시를 읽지 않았는지·대사를 빠뜨리지 않았는지 받아쓰기로 확인. 가장 잘 맞는 것을 돌려줌.
+    하루 한도를 다 쓰면 fallback 모델로 넘어감(그 인물의 남은 줄도 같은 모델을 쓰도록 바뀐 모델 이름을 log 에 남김)."""
+    best, models = None, [model, *fallback]
     for k in range(tries):
-        wav = trim(synth_once(text, voice, direction, model))
+        while True:
+            try:
+                wav = trim(synth_once(text, voice, direction, models[0])); break
+            except QuotaError:
+                if best is not None:
+                    models = []
+                    break
+                if len(models) == 1:
+                    raise SystemExit(f"하루 한도 끝: {model} (예비 모델도 없음)")
+                models.pop(0)
+        if not models:
+            break
         w = wave.open(io.BytesIO(wav)); dur = w.getnframes() / w.getframerate()
         heard = transcribe(wav)
         sim = difflib.SequenceMatcher(None, _hangul(text), _hangul(heard)).ratio()
         ok_len = dur < 1.6 + 0.3 * len(_hangul(text))
         score = sim - (0 if ok_len else 1)
         if best is None or score > best[0]:
-            best = (score, wav, heard, k + 1)
+            best = (score, wav, heard, k + 1, models[0])
         if sim >= 0.85 and ok_len:
             break
     if log is not None:
-        log.append({"text": text, "heard": best[2], "score": round(best[0], 2), "tries": best[3]})
+        log.append({"text": text, "heard": best[2], "score": round(best[0], 2), "tries": best[3], "model": best[4]})
     return best[1]
