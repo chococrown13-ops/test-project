@@ -98,6 +98,13 @@ def main():
     ep = Path(sys.argv[1])
     sc = json.loads((ep / "script.json").read_text())
     (ep / "voice").mkdir(exist_ok=True)
+    gv = json.loads((ep / "voices.json").read_text()) if (ep / "voices.json").exists() else None   # 있으면 Gemini 목소리
+    if gv:
+        import tts_gemini
+        sc["normalize"] = True
+        for name, v in gv["cast"].items():
+            sc["cast"][name] = {"engine": "gemini", "model": gv.get("model", "gemini-3.8-flash-tts"), **v}
+    qa = []
     t = sc.get("start", 1.0)
     lines, chars = [], 0
     exe = rhubarb() if sc.get("lipsync", True) else None
@@ -105,7 +112,9 @@ def main():
         t += ln.get("pause", 0)
         c = sc["cast"][ln["who"]]
         path = ep / "voice" / f"{i:02d}.wav"
-        key = json.dumps([ln.get("say") or (speakable(ln["text"]) if sc.get("normalize") else ln["text"]), c], ensure_ascii=False, sort_keys=True)
+        say = ln.get("say") or (speakable(ln["text"]) if sc.get("normalize") else ln["text"])
+        note = (gv or {}).get("notes", {}).get(str(i), "")
+        key = json.dumps([say, c, note] if gv else [say, c], ensure_ascii=False, sort_keys=True)
         keyf = ep / "voice" / f"{i:02d}.key"
         if not (path.exists() and keyf.exists() and keyf.read_text() == key):
             for kf in (ep / "voice").glob("*.key"):  # 순서만 바뀐 같은 대사면 그 파일을 옮겨 씀
@@ -116,7 +125,12 @@ def main():
         if tmp.exists():
             tmp.replace(path); keyf.write_text(key)
         if not (path.exists() and keyf.exists() and keyf.read_text() == key):  # 같은 대사·목소리면 다시 안 만듦(글자 아끼기)
-            path.write_bytes(synth(ln.get("say") or (speakable(ln["text"]) if sc.get("normalize") else ln["text"]), c["voice"], c.get("rate", 1.0), c.get("pitch", 0)))  # LINEAR16 는 wav 머리말이 붙어 옴
+            if c.get("engine") == "gemini":
+                prev = sc["lines"][i - 1]["text"] if i else ""
+                path.write_bytes(tts_gemini.synth(say, c["voice"], tts_gemini.prompt(c["profile"], gv.get("scene", ""), note, prev), c["model"], log=qa))
+                print(f"  {i:03d} {ln['who']} {qa[-1]['score']} ×{qa[-1]['tries']}", flush=True)
+            else:
+                path.write_bytes(synth(say, c["voice"], c.get("rate", 1.0), c.get("pitch", 0)))  # LINEAR16 는 wav 머리말이 붙어 옴
             keyf.write_text(key)
             chars += len(ln["text"])
         with wave.open(str(path)) as w:
@@ -138,6 +152,10 @@ def main():
     tl = {"dur": round(t - sc.get("gap", 0.3) + sc.get("tail", 2.5), 2), "lines": lines, "sfx": sfx, "chars": chars}
     if sc.get("cards"):
         tl["cards"] = sc["cards"]  # 대본 도우미가 만든 정보 카드
+    if qa:   # 받아쓰기 점검 기록(사람이 다시 볼 줄: 점수 0.85 미만)
+        (ep / "voice_check.json").write_text(json.dumps(qa, ensure_ascii=False, indent=1))
+        bad = [q for q in qa if q["score"] < 0.85]
+        print(f"받아쓰기 점검: {len(qa)}줄 중 다시 볼 줄 {len(bad)}개")
     (ep / "timeline.json").write_text(json.dumps(tl, ensure_ascii=False, indent=1))
     (ep / "timeline.js").write_text("window.TL = " + json.dumps(tl, ensure_ascii=False) + ";\n")
     print(f"대사 {len(lines)}줄 · 길이 {tl['dur']}초 · 이번에 새로 만든 글자 {chars}자")
