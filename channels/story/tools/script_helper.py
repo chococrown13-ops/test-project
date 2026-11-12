@@ -27,7 +27,7 @@ from pathlib import Path
 
 # 효과음 낱말 → mix.py 효과음 종류
 SFX = {"문 열리는": "door", "문 닫힘": "thud", "문": "door", "쿵": "thud", "땅": "thud", "탁": "thud", "뽀글": "pop", "쏙": "pop", "찍": "pop",
-       "데구르르": "whoosh", "휙": "whoosh", "두둥": "sting", "반짝": "magic", "띠링": "ding", "딩동": "ding", "땡": "ding", "배송": "ding", "삑": "pop", "지직": "whoosh", "댕": "bell", "찰칵": "pop"}
+       "데구르르": "whoosh", "휙": "whoosh", "두둥": "sting", "반짝": "magic", "띠링": "ding", "딩동": "ding", "땡": "ding", "배송": "ding", "삑": "pop", "지직": "whoosh", "댕": "bell", "찰칵": "pop", "천둥": "thunder", "빵": "horn", "끼익": "screech", "빗소리": "rain", "슝": "whoosh"}
 # 지문 낱말 → 표정 / 몸짓
 MOOD = [("울", "cry"), ("훌쩍", "cry"), ("덜덜", "scared"), ("떨", "scared"), ("기절", "scared"), ("비명", "scared"), ("놀라", "surprised"), ("헉", "surprised"),
         ("뿌듯", "proud"), ("의기양양", "proud"), ("웃", "happy"), ("신나", "happy"), ("한숨", "tired"), ("시무룩", "tired"), ("화", "angry"), ("버럭", "angry"),
@@ -65,6 +65,8 @@ def parse(md):
                 name, _, rest = v.partition("=")
                 parts = rest.split()
                 head["cast"][name.strip()] = {"voice": parts[0], "rate": float(parts[1]) if len(parts) > 1 else 1.0, **({"pitch": float(parts[2])} if len(parts) > 2 and float(parts[2]) else {}), **({"muffle": True} if "muffle" in parts[3:] else {})}
+            elif k == "sfx":  # 머리말 sfx: 종류 시작초 [길이] — 빗소리처럼 길게 깔리는 소리
+                q = v.split(); head.setdefault("sfxAbs", []).append({"kind": q[0], "t": float(q[1]), **({"dur": float(q[2])} if len(q) > 2 else {})})
             elif k == "catch":
                 head["catch"].append(v)
             elif k:
@@ -142,7 +144,7 @@ def build(head, items):
         elif it["kind"] == "card":
             pend_card = it
         elif it["kind"] == "action":
-            pend_dirs += it["dirs"]; pend_sfx += it["sfx"]
+            pend_dirs += it["dirs"]; pend_sfx += [(w, float(it.get("at", -0.5))) for w in it["sfx"]]  # 지문의 at 이 효과음 시각도 정함
             if "act" in it:
                 a = {k: v for k, v in it.items() if k not in ("kind", "dirs", "sfx")}
                 a["at"] = float(a.get("at", -0.5)); pend_acts.append(a)
@@ -167,9 +169,9 @@ def build(head, items):
             pause = float(it.get("pause", 0)) + (0.6 if pend_sfx or pend_dirs else 0)
             if pause: ln["pause"] = round(pause, 2)
             sf = []
-            for w in pend_sfx:
+            for w, wat in pend_sfx:
                 k = sfx_kind(w)
-                if k: sf.append({"kind": k, "at": -0.5})
+                if k: sf.append({"kind": k, "at": wat})
                 else: warn.append(f"모르는 효과음: [{w}]")
             for w in it["sfx"]:
                 k = sfx_kind(w)
@@ -196,7 +198,7 @@ def build(head, items):
                 if i + k < len(out) and "card" not in out[i + k]:
                     out[i + k]["card"] = ln["card"]
     total = t - gap + float(head.get("tail", 4.5))
-    sc = {"start": float(head.get("start", 1.2)), "gap": gap, "tail": float(head.get("tail", 4.5)), "cast": cast, "cards": {c["id"]: {"t": c["title"], "rows": c["rows"]} for c in cards}, "lines": out}
+    sc = {"start": float(head.get("start", 1.2)), "gap": gap, "tail": float(head.get("tail", 4.5)), "cast": cast, "cards": {c["id"]: {"t": c["title"], "rows": c["rows"]} for c in cards}, "lines": out, **({"sfxAbs": head["sfxAbs"]} if head.get("sfxAbs") else {})}
     return sc, timeline, total, warn
 
 

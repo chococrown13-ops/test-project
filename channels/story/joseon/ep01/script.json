@@ -11,6 +11,10 @@
    "voice": "ko-KR-Chirp3-HD-Aoede",
    "rate": 1.1
   },
+  "목소리": {
+   "voice": "ko-KR-Chirp3-HD-Aoede",
+   "rate": 1.0
+  },
   "윤진사": {
    "voice": "ko-KR-Chirp3-HD-Algenib",
    "rate": 0.98
@@ -106,51 +110,128 @@
  "lines": [
   {
    "who": "민재",
-   "text": "9시 58분… 마지막 배달, 종각역 2번 출구. 됐다!",
+   "text": "2분 남았다… 이번에도 늦으면 평점 깎인다!",
    "mood": "normal",
    "pause": 0.6,
    "acts": [
     {
-     "act": "city2026",
+     "act": "ride",
      "at": -0.5
     }
    ]
   },
   {
    "who": "민재",
-   "text": "어? 보신각 종은 제야에만 치는 거 아닌가?",
+   "text": "신호 바뀐다… 그냥 가자!",
+   "mood": "normal",
+   "gesture": "panic",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "thunder",
+     "at": -0.5
+    }
+   ],
+   "acts": [
+    {
+     "act": "thunder",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "민재",
+   "text": "어?!",
+   "mood": "surprised",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "horn",
+     "at": -0.5
+    },
+    {
+     "kind": "screech",
+     "at": 0
+    }
+   ],
+   "acts": [
+    {
+     "act": "truck",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "목소리",
+   "text": "띠링. 플레이어 감지.",
    "mood": "cry",
-   "pause": 0.6,
+   "pause": 2.4,
    "sfx": [
     {
-     "kind": "ding",
-     "at": -0.5
+     "kind": "bell",
+     "at": -2.3
     }
    ],
    "acts": [
     {
-     "act": "flash",
-     "at": -0.5
+     "act": "strike",
+     "at": -2.3
+    },
+    {
+     "act": "freeze",
+     "at": -2.0
     }
    ]
   },
   {
    "who": "민재",
-   "text": "…여기 원래 종각역인데. 역이… 어디 갔지?",
+   "text": "…누구야? 왜 다 멈췄어?",
+   "mood": "normal"
+  },
+  {
+   "who": "목소리",
+   "text": "시간 이동을 시작합니다.",
    "mood": "normal",
-   "pause": 0.6,
    "sfx": [
     {
-     "kind": "ding",
-     "at": -0.5
+     "kind": "whoosh",
+     "at": 0
+    }
+   ]
+  },
+  {
+   "who": "민재",
+   "text": "…아야. 여기 원래 종각역인데?",
+   "mood": "tired",
+   "pause": 4.0,
+   "sfx": [
+    {
+     "kind": "thud",
+     "at": -1.4
     }
    ],
    "acts": [
     {
-     "act": "city1795",
+     "act": "warp",
      "at": -0.5
+    },
+    {
+     "act": "land",
+     "at": -1.4
     }
    ]
+  },
+  {
+   "who": "돌쇠",
+   "text": "아저씨, 비켜요! 곧 인정이에요!",
+   "mood": "normal",
+   "jump": true,
+   "pause": 0.6
+  },
+  {
+   "who": "민재",
+   "text": "인정? 인정이 뭔데? 그리고 트럭은?",
+   "mood": "normal"
   },
   {
    "who": "댕이",
@@ -172,7 +253,7 @@
   },
   {
    "who": "민재",
-   "text": "으악! 뭐야, 날아다니는 종?!",
+   "text": "으악! 아까 그 목소리… 날아다니는 종?!",
    "mood": "surprised"
   },
   {
@@ -198,7 +279,7 @@
    "pause": 0.6,
    "sfx": [
     {
-     "kind": "ding",
+     "kind": "bell",
      "at": -0.5
     }
    ],
@@ -279,7 +360,7 @@
    "pause": 0.6,
    "sfx": [
     {
-     "kind": "ding",
+     "kind": "bell",
      "at": -0.5
     }
    ]
@@ -386,7 +467,7 @@
    "pause": 0.6,
    "sfx": [
     {
-     "kind": "ding",
+     "kind": "bell",
      "at": -0.5
     }
    ],
@@ -436,7 +517,7 @@
    "pause": 0.6,
    "sfx": [
     {
-     "kind": "ding",
+     "kind": "bell",
      "at": -0.5
     }
    ],
@@ -570,7 +651,7 @@
    "pause": 0.6,
    "sfx": [
     {
-     "kind": "ding",
+     "kind": "bell",
      "at": -0.5
     }
    ],
@@ -1165,7 +1246,7 @@
    "pause": 0.6,
    "sfx": [
     {
-     "kind": "ding",
+     "kind": "bell",
      "at": -0.5
     }
    ],
@@ -1209,6 +1290,13 @@
    "who": "댕이",
    "text": "댓글로 공략 남겨 주세요. 다음 플레이어에게 도움이 될 거예요!",
    "mood": "normal"
+  }
+ ],
+ "sfxAbs": [
+  {
+   "kind": "rain",
+   "t": 0.0,
+   "dur": 9.9
   }
  ]
 }

@@ -75,6 +75,32 @@ for s in tl.get("sfx", []):
             tone(t0 + j * 0.07, note(m), 0.6, 0.06, "sine", 0.3 + 0.1 * j, 4)
     elif k == "thud":
         tone(t0, 60, 0.35, 0.3, "sine", 0.5, 6)
+    elif k == "rain":  # 빗소리: 길게 깔리는 쏴— (dur 초)
+        i0 = int(t0 * SR); n = min(int(s.get("dur", 8) * SR), N - i0)
+        if n > 0:
+            nz = rng.standard_normal(n); nz = nz - np.convolve(nz, np.ones(6) / 6, mode="same")
+            env = np.clip(np.arange(n) / SR / 0.8, 0, 1) * np.clip((n - np.arange(n)) / SR / 0.15, 0, 1)
+            out[i0:i0 + n, 0] += nz * env * 0.035; out[i0:i0 + n, 1] += np.roll(nz, 333) * env * 0.035
+    elif k == "thunder":  # 천둥: 낮게 우르릉
+        i0 = int(t0 * SR); n = min(int(3.0 * SR), N - i0)
+        if n > 0:
+            nz = rng.standard_normal(n)
+            for _ in range(4):
+                nz = np.convolve(nz, np.ones(40) / 40, mode="same")
+            d = np.arange(n) / SR; env = (1 - np.exp(-d * 30)) * np.exp(-d * 1.3) * (1 + 0.5 * np.sin(d * 9))
+            out[i0:i0 + n] += (nz / (np.abs(nz).max() + 1e-9) * env * 0.5)[:, None]
+    elif k == "horn":  # 트럭 경적: 빵—
+        for f in (311, 392):
+            i0 = int(t0 * SR); n = min(int(0.9 * SR), N - i0)
+            if n > 0:
+                d = np.arange(n) / SR; w = np.sign(np.sin(2 * np.pi * f * d)) * 0.05 * np.clip(d / 0.02, 0, 1) * np.clip((0.9 - d) / 0.05, 0, 1)
+                out[i0:i0 + n] += w[:, None]
+    elif k == "screech":  # 타이어 끼익
+        i0 = int(t0 * SR); n = min(int(1.0 * SR), N - i0)
+        if n > 0:
+            d = np.arange(n) / SR; f = 2400 - 600 * d
+            w = np.sin(2 * np.pi * np.cumsum(f) / SR) * 0.05 * np.exp(-d * 1.5) + rng.standard_normal(n) * 0.012
+            out[i0:i0 + n] += w[:, None]
     elif k == "bell":  # 큰 범종: 낮은 울림 + 배음, 길게 사라짐
         for f, v, d in [(98, 0.22, 5.0), (196, 0.10, 3.5), (262, 0.07, 3.0), (415, 0.05, 2.2), (588, 0.03, 1.6)]:
             tone(t0, f, 4.5, v, "sine", 0.5, d)

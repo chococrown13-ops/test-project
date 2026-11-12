@@ -1,11 +1,15 @@
 {
- "start": 0.8,
+ "start": 0.9,
  "gap": 0.25,
- "tail": 3.2,
+ "tail": 3.4,
  "cast": {
   "민재": {
    "voice": "ko-KR-Chirp3-HD-Puck",
    "rate": 1.1
+  },
+  "목소리": {
+   "voice": "ko-KR-Chirp3-HD-Aoede",
+   "rate": 1.0
   },
   "댕이": {
    "voice": "ko-KR-Chirp3-HD-Aoede",
@@ -24,35 +28,114 @@
  "lines": [
   {
    "who": "민재",
-   "text": "9시 58분, 마지막 배달. 됐다!",
+   "text": "2분 남았다… 이번에도 늦으면 평점 깎인다!",
    "mood": "normal",
    "pause": 0.6,
    "acts": [
     {
-     "act": "city2026",
+     "act": "ride",
      "at": -0.5
     }
    ]
   },
   {
    "who": "민재",
-   "text": "…어? 여기 원래 종각역인데?",
-   "mood": "cry",
+   "text": "신호 바뀐다… 그냥 가자!",
+   "mood": "normal",
+   "gesture": "panic",
    "pause": 0.6,
    "sfx": [
     {
-     "kind": "bell",
+     "kind": "thunder",
      "at": -0.5
     }
    ],
    "acts": [
     {
-     "act": "flash",
+     "act": "thunder",
+     "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "민재",
+   "text": "어?!",
+   "mood": "surprised",
+   "pause": 0.6,
+   "sfx": [
+    {
+     "kind": "horn",
      "at": -0.5
     },
     {
-     "act": "city1795",
+     "kind": "screech",
+     "at": 0
+    }
+   ],
+   "acts": [
+    {
+     "act": "truck",
      "at": -0.5
+    }
+   ]
+  },
+  {
+   "who": "목소리",
+   "text": "띠링. 플레이어 감지.",
+   "mood": "cry",
+   "pause": 2.4,
+   "sfx": [
+    {
+     "kind": "bell",
+     "at": -2.3
+    }
+   ],
+   "acts": [
+    {
+     "act": "strike",
+     "at": -2.3
+    },
+    {
+     "act": "freeze",
+     "at": -2.0
+    }
+   ]
+  },
+  {
+   "who": "민재",
+   "text": "…누구야? 왜 다 멈췄어?",
+   "mood": "normal"
+  },
+  {
+   "who": "목소리",
+   "text": "시간 이동을 시작합니다.",
+   "mood": "normal",
+   "sfx": [
+    {
+     "kind": "whoosh",
+     "at": 0
+    }
+   ]
+  },
+  {
+   "who": "민재",
+   "text": "…아야. 여기 원래 종각역인데?",
+   "mood": "tired",
+   "pause": 4.0,
+   "sfx": [
+    {
+     "kind": "thud",
+     "at": -1.4
+    }
+   ],
+   "acts": [
+    {
+     "act": "warp",
+     "at": -0.5
+    },
+    {
+     "act": "land",
+     "at": -1.4
     }
    ]
   },
@@ -76,7 +159,7 @@
   },
   {
    "who": "민재",
-   "text": "으악! 날아다니는 종?!",
+   "text": "으악! 아까 그 목소리… 날아다니는 종?!",
    "mood": "surprised"
   },
   {
@@ -109,6 +192,13 @@
    "text": "저도 안 셌어요. 헤헤.",
    "mood": "normal",
    "card": "c1"
+  }
+ ],
+ "sfxAbs": [
+  {
+   "kind": "rain",
+   "t": 0.0,
+   "dur": 9.9
   }
  ]
 }
