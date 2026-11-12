@@ -37,6 +37,32 @@ def synth(text, voice, rate=1.0, pitch=0.0):
             time.sleep(2 * (i + 1))
 
 
+NATIVE = {1: "한", 2: "두", 3: "세", 4: "네", 5: "다섯", 6: "여섯", 7: "일곱", 8: "여덟", 9: "아홉", 10: "열", 11: "열한", 12: "열두",
+          20: "스물", 30: "서른", 40: "마흔"}
+
+
+def native(n):
+    """고유어 수(시·번·개 앞): 28 → 스물여덟, 4 → 네. 49 넘으면 그대로."""
+    if n in NATIVE and n <= 12: return NATIVE[n]
+    if n > 49: return str(n)
+    t, o = n // 10 * 10, n % 10
+    head = "스물" if t == 20 else NATIVE.get(t, "")
+    return head + (NATIVE[o] if o else "")
+
+
+def speakable(text):
+    """화면 자막은 그대로 두고, 읽는 글만 사람 말투로: 시·번은 고유어, 영어 약자는 한글 소리, 말줄임표는 쉼표."""
+    import re
+    t = re.sub(r"(\d+)\s*시(?![대작간])", lambda m: native(int(m.group(1))) + " 시", text)
+    t = re.sub(r"(\d+)\s*번(?!째)", lambda m: native(int(m.group(1))) + " 번", t)
+    for a, b in {"CCTV": "씨씨티비", "VIP": "브이아이피", "KTX": "케이티엑스"}.items():
+        t = t.replace(a, b)
+    t = re.sub(r"^[…\s]+", "", t)          # 맨 앞 말줄임표는 읽지 않음
+    t = re.sub(r"\s*…\s*", ", ", t)        # 가운데 말줄임표 → 잠깐 쉼
+    t = re.sub(r",\s*([?!.])", r"\1", t)
+    return t.strip()
+
+
 RHUBARB_URL = "https://github.com/DanielSWolf/rhubarb-lip-sync/releases/download/v1.14.0/Rhubarb-Lip-Sync-1.14.0-Linux.zip"
 
 
@@ -79,7 +105,7 @@ def main():
         t += ln.get("pause", 0)
         c = sc["cast"][ln["who"]]
         path = ep / "voice" / f"{i:02d}.wav"
-        key = json.dumps([ln["text"], c], ensure_ascii=False, sort_keys=True)
+        key = json.dumps([ln.get("say") or (speakable(ln["text"]) if sc.get("normalize") else ln["text"]), c], ensure_ascii=False, sort_keys=True)
         keyf = ep / "voice" / f"{i:02d}.key"
         if not (path.exists() and keyf.exists() and keyf.read_text() == key):
             for kf in (ep / "voice").glob("*.key"):  # 순서만 바뀐 같은 대사면 그 파일을 옮겨 씀
@@ -90,7 +116,7 @@ def main():
         if tmp.exists():
             tmp.replace(path); keyf.write_text(key)
         if not (path.exists() and keyf.exists() and keyf.read_text() == key):  # 같은 대사·목소리면 다시 안 만듦(글자 아끼기)
-            path.write_bytes(synth(ln["text"], c["voice"], c.get("rate", 1.0), c.get("pitch", 0)))  # LINEAR16 는 wav 머리말이 붙어 옴
+            path.write_bytes(synth(ln.get("say") or (speakable(ln["text"]) if sc.get("normalize") else ln["text"]), c["voice"], c.get("rate", 1.0), c.get("pitch", 0)))  # LINEAR16 는 wav 머리말이 붙어 옴
             keyf.write_text(key)
             chars += len(ln["text"])
         with wave.open(str(path)) as w:
