@@ -160,16 +160,17 @@
     }
   }
 
-  function init({ w = 1920, h = 1080, title = '', sub = '', end = [], bg = '#dff1ff', exposure = 1.0, titleAt = [0, 3], endAt = null, smallTitle = null, post = null }) {
+  function init({ w = 1920, h = 1080, title = '', sub = '', end = [], bg = '#dff1ff', exposure = 1.0, titleAt = [0, 3], endAt = null, smallTitle = null, post = null, ss = 1 }) {
+    // ss: 크게 그려서 줄이기(1.5면 1.5배로 그림) → 비스듬한 선이 계단처럼 깨지는 것 줄임
     // post(후처리, 0원): { bloom: 0~1 빛 번짐, vignette: 0~1 가장자리 어둡게, grade: 'saturate(1.1) contrast(1.05)' 같은 색 보정, grain: 0~1 필름 입자 }
     const W = w, H = h, U = Math.min(W, H) / 1080; // 글자 크기 단위
     const out = document.getElementById('c'); out.width = W; out.height = H; const og = out.getContext('2d');
-    const gl = document.createElement('canvas'); gl.width = W; gl.height = H;
-    const renderer = new THREE.WebGLRenderer({ canvas: gl, antialias: true, preserveDrawingBuffer: true });
-    renderer.setSize(W, H, false); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    const gl = document.createElement('canvas'); gl.width = Math.round(W * ss); gl.height = Math.round(H * ss);
+    const renderer = new THREE.WebGLRenderer({ canvas: gl, antialias: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true });
+    renderer.setSize(gl.width, gl.height, false); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMappingExposure = exposure;
     const scene = new THREE.Scene(); scene.background = new THREE.Color(bg);
-    const cam = new THREE.PerspectiveCamera(30, W / H, 0.1, 200);
+    const cam = new THREE.PerspectiveCamera(30, W / H, 0.3, 200);
     scene.add(new THREE.HemisphereLight('#ffffff', '#9a8a7a', 0.65));
     const sun = new THREE.DirectionalLight('#fff4e0', 0.9); sun.position.set(4, 10, 7); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9 }); sun.shadow.bias = -0.0005; scene.add(sun);
@@ -197,7 +198,7 @@
     const grainC = document.createElement('canvas'); grainC.width = grainC.height = 256; const gg = grainC.getContext('2d');
     function postDraw(t) {
       const P = post || {};
-      og.save(); if (P.grade) og.filter = P.grade; og.drawImage(gl, 0, 0); og.restore();
+      og.save(); og.imageSmoothingQuality = 'high'; if (P.grade) og.filter = P.grade; og.drawImage(gl, 0, 0, W, H); og.restore();
       if (P.bloom) {   // 빛나는 물체(층 1)만 따로 그린 그림을 흐리게 키워서 더하기
         sg.clearRect(0, 0, small.width, small.height); sg.drawImage(glowGL, 0, 0, small.width, small.height);
         og.save(); og.globalCompositeOperation = 'lighter'; og.globalAlpha = P.bloom; og.filter = `blur(${Math.round(10 * U)}px)`; og.drawImage(small, 0, 0, W, H);
@@ -275,20 +276,27 @@
   // 모델 얼굴의 원래 눈·입(어두운 색 조각)을 피부색으로 덮기 → 우리 얼굴 그림(입 모양 맞추기)을 올릴 자리
   function clearFace(geo, img) {
     const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d'); x.drawImage(img, 0, 0);
-    const px = x.getImageData(0, 0, c.width, c.height).data, lum = (u, v) => { const i = (Math.min(c.height - 1, Math.floor(v * c.height)) * c.width + Math.min(c.width - 1, Math.floor(u * c.width))) * 4; return 0.3 * px[i] + 0.59 * px[i + 1] + 0.11 * px[i + 2]; };
+    const px = x.getImageData(0, 0, c.width, c.height).data, at = (u, v) => (Math.min(c.height - 1, Math.floor(v * c.height)) * c.width + Math.min(c.width - 1, Math.floor(u * c.width))) * 4, lum = (u, v) => { const i = at(u, v); return 0.3 * px[i] + 0.59 * px[i + 1] + 0.11 * px[i + 2]; };
     const P = geo.attributes.position, N = geo.attributes.normal, UV = geo.attributes.uv, cnt = {};
     let ymin = 1e9, ymax = -1e9; for (let i = 0; i < P.count; i++) if (N.getZ(i) > 0.7) { ymin = Math.min(ymin, P.getY(i)); ymax = Math.max(ymax, P.getY(i)); }
-    const isFace = (i) => N.getZ(i) > 0.5 && P.getY(i) > ymin + (ymax - ymin) * 0.05 && P.getY(i) < ymin + (ymax - ymin) * 0.58;   // 눈·입만 (위쪽 앞머리는 그대로)
+    let xmax = 0; for (let i = 0; i < P.count; i++) if (N.getZ(i) > 0.7) xmax = Math.max(xmax, Math.abs(P.getX(i)));
+    const isFace = (i) => N.getZ(i) > 0.5 && Math.abs(P.getX(i)) < xmax * 0.72 && P.getY(i) > ymin + (ymax - ymin) * 0.05 && P.getY(i) < ymin + (ymax - ymin) * 0.58;   // 가운데 얼굴만 (옆머리는 그대로)   // 눈·입만 (위쪽 앞머리는 그대로)
     for (let i = 0; i < P.count; i++) if (isFace(i) && lum(UV.getX(i), UV.getY(i)) > 90) { const k = UV.getX(i).toFixed(3) + ',' + UV.getY(i).toFixed(3); cnt[k] = (cnt[k] || 0) + 1; }
     const best = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]; if (!best) return;
     const [su, sv] = best[0].split(',').map(Number);
-    for (let i = 0; i < P.count; i++) if (isFace(i) && lum(UV.getX(i), UV.getY(i)) <= 90) UV.setXY(i, su, sv);
+    const s0 = at(su, sv), dist = (u, v) => { const i = at(u, v); return Math.abs(px[i] - px[s0]) + Math.abs(px[i + 1] - px[s0 + 1]) + Math.abs(px[i + 2] - px[s0 + 2]); };
+    for (let i = 0; i < P.count; i++) if (isFace(i) && (lum(UV.getX(i), UV.getY(i)) <= 90 || dist(UV.getX(i), UV.getY(i)) > 120)) UV.setXY(i, su, sv);   // 눈동자·흰자·하이라이트까지 피부색으로
     UV.needsUpdate = true;
   }
   function inkFor(mesh, w) {   // 뼈대로 움직이는 몸에도 맞는 외곽선 (법선 방향으로 부풀린 뒷면)
-    const m = new THREE.MeshBasicMaterial({ color: '#2a1f1a', side: THREE.BackSide });
-    m.onBeforeCompile = (sh) => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n transformed += normalize(objectNormal) * ${w.toFixed(4)};`); };
-    const o = mesh.isSkinnedMesh ? new THREE.SkinnedMesh(mesh.geometry, m) : new THREE.Mesh(mesh.geometry, m);
+    // 각진 모델은 모서리마다 법선이 갈라져 외곽선이 끊김 → 같은 자리 꼭짓점의 법선을 평균 낸 '외곽선용 법선'으로 부풀림
+    const geo = mesh.geometry, P = geo.attributes.position, N = geo.attributes.normal, acc = new Map(), key = (i) => `${Math.round(P.getX(i) * 1e4)},${Math.round(P.getY(i) * 1e4)},${Math.round(P.getZ(i) * 1e4)}`;
+    for (let i = 0; i < P.count; i++) { const k = key(i), v = acc.get(k) || [0, 0, 0]; v[0] += N.getX(i); v[1] += N.getY(i); v[2] += N.getZ(i); acc.set(k, v); }
+    const on = new Float32Array(P.count * 3); for (let i = 0; i < P.count; i++) { const v = acc.get(key(i)), l = Math.hypot(...v) || 1; on.set([v[0] / l, v[1] / l, v[2] / l], i * 3); }
+    const g2 = geo.clone(); g2.setAttribute('outlineNormal', new THREE.BufferAttribute(on, 3));
+    const m = new THREE.MeshBasicMaterial({ color: '#2a1f1a', side: THREE.BackSide, polygonOffset: true, polygonOffsetFactor: 6, polygonOffsetUnits: 6 });   // 외곽선을 살짝 뒤로 → 귀·머리 사이로 삐져나와 줄무늬처럼 보이던 것 막기
+    m.onBeforeCompile = (sh) => { sh.vertexShader = 'attribute vec3 outlineNormal;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n transformed += normalize(outlineNormal) * ${w.toFixed(4)};`); };
+    const o = mesh.isSkinnedMesh ? new THREE.SkinnedMesh(g2, m) : new THREE.Mesh(g2, m);
     if (mesh.isSkinnedMesh) o.bind(mesh.skeleton, mesh.bindMatrix);
     o.position.copy(mesh.position); o.quaternion.copy(mesh.quaternion); o.scale.copy(mesh.scale); o.frustumCulled = false; return o;
   }
@@ -300,7 +308,7 @@
     for (const m of meshes) {
       const src = m.material; m.castShadow = m.receiveShadow = true;
       if (opt.clearFace && m.name.includes(opt.clearFace) && src.map) clearFace(m.geometry, src.map.image);
-      if (opt.toon !== false) m.material = new THREE.MeshToonMaterial({ color: '#ffffff', map: src.map || null, gradientMap: gmap });
+      if (opt.toon !== false) m.material = new THREE.MeshToonMaterial({ color: '#ffffff', map: src.map || null, gradientMap: gmap, side: opt.rigged ? THREE.DoubleSide : THREE.FrontSide });   // 캐릭터는 양면(머리카락과 귀 사이 틈으로 뒤가 비쳐 보이던 것 막기)
       if (m.material.map) m.material.map.encoding = THREE.sRGBEncoding;
       if (opt.line) m.parent.add(inkFor(m, opt.line));
     }

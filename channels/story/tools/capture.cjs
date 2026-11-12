@@ -13,7 +13,7 @@ const fs = require("fs"), path = require("path");
   const times = only ? only.split(",").map(Number) : Array.from({ length: Math.round(dur * 24) }, (_, i) => i / 24);
   const t0 = Date.now();
   for (let i = 0; i < times.length; i++) {
-    const url = await page.evaluate((t) => { window.render(t); return document.getElementById("c").toDataURL("image/jpeg", 0.9); }, times[i]);
+    const url = await page.evaluate((t) => { window.render(t); return document.getElementById("c").toDataURL("image/jpeg", 0.96); }, times[i]);
     const name = only ? `t${times[i]}.jpg` : `${String(i).padStart(4, "0")}.jpg`;
     fs.writeFileSync(path.join(out, name), Buffer.from(url.split(",")[1], "base64"));
     if (i % 60 === 0) console.log(i, ((Date.now() - t0) / 1000).toFixed(1) + "s");

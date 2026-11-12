@@ -10,7 +10,7 @@ window.ready = (async () => {
 // 무료(CC0) 모델: Kenney Mini Characters · Car Kit · City Kit Commercial (assets/kenney/*/License.txt)
 const G = { 민재: await Story.loadGLB('character-male-f'), truck: await Story.loadGLB('delivery'), sky: await Promise.all(['a', 'b', 'c', 'd', 'e'].map((k) => Story.loadGLB('building-skyscraper-' + k))) };
 // 조선으로 회귀하면 — 샘플 (비 오는 2026년 종로 → 트럭·번개·멈춘 시간·시간 이동 → 1795년 한양, 안내 정령 댕이 첫 등장)
-function Q_POST() { return new URLSearchParams(location.search).get('post') === '0' ? null : { bloom: 0.75, vignette: 0.5, grade: 'saturate(1.12) contrast(1.06)', grain: 0.5 }; }  // ?post=0 이면 후처리 끔(비교용)
+function Q_POST() { return new URLSearchParams(location.search).get('post') === '0' ? null : { bloom: 0.75, vignette: 0.45, grade: 'saturate(1.12) contrast(1.06)' }; }  // ?post=0 이면 후처리 끔(비교용)
 const L = TL.lines, idx = (s) => L.findIndex((l) => l.text.includes(s));
 const A = []; L.forEach((l) => (l.acts || []).forEach((a) => A.push({ ...a, t: l.start + (a.at || 0) })));
 const at = (k) => (A.find((a) => a.act === k) || {}).t;
@@ -18,7 +18,7 @@ const THUNDER = at('thunder'), TRUCK = at('truck'), STRIKE = at('strike'), FREEZ
 const WARP = L[idx('시간 이동')].start + 0.9, FLASH = WARP + 1.2;   // FLASH: 소용돌이 속에서 무대가 1795로 바뀌는 순간
 const S = Story.init({ w: 1920, h: 1080, bg: '#1a2142', title: '조선으로 회귀하면', sub: '1795년 한양, 첫날 밤', smallTitle: '조선으로 회귀하면', titleAt: [LAND + 0.4, LAND + 2.6],
   end: ['조선으로 회귀하면', '1화 「한양 첫날 밤, 통금 종이 울린다」 곧 공개'],
-  post: Q_POST() });
+  post: Q_POST(), ss: 1.5 });
 const { scene, renderer } = S, M = Story.mesh, sm = Story.smooth;
 window.CAST_STYLE = { 민재: { name: '민재', color: '#ffb35c' }, 댕이: { name: '댕이', color: '#bfeaff' }, 목소리: { name: '???', color: '#bfeaff' } };
 scene.children.forEach((o) => { if (o.isHemisphereLight) o.intensity = 0.45; if (o.isDirectionalLight) { o.intensity = 0.55; o.color.set('#b9c8ff'); } });
