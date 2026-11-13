@@ -1,5 +1,68 @@
 [
  {
+  "i": 0,
+  "who": "민재",
+  "text": "2분 남았다, 이번에도 늦으면 평점 깎인다!",
+  "heard": "아, 2분 남았다. 이번에도 늦으면 평점 깎인다.",
+  "score": 0.97,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 1,
+  "who": "민재",
+  "text": "신호 바뀐다, 그냥 가자!",
+  "heard": "신호 바뀐다 그냥 가자",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 2,
+  "who": "민재",
+  "text": "어?!",
+  "heard": "어, 어",
+  "score": 0.67,
+  "tries": 2,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 4,
+  "who": "민재",
+  "text": "누구야? 왜 다 멈췄어?",
+  "heard": "누구야? 왜 다 멈췄어?",
+  "score": 1.0,
+  "tries": 2,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 6,
+  "who": "민재",
+  "text": "아야. 여기 원래 종각역인데?",
+  "heard": "하아 여기 원래 종각역인데",
+  "score": 0.91,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 8,
+  "who": "민재",
+  "text": "인정? 인정이 뭔데? 그리고 트럭은?",
+  "heard": "인정? 인정이 뭔데? 아 그리고 트럭은?",
+  "score": 0.96,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 10,
+  "who": "민재",
+  "text": "으악! 아까 그 목소리, 날아다니는 종?!",
+  "heard": "으아, 아까 그 목소리... 날아다니는 종?",
+  "score": 0.93,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
   "i": 100,
   "who": "댕이",
   "text": "맞아요. 옛 주막에선 술이나 밥을 사 먹으면,",
@@ -270,6 +333,15 @@
   "model": "gemini-3.8-flash-lite-tts"
  },
  {
+  "i": 13,
+  "who": "민재",
+  "text": "퀘스트? 제한 시간이 종 스물여덟 번?",
+  "heard": "퀘스트? 제한 시간이 총 스물여덟 분? 하!",
+  "score": 0.83,
+  "tries": 3,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
   "i": 130,
   "who": "윤진사",
   "text": "종소리 속에서 넋 나간 얼굴을 보니,",
@@ -426,8 +498,8 @@
   "i": 147,
   "who": "민재",
   "text": "호패?",
-  "heard": "뷔페?",
-  "score": 0.0,
+  "heard": "호패",
+  "score": 1.0,
   "tries": 1,
   "model": "gemini-3.8-flash-lite-tts"
  },
@@ -448,6 +520,15 @@
   "score": 1.0,
   "tries": 1,
   "model": "gemini-3.1-flash-tts-preview"
+ },
+ {
+  "i": 15,
+  "who": "민재",
+  "text": "안 세면 어떡해! 다 울리면 어떻게 되는데?",
+  "heard": "아! 안 세면 어떡해? 하, 다 울리면 어떻게 되는데?",
+  "score": 0.94,
+  "tries": 3,
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 150,
@@ -522,13 +603,67 @@
   "model": "gemini-3.1-flash-tts-preview"
  },
  {
+  "i": 18,
+  "who": "민재",
+  "text": "지도 앱도 안 되고, 배터리는 12퍼센트.",
+  "heard": "지도 앱도 안 되고 배터리는 12%",
+  "score": 0.88,
+  "tries": 4,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 22,
+  "who": "민재",
+  "text": "오, 길은 똑같네. 그럼 나 여기 지리는 만렙이다.",
+  "heard": "어, 길은 똑같네. 그럼 나 여기 지리는 만렙이다.",
+  "score": 0.94,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 24,
+  "who": "민재",
+  "text": "그래서 이 종은 뭔데?",
+  "heard": "그래서 이 종은 뭔데?",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 30,
+  "who": "민재",
+  "text": "밤 열 시부터 새벽 네 시까지 밖에 못 나간다고?",
+  "heard": "밤 10시부터 새벽 4시까지밖에 못 나간다고?",
+  "score": 0.94,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 31,
+  "who": "민재",
+  "text": "우리 때 편의점 야간 알바 시간인데.",
+  "heard": "올 때 편의점 야간 알바 시간인데",
+  "score": 0.89,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
+  "i": 32,
+  "who": "민재",
+  "text": "됐고, 그냥 집에 갈래. 우리 집 마포니까 걸어서 한 시간.",
+  "heard": "됐고 그냥 집에 갈래. 우리 집 마포니까 걸어서 한 시간",
+  "score": 1.0,
+  "tries": 2,
+  "model": "gemini-3.8-flash-lite-tts"
+ },
+ {
   "i": 34,
   "who": "민재",
   "text": "어? 진짜네?",
-  "heard": "어! 진짜네?",
+  "heard": "어, 진짜네?",
   "score": 1.0,
   "tries": 1,
-  "model": "gemini-2.5-pro-preview-tts"
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 35,
@@ -573,16 +708,16 @@
   "heard": "여기 원래 버스 타면 15분 거리인데",
   "score": 1.0,
   "tries": 1,
-  "model": "gemini-2.5-pro-preview-tts"
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 40,
   "who": "민재",
   "text": "근데 걸리면 뭐, 벌금 정도겠지?",
-  "heard": "근데 걸리면 뭐 벌금 정도겠지",
+  "heard": "근데 걸리면 뭐 벌금 정도겠지?",
   "score": 1.0,
   "tries": 1,
-  "model": "gemini-2.5-pro-preview-tts"
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 41,
@@ -624,10 +759,10 @@
   "i": 45,
   "who": "민재",
   "text": "서른 대?",
-  "heard": "서른대?",
+  "heard": "서른 대",
   "score": 1.0,
   "tries": 1,
-  "model": "gemini-2.5-pro-preview-tts"
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 46,
@@ -642,28 +777,28 @@
   "i": 47,
   "who": "민재",
   "text": "아니 잠깐, 나 지금 몇 번째 종인지도 몰라!",
-  "heard": "아니 잠깐 나 지금 몇 번째 중인지도 몰라",
-  "score": 0.94,
+  "heard": "아니 잠깐, 나 지금 몇 번째 종인지도 몰라.",
+  "score": 1.0,
   "tries": 1,
-  "model": "gemini-2.5-pro-preview-tts"
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 48,
   "who": "민재",
   "text": "호텔! 모텔! 게스트하우스! 아무거나!",
-  "heard": "호텔 모텔 게스트하우스 아무거나",
+  "heard": "호텔, 모텔, 게스트하우스, 아무거나",
   "score": 1.0,
   "tries": 1,
-  "model": "gemini-2.5-pro-preview-tts"
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 49,
   "who": "민재",
   "text": "아니 간판이 하나도 없잖아!",
-  "heard": "아니 간판이 하나도 없잖아",
+  "heard": "아니 간판이 하나도 없잖아.",
   "score": 1.0,
   "tries": 1,
-  "model": "gemini-2.5-pro-preview-tts"
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 50,
@@ -678,10 +813,10 @@
   "i": 51,
   "who": "민재",
   "text": "줘! 빨리!",
-  "heard": "줘, 빨리!",
-  "score": 1.0,
-  "tries": 3,
-  "model": "gemini-2.5-pro-preview-tts"
+  "heard": "총 빨리",
+  "score": 0.67,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 52,
@@ -714,10 +849,10 @@
   "i": 55,
   "who": "민재",
   "text": "어? 아, 혼잣말! 꼬마야, 여기 잘 데 없냐?",
-  "heard": "어, 아, 혼잣말. 꼬마야, 여기 잘 데 없냐?",
+  "heard": "어, 아, 혼잣말... 꼬마야, 여기 잘 데 없냐?",
   "score": 1.0,
   "tries": 1,
-  "model": "gemini-2.5-pro-preview-tts"
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 56,
@@ -777,10 +912,10 @@
   "i": 62,
   "who": "민재",
   "text": "그럼 여긴, 등불집?",
-  "heard": "그럼 여긴 등불제?",
-  "score": 0.86,
-  "tries": 2,
-  "model": "gemini-2.5-pro-preview-tts"
+  "heard": "그럼 여긴 등불집?",
+  "score": 1.0,
+  "tries": 1,
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 63,
@@ -798,7 +933,7 @@
   "heard": "그건 본인 앞에서 부르면 안 되는 이름 같은데",
   "score": 1.0,
   "tries": 1,
-  "model": "gemini-2.5-pro-preview-tts"
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 65,
@@ -822,10 +957,10 @@
   "i": 67,
   "who": "민재",
   "text": "아, 아니요! 저 지금 주막 들어가는 중이에요! 딱 열 걸음!",
-  "heard": "아, 아니요. 저 지금 주막 들어가는 중이에요. 딱 열 걸어",
-  "score": 0.95,
+  "heard": "아뇨, 저 지금 주막 들어가는 중이에요. 딱 열 걸음",
+  "score": 0.9,
   "tries": 1,
-  "model": "gemini-2.5-pro-preview-tts"
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 68,
@@ -849,10 +984,10 @@
   "i": 70,
   "who": "민재",
   "text": "댕이야, 스킵! 이 장면 스킵!",
-  "heard": "댕이야 스킵 이 장면 스킵",
-  "score": 1.0,
-  "tries": 1,
-  "model": "gemini-2.5-pro-preview-tts"
+  "heard": "탱이야, 스킵! 이 장면 스킵!",
+  "score": 0.9,
+  "tries": 3,
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 71,
@@ -912,10 +1047,10 @@
   "i": 77,
   "who": "민재",
   "text": "살았다, 근데 하인이라뇨?",
-  "heard": "살았다. 근데 하인이라뇨.",
-  "score": 1.0,
+  "heard": "하, 살았다. 근데 하인이라뇨.",
+  "score": 0.95,
   "tries": 1,
-  "model": "gemini-2.5-pro-preview-tts"
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 78,
@@ -939,10 +1074,10 @@
   "i": 80,
   "who": "민재",
   "text": "밥이요! 국밥 하나요! 계산은 카드로,",
-  "heard": "하, 밥이요. 국밥 하나요. 계산은 카드로",
-  "score": 0.97,
+  "heard": "밥이요, 국밥 하나요. 계산은 카드로.",
+  "score": 1.0,
   "tries": 1,
-  "model": "gemini-2.5-pro-preview-tts"
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 81,
@@ -960,7 +1095,7 @@
   "heard": "아니 그럼 현금 5만 원짜리",
   "score": 0.95,
   "tries": 1,
-  "model": "gemini-2.5-pro-preview-tts"
+  "model": "gemini-3.8-flash-lite-tts"
  },
  {
   "i": 83,
@@ -1011,8 +1146,8 @@
   "i": 88,
   "who": "민재",
   "text": "그럼 나 무일푼이야?",
-  "heard": "그럼 난 무일푼이야?",
-  "score": 0.88,
+  "heard": "그럼 나 무일푼이야?",
+  "score": 1.0,
   "tries": 1,
   "model": "gemini-3.8-flash-lite-tts"
  },
