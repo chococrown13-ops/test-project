@@ -120,6 +120,9 @@ for ln in tl["lines"]:
         a = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(float) / 32768
         if w.getnchannels() == 2:
             a = a.reshape(-1, 2).mean(axis=1)
+        sr = w.getframerate()
+    if sr != SR:   # 목소리 파일의 표본 수가 다르면(예: Gemini 24kHz) 48kHz로 맞춤 — 안 하면 두 배 빠르게 들림
+        a = np.interp(np.arange(int(len(a) * SR / sr)) * sr / SR, np.arange(len(a)), a)
     if ln["who"] in MUFFLE:
         for _ in range(3):
             a = np.convolve(a, np.ones(24) / 24, mode="same")
