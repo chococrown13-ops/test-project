@@ -46,6 +46,9 @@ class Puppet:
         allm = np.any(list(diffs.values()), axis=0) if diffs else np.ones(b.shape[:2], bool)
         ys, xs = np.where(allm)
         self.face = (int(np.percentile(xs, 3)), int(np.percentile(ys, 3)), int(np.percentile(xs, 97)), int(np.percentile(ys, 97)))
+        al = np.asarray(self.base)[..., 3] > 20; rows = np.where(al.any(1))[0]
+        self.bottom = int(rows.max()) if len(rows) else b.shape[0]   # 그림에서 몸이 끝나는 줄
+        self.floating = name == 'daengi'
         self.cache = {}
     def frame(self, eyes, mouth):
         k = (eyes, mouth)
@@ -102,8 +105,10 @@ for i in range(int(DUR * FPS)):
     ci = c.resize((cw, ch), Image.BICUBIC)
     ang = math.sin(t * 0.9) * 0.3 + (math.sin(t * 5.3) * 0.6 * env if speaking else 0)
     ci = ci.rotate(ang, resample=Image.BICUBIC, center=(int((fx0 + fx1) / 2 * s), int(fy1 * s)))
-    tx, ty = W * (0.40 if k % 2 == 0 else 0.58), H * 0.40 + math.sin(t * 2.2) * (10 if l['char'] == 'daengi' else 0)
-    fr.paste(ci, (int(tx - (fx0 + fx1) / 2 * s), int(ty - (fy0 + fy1) / 2 * s + env * 5)), ci)
+    tx = W * (0.40 if k % 2 == 0 else 0.58)
+    if pp.floating: py = int(H * 0.50 - (fy0 + fy1) / 2 * s + math.sin(t * 2.2) * 10)   # 떠 있는 댕이: 화면 가운데보다 조금 아래
+    else: py = int(H + 12 - pp.bottom * s + env * 5)                                     # 사람: 몸 아래 끝이 화면 아래에 딱 붙게
+    fr.paste(ci, (int(tx - (fx0 + fx1) / 2 * s), py), ci)
     if l['start'] - 0.25 <= t <= l['start'] + l['dur'] + 0.45: sub(fr, l)
     if t - l['start'] < -0.25 + 0.08 and k > 0: fr = Image.blend(fr, Image.new('RGB', (W, H), 'white'), 0.25)   # 장면 바뀔 때 살짝 번쩍
     p.stdin.write(fr.tobytes())
