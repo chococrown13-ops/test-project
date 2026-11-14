@@ -7,14 +7,20 @@ window.JoseonCast = (() => {
     윤진사: { model: 'character-male-d', recolor: { 'body': { '7,3': '#ece7da', '15,2': '#ece7da', '15,3': '#f7f3ea', '5,2': SKIN }, 'head': { '1,2': '#26262c', '5,2': SKIN } }, hat: 'gat' },
     주모: { model: 'character-female-e', recolor: { 'body': { '15,3': '#f2e2b3', '5,3': '#b8473c', '1,1': SKIN, '1,2': SKIN }, 'head': { '5,2': SKIN } } },
     순라군: { model: 'character-male-c', recolor: { 'body': { '1,1': '#2b3a5c', '3,3': '#6e2b2b', '5,2': SKIN }, 'head': { '1,1': '#1c1c22', '1,3': '#c0392b', '1,2': '#3a2e28', '5,2': SKIN } }, hat: 'jeollip', torch: true },
-    돌쇠: { model: 'character-raider', recolor: { 'body': { '9,2': '#c7ad7c', '1,1': '#8d7a5c', '3,2': SKIN, '5,2': SKIN }, 'head': { '5,2': SKIN } }, scale: 0.82 },
+    돌쇠: { model: 'character-raider', recolor: { 'body': { '9,2': '#c7ad7c', '1,1': '#8d7a5c', '3,2': SKIN, '5,2': SKIN }, 'head': { '5,2': SKIN } }, scale: 0.82, kid: true, iris: '#6b4428' },
     선비1: { model: 'character-male-e', recolor: { 'body': { '7,3': '#e6e1d4', '1,3': '#e6e1d4', '3,3': '#bfb7a5', '5,2': SKIN }, 'head': { '3,2': '#26262c', '5,2': SKIN } }, hat: 'gat' },
     선비2: { model: 'character-male-d', recolor: { 'body': { '7,3': '#cfdde6', '15,2': '#cfdde6', '15,3': '#eef3f6', '5,2': SKIN }, 'head': { '1,2': '#2e2a28', '5,2': SKIN } }, hat: 'gat' },
   };
   const FACE = { faceSize: 0.3, faceAt: [0, 0.135, 0.172], clearFace: 'head', bright: true, line: 0.006 };
+  // 웹툰·애니 느낌(2026-11-14): 머리 작게, 다리·몸통 길게, 애니 눈 + 자연스러운 깜빡임·시선. 주소 뒤 ?look=old 면 예전 모습
+  const Q = new URLSearchParams(location.search), OLD = Q.get('look') === 'old';
+  const PROP = Q.get('prop') ? (([h, l, t, a]) => ({ head: h, leg: l, torso: t, arm: a || t }))(Q.get('prop').split(',').map(Number)) : { head: 0.65, leg: 1.75, torso: 1.25, arm: 1.3 };
+  const KID = { head: 0.8, leg: 1.4, torso: 1.12, arm: 1.15 };
   async function make(name, extra = {}) {
     const d = DEF[name], g = await Story.loadGLB(d.model);
-    const ch = Story.rigChar(g, { ...FACE, faceCell: d.faceCell || '5,2', scale: 3.6 * (d.scale || 1), recolor: d.recolor, blinkOff: (name.length * 0.37) % 3, ...extra });
+    const ch = Story.rigChar(g, { ...FACE, faceCell: d.faceCell || '5,2', scale: 3.6 * (d.scale || 1), recolor: d.recolor, blinkOff: (name.length * 0.37) % 3 + name.charCodeAt(0) % 7 * 0.13,
+      ...(OLD ? {} : { prop: d.kid ? KID : PROP, naturalEyes: true }), ...extra });
+    if (!OLD) { ch.face.eyes = 'anime'; ch.face.iris = d.iris || '#5a3a26'; }
     const head = Story.bone(ch, 'head');
     if (d.hat && head) { const h = Story.hats[d.hat](); h.position.set(0, 0.33, -0.005); head.add(h); ch.hat = h; }
     if (d.bag) { const torso = Story.bone(ch, 'torso'); if (torso) Story.mesh(new THREE.BoxGeometry(0.24, 0.2, 0.14), '#2f8f5a', [0, 0.11, -0.14], torso, { line: 1.06 }); }

@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>@font-face{font-family:P;font-weight:800;src:url(../../../../gunggeum/tools/fonts/Pretendard-ExtraBold.otf)}html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script src="../../../physics/vendor/three-gltf-0.149.0.min.js"></script>
+<script src="../ep01/models.js"></script>
+<script>window.TL = { dur: 20, lines: [{ who: '민재', text: '어? 여기가 어디야?', start: 0.6, dur: 2.4, env: [], cues: [[0, 'C'], [0.25, 'D'], [0.5, 'B'], [0.8, 'E'], [1.1, 'C'], [1.4, 'D'], [1.8, 'B'], [2.2, 'X']] }, { who: '윤진사', text: '한양 종루 앞이오.', start: 3.6, dur: 2.2, env: [], cues: [[0, 'B'], [0.3, 'D'], [0.6, 'C'], [1.0, 'E'], [1.4, 'B'], [1.9, 'X']] }], sfx: [] };</script>
+<script src="../../tools/engine2.js"></script>
+<script src="../cast.js"></script>
+<script>
+// 인물 줄 세우기(비율 확인용). ?look=old 예전 모습, ?prop=머리,다리,몸통, ?t=초, ?shot=face
+window.ready = (async () => {
+  const Q = new URLSearchParams(location.search);
+  const S = Story.init({ w: 1920, h: 1080, bg: '#cfe3f2', titleAt: [-9, -8], ss: 1 });
+  const names = ['민재', '윤진사', '주모', '순라군', '돌쇠'];
+  const C = await JoseonCast.load(names); C.댕이 = Story.char({ type: 'bell', pos: [0, 2.3, 0], color: '#ffffff', glow: '#cdeeff', faceSize: 0.5, blinkOff: 1.9 });
+  Object.values(C).forEach((c) => S.scene.add(c.g));
+  const fl = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), Story.toon('#b9c9a4')); fl.rotation.x = -Math.PI / 2; fl.receiveShadow = true; S.scene.add(fl);
+  names.forEach((n, i) => { C[n].g.position.set((i - 2) * 1.35, 0, 0); C[n].g.rotation.y = -0.15 + (i - 2) * 0.05; });
+  C.댕이.g.position.set(-3.6, 2.0, 0.3);
+  const face = Q.get('shot') === 'face';
+  window.render = (t) => S.render(t, { cast: C, camK: 1, shot: () => face ? (() => { const v = new THREE.Vector3(), w = new THREE.Vector3(); Story.bone(C.민재, 'head').getWorldPosition(v); Story.bone(C.윤진사, 'head').getWorldPosition(w); const m = v.add(w).multiplyScalar(0.5); return { pos: [m.x, m.y + 0.35, 3.4], look: [m.x, m.y + 0.25, 0], fov: 22 }; })() : { pos: [0, 1.6, 9.5], look: [0, 1.15, 0], fov: 34 },
+    update: (t) => { for (const n of names) { Story.anim(C[n], t, [[0, 'idle']]); Story.groundSnap(C[n], 0); } } });
+  window.DUR = +(Q.get('dur') || 4); window._C = C; await document.fonts.load('800 40px P'); window.render(+(Q.get('t') || 1.2)); return true;
+})();
+</script></body></html>

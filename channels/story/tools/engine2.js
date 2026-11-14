@@ -20,6 +20,36 @@
   // ---- 얼굴: 눈·눈썹·볼 + 소리별 입 모양 ----
   // Rhubarb 모양: A 다문 입(ㅁㅂㅍ) · B 살짝 · C 중간(ㅔ) · D 크게(ㅏ) · E 둥글게(ㅗ) · F 오므림(ㅜ) · G 윗니(ㅍ/f) · H 혀(ㄹ) · X 쉼
   const SHAPE = { A: [18, 2, 0], B: [20, 7, 0], C: [24, 14, 0], D: [26, 24, 0], E: [17, 17, 1], F: [11, 10, 1], G: [22, 8, 2], H: [22, 14, 3], X: [0, 0, 0] };
+  // 웹툰·애니 눈: 흰자 + 색 홍채 + 동공 + 반짝임 두 개 + 속눈썹(윗선). blink 0~1 = 윗눈꺼풀이 내려온 정도, gz = 시선(-1~1)
+  function animeEyes(g, bl, mood, gz, iris) {
+    const ey = 112, wide = mood === 'surprised' || mood === 'scared' ? 1.18 : 1;
+    let lid = Math.max(bl, mood === 'tired' ? 0.5 : 0, mood === 'angry' ? 0.22 : 0);
+    for (const [x, side] of [[86, -1], [170, 1]]) {
+      const rx = 23 * wide, ry = 28 * wide, top = ey - ry;
+      if (mood === 'happy' || mood === 'proud' || lid > 0.92) {   // 웃는 눈 / 감은 눈: 곡선 하나 + 바깥 속눈썹
+        g.strokeStyle = '#1b1410'; g.lineWidth = 6; g.beginPath();
+        if (lid > 0.92 && !(mood === 'happy' || mood === 'proud')) g.arc(x, ey - 4, rx, 0.15 * Math.PI, 0.85 * Math.PI);
+        else g.arc(x, ey + 10, rx, 1.15 * Math.PI, 1.85 * Math.PI);
+        g.stroke(); continue;
+      }
+      const ly = top + lid * ry * 2;   // 윗눈꺼풀 높이
+      g.save(); g.beginPath(); g.ellipse(x, ey, rx, ry, 0, 0, 7); g.clip(); g.beginPath(); g.rect(x - rx - 2, ly, rx * 2 + 4, ry * 2 + 4); g.clip();
+      g.fillStyle = '#fbfaf7'; g.fillRect(x - rx, top, rx * 2, ry * 2);
+      const ix = x + gz.x * 7, iy = ey + 3 + gz.y * 6, ir = (mood === 'surprised' || mood === 'scared' ? 12 : 16.5);
+      const grd = g.createLinearGradient(0, iy - ir * 1.2, 0, iy + ir * 1.2); grd.addColorStop(0, '#1d1310'); grd.addColorStop(0.45, iris); grd.addColorStop(1, '#c79a6a');
+      g.fillStyle = grd; g.beginPath(); g.ellipse(ix, iy, ir, ir * 1.18, 0, 0, 7); g.fill();
+      g.fillStyle = '#120c0a'; g.beginPath(); g.ellipse(ix, iy + 1, ir * 0.45, ir * 0.55, 0, 0, 7); g.fill();
+      g.fillStyle = '#fff'; g.beginPath(); g.ellipse(ix + 5, iy - 9, 5.5, 6.5, 0, 0, 7); g.fill(); g.beginPath(); g.arc(ix - 5, iy + 9, 2.8, 0, 7); g.fill();
+      g.fillStyle = 'rgba(60,40,40,.18)'; g.fillRect(x - rx, ly, rx * 2, 6);   // 눈꺼풀 그림자
+      g.restore();
+      g.strokeStyle = '#1b1410'; g.lineCap = 'round';
+      g.lineWidth = 6.5; g.beginPath();   // 윗속눈썹: 눈꺼풀 따라 내려옴, 바깥쪽 끝이 살짝 올라감
+      const cy = Math.max(ly, top) + 2, half = Math.sqrt(Math.max(0, 1 - ((cy - ey) / ry) ** 2)) * rx;
+      g.moveTo(x - half - 2, cy + (lid > 0.05 ? 0 : 6)); g.quadraticCurveTo(x, cy - (lid > 0.05 ? 2 : 7), x + half + 2, cy + (lid > 0.05 ? 0 : 6)); g.stroke();
+      g.lineWidth = 4; g.beginPath(); const ox = x + side * (half + 1); g.moveTo(ox, cy + 4); g.lineTo(ox + side * 6, cy - 3); g.stroke();
+      g.lineWidth = 2.5; g.strokeStyle = 'rgba(40,25,20,.55)'; g.beginPath(); g.arc(x, ey - 2, rx * 0.85, 0.32 * Math.PI, 0.68 * Math.PI); g.stroke();   // 아랫눈꺼풀 옅은 선
+    }
+  }
   function face(size = 1) {
     const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d'); g.scale(2, 2); // 2배 해상도(좌표는 256 기준)
     const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding;
@@ -27,20 +57,23 @@
     tex.anisotropy = 4;
     let last = '';
     function draw({ shape = 'X', blink = false, mood = 'normal', look = 0 } = {}) {
-      const key = `${shape}|${blink}|${mood}|${look.toFixed(2)}|${api.bg}`; if (key === last) return; last = key;
+      const bl = typeof blink === 'number' ? blink : blink ? 1 : 0, gz = typeof look === 'number' ? { x: look, y: 0 } : look;
+      const key = `${shape}|${bl.toFixed(1)}|${mood}|${gz.x.toFixed(2)}|${gz.y.toFixed(2)}|${api.bg}|${api.eyes}`; if (key === last) return; last = key;
       g.clearRect(0, 0, 256, 256); if (api.bg) { g.fillStyle = api.bg; g.beginPath(); g.roundRect ? g.roundRect(0, 0, 256, 256, 40) : g.rect(0, 0, 256, 256); g.fill(); }
       g.fillStyle = 'rgba(255,110,110,.35)'; g.beginPath(); g.ellipse(62, 150, 22, 13, 0, 0, 7); g.ellipse(194, 150, 22, 13, 0, 0, 7); g.fill();
-      const ey = 112, big = mood === 'surprised' || mood === 'scared' ? 1.35 : 1, lx = look * 8;
-      for (const x of [86, 170]) {
+      const ey = 112, big = mood === 'surprised' || mood === 'scared' ? 1.35 : 1, lx = gz.x * 8;
+      if (api.eyes === 'anime') animeEyes(g, bl, mood, gz, api.iris || '#5a3a26');
+      else for (const x of [86, 170]) {
         g.fillStyle = '#1b1410'; g.strokeStyle = '#1b1410';
         if (blink || mood === 'happy' || mood === 'proud') { g.lineWidth = 7; g.beginPath(); g.arc(x, ey + 6, 13, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); }
         else if (mood === 'tired') g.fillRect(x - 15, ey, 30, 7);
         else { g.beginPath(); g.ellipse(x + lx, ey, 11 * big, 15 * big, 0, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(x + lx + 4, ey - 6, 4.5, 0, 7); g.fill(); }
       }
       if (mood === 'scared' || mood === 'cry') { g.fillStyle = '#8fd3ff'; g.beginPath(); g.ellipse(196, 140, 6, 12, 0, 0, 7); g.fill(); }
-      g.lineWidth = 7; g.lineCap = 'round'; g.strokeStyle = '#2b2018';
+      g.lineWidth = api.eyes === 'anime' ? 5 : 7; g.lineCap = 'round'; g.strokeStyle = '#2b2018';
       const B = { normal: [0, 0], surprised: [-14, -14], scared: [10, -14], worried: [8, -10], smug: [-6, 6], proud: [-8, -2], happy: [-4, -4], tired: [4, 4], angry: [-10, 10], cry: [10, -12] }[mood] || [0, 0];
-      g.beginPath(); g.moveTo(66, 80 + B[0]); g.lineTo(104, 76 + B[1]); g.moveTo(152, 76 + B[1]); g.lineTo(190, 80 + B[0]); g.stroke();
+      if (api.eyes === 'anime') { g.beginPath(); g.moveTo(64, 76 + B[0]); g.quadraticCurveTo(84, 66 + B[1], 104, 72 + B[1]); g.moveTo(152, 72 + B[1]); g.quadraticCurveTo(172, 66 + B[1], 192, 76 + B[0]); g.stroke(); }   // 눈썹: 살짝 휜 가는 선
+      else { g.beginPath(); g.moveTo(66, 80 + B[0]); g.lineTo(104, 76 + B[1]); g.moveTo(152, 76 + B[1]); g.lineTo(190, 80 + B[0]); g.stroke(); }
       // 입
       const [w, h, kind] = SHAPE[shape] || SHAPE.X;
       if (shape === 'X' || shape === 'A') {
@@ -228,6 +261,31 @@
       const E = endAt ?? TL.dur - 3.2, ea = smooth(E, E + 0.8, t);
       if (ea > 0 && end.length) { og.globalAlpha = ea; og.fillStyle = 'rgba(15,12,24,.78)'; og.fillRect(0, 0, W, H); end.forEach((s, i) => { og.font = `800 ${(i ? 56 : 88) * U}px P`; og.fillStyle = i ? '#ffd54a' : '#fff'; og.fillText(s, W / 2, H * 0.42 + i * 110 * U); }); og.globalAlpha = 1; }
     }
+    // 자연스러운 눈: 시각만으로 정해짐(되감아도 같은 그림)
+    const hsh = (n, seed) => { const x = Math.sin(n * 12.9898 + seed * 78.233) * 43758.5453; return x - Math.floor(x); };
+    function blinkAt(ch, t) {   // 2.2~6초 간격으로 불규칙하게, 가끔 두 번 연속. 감기 0.07초 → 0.04초 감김 → 뜨기 0.12초
+      const sd = ch.opt.blinkOff || 0.5; if (!ch._bl) { ch._bl = []; let T = hsh(1, sd) * 2; for (let k = 0; T < 4000; k++) { ch._bl.push(T); if (hsh(k + 7, sd) > 0.86) ch._bl.push(T + 0.3); T += 2.2 + 3.8 * hsh(k, sd); } }
+      let lo = 0, hi = ch._bl.length - 1, T = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (ch._bl[m] <= t) { T = ch._bl[m]; lo = m + 1; } else hi = m - 1; }
+      if (T < 0) return 0; const d = t - T;
+      return d < 0.07 ? d / 0.07 : d < 0.11 ? 1 : d < 0.23 ? 1 - (d - 0.11) / 0.12 : 0;
+    }
+    const _v = new THREE.Vector3();
+    function rawGaze(ch, name, t, cast) {   // 듣는 사람은 말하는 사람 쪽, 말하는 사람은 대부분 앞(가끔 상대), 그 위에 1~2초마다 작은 눈 움직임
+      const sd = (ch.opt.blinkOff || 0.5) + 3.3, seg = Math.floor(t / 1.35 + hsh(Math.floor(t / 1.35), sd) * 0.6);
+      let gx = (hsh(seg, sd) - 0.5) * 0.45, gy = (hsh(seg + 99, sd) - 0.5) * 0.3;
+      const l = lineAt(t) || lastLine(t); let tgt = null;
+      if (l && l.who !== name && cast[l.who] && cast[l.who].g.visible) tgt = cast[l.who];
+      else if (l && l.who === name && hsh(seg + 5, sd) > 0.55) { const p = TL.lines[TL.lines.indexOf(l) - 1]; if (p && p.who !== name && cast[p.who] && cast[p.who].g.visible) tgt = cast[p.who]; }
+      if (tgt && ch.g.visible) {
+        tgt.g.getWorldPosition(_v); const p = ch.g.getWorldPosition(new THREE.Vector3()); const dx = _v.x - p.x, dz = _v.z - p.z, ry = ch.g.rotation.y || 0;
+        const lx = dx * Math.cos(ry) - dz * Math.sin(ry), lz = dx * Math.sin(ry) + dz * Math.cos(ry);
+        if (lz > -0.3) gx = Math.max(-1, Math.min(1, Math.atan2(lx, Math.max(0.2, lz)) / 1.1)) + gx * 0.3, gy *= 0.4;
+      }
+      return { x: gx, y: gy + (ch.mood === 'tired' ? 0.4 : 0) };
+    }
+    function gazeAt(ch, name, t, cast) {   // 최근 0.12초 평균 → 눈이 '휙' 하고 빠르게 옮겨 가되 순간이동은 안 함
+      let x = 0, y = 0; for (let k = 0; k < 4; k++) { const g = rawGaze(ch, name, t - k * 0.04, cast); x += g.x / 4; y += g.y / 4; } return { x, y };
+    }
     let camPos = null, camLook = null, lastT = -1;
     function stepCam(s, k) { const P = new THREE.Vector3(...s.pos), L = new THREE.Vector3(...s.look); if (!camPos || s.cut) { camPos = P; camLook = L; } else { camPos.lerp(P, k); camLook.lerp(L, k); } }
     function frame(t, args, dt) {
@@ -239,8 +297,9 @@
         const env = speaking ? (l.env[Math.floor((t - l.start) * 24)] || 0) : 0;
         const prev = lastLine(t), recent = prev && prev.who === name && t - prev.start - prev.dur < 1.2;
         const mood = (speaking ? l.mood : recent ? prev.mood : null) || ch.mood || ch.opt.mood || 'normal';
-        const blink = ((t + (ch.opt.blinkOff || 0)) % 3.1) < 0.11;
-        const look = l && !speaking && args.cast[l.who] ? Math.sign(args.cast[l.who].g.position.x - ch.g.position.x) * 0.8 : 0;
+        let blink, look;
+        if (ch.opt.naturalEyes) { blink = blinkAt(ch, t); look = gazeAt(ch, name, t, args.cast); }
+        else { blink = ((t + (ch.opt.blinkOff || 0)) % 3.1) < 0.11; look = l && !speaking && args.cast[l.who] ? Math.sign(args.cast[l.who].g.position.x - ch.g.position.x) * 0.8 : 0; }
         ch.face.draw({ shape, blink, mood, look });
         const gesture = (speaking ? l.gesture : recent ? prev.gesture : null) || ch.gesture || null;
         pose(ch, gesture, dt * 10, t, env);
@@ -350,6 +409,16 @@
     for (const c of gltf.animations) { const a = mixer.clipAction(c); a.play(); a.setEffectiveWeight(0); actions[c.name] = a; }
     return { g, head, face: f, arms: [], opt, baseY: 0, rig: { root, mixer, actions, headBone } };
   }
+  // 몸 비율: opt.prop = { head: 머리 크기, leg: 다리 길이, torso: 몸통 길이 } (동작 재생 뒤에 매번 다시 적용)
+  function applyProp(ch) {
+    const P = ch.opt.prop; if (!P || !ch.rig) return;
+    if (!ch._pb) { ch._pb = {}; ch.rig.root.traverse((o) => { if (['head', 'torso', 'leg-left', 'leg-right', 'arm-left', 'arm-right'].includes(o.name)) ch._pb[o.name] = o; }); }
+    const B = ch._pb, ts = P.torso || 1, hd = P.head || 1;
+    if (B.torso) B.torso.scale.set(1, ts, 1);
+    if (B.head) B.head.scale.set(hd, hd / ts, hd);   // 몸통을 늘린 만큼 머리는 되돌려 찌그러짐 방지
+    for (const a of ['arm-left', 'arm-right']) if (B[a]) B[a].scale.set(1, (P.arm || 1) / ts, 1);
+    for (const g of ['leg-left', 'leg-right']) if (B[g]) B[g].scale.set(1, P.leg || 1, 1);
+  }
   // 정해진 순서대로 동작 재생(되감아도 늘 같은 그림): plan = [[시작초, '동작이름', {loop:true, speed:1}], …]
   function anim(ch, t, plan, fade = 0.25) {
     const R = ch.rig; let cur = -1; for (let i = 0; i < plan.length; i++) if (plan[i][0] <= t) cur = i;
@@ -358,6 +427,7 @@
       const d = a.getClip().duration, u = Math.max(0, (t - t0) * (o.speed || 1)); a.time = o.loop === false ? Math.min(u, d - 1e-3) : u % d; a.setEffectiveWeight(w); };
     if (cur >= 0) { const k = Math.min(1, (t - plan[cur][0]) / fade); put(cur, k); put(cur - 1, 1 - k); }
     R.mixer.update(0);
+    applyProp(ch);
   }
   // 발·엉덩이가 바닥 아래로 들어가면(앉은 자세 등) 그만큼 몸을 올림. floor = 딛고 있는 면의 높이(월드 y)
   const _gv = new THREE.Vector3();

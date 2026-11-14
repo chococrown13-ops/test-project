@@ -31,3 +31,4 @@ channels/story/*/*/voice/
 channels/*/*/*/*.mp4
 __pycache__/
 channels/story/joseon/candidates/models.js
+channels/story/joseon/candidates/*.mp4
