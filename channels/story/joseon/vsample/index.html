@@ -9,7 +9,7 @@
 // 웹툰·애니 체형 시험(2026-11-14): 민재 = VRoid 샘플(桜田 史利矢, 상업 이용·수정 허용) 머리·눈·옷 색을 바꿔 씀. 1795 밤 거리, 댕이와 대화 4줄
 window.ready = (async () => {
 const Q = new URLSearchParams(location.search), L = TL.lines;
-const S = Story.init({ w: 1920, h: 1080, bg: '#141a33', titleAt: [-9, -8], end: [], post: { bloom: 0.7, vignette: 0.45, grade: 'saturate(1.1) contrast(1.05)' }, ss: +(Q.get('ss') || 1), aa: true, softShadow: false });
+const S = Story.init({ w: 1920, h: 1080, bg: '#141a33', titleAt: [999, 1000], end: [], post: { bloom: 0.7, vignette: 0.45, grade: 'saturate(1.1) contrast(1.05)' }, ss: +(Q.get('ss') || 1), aa: true, softShadow: false });
 const { scene } = S, M = Story.mesh, sm = Story.smooth;
 window.CAST_STYLE = { 민재: { name: '민재', color: '#ffb35c' }, 댕이: { name: '댕이', color: '#bfeaff' } };
 const hemi = scene.children.find((o) => o.isHemisphereLight), sun = scene.children.find((o) => o.isDirectionalLight);
@@ -43,13 +43,14 @@ function recolor(img, fn) { const c = document.createElement('canvas'); c.width 
   const d = g.getImageData(0, 0, c.width, c.height), p = d.data; for (let i = 0; i < p.length; i += 4) { const o = fn(p[i], p[i + 1], p[i + 2]); if (o) { p[i] = o[0]; p[i + 1] = o[1]; p[i + 2] = o[2]; } } g.putImageData(d, 0, 0);
   const t = new THREE.CanvasTexture(c); t.flipY = false; t.encoding = THREE.sRGBEncoding; return t; }
 const lum = (r, g, b) => (0.3 * r + 0.59 * g + 0.11 * b) / 255;
+const JACKET = (l) => [24 + l * 60, 96 + l * 120, 62 + l * 70];   // 배달 조끼 초록(명암 l 0~1)
+const SHIRT = (l) => [40 + l * 46, 42 + l * 48, 48 + l * 52];     // 안에 입은 긴팔(짙은 회색)
 const RULES = {
   HAIR: (r, g, b) => { const l = lum(r, g, b); return [20 + l * 34, 18 + l * 26, 20 + l * 26]; },                              // 은발 → 짙은 흑갈색
   EyeIris: (r, g, b) => { const l = lum(r, g, b); return [40 + l * 150, 24 + l * 92, 14 + l * 48]; },                          // 파란 눈 → 갈색
   FaceBrow: (r, g, b) => { const l = lum(r, g, b); return [30 + l * 60, 24 + l * 44, 22 + l * 40]; },
-  Tops: (r, g, b) => { const l = lum(r, g, b); if (l < 0.55 && b >= r + 4 && b >= g - 6) return [30 + l * 70, 110 + l * 150, 70 + l * 90];   // 남색 조끼 → 배달 조끼(초록)
-    if (r > 180 && g > 80 && g < 170 && b < 90) return [235, 200, 70]; return null; },                                           // 주황 넥타이 → 노란 띠
-  Accessory: (r, g, b) => { const l = lum(r, g, b); if (r > g + 30 && r > b + 50) return [40 + l * 60, 90 + l * 110, 60 + l * 70]; return null; },   // 주황 넥타이 → 짙은 초록
+  Tops: (r, g, b) => { const l = lum(r, g, b); return (l < 0.5 && b >= r + 4) ? JACKET(0.2 + l * 1.1) : SHIRT(l); },   // 남색 조끼 → 초록 배달 조끼, 흰 셔츠 → 짙은 회색 긴팔                              // 교복(셔츠+조끼) → 배달 점퍼(초록)
+  Accessory: (r, g, b) => SHIRT(lum(r, g, b) * 0.8),                                                                     // 넥타이 → 점퍼 지퍼 덮개
   Bottoms: (r, g, b) => { const l = lum(r, g, b); return [40 + l * 60, 46 + l * 70, 66 + l * 90]; },                          // 바지 → 짙은 청바지
 };
 const grad = (() => { const d = new Uint8Array([130, 205, 255]); const t = new THREE.DataTexture(d, 3, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
@@ -62,29 +63,64 @@ mj.traverse((o) => { if (!o.isMesh) return; o.frustumCulled = false; o.castShado
 for (const o of mjMeshes) { const ms = Array.isArray(o.material) ? o.material : [o.material]; if (ms.every((m) => m.transparent)) continue;
   const ink = new THREE.MeshBasicMaterial({ color: '#2a1f1a', side: THREE.BackSide }); ink.onBeforeCompile = (sh) => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed += normalize(objectNormal) * 0.0035;'); };
   const h = o.clone(); h.material = Array.isArray(o.material) ? o.material.map((m) => (m.transparent || /SKIN/.test(m.name) && /Face/.test(m.name) ? new THREE.MeshBasicMaterial({ visible: false }) : ink)) : (o.material.transparent ? new THREE.MeshBasicMaterial({ visible: false }) : ink); h.morphTargetInfluences = o.morphTargetInfluences; o.parent.add(h); }
-// 배달 가방(등)
 const B = {}; mj.traverse((o) => { if (o.name && o.name.startsWith('J_')) B[o.name] = o; });
+// 긴소매: 몸 피부 그림에서 팔(위팔·아래팔 뼈에 붙은 삼각형)만 점퍼 색으로 칠함
+for (const o of mjMeshes) { const m = o.material; if (Array.isArray(m) || !/Body_00_SKIN/.test(m.name) || !m.map || !o.skeleton) continue;
+  const img = m.map.image, c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+  const geo = o.geometry, uv = geo.attributes.uv, si = geo.attributes.skinIndex, sw = geo.attributes.skinWeight, idx = geo.index;
+  const arm = (v) => { let best = 0, bi = 0; const G = ['getX', 'getY', 'getZ', 'getW']; for (let k = 0; k < 4; k++) { const w = sw[G[k]](v); if (w > best) { best = w; bi = si[G[k]](v); } } return /UpperArm|LowerArm/.test(o.skeleton.bones[bi].name); };
+  g.fillStyle = 'rgb(' + SHIRT(0.85).map(Math.round).join(',') + ')'; g.strokeStyle = g.fillStyle; g.lineWidth = 2;
+  for (let i = 0; i < idx.count; i += 3) { const a = idx.getX(i), b = idx.getX(i + 1), d = idx.getX(i + 2); if (!(arm(a) && arm(b) && arm(d))) continue;
+    g.beginPath(); for (const v of [a, b, d]) g.lineTo(uv.getX(v) * c.width, uv.getY(v) * c.height); g.closePath(); g.fill(); g.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.flipY = false; t.encoding = THREE.sRGBEncoding; m.map = t; m.needsUpdate = true; }
+// 배달 모자(머리)
+const cap = new THREE.Group(); if (Q.get('cap')) B.J_Bip_C_Head.add(cap);   // 모자는 머리카락이 뚫고 나와 기본은 안 씀 cap.position.set(0, 0.098, -0.01); cap.rotation.x = -0.1;
+{ const dome = M(new THREE.SphereGeometry(0.142, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), null, [0, 0, 0], cap, { line: 1.04, mat: Story.toon('#2b8455') }); dome.scale.set(1.02, 0.78, 1.1);
+  const brim = M(new THREE.CylinderGeometry(0.12, 0.12, 0.012, 32, 1, false, -Math.PI / 2, Math.PI), null, [0, -0.004, 0.125], cap, { line: 1.06, mat: Story.toon('#22704a') }); brim.scale.set(1, 1, 0.9); brim.rotation.x = 0.18;
+  M(new THREE.TorusGeometry(0.145, 0.007, 6, 40), '#f2d36b', [0, 0.004, 0], cap, { line: 0 }).rotation.x = Math.PI / 2;
+  M(new THREE.SphereGeometry(0.013, 10, 8), '#f2d36b', [0, 0.112, 0], cap, { line: 0 }); }
+// 배달 가방(등)
 const bag = new THREE.Group(); B.J_Bip_C_Chest.add(bag); M(new THREE.BoxGeometry(0.26, 0.3, 0.15), '#2f8f5a', [0, 0.0, 0.17], bag, { line: 1.05 }); M(new THREE.BoxGeometry(0.265, 0.05, 0.155), '#f2d36b', [0, 0.09, 0.17], bag, { line: 0 });
 // 표정(VRM 표정 묶음 → 얼굴 모프)
 const vrm = gltf.parser.json.extensions.VRM, faceMeshes = mjMeshes.filter((m) => m.morphTargetInfluences && m.morphTargetInfluences.length > 20);
 const groups = {}; for (const g of vrm.blendShapeMaster.blendShapeGroups) groups[g.presetName === 'unknown' ? g.name : g.presetName] = g.binds;
 const setBS = (name, w) => { for (const b of groups[name] || []) for (const m of faceMeshes) m.morphTargetInfluences[b.index] = w * b.weight / 100; };
-const VIS = { A: null, B: ['i', 0.35], C: ['e', 0.7], D: ['a', 0.9], E: ['o', 0.8], F: ['u', 0.8], G: ['i', 0.3], H: ['a', 0.5], X: null };
+const TN = gltf.parser.json.meshes[0].primitives[0].extras.targetNames.map((n) => n.replace('Face.M_F00_000_00_', ''));
+const MI = {}; TN.forEach((n, i) => (MI[n] = i));
+const morph = {}; const setM = (n, w) => { morph[n] = Math.max(0, Math.min(1, w)); };
+function flushMorph() { for (const m of faceMeshes) { for (let i = 0; i < m.morphTargetInfluences.length; i++) m.morphTargetInfluences[i] = 0; for (const [n, w] of Object.entries(morph)) if (MI[n] !== undefined) m.morphTargetInfluences[MI[n]] = w; } for (const k in morph) delete morph[k]; }
+// 입 모양(Rhubarb A~H, X) → 아이우에오 + 입 다물기. [이름, 세기]
+const VIS = { A: [['Fcl_MTH_Close', 0.55]], B: [['Fcl_MTH_I', 0.35], ['Fcl_MTH_E', 0.15]], C: [['Fcl_MTH_E', 0.6], ['Fcl_MTH_A', 0.2]], D: [['Fcl_MTH_A', 0.85]], E: [['Fcl_MTH_O', 0.75]], F: [['Fcl_MTH_U', 0.75]], G: [['Fcl_MTH_I', 0.25], ['Fcl_MTH_Close', 0.2]], H: [['Fcl_MTH_A', 0.45], ['Fcl_MTH_E', 0.2]], X: [] };
 
 // ---- 댕이 ----
 const dg = Story.char({ type: 'bell', pos: [1.1, 2.0, 0.6], color: '#ffffff', glow: '#cdeeff', faceSize: 0.5, blinkOff: 1.9 }); scene.add(dg.g); dg.g.scale.setScalar(0.5);
 dg.opt.naturalEyes = true;
 const cast = { 댕이: dg };
 // 서 있는 자세: 팔 내리고, 손 살짝 안으로
-const rest = { J_Bip_L_UpperArm: [0, 0, 1.32], J_Bip_R_UpperArm: [0, 0, -1.32], J_Bip_L_LowerArm: [0, -0.18, 0], J_Bip_R_LowerArm: [0, 0.18, 0], J_Bip_L_Hand: [0, 0, 0.1], J_Bip_R_Hand: [0, 0, -0.1] };
+const rest = { J_Bip_L_UpperArm: [0.12, 0.08, 1.22], J_Bip_R_UpperArm: [0.12, -0.08, -1.22], J_Bip_L_LowerArm: [0, -0.42, 0.05], J_Bip_R_LowerArm: [0, 0.42, -0.05], J_Bip_L_Hand: [0.15, 0, 0.12], J_Bip_R_Hand: [0.15, 0, -0.12] };
 for (const [n, r] of Object.entries(rest)) B[n] && B[n].rotation.set(...r);
+for (const side of ['L', 'R']) for (const f of ['Index', 'Middle', 'Ring', 'Little']) for (const j of [1, 2, 3]) { const b = B[`J_Bip_${side}_${f}${j}`]; if (b) b.rotation.z = (side === 'L' ? 1 : -1) * (0.22 + j * 0.12 + (f === 'Little' ? 0.1 : 0)); }   // 손가락 살짝 말기
 const hsh = (n, s) => { const x = Math.sin(n * 12.9898 + s * 78.233) * 43758.5453; return x - Math.floor(x); };
 const blinks = []; { let T = 0.9; for (let k = 0; T < 60; k++) { blinks.push(T); if (hsh(k + 7, 4.2) > 0.85) blinks.push(T + 0.3); T += 2.3 + 3.5 * hsh(k, 4.2); } }
 function blinkAt(t) { let T = -1; for (const b of blinks) if (b <= t) T = b; if (T < 0) return 0; const d = t - T; return d < 0.07 ? d / 0.07 : d < 0.11 ? 1 : d < 0.23 ? 1 - (d - 0.11) / 0.12 : 0; }
 const lineAt = (t) => L.find((l) => t >= l.start && t <= l.start + l.dur) || null;
-function mouth(t) { const l = lineAt(t); for (const k of ['a', 'i', 'u', 'e', 'o']) setBS(k, 0); if (!l || l.who !== '민재' || !l.cues) return;
-  const u = t - l.start; let cur = 'X', prev = 'X', t0 = 0; for (const [ct, v] of l.cues) if (ct <= u) { prev = cur; cur = v; t0 = ct; }
-  const k = Math.min(1, (u - t0) / 0.06); const p = VIS[prev], c = VIS[cur]; if (p) setBS(p[0], p[1] * (1 - k)); if (c) setBS(c[0], (c[1]) * k); }
+// 입: 앞뒤 소리를 섞어(0.09초 전 ~ 0.03초 뒤) 부드럽게, 목소리 크기만큼 더 벌림
+function cueAt(l, u) { let v = 'X'; for (const [ct, s] of l.cues) if (ct <= u) v = s; else break; return v; }
+function mouth(t) { const l = lineAt(t); if (!l || l.who !== '민재' || !l.cues) return 0;
+  const u = t - l.start, env = l.env || [], e = (env[Math.floor(u * 24)] || 0), amp = 0.55 + Math.min(0.55, e * 1.4);
+  const acc = {}; for (const [dt, w] of [[-0.09, 0.15], [-0.045, 0.25], [0, 0.4], [0.03, 0.2]]) for (const [n, v] of VIS[cueAt(l, u + dt)]) acc[n] = (acc[n] || 0) + v * w;
+  for (const [n, v] of Object.entries(acc)) setM(n, v * (n === 'Fcl_MTH_Close' ? 1 : amp)); return e; }
+// 대사별 표정(대사 0.2초 전부터 서서히, 끝나고 0.6초 동안 풀림). 듣는 쪽 반응도 넣음
+const MOOD = {
+  tired: { Fcl_BRW_Sorrow: 0.65, Fcl_EYE_Sorrow: 0.35, Fcl_MTH_Sorrow: 0.25 },
+  surprised: { Fcl_BRW_Surprised: 0.95, Fcl_EYE_Surprised: 0.75, Fcl_MTH_Surprised: 0.25 },
+  curious: { Fcl_BRW_Surprised: 0.45, Fcl_EYE_Surprised: 0.3 },
+  doubt: { Fcl_BRW_Angry: 0.35, Fcl_EYE_Angry: 0.15, Fcl_MTH_Down: 0.2 },
+};
+const REACT = { 0: 'tired', 1: 'curious', 2: 'surprised', 3: 'doubt' };   // 줄 번호 → 민재 표정(말할 때·들을 때)
+function face(t) { for (let i = 0; i < L.length; i++) { const l = L[i], m = MOOD[REACT[i]]; if (!m) continue;
+  const k = sm(l.start - 0.25, l.start + 0.2, t) * (1 - sm(l.start + l.dur + 0.15, l.start + l.dur + 0.75, t)); if (k <= 0) continue;
+  for (const [n, v] of Object.entries(m)) setM(n, (morph[n] || 0) + v * k); } }
 // 머리·눈이 댕이 쪽을 볼지(0~1): 댕이가 말할 때, 그리고 '날아다니는 종' 대사 때
 function lookAtDaengi(t) { let w = 0; for (const l of L) { const on = (l.who === '댕이' || l.text.includes('날아다니는')) ? 1 : 0; if (!on) continue; w = Math.max(w, sm(l.start - 0.3, l.start + 0.2, t) * (1 - sm(l.start + l.dur + 0.1, l.start + l.dur + 0.6, t))); } return w; }
 
@@ -107,9 +143,12 @@ window.render = (t) => S.render(t, {
     // 눈: 댕이 쪽 + 1~2초마다 작은 움직임(0.1초 동안 옮겨 감)
     const seg = Math.floor(t / 1.4), sx = (hsh(seg, 9) - 0.5) * 0.12, sy = (hsh(seg + 50, 9) - 0.5) * 0.06;
     for (const n of ['J_Adj_L_FaceEye', 'J_Adj_R_FaceEye']) if (B[n]) { B[n].rotation.y = -0.22 * w + sx; B[n].rotation.x = -0.12 * w + sy; }
-    setBS('blink', blinkAt(t)); setBS('fun', speak ? 0 : 0.15); setBS('sorrow', l && l.mood === 'tired' && speak ? 0.5 : 0); setBS('surprised', 0);
-    if (l && l.mood === 'surprised' && speak) setBS('a', 0);
-    mouth(t);
+    face(t);
+    const e = mouth(t);
+    if (speak) { for (const n of ['Fcl_MTH_Sorrow', 'Fcl_MTH_Surprised', 'Fcl_MTH_Down']) if (morph[n]) setM(n, morph[n] * 0.4); B.J_Bip_C_Head.rotation.x += e * 0.06; }   // 말할 땐 감정 입모양을 약하게, 큰 소리에 고개 살짝
+    const eyeOpen = 1 - (morph.Fcl_EYE_Sorrow || 0) * 0.3; setM('Fcl_EYE_Close', blinkAt(t) * eyeOpen + (morph.Fcl_EYE_Close || 0));
+    if (!speak) setM('Fcl_MTH_Fun', (morph.Fcl_MTH_Fun || 0) + 0.12);   // 가만히 있을 때 입꼬리 살짝
+    flushMorph();
     // 댕이: 민재 옆에서 둥실
     const hp = new THREE.Vector3(); B.J_Bip_C_Head.getWorldPosition(hp);
     dg.g.position.set(hp.x + 0.75 + Math.sin(t * 0.9) * 0.05, hp.y - 0.12 + Math.sin(t * 2.4) * 0.04, 0.35);
