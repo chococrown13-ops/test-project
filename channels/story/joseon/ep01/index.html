@@ -75,9 +75,11 @@ M(new THREE.BoxGeometry(1.25, 0.08, 0.32), '#2a2f3a', [0, 0.2, 0], kick); for (c
 M(new THREE.CylinderGeometry(0.035, 0.035, 1.25, 8), '#c9ced6', [0.55, 0.82, 0], kick, { line: 0 }); M(new THREE.CylinderGeometry(0.03, 0.03, 0.62, 8), '#222', [0.55, 1.45, 0], kick, { line: 0 }).rotation.x = Math.PI / 2;
 const kickLight = M(new THREE.SphereGeometry(0.06, 10, 8), null, [0.62, 1.2, 0], kick, { line: 0, mat: new THREE.MeshBasicMaterial({ color: '#fff7d0' }) });
 const truck = new THREE.Group(); NOW.add(truck); truck.visible = false;
-{ const tm = Story.model(G.truck, { scale: 1.4, line: 0.012, bright: true }); tm.g.rotation.y = -Math.PI / 2; tm.g.position.set(0.9, 1.4, 0); truck.add(tm.g); }
-const heads = []; for (const z of [-0.75, 0.75]) heads.push(M(new THREE.SphereGeometry(0.15, 12, 10), null, [-1.42, 0.95, z], truck, { line: 0, mat: new THREE.MeshBasicMaterial({ color: '#fffbe0' }) }));
-const beam = new THREE.SpotLight('#fff3c8', 0, 22, 0.5, 0.6); beam.position.set(-1.6, 0.9, 0); truck.add(beam); beam.target.position.set(-8, 0.2, 0); truck.add(beam.target);
+const TB = new THREE.Box3();
+{ const tm = Story.model(G.truck, { scale: 1.4, line: 0.012, bright: true }); tm.g.rotation.y = -Math.PI / 2; truck.add(tm.g);
+  tm.g.updateMatrixWorld(true); TB.setFromObject(tm.g); tm.g.position.set(0.9 - (TB.min.x + TB.max.x) / 2, -TB.min.y, -(TB.min.z + TB.max.z) / 2); TB.setFromObject(tm.g); }   // 바퀴가 길바닥에 닿게
+const heads = []; for (const z of [-0.3, 0.3]) heads.push(M(new THREE.SphereGeometry(0.11, 12, 10), null, [TB.min.x - 0.02, TB.min.y + (TB.max.y - TB.min.y) * 0.3, z * (TB.max.z - TB.min.z)], truck, { line: 0, mat: new THREE.MeshBasicMaterial({ color: '#fffbe0' }) }));
+const beam = new THREE.SpotLight('#fff3c8', 0, 22, 0.5, 0.6); beam.position.set(TB.min.x - 0.1, TB.min.y + (TB.max.y - TB.min.y) * 0.3, 0); truck.add(beam); beam.target.position.set(-8, 0.2, 0); truck.add(beam.target);
 const RAIN_N = 900, rainGeo = new THREE.BufferGeometry(), rainPos = new Float32Array(RAIN_N * 6), rainSeed = [];
 for (let k = 0; k < RAIN_N; k++) rainSeed.push([(Math.sin(k * 12.9898) * 43758.5453 % 1 + 1) % 1, (Math.sin(k * 78.233) * 12345.678 % 1 + 1) % 1, (Math.sin(k * 3.17) * 999.1 % 1 + 1) % 1]);
 rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
