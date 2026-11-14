@@ -1,0 +1,12 @@
+{
+ "title": "조선으로 회귀하면 1화",
+ "subtitle": "한양 첫날 밤, 통금 종이 울린다",
+ "title_card": "c2",
+ "end": ["조선으로 회귀하면 1화 끝", "다음 화: 호패를 만들어라", "댓글로 공략을 남겨 주세요"],
+ "chars": {"민재": "minjae", "댕이": "daengi", "윤진사": "yunjinsa", "주모": "jumo", "순라군": "sunra", "돌쇠": "dolsoe"},
+ "names": {"민재": "민재", "댕이": "댕이", "목소리": "???", "윤진사": "윤 진사", "주모": "주모", "순라군": "순라군", "돌쇠": "돌쇠"},
+ "rain_until": 4,
+ "bg": {"0-2": "bg_2026_rain", "3-5": "bg_2026_frozen", "6-78": "bg_street_night", "79-140": "bg_inn_inside", "141-151": "bg_inn_night", "152-157": "bg_dawn_street"},
+ "cut": {"0": "cut_ride", "2": "cut_truck", "3": "cut_lightning", "5": "bg_2026_frozen", "39": "bg_gate", "40": "cut_torch", "48": "cut_run", "81": "cut_card", "91": "cut_hotpack", "95-96": "cut_gukbap", "118": "cut_crowd", "152": "bg_dawn_street"},
+ "map": {"20-23": "open", "33-38": "wall"}
+}
