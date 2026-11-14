@@ -1,0 +1,89 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script src="../../../physics/vendor/three-gltf-0.149.0.min.js"></script>
+<script src="models.js"></script>
+<script>
+// 새 캐릭터 후보 보기 (Microsoft Rocketbox, MIT). 주소 뒤 옵션:
+//   ?who=Male_Adult_10&style=real|toon&shot=full|face&mouth=AA_VI_10_aa&smile=0.6&blink=0&w=960&h=1080
+window.ready = (async () => {
+const Q = new URLSearchParams(location.search), W = +(Q.get('w') || 960), H = +(Q.get('h') || 1080);
+const style = Q.get('style') || 'real', who = Q.get('who') || 'Male_Adult_10', shot = Q.get('shot') || 'full';
+const cv = document.getElementById('c'); cv.width = W; cv.height = H;
+const R = new THREE.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true }); R.setSize(W, H, false);
+R.outputEncoding = THREE.sRGBEncoding; R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = style === 'toon' ? 1.05 : 1.15;
+R.shadowMap.enabled = true; R.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(style === 'toon' ? '#cfe3f2' : '#2a2f3a');
+const cam = new THREE.PerspectiveCamera(shot === 'face' ? 18 : 28, W / H, 0.05, 100);
+scene.add(new THREE.HemisphereLight('#e8f0ff', '#5a4a3a', style === 'toon' ? 0.9 : 0.55));
+const key = new THREE.DirectionalLight('#fff1dc', style === 'toon' ? 1.1 : 2.2); key.position.set(1.5, 3, 2.5); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02; Object.assign(key.shadow.camera, { left: -1.5, right: 1.5, top: 2.2, bottom: -0.2, near: 0.5, far: 8 }); scene.add(key);
+const rim = new THREE.DirectionalLight('#9fc4ff', style === 'toon' ? 0.4 : 1.2); rim.position.set(-2, 2.5, -2.5); scene.add(rim);
+const fill = new THREE.DirectionalLight('#ffd9b0', 0.5); fill.position.set(-2.5, 1.2, 2); scene.add(fill);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(3, 64), new THREE.MeshStandardMaterial({ color: style === 'toon' ? '#b9c9a4' : '#3a3f4a', roughness: 1 }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+const e = window.GLB[who]; const bin = Uint8Array.from(atob(e.glb), (c) => c.charCodeAt(0)).buffer;
+const gltf = await new Promise((ok, no) => new THREE.GLTFLoader().parse(bin, '', ok, no));
+const root = gltf.scene; scene.add(root);
+const fb = (n) => { let b = null; root.traverse((o) => { if (o.isBone && o.name === n) b = o; }); return b; };
+root.updateMatrixWorld(true); const _h = new THREE.Vector3(), _f = new THREE.Vector3(); fb('Bip01_Head').getWorldPosition(_h); fb('Bip01_L_Toe0').getWorldPosition(_f);
+const s = 1.62 / (_h.y - _f.y); root.scale.multiplyScalar(s); root.updateMatrixWorld(true); fb('Bip01_L_Toe0').getWorldPosition(_f); root.position.y -= _f.y - 0.02;   // 머리 높이 1.62m(키 약 175cm)로 맞춤
+window._dbg = { s };
+const grad = (() => { const d = new Uint8Array([90, 170, 235, 255]); const t = new THREE.DataTexture(d, 4, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+const meshes = [];
+root.traverse((o) => {
+  if (!o.isMesh) return; o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true; meshes.push(o);
+  const mats = Array.isArray(o.material) ? o.material : [o.material];
+  const nm = mats.map((m) => {
+    const op = /opacity/.test(m.name);
+    if (style === 'toon') {
+      const t = new THREE.MeshToonMaterial({ map: m.map, gradientMap: grad, transparent: op, alphaTest: op ? 0.4 : 0, side: op ? THREE.DoubleSide : THREE.FrontSide });
+      return t;
+    }
+    m.roughness = /head/.test(m.name) ? 0.55 : 0.8; m.metalness = 0; if (op) { m.transparent = false; m.alphaTest = 0.4; m.side = THREE.DoubleSide; m.depthWrite = true; }
+    return m;
+  });
+  o.material = Array.isArray(o.material) ? nm : nm[0];
+});
+// 팔 내리기(A자 자세 → 차렷에 가깝게) + 고개 살짝
+const bone = (n) => { let b = null; root.traverse((o) => { if (o.isBone && o.name.replace(/[_ ]/g, '').toLowerCase() === n) b = o; }); return b; };
+const lu = fb('Bip01_L_UpperArm'), ru = fb('Bip01_R_UpperArm'), lf = fb('Bip01_L_Forearm'), rf = fb('Bip01_R_Forearm'), head = fb('Bip01_Head');
+const names = []; root.traverse((o) => o.isBone && names.push(o.name)); window._bones = names;
+const armDown = +(Q.get('arm') || 0.85);
+const AX = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] }[Q.get('ax') || 'y'], sg = +(Q.get('sg') || 1);
+if (lu) lu.rotateOnAxis(new THREE.Vector3(...AX), armDown * sg); if (ru) ru.rotateOnAxis(new THREE.Vector3(...AX), -armDown * sg);
+const fw = +(Q.get('fw') || -0.25); if (lu) lu.rotateOnAxis(new THREE.Vector3(0, 0, 1), fw); if (ru) ru.rotateOnAxis(new THREE.Vector3(0, 0, 1), fw);
+if (lf) lf.rotateOnAxis(new THREE.Vector3(0, 1, 0), 0.25); if (rf) rf.rotateOnAxis(new THREE.Vector3(0, 1, 0), -0.25);
+// 표정(입 모양·웃음·눈)
+const setShape = (name, v) => meshes.forEach((m) => { const i = m.morphTargetDictionary && m.morphTargetDictionary[name]; if (i !== undefined) m.morphTargetInfluences[i] = v; });
+if (Q.get('mouth')) setShape(Q.get('mouth'), 1);
+const sm = +(Q.get('smile') || 0); setShape('AK_44_MouthSmileLeft', sm); setShape('AK_45_MouthSmileRight', sm);
+const bl = +(Q.get('blink') || 0); setShape('AK_09_EyeBlinkLeft', bl); setShape('AK_10_EyeBlinkRight', bl);
+window._shapes = meshes.flatMap((m) => Object.keys(m.morphTargetDictionary || {}));
+root.rotation.y = shot === 'face' ? 0.1 : 0.25; root.updateMatrixWorld(true);
+const hp = new THREE.Vector3(); (head || root).getWorldPosition(hp); window._hp = hp.toArray();
+if (shot === 'face') { cam.position.set(hp.x + 0.18, hp.y + 0.12, hp.z + 1.25); cam.lookAt(hp.x, hp.y + 0.1, hp.z); cam.near = 0.1; }
+else { cam.position.set(0.5, 1.15, 4.4); cam.lookAt(0, 0.92, 0); }
+if (style === 'toon') {   // 외곽선: 뒤집은 껍데기
+  for (const o of meshes) {
+    const ink = new THREE.MeshBasicMaterial({ color: '#2a1f1a', side: THREE.BackSide, polygonOffset: true, polygonOffsetFactor: 4, polygonOffsetUnits: 4 });
+    ink.onBeforeCompile = (sh) => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed += normalize(objectNormal) * ' + (() => { o.geometry.computeBoundingBox(); const gb = o.geometry.boundingBox; return (0.006 * Math.max(gb.max.x - gb.min.x, gb.max.y - gb.min.y, gb.max.z - gb.min.z) / 1.75).toFixed(6); })() + ';'); };
+    const hull = o.clone(); const NONE = new THREE.MeshBasicMaterial({ visible: false }); hull.material = Array.isArray(o.material) ? o.material.map((m) => (m.transparent || m.alphaTest > 0 ? NONE : ink)) : ink;   // 머리카락 조각(투명)엔 외곽선 안 그림 hull.castShadow = false; o.parent.add(hull);
+    hull.morphTargetInfluences = o.morphTargetInfluences;
+  }
+}
+cam.updateProjectionMatrix();
+// 말하기 시험: window.talk(t) — Rhubarb 입 모양(A~H, X) → Rocketbox 입 모양(viseme)
+const VIS = { A: 'AA_VI_01_PP', B: 'AA_VI_05_KK', C: 'AA_VI_11_E', D: 'AA_VI_10_aa', E: 'AA_VI_13_O', F: 'AA_VI_14_U', G: 'AA_VI_02_FF', H: 'AA_VI_04_DD', X: 'AA_VI_00_Sil' };
+const ALLV = Object.values(VIS);
+window.talk = (t, cues) => {
+  ALLV.forEach((n) => setShape(n, 0));
+  let cur = 'X', prev = 'X', t0 = 0; for (const [ct, v] of cues) { if (ct <= t) { prev = cur; cur = v; t0 = ct; } }
+  const k = Math.min(1, (t - t0) / 0.06); setShape(VIS[prev], 1 - k); setShape(VIS[cur], k);
+  const b = (t % 3.2) < 0.12 ? 1 : 0; setShape('AK_09_EyeBlinkLeft', b); setShape('AK_10_EyeBlinkRight', b);   // 3.2초마다 눈 깜빡
+  R.render(scene, cam); return document.getElementById('c').toDataURL('image/jpeg', 0.92);
+};
+R.render(scene, cam);
+return true;
+})();
+</script></body></html>
