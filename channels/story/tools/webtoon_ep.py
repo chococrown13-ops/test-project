@@ -50,6 +50,10 @@ class Puppet:
         self.face = (np.percentile(xs, 3), np.percentile(ys, 3), np.percentile(xs, 97), np.percentile(ys, 97))
         al = np.asarray(self.base)[..., 3] > 20; rows = np.where(al.any(1))[0]; self.bottom = int(rows.max())
         self.s = (0.5 * H) / max(1, self.face[3] - self.face[1]); self.flip, self.floating = flip, floating
+        if not floating and (al[0].mean() > 0.02): self.s = max(self.s, (H + 24) / self.bottom)   # 그림 위쪽이 잘려 있으면 그 잘린 선이 화면 밖으로 나가게 키움
+        cl, cr = al[:, :3].mean() > 0.01, al[:, -3:].mean() > 0.01   # 그림 왼쪽·오른쪽 끝이 잘려 있는지(뒤집으면 바뀜)
+        self.cutL, self.cutR = (cr, cl) if flip else (cl, cr)
+        if self.cutL and self.cutR: self.s = max(self.s, (W + 4) / self.base.width)
         self.cache = {}
     def img(self, eyes, mouth):
         k = (eyes, mouth)
@@ -234,6 +238,8 @@ def frame(t):
         cx = W * (0.38 if l['who'] == '민재' else 0.62)
         if k in MAP: cx = W * 0.74
         x = pp.place(cx)
+        if pp.cutR: x = max(x, W - im.width)   # 잘린 옆 끝은 화면 밖으로
+        if pp.cutL: x = min(x, 0)
         y = int(H * 0.52 - (pp.face[1] + pp.face[3]) / 2 * pp.s + math.sin(t * 2.2) * 10) if pp.floating else int(H + 12 - pp.bottom * pp.s + math.sin(t * 1.7) * 3 + env * 6)
         fr.paste(im, (x, y), im)
     # 효과
