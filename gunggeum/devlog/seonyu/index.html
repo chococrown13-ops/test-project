@@ -1,0 +1,158 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;font-weight:400;src:url(../../tools/fonts/Pretendard-Regular.otf)}
+@font-face{font-family:P;font-weight:600;src:url(../../tools/fonts/Pretendard-SemiBold.otf)}
+@font-face{font-family:P;font-weight:800;src:url(../../tools/fonts/Pretendard-ExtraBold.otf)}
+html,body{margin:0;background:#000}canvas{display:block}
+</style></head><body><canvas id="c" width="1080" height="1920"></canvas>
+<script src="map/map.js"></script>
+<script src="../../tools/mapkit.js"></script>
+<script>
+// 도시의 나이테 · 원래 ○○이었다 #15 「선유도는 원래 섬이 아니라 산이었다」 — render(t) 한 번 = 한 프레임.
+// 이번 편만의 연출: 위에서 본 실제 지도(OpenStreetMap) → 카메라가 강 높이로 눕혀 "옆에서 본 모습"이 되어
+// 봉우리 실루엣이 장면마다 깎여 내려가요(먹빛 산수화 톤). 봉우리 모양·크기는 기록이 없어 단순화한 그림이에요.
+const W=1080,H=1920,g=document.getElementById('c').getContext('2d');
+const clamp01=x=>Math.max(0,Math.min(1,x));
+function smooth(a,b,t){const u=clamp01((t-a)/(b-a));return u*u*(3-2*u)}
+const lerp=(a,b,u)=>a+(b-a)*u;
+function fade(t,a,b){return Math.min(smooth(a,a+.45,t),1-smooth(b-.45,b,t))}
+let M,ISL,IC,ANG=0;
+const P=n=>MapKit.place(M,n);
+function camAt(t){
+  const u=smooth(3.0,5.4,t),back=smooth(22.4,25.6,t);
+  return{cx:lerp(1120,IC.x+10,u)+back*20,cy:lerp(1500,IC.y+50,u)+back*110,z:lerp(1.0,1.75,u)-back*0.6};
+}
+function toS(c,x,y){return[(x-c.cx)*c.z+W/2,(y-c.cy)*c.z+H*0.58]}
+function world(c,fn){g.save();g.translate(W/2,H*0.58);g.scale(c.z,c.z);g.translate(-c.cx,-c.cy);fn();g.restore()}
+function topText(year,head,sub,a){if(a<=0)return;g.save();g.globalAlpha=a;const y0=(1-a)*20;
+  g.textAlign='center';g.fillStyle='#FFD54A';g.font='800 112px P';g.fillText(year,W/2,310+y0);
+  g.fillStyle='#fff';g.font='800 62px P';g.fillText(head,W/2,410+y0);g.font='600 40px P';g.fillStyle='rgba(255,255,255,.92)';
+  sub.split('|').forEach((s,i)=>g.fillText(s,W/2,476+i*52+y0));g.restore()}
+function srcLine(s,a){if(a<=0||!s)return;g.save();g.globalAlpha=a;g.font='400 30px P';g.fillStyle='rgba(255,255,255,.88)';g.textAlign='center';g.fillText(s,W/2,H-90);g.restore()}
+function chip(x,y,text,{bg='#FFD54A',fg='#1b1430',size=30,alpha=1,italic=false}={}){if(alpha<=0)return;g.save();g.globalAlpha=alpha;g.font=(italic?'italic ':'')+'800 '+size+'px P';
+  const w=g.measureText(text).width+size*1.1,h=size*1.6;g.fillStyle=bg;MapKit._round(g,x-w/2,y-h/2,w,h,h/2);g.fill();g.fillStyle=fg;g.textAlign='center';g.textBaseline='middle';g.fillText(text,x,y+1);g.restore()}
+const STOPS=[
+ {a:3.4,b:8.0,year:'조선',head:'신선이 노닐던 봉우리 「선유봉」',sub:'높이 약 40m였다고 전해져요|겸재 정선도 그림으로 남겼어요',src:'출처: 서울시 미디어허브'},
+ {a:8.4,b:12.9,year:'일제강점기',head:'산을 깎아 돌을 캤어요',sub:'한강 제방·여의도 비행장 공사에|쓰였다고 전해져요',src:'출처: 서울시 미디어허브'},
+ {a:13.3,b:17.0,year:'그 뒤',head:'더 깎여 섬이 됐어요',sub:'양화대교·한강 개발 공사로|(섬이 된 해는 자료마다 달라요)',src:'출처: 서울시 미디어허브'},
+ {a:17.4,b:21.9,year:'1978~2000',head:'봉우리 자리에 정수장',sub:'서울 서남부에 수돗물을 보냈어요|2000년 12월 문을 닫았어요',src:'출처: 서울시 환경분야 누리집 · 영등포구'},
+ {a:22.4,b:27.0,year:'2002',head:'정수장 그대로 공원으로',sub:'수조·기둥을 살린|국내 첫 재활용 생태공원',src:'출처: 서울시 미디어허브 · 영등포구'}];
+
+// ── 지도 위 옛 봉우리 (대략): 섬 자리 + 남쪽 강가로 이어진 땅 ──
+function oldPeak(a){if(a<=0)return;g.save();g.globalAlpha=a;
+  // 강가로 이어진 땅 (대략)
+  g.fillStyle='rgba(120,98,70,.55)';g.beginPath();g.moveTo(IC.x-170,IC.y+40);g.quadraticCurveTo(IC.x-60,IC.y+150,IC.x-40,IC.y+230);g.lineTo(IC.x+150,IC.y+230);g.quadraticCurveTo(IC.x+140,IC.y+120,IC.x+190,IC.y+20);g.closePath();g.fill();
+  MapKit.poly(g,ISL,{fill:'rgba(120,98,70,.6)'});
+  // 먹빛 등고선 (안으로 갈수록 진하게)
+  for(let i=0;i<6;i++){const k=1-i/6;g.fillStyle='rgba(40,34,28,'+(.12+i*.06)+')';g.beginPath();g.ellipse(IC.x+5,IC.y+5,175*k+12,85*k+8,ANG,0,7);g.fill()}
+  g.restore()}
+// ── 정수장 수조 (1978~2000): 섬 안 청록 네모 ──
+function tanks(t,a){if(a<=0)return;g.save();g.globalAlpha=a;g.save();g.beginPath();ISL.forEach((q,i)=>i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();g.clip();
+  g.translate(IC.x,IC.y);g.rotate(ANG);
+  for(let i=-3;i<=3;i++)for(let j=-1;j<=1;j++){const k=smooth(17.6+(i+3)*.12+(j+1)*.08,18.2+(i+3)*.12+(j+1)*.08,t);if(k<=0)continue;
+    g.globalAlpha=a*k;g.fillStyle=(i+j)%2?'#1f8f8a':'#2aa7a0';g.fillRect(i*46-19,j*44-18,38,36);g.strokeStyle='#d8f3f1';g.lineWidth=2.5;g.strokeRect(i*46-19,j*44-18,38,36)}
+  g.restore();MapKit.poly(g,ISL,{stroke:'#1f8f8a',width:4});g.restore()}
+function waterFlow(c,t,a){if(a<=0)return;const [x0,y0]=toS(c,IC.x-40,IC.y+40);const x1=x0-250,y1=y0+250;
+  g.save();g.globalAlpha=a;g.strokeStyle='#5fd3ff';g.lineWidth=12;g.lineCap='round';g.setLineDash([4,26]);g.lineDashOffset=-t*80;
+  g.beginPath();g.moveTo(x0,y0);g.quadraticCurveTo(x0-200,y0+30,x1,y1);g.stroke();g.setLineDash([]);
+  g.fillStyle='#5fd3ff';g.beginPath();g.moveTo(x1-6,y1+30);g.lineTo(x1-26,y1-14);g.lineTo(x1+22,y1-6);g.closePath();g.fill();g.restore();
+  chip(x1+20,y1+70,'서울 서남부로 수돗물',{alpha:a,size:32,bg:'#5fd3ff'})}
+
+// ── 옆에서 본 모습 (강 높이에서 본 봉우리) ──
+const SX=60,SY=680,SW=960,SH=900,WY=SY+640,PX=SX+560,H40=380;
+function prof(x){const d=(x-PX)/175;return H40*Math.exp(-d*d)*(1+.06*Math.sin(x*.09)+.04*Math.sin(x*.23))}
+function saddle(x){const d=(x-(SX+250))/150;return 70*Math.exp(-d*d)}
+function hills(maxH,saddleK,dash){g.beginPath();g.moveTo(SX,WY);
+  for(let x=SX;x<=SX+SW;x+=6){const h=Math.max(Math.min(prof(x),maxH),x<PX?saddle(x)*saddleK:0,x<SX+180?60:0);g.lineTo(x,WY-h)}
+  g.lineTo(SX+SW,WY);g.closePath()}
+function sideView(t,a){if(a<=0)return;
+  g.save();g.globalAlpha=a;const dy=(1-a)*80;g.translate(0,dy);
+  MapKit._round(g,SX,SY,SW,SH,26);g.save();g.clip();
+  // 종이 바탕 + 하늘 번짐
+  let gr=g.createLinearGradient(0,SY,0,WY);gr.addColorStop(0,'#f3ead7');gr.addColorStop(1,'#e2d6bc');g.fillStyle=gr;g.fillRect(SX,SY,SW,SH);
+  const cut1=smooth(9.0,12.4,t),cut2=smooth(13.6,15.8,t);
+  const maxH=lerp(lerp(H40*1.2,215,cut1),95,cut2),saddleK=1-cut2;
+  // 원래 윤곽 (점선)
+  if(cut1>0){g.save();g.globalAlpha=a*Math.min(1,cut1*2);hills(1e9,1);g.setLineDash([14,12]);g.strokeStyle='rgba(60,50,40,.75)';g.lineWidth=4;g.stroke();g.setLineDash([]);g.restore()}
+  // 먹빛 봉우리
+  hills(maxH,saddleK);gr=g.createLinearGradient(0,WY-H40,0,WY);gr.addColorStop(0,'#2b2722');gr.addColorStop(1,'#5b5246');g.fillStyle=gr;g.fill();
+  g.save();g.clip();g.strokeStyle='rgba(255,255,255,.08)';g.lineWidth=3;for(let i=0;i<14;i++){g.beginPath();g.moveTo(PX-260+i*40,WY);g.lineTo(PX-120+i*24,WY-H40);g.stroke()}g.restore();
+  // 잘린 면 (노란 선)
+  if(cut1>0.02){g.save();g.globalAlpha=a*fade(t,9.2,16.9);g.strokeStyle='#FFD54A';g.lineWidth=5;g.beginPath();g.moveTo(PX-260,WY-maxH);g.lineTo(PX+260,WY-maxH);g.stroke();g.restore()}
+  // 강물
+  gr=g.createLinearGradient(0,WY,0,SY+SH);gr.addColorStop(0,'#6aa7c9');gr.addColorStop(1,'#2f6c90');g.fillStyle=gr;g.fillRect(SX,WY,SW,SY+SH-WY);
+  if(cut2>0){g.fillStyle='rgba(106,167,201,'+cut2+')';g.fillRect(SX+190,WY-4,PX-200-(SX+190)-60,8)}
+  g.strokeStyle='rgba(255,255,255,.5)';g.lineWidth=3;for(let i=0;i<5;i++){g.beginPath();for(let x=SX;x<=SX+SW;x+=30){const yy=WY+30+i*44+Math.sin(x*.03+t*2+i)*5;x==SX?g.moveTo(x,yy):g.lineTo(x,yy)}g.stroke()}
+  // 양화대교 (옆모습)
+  const br=smooth(13.6,14.4,t);if(br>0){g.save();g.globalAlpha=a*br;g.fillStyle='#7c858f';g.fillRect(SX+700,WY-120,SW,16);for(let x=SX+730;x<SX+SW;x+=90)g.fillRect(x,WY-104,14,104+60);g.restore();
+    chip(SX+840,WY-160,'양화대교',{alpha:a*fade(t,13.8,16.9),size:28,bg:'rgba(255,255,255,.95)'})}
+  // 강가 땅 표시
+  g.font='800 28px P';g.textAlign='left';g.fillStyle='rgba(40,34,28,.85)';g.fillText('강가(남쪽)',SX+96,WY-76);
+  // 높이 막대: 약 40m (전해짐)
+  const bx=SX+70;g.strokeStyle='#14202e';g.lineWidth=5;g.beginPath();g.moveTo(bx,WY);g.lineTo(bx,WY-H40);g.moveTo(bx-14,WY-H40);g.lineTo(bx+14,WY-H40);g.stroke();
+  g.setLineDash([6,8]);g.lineWidth=2;g.beginPath();g.moveTo(bx,WY-H40);g.lineTo(PX,WY-H40);g.stroke();g.setLineDash([]);
+  chip(bx+120,WY-H40-40,'약 40m (전해짐)',{size:30,italic:true,bg:'#FFD54A'});
+  // 돌 실어 가기 (일제강점기)
+  const rk=fade(t,9.0,12.9);if(rk>0){for(let i=0;i<6;i++){const u=((t*.6+i/6)%1);const x=lerp(PX+60,SX+SW-60,u),y=WY-maxH-40-Math.sin(u*Math.PI)*120;
+      g.save();g.globalAlpha=a*rk*(1-u*.4);g.fillStyle='#4b4339';g.beginPath();g.moveTo(x-14,y);g.lineTo(x,y-14);g.lineTo(x+16,y-2);g.lineTo(x+6,y+12);g.closePath();g.fill();g.restore()}
+    chip(SX+SW-250,SY+70,'→ 한강 제방·여의도 비행장',{alpha:a*rk,size:30});chip(SX+SW-250,SY+130,'(전해짐)',{alpha:a*rk,size:26,italic:true,bg:'rgba(255,255,255,.95)'})}
+  // 섬이 됐어요
+  chip(PX,WY-maxH-60,'섬',{alpha:a*smooth(15.2,15.8,t)*(1-smooth(16.6,16.9,t)),size:44,bg:'#FFD54A'});
+  chip(SX+SW/2,SY+SH-46,'옆에서 본 그림 · 봉우리 모양과 깎인 양은 단순화했어요',{bg:'rgba(20,32,46,.8)',fg:'#fff',size:24});
+  g.restore();
+  g.strokeStyle='rgba(255,255,255,.4)';g.lineWidth=3;MapKit._round(g,SX,SY,SW,SH,26);g.stroke();
+  g.restore();
+}
+
+function render(t){
+  g.fillStyle='#000';g.fillRect(0,0,W,H);
+  const c=camAt(t);
+  const side=smooth(7.9,8.7,t)*(1-smooth(16.9,17.6,t));
+  const old=smooth(3.2,4.4,t)*(1-smooth(16.9,17.6,t));   // 옛 종이 톤
+  world(c,()=>{
+    MapKit.drawBase(g,M,{mix:{from:'light',to:'paper',u:old},veil:'rgba(8,14,24,'+(.5*side)+')'});
+    oldPeak(smooth(3.6,4.8,t)*(1-smooth(8.0,8.6,t)));
+    tanks(t,smooth(17.4,18.0,t)*(1-smooth(22.4,23.4,t)));
+    MapKit.poly(g,ISL,{fill:'rgba(255,213,74,'+(.28*(1-smooth(22.6,23.4,t)))+')',stroke:'#ffb300',width:6/c.z+3,alpha:(1-smooth(3.2,4.0,t))});
+    MapKit.poly(g,ISL,{fill:'rgba(80,170,100,.45)',stroke:'#3f9a5a',width:6/c.z+3,alpha:smooth(22.6,23.4,t)});
+  });
+  const mapA=1-side;
+  // 이름표
+  const sy=P('선유도역, 영등포구, 서울'),yb=P('양화대교'),sb=P('선유교, 영등포구, 서울');
+  const nowA=Math.max(1-smooth(3.2,3.9,t),smooth(23.0,23.6,t))*(1-smooth(27.4,27.9,t));
+  let [x,y]=toS(c,sy.x,sy.y);MapKit.pin(g,x,y,'선유도역',{alpha:nowA,size:32,dy:-60});
+  [x,y]=toS(c,yb.x,yb.y);MapKit.pin(g,x,y,'양화대교',{alpha:mapA*Math.max(nowA,.45*(1-smooth(16.9,17.4,t))*smooth(3.2,3.9,t)),size:32,dy:-70});
+  [x,y]=toS(c,sb.x,sb.y);MapKit.pin(g,x,y,'선유교',{alpha:nowA,size:30,dy:62});
+  [x,y]=toS(c,IC.x,IC.y);
+  MapKit.pin(g,x,y,'선유도공원',{alpha:(1-smooth(3.2,3.9,t)),kind:'hero',size:38,dy:-150});
+  MapKit.pin(g,x,y,'선유봉 (대략)',{alpha:smooth(4.2,4.9,t)*(1-smooth(7.9,8.4,t)),kind:'old',size:36,dy:-150});
+  MapKit.pin(g,x,y,'선유정수장 (1978~2000)',{alpha:smooth(18.0,18.6,t)*(1-smooth(22.2,22.6,t)),kind:'old',size:34,dy:-150});
+  MapKit.pin(g,x,y,'선유도공원 (2002~)',{alpha:smooth(23.4,24.0,t)*(1-smooth(27.4,27.9,t)),kind:'hero',size:36,dy:-150});
+  chip(W/2,1300,'국내 첫 재활용 생태공원',{alpha:smooth(24.0,24.6,t)*(1-smooth(27.4,27.9,t)),size:36,bg:'rgba(255,255,255,.95)'});
+  waterFlow(c,t,smooth(18.4,19.2,t)*(1-smooth(21.6,22.2,t)));
+  sideView(t,side);
+  // 위·아래 그늘 + 태그
+  let gr=g.createLinearGradient(0,0,0,660);gr.addColorStop(0,'rgba(8,14,24,.86)');gr.addColorStop(1,'rgba(8,14,24,0)');g.fillStyle=gr;g.fillRect(0,0,W,660);
+  gr=g.createLinearGradient(0,H-300,0,H);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,0,.6)');g.fillStyle=gr;g.fillRect(0,H-300,W,300);
+  g.font='800 32px P';g.textAlign='left';const tag='도시의 나이테 · 원래 ○○이었다 #15';const tw=g.measureText(tag).width+48;g.fillStyle='rgba(255,213,74,.95)';MapKit._round(g,56,72,tw,60,30);g.fill();g.fillStyle='#1b1430';g.fillText(tag,80,113);
+  const h=1-smooth(2.85,3.3,t);  // 첫 프레임부터 훅 문장
+  if(h>0){g.save();g.globalAlpha=h;g.textAlign='center';g.fillStyle='#fff';g.font='800 84px P';g.fillText('선유도는 원래',W/2,320);g.fillStyle='#FFD54A';g.font='800 104px P';g.fillText('섬이 아니라 산이었다',W/2,448);g.font='600 44px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('양화대교 옆 한강 위 공원, 바로 그 자리',W/2,526);g.restore()}
+  for(const s of STOPS)topText(s.year,s.head,s.sub,fade(t,s.a,s.b));
+  for(const s of STOPS)srcLine(s.src,fade(t,s.a,s.b));
+  // 지도 장치
+  if(mapA>0){MapKit.inset(g,M,W-226,1170,170,{alpha:mapA,t,label:'서울'});
+    MapKit.north(g,990,1530,{alpha:mapA});MapKit.scale(g,M,70,1590,c.z,{alpha:mapA});
+    const lg=t<17.4?(t<3.6?[['#ffb300','지금 선유도']]:[['#7a6448','옛 봉우리·이어진 땅(대략)']]):(t<22.6?[['#2aa7a0','정수장 수조(그림)']]:[['#3f9a5a','선유도공원']]);
+    MapKit.legend(g,70,1665,lg,{alpha:mapA*(1-smooth(27.6,28,t))});}
+  // 끝
+  const e=smooth(28,28.7,t);
+  if(e>0){g.fillStyle='rgba(10,14,28,'+(.72*e)+')';g.fillRect(0,0,W,H);g.save();g.globalAlpha=e;g.textAlign='center';g.fillStyle='#fff';g.font='800 74px P';g.fillText('사라진 산,',W/2,840);g.fillStyle='#FFD54A';g.font='800 90px P';g.fillText('또 어디 있을까요?',W/2,950);
+    g.font='600 42px P';g.fillStyle='rgba(255,255,255,.92)';g.fillText('우리 동네 이야기를 댓글로 신청해 주세요',W/2,1040);g.font='400 30px P';g.fillStyle='rgba(255,255,255,.85)';g.fillText('그림은 기록을 바탕으로 단순화한 거예요',W/2,H-90);g.restore()}
+  MapKit.credit(g,M,W,H);
+}
+window.render=render;
+window.ready=Promise.all([document.fonts.load('800 40px P'),document.fonts.load('600 40px P'),document.fonts.load('400 40px P'),document.fonts.load('italic 800 40px P')]).then(()=>MapKit.load('map/')).then(m=>{M=m;ISL=MapKit.area(M,'선유도공원, 영등포구, 서울');
+  let cx=0,cy=0;ISL.forEach(q=>{cx+=q[0];cy+=q[1]});IC={x:cx/ISL.length,y:cy/ISL.length};
+  let sxx=0,syy=0,sxy=0;ISL.forEach(q=>{const dx=q[0]-IC.x,dy=q[1]-IC.y;sxx+=dx*dx;syy+=dy*dy;sxy+=dx*dy});ANG=0.5*Math.atan2(2*sxy,sxx-syy);render(0);return true});
+</script></body></html>
