@@ -4,7 +4,7 @@
 - 장면표: 줄 번호마다 배경, 그림 컷(인물 대신 한 장 그림), 지도, 효과(비·번쩍·시간 이동)
 - 그림은 Gemini 이미지 모델로 만든 오리지널 그림(초록 배경 인물 + 배경)
 """
-import json, math, subprocess, sys
+import json, math, os, subprocess, sys
 from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -262,7 +262,7 @@ def frame(t):
     if TITLE and TITLE - 0.2 <= t <= TITLE + 3.2:
         a = max(0, min(1, (t - TITLE + 0.2) / 0.4, (TITLE + 3.2 - t) / 0.5)); d.rectangle((0, H * 0.3, W, H * 0.62), fill=(10, 8, 20, int(170 * a)))
         d.text((W / 2, H * 0.42), PLAN['title'], font=FONT_T, fill=(255, 255, 255, int(255 * a)), anchor='mm'); d.text((W / 2, H * 0.53), PLAN['subtitle'], font=F(48), fill=(255, 213, 74, int(255 * a)), anchor='mm')
-    if l['start'] - 0.25 <= t <= l['start'] + l['dur'] + 0.45 and l['who'] in NAMES: subtitle(d, l)
+    if not os.environ.get('NOSUB') and l['start'] - 0.25 <= t <= l['start'] + l['dur'] + 0.45 and l['who'] in NAMES: subtitle(d, l)   # NOSUB=1: 자막 빼고(세로 쇼츠용)
     E = TL['dur'] - 3.4
     if t > E:
         a = min(1, (t - E) / 0.8); d.rectangle((0, 0, W, H), fill=(15, 12, 24, int(200 * a)))
