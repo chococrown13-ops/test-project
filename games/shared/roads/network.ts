@@ -27,6 +27,8 @@ export interface Node { id: number; p: V }
 export interface Edge { id: number; a: number; b: number; path: Path; kind: Kind }
 
 export class Network {
+  /** Widths and lanes per road kind (each game has its own scale). */
+  constructor(readonly types: Record<Kind, RoadType> = TYPES) {}
   nodes = new Map<number, Node>();
   edges = new Map<number, Edge>();
   private nid = 1;
@@ -37,14 +39,29 @@ export class Network {
   node(p: V): Node {
     const n = { id: this.nid++, p };
     this.nodes.set(n.id, n);
+    this.version++;
     return n;
   }
 
+  private adj: Map<number, Edge[]> | null = null;
+  private adjVer = -1;
+
   /** Edges touching a node. */
   at(n: number): Edge[] {
-    const out: Edge[] = [];
-    for (const e of this.edges.values()) if (e.a === n || e.b === n) out.push(e);
-    return out;
+    if (!this.adj || this.adjVer !== this.version) {
+      this.adj = new Map();
+      for (const e of this.edges.values()) for (const k of e.a === e.b ? [e.a] : [e.a, e.b]) { let l = this.adj.get(k); if (!l) this.adj.set(k, (l = [])); l.push(e); }
+      this.adjVer = this.version;
+    }
+    return this.adj.get(n) ?? [];
+  }
+
+  /** Add an edge as given (no snapping or splitting): for callers that already know the graph. */
+  addEdge(a: number, b: number, path: Path, kind: Kind): Edge {
+    const e: Edge = { id: this.eid++, a, b, path, kind };
+    this.edges.set(e.id, e);
+    this.version++;
+    return e;
   }
 
   /** Nearest node within `r` metres. */
@@ -72,6 +89,7 @@ export class Network {
     this.edges.delete(e.id);
     this.edges.set(this.eid, { id: this.eid++, a: e.a, b: m.id, path: p1, kind: e.kind });
     this.edges.set(this.eid, { id: this.eid++, a: m.id, b: e.b, path: p2, kind: e.kind });
+    this.version++;
     return m;
   }
 
@@ -122,6 +140,7 @@ export class Network {
       const fixed = snapEnds(piece, this.nodes.get(cuts[i - 1].node)!.p, this.nodes.get(cuts[i].node)!.p);
       const e: Edge = { id: this.eid++, a: cuts[i - 1].node, b: cuts[i].node, path: fixed, kind };
       this.edges.set(e.id, e);
+      this.version++;
       made.push(e);
     }
     this.version++;
@@ -200,14 +219,14 @@ export function buildGeometry(net: Network): Geometry {
       if (e1 === e2) continue;
       // With angles increasing clockwise on screen (z south), e2 lies clockwise of e1:
       // e1's right kerb meets e2's left kerb.
-      const h1 = TYPES[e1.kind].half, h2 = TYPES[e2.kind].half;
+      const h1 = net.types[e1.kind].half, h2 = net.types[e2.kind].half;
       const b1 = boundary(net, e1, n.id, -h1, far), b2 = boundary(net, e2, n.id, h2, far);
       const c = polyCross(b1, b2);
       if (c) { setTrim(e1, n.id, c.ta); setTrim(e2, n.id, c.tb); }
     }
     // Roads that meet nearly straight on (a bend, no side road) need only a sliver; others a clear box.
     const straight = es.length === 2 && dot(net.leave(es[0], n.id), net.leave(es[1], n.id)) < -0.95;
-    for (const e of es) setTrim(e, n.id, straight ? 0.5 : TYPES[e.kind].half * 0.6 + 1);
+    for (const e of es) setTrim(e, n.id, straight ? 0.5 : net.types[e.kind].half * 0.6 + 1);
   }
   // Trims can't eat a whole road: cap each end at 45% of the length.
   for (const e of net.edges.values()) {
@@ -221,7 +240,7 @@ export function buildGeometry(net: Network): Geometry {
     const node = net.nodes.get(nid)!;
     for (let i = 0; i < es.length; i++) {
       const e1 = es[i], e2 = es[(i + 1) % es.length];
-      const h1 = TYPES[e1.kind].half, h2 = TYPES[e2.kind].half;
+      const h1 = net.types[e1.kind].half, h2 = net.types[e2.kind].half;
       const p1 = net.pathFrom(e1, nid), p2 = net.pathFrom(e2, nid);
       const q1 = pathAt(p1, trimOf(e1, nid)), q2 = pathAt(p2, trimOf(e2, nid));
       const l1 = offsetPoint(q1, h1), r1 = offsetPoint(q1, -h1), l2 = offsetPoint(q2, h2);
