@@ -8,6 +8,20 @@ import { BuildingLayer } from './buildings';
 import { buildMarkings } from './markings';
 
 const PX = 8; // ground texture pixels per cell
+/** Where the sun sits relative to what it lights: late afternoon, from the south-west. */
+const SUN = new THREE.Vector3(-700, 900, 500);
+/** A shadow's reach on the ground per metre of height (away from the sun). */
+const CAST = { x: -SUN.x / SUN.y, z: -SUN.z / SUN.y };
+
+/** Convex hull of 2-D points (monotone chain), for a shadow outline. */
+function hull(pts: [number, number][]): [number, number][] {
+  pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o: number[], a: number[], b: number[]) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo: [number, number][] = [], up: [number, number][] = [];
+  for (const p of pts) { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cross(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
+}
 
 /** Orbit camera over a 5 km 구: eases toward its goal so every move feels smooth. */
 export class KeepCamera {
@@ -114,6 +128,9 @@ export class KeepScene {
   }
 
   quality: Quality = 'high';
+  private baked = false;
+  private shadowCanvas = document.createElement('canvas');
+  private shadowsFresh = false;
 
   setQuality(q: Quality) {
     this.quality = q;
@@ -122,7 +139,11 @@ export class KeepScene {
     const samples = q === 'high' ? 4 : 0;
     for (const t of [this.composer.renderTarget1, this.composer.renderTarget2]) if (t.samples !== samples) { t.samples = samples; t.dispose(); }
     // Shadows: switching the light's flag off skips the shadow pass entirely.
-    this.sun.castShadow = q !== 'low';
+    // 높게 casts shadows live. 보통 and 가볍게 use shadows baked into the ground
+    // once per change: no shadow pass at all, buildings still throw shade.
+    this.sun.castShadow = q === 'high';
+    const bake = q !== 'high';
+    if (bake !== this.baked) { this.baked = bake; if (this.g) this.paint(); }
     const size = q === 'high' ? 2048 : 1024;
     if (this.sun.shadow.mapSize.x !== size) { this.sun.shadow.mapSize.set(size, size); this.sun.shadow.map?.dispose(); this.sun.shadow.map = null; }
     // Ink outlines need a second render of the scene for normals.
@@ -156,6 +177,8 @@ export class KeepScene {
     this.buildTrees();
     this.buildMarks();
     this.buildings.build(g);
+    this.shadowsFresh = false;
+    if (this.baked) this.paint();
     this.buildPins();
     this.invalidate();
   }
@@ -166,6 +189,8 @@ export class KeepScene {
     this.buildTrees();
     this.buildMarks();
     this.buildings.build(this.g, fresh, from);
+    this.shadowsFresh = false;
+    if (this.baked) this.paint();
     this.buildPins();
     this.invalidate();
   }
@@ -247,6 +272,13 @@ export class KeepScene {
       }
     }
     // (Lane markings are real geometry: see markings.ts.)
+    if (this.baked) {
+      if (!this.shadowsFresh) this.bakeShadows();
+      ctx.save();
+      ctx.globalAlpha = 0.32;
+      ctx.drawImage(this.shadowCanvas, 0, 0);
+      ctx.restore();
+    }
     // Faint 동네 boundaries.
     ctx.fillStyle = 'rgba(120, 100, 70, 0.35)';
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
@@ -273,6 +305,43 @@ export class KeepScene {
     return a * (1 - fx) * (1 - fz) + b * fx * (1 - fz) + d * (1 - fx) * fz + e * fx * fz;
   }
 
+  /**
+   * Bake every building's and tree's shadow into one layer: each part's
+   * footprint, swept from its foot to its top along the sun's direction and
+   * drawn as a solid outline. Drawn opaque on its own canvas so overlapping
+   * shadows don't darken twice, then laid on the ground at partial strength.
+   */
+  private bakeShadows() {
+    const c = this.shadowCanvas;
+    c.width = c.height = N * PX;
+    const ctx = c.getContext('2d')!;
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.fillStyle = 'rgb(38, 44, 66)';
+    const k = PX / CELL;
+    const cast = (x: number, y: number, z: number, w: number, h: number, d: number, rot: number) => {
+      if (w * h * d < 2) return;
+      const g0 = this.groundAt(x, z);
+      const lo = Math.max(0, y - g0), hi = Math.max(0, y + h - g0);
+      if (hi < 0.5) return;
+      const cs = Math.cos(rot), sn = Math.sin(rot);
+      const pts: [number, number][] = [];
+      for (const [dx, dz] of [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]]) {
+        const fx = x + dx * cs + dz * sn, fz = z - dx * sn + dz * cs;
+        for (const t of [lo, hi]) pts.push([(fx + CAST.x * t) * k, (fz + CAST.z * t) * k]);
+      }
+      const hp = hull(pts);
+      ctx.beginPath();
+      ctx.moveTo(hp[0][0], hp[0][1]);
+      for (let i = 1; i < hp.length; i++) ctx.lineTo(hp[i][0], hp[i][1]);
+      ctx.closePath();
+      ctx.fill();
+    };
+    for (const p of this.buildings.placed) cast(p.x, p.y, p.z, p.w, p.h, p.d, p.rot);
+    for (const [x, y, z, sz] of this.treeSpots) cast(x, y, z, sz * 0.6, sz * 1.6, sz * 0.6, 0);
+    this.shadowsFresh = true;
+  }
+  private treeSpots: [number, number, number, number][] = [];
+
   private buildTrees() {
     const g = this.g;
     const spots: [number, number, number, number][] = [];
@@ -284,6 +353,7 @@ export class KeepScene {
       const x = (i % N) * CELL + CELL * h(i, 2), z = ((i / N) | 0) * CELL + CELL * h(i, 3);
       spots.push([x, this.cellBase(i), z, 8 + h(i, 4) * 10]);
     }
+    this.treeSpots = spots;
     if (this.trees) { this.scene.remove(this.trees); this.trees.dispose(); }
     const mesh = new THREE.InstancedMesh(new THREE.ConeGeometry(0.5, 1, 6).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), spots.length);
     const m4 = new THREE.Matrix4(), col = new THREE.Color();
@@ -391,7 +461,7 @@ export class KeepScene {
     }
     const t = this.view.target;
     // Late-afternoon sun from the south-west; the shadow box follows the view.
-    this.sun.position.set(t.x - 700, 900, t.z + 500);
+    this.sun.position.set(t.x + SUN.x, SUN.y, t.z + SUN.z);
     this.sun.target.position.copy(t);
     const s = Math.min(1600, Math.max(250, this.view.dist * 0.9));
     const cam = this.sun.shadow.camera;

@@ -629,4 +629,7 @@ export class BuildingLayer {
 
   /** Total parts, for tests. */
   get count() { return this.parts.length; }
+
+  /** Every part as placed (for baking shadows onto the ground). */
+  get placed(): readonly { x: number; y: number; z: number; w: number; h: number; d: number; rot: number }[] { return this.parts; }
 }
