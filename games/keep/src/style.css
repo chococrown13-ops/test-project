@@ -105,6 +105,12 @@ body { background: #d5e6ec; font-family: var(--font-body); letter-spacing: -0.01
 .modal ul { padding-left: 20px; margin: 0 0 12px; display: grid; gap: 4px; }
 .menu { width: min(360px, calc(100vw - 24px)); }
 .menu-list { display: grid; gap: 8px; }
+.gfx { border: 0; padding: 0; margin: 0 0 14px; }
+.gfx legend { font-weight: 700; font-size: var(--text-sm); color: var(--color-muted); margin-bottom: 6px; padding: 0; }
+.seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 4px; border-radius: var(--radius-pill); background: var(--color-paper-2); }
+.seg button { appearance: none; border: 0; background: transparent; border-radius: var(--radius-pill); min-height: 38px; font-weight: 700; color: var(--color-ink-2); cursor: pointer; }
+.seg button[aria-checked="true"] { background: var(--color-card); color: var(--color-ink); box-shadow: 0 1px 3px oklch(20% 0.014 255 / 0.18); }
+.gfx-note { font-size: var(--text-xs); margin-top: 6px; min-height: 1.4em; }
 
 /* The newspaper */
 .paper { background: oklch(96.5% 0.02 90); font-family: var(--font-paper); padding: 26px 26px 20px; }

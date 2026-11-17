@@ -25,6 +25,12 @@ export class KeepCamera {
     const k = ground * lift;
     this.focus(x + Math.sin(this.goal.yaw) * k, z + Math.cos(this.goal.yaw) * k, dist);
   }
+  /** Still easing toward the goal? */
+  moving() {
+    const g = this.goal, e = this.dist * 1e-4;
+    return Math.abs(g.x - this.target.x) > e || Math.abs(g.z - this.target.z) > e || Math.abs(g.dist - this.dist) > e
+      || Math.abs(g.yaw - this.yaw) > 1e-4 || Math.abs(g.pitch - this.pitch) > 1e-4;
+  }
   /** Jump straight to the goal (first frame, tests). */
   snap() { Object.assign(this, { dist: this.goal.dist, yaw: this.goal.yaw, pitch: this.goal.pitch }); this.target.x = this.goal.x; this.target.z = this.goal.z; this.update(0); }
   panPixels(dx: number, dy: number, viewH: number) {
@@ -46,6 +52,14 @@ export class KeepCamera {
     this.cam.lookAt(this.target);
   }
 }
+
+/**
+ * Graphics level. high: full resolution, 4x MSAA, soft shadows, ink outlines,
+ * all details. medium: lighter resolution, smaller shadows, half-size outline
+ * buffer, details only up close. low: native pixels, no shadows, no outlines,
+ * details only very close.
+ */
+export type Quality = 'high' | 'medium' | 'low';
 
 export interface Highlight { cells?: number[]; district?: number; place?: number }
 
@@ -99,15 +113,30 @@ export class KeepScene {
     this.buildings.topAt = (i) => this.cellTop(i);
   }
 
-  /** Phones: no multisampling, half-size outline normals. */
-  setLight(light: boolean) {
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, light ? 1.25 : 2));
-    for (const t of [this.composer.renderTarget1, this.composer.renderTarget2]) { const s = light ? 0 : 4; if (t.samples !== s) { t.samples = s; t.dispose(); } }
-    this.stylize.normalScale = light ? 0.5 : 1;
+  quality: Quality = 'high';
+
+  setQuality(q: Quality) {
+    this.quality = q;
+    const dpr = window.devicePixelRatio || 1;
+    this.renderer.setPixelRatio(q === 'high' ? Math.min(dpr, 2) : q === 'medium' ? Math.min(dpr, 1.5) : 1);
+    const samples = q === 'high' ? 4 : 0;
+    for (const t of [this.composer.renderTarget1, this.composer.renderTarget2]) if (t.samples !== samples) { t.samples = samples; t.dispose(); }
+    // Shadows: switching the light's flag off skips the shadow pass entirely.
+    this.sun.castShadow = q !== 'low';
+    const size = q === 'high' ? 2048 : 1024;
+    if (this.sun.shadow.mapSize.x !== size) { this.sun.shadow.mapSize.set(size, size); this.sun.shadow.map?.dispose(); this.sun.shadow.map = null; }
+    // Ink outlines need a second render of the scene for normals.
+    this.stylize.enabled = q !== 'low';
+    this.stylize.normalScale = q === 'high' ? 1 : 0.5;
+    this.buildings.detailDist = q === 'high' ? 1100 : q === 'medium' ? 650 : 380;
     const v = new THREE.Vector2();
     this.renderer.getSize(v);
     this.resize(v.x, v.y);
   }
+
+  /** Something changed on screen: draw the next couple of frames. */
+  invalidate() { this.dirty = 2; }
+  private dirty = 2;
 
   resize(w: number, h: number) {
     this.renderer.setSize(w, h, false);
@@ -115,6 +144,7 @@ export class KeepScene {
     this.composer.setSize(w, h);
     this.view.cam.aspect = w / h;
     this.view.cam.updateProjectionMatrix();
+    this.invalidate();
   }
 
   /** A new map: terrain, ground paint, trees, buildings, pins. */
@@ -127,6 +157,7 @@ export class KeepScene {
     this.buildMarks();
     this.buildings.build(g);
     this.buildPins();
+    this.invalidate();
   }
 
   /** The map changed over a decade: repaint and let the new buildings rise. */
@@ -136,9 +167,10 @@ export class KeepScene {
     this.buildMarks();
     this.buildings.build(this.g, fresh, from);
     this.buildPins();
+    this.invalidate();
   }
 
-  setHighlight(h: Highlight) { this.hl = h; this.paint(); this.buildPins(); }
+  setHighlight(h: Highlight) { this.hl = h; this.paint(); this.buildPins(); this.invalidate(); }
 
   private buildTerrain() {
     const g = this.g, c = this.corner;
@@ -337,9 +369,20 @@ export class KeepScene {
     return { cell: idx(x, y) };
   }
 
-  frame(dt: number) {
+  /**
+   * Advance and, only if anything on screen changed, draw. A still map costs
+   * nothing: no redraw while the camera rests and nothing is rising.
+   * Returns whether a frame was drawn.
+   */
+  frame(dt: number): boolean {
+    const moving = this.view.moving();
     this.view.update(dt);
+    if (this.buildings.animating) this.dirty = 2;
     this.buildings.tick(dt);
+    if (moving) this.dirty = 2;
+    if (this.dirty <= 0) return false;
+    this.dirty--;
+    this.buildings.setDistance(this.view.dist);
     // Pins keep a steady size on screen as the camera zooms.
     const k = Math.max(1, this.view.dist / 900);
     if (Math.abs(k - this.pinScale) / this.pinScale > 0.08) {
@@ -363,5 +406,6 @@ export class KeepScene {
     }
     this.stylize.configure(this.view.dist, 0);
     this.composer.render(dt);
+    return true;
   }
 }
