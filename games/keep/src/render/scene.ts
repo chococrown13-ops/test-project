@@ -5,6 +5,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { StylizePass } from '../../../city/src/render/stylize';
 import { B, CELL, type Game, Ground, idx, N, type Place, RoadT, SIZE } from '../sim/world';
 import { BuildingLayer } from './buildings';
+import { buildMarkings } from './markings';
 
 const PX = 8; // ground texture pixels per cell
 
@@ -61,6 +62,7 @@ export class KeepScene {
   private groundTex: THREE.CanvasTexture;
   private corner = new Float32Array((N + 1) * (N + 1));
   private trees?: THREE.InstancedMesh;
+  private marks?: THREE.Mesh;
   private pins = new THREE.Group();
   private pinMats = new Map<string, THREE.SpriteMaterial>();
   private ray = new THREE.Raycaster();
@@ -122,6 +124,7 @@ export class KeepScene {
     this.buildTerrain();
     this.paint();
     this.buildTrees();
+    this.buildMarks();
     this.buildings.build(g);
     this.buildPins();
   }
@@ -130,6 +133,7 @@ export class KeepScene {
   update(fresh: Set<number>, from?: { x: number; y: number }) {
     this.paint();
     this.buildTrees();
+    this.buildMarks();
     this.buildings.build(this.g, fresh, from);
     this.buildPins();
   }
@@ -210,41 +214,7 @@ export class KeepScene {
         }
       }
     }
-    // Avenue markings: a fine, soft yellow centre line that stops short of
-    // every junction, and zebra crossings on the approaches.
-    const av = (x: number, y: number) => x >= 0 && y >= 0 && x < N && y < N && g.road[idx(x, y)] === RoadT.Avenue;
-    // A junction worth breaking the line for: a crossroads with a street or avenue on both
-    // sides. Alleys and side streets that only join from one side don't break it.
-    const big = (x: number, y: number) => x >= 0 && y >= 0 && x < N && y < N && g.road[idx(x, y)] >= RoadT.Street;
-    const junction = (x: number, y: number) => av(x, y) && (
-      (av(x - 1, y) || av(x + 1, y)) && (av(x, y - 1) || av(x, y + 1)) ||
-      (av(x - 1, y) || av(x + 1, y)) && big(x, y - 1) && big(x, y + 1) ||
-      (av(x, y - 1) || av(x, y + 1)) && big(x - 1, y) && big(x + 1, y));
-    const avJunction = (x: number, y: number) => av(x, y) && (av(x - 1, y) || av(x + 1, y)) && (av(x, y - 1) || av(x, y + 1));
-    ctx.save();
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = '#e3c55a';
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-      if (!av(x, y) || junction(x, y)) continue;
-      const cx = x * PX + PX / 2, cy = y * PX + PX / 2;
-      if (av(x + 1, y) && !junction(x + 1, y)) ctx.fillRect(cx, cy - 0.35, PX, 0.7);
-      if (av(x, y + 1) && !junction(x, y + 1)) ctx.fillRect(cx - 0.35, cy, 0.7, PX);
-    }
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = '#f4f1ea';
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-      if (!av(x, y) || junction(x, y)) continue;
-      const cx = x * PX + PX / 2, cy = y * PX + PX / 2;
-      // Zebra on the side facing an avenue junction: short bars across the carriageway.
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        if (!avJunction(x + dx, y + dy)) continue;
-        for (let k = -1; k <= 1; k++) {
-          if (dx) ctx.fillRect(cx + dx * (PX / 2 - 1.8) - 1.2, cy + k * 2 - 0.5, 2.4, 1);
-          else ctx.fillRect(cx + k * 2 - 0.5, cy + dy * (PX / 2 - 1.8) - 1.2, 1, 2.4);
-        }
-      }
-    }
-    ctx.restore();
+    // (Lane markings are real geometry: see markings.ts.)
     // Faint 동네 boundaries.
     ctx.fillStyle = 'rgba(120, 100, 70, 0.35)';
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
@@ -254,6 +224,21 @@ export class KeepScene {
       if (y + 1 < N && g.district[idx(x, y + 1)] >= 0 && g.district[idx(x, y + 1)] !== d) ctx.fillRect(x * PX, (y + 1) * PX - 1, PX, 2);
     }
     this.groundTex.needsUpdate = true;
+  }
+
+  private buildMarks() {
+    if (this.marks) { this.scene.remove(this.marks); this.marks.geometry.dispose(); }
+    this.marks = buildMarkings(this.g, (x, z) => this.groundAt(x, z));
+    this.scene.add(this.marks);
+  }
+
+  /** Terrain height at a world point, interpolated between cell corners. */
+  groundAt(wx: number, wz: number) {
+    const W = N + 1, gx = Math.max(0, Math.min(N - 0.001, wx / CELL)), gz = Math.max(0, Math.min(N - 0.001, wz / CELL));
+    const x0 = Math.floor(gx), z0 = Math.floor(gz), fx = gx - x0, fz = gz - z0, c = this.corner;
+    const a = c[z0 * W + x0], b = c[z0 * W + x0 + 1], d = c[(z0 + 1) * W + x0], e = c[(z0 + 1) * W + x0 + 1];
+    // The plane mesh splits each quad along one diagonal; bilinear is close enough under a painted line.
+    return a * (1 - fx) * (1 - fz) + b * fx * (1 - fz) + d * (1 - fx) * fz + e * fx * fz;
   }
 
   private buildTrees() {
@@ -370,6 +355,12 @@ export class KeepScene {
     if (cam.right !== s) { cam.left = -s; cam.right = s; cam.top = s; cam.bottom = -s; cam.near = 10; cam.far = 3000; cam.updateProjectionMatrix(); }
     (this.scene.fog as THREE.Fog).near = this.view.dist * 1.4;
     (this.scene.fog as THREE.Fog).far = this.view.dist * 4 + 2000;
+    // Thin lines shimmer from far away: fade them out as the camera pulls back.
+    if (this.marks) {
+      const m = this.marks.material as THREE.Material;
+      m.opacity = Math.max(0, Math.min(1, (2000 - this.view.dist) / 900));
+      this.marks.visible = m.opacity > 0.01;
+    }
     this.stylize.configure(this.view.dist, 0);
     this.composer.render(dt);
   }
