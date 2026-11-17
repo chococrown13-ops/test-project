@@ -43,7 +43,8 @@ let roadMode: RoadMode = 'grid';
 const ROAD_MODES: { id: RoadMode; name: string; hint: string }[] = [
   { id: 'grid', name: '직각', hint: '가로세로' },
   { id: 'diag', name: '대각선', hint: '45도' },
-  // 곡선 도로 is switched off for now; curves in older saves still draw and work.
+  // Curves are lines and arcs now (see sim/curves.ts): parallel kerbs on every bend.
+  { id: 'curve', name: '곡선', hint: '꺾는 점' },
 ];
 /** A curve dragged from a to b, waiting for its bend: the next press places the handle. */
 let bend: { a: number; b: number; hx: number; hz: number; active: boolean } | null = null;
@@ -647,4 +648,4 @@ function frame(t: number) {
 requestAnimationFrame(frame);
 
 // Debug/test hook.
-(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, setTool, setSpeed };
+(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, setTool, setSpeed, tools: { placeRoad, placeCurve, curveOf, roadPath } };
