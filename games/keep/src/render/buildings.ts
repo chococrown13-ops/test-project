@@ -321,14 +321,36 @@ function partsFor(g: Game, i: number, y0: number, out: Part[]) {
     case B.Villa: {
       // 다세대: red brick until the late 90s, then pale tile over 필로티 parking.
       const h = 3 * Math.max(3, g.floors[i]);
+      let bz = 0;
       if (g.built[i] >= 1998) {
+        // 필로티: the ground floor is open parking facing the street; no wall, just a strip of planting.
         for (const [px, pz] of [[-6.5, -5], [6.5, -5], [-6.5, 5], [6.5, 5]]) P('box', px, 0, pz, 0.8, 3, 0.8, '#bdb6a8');
         P('box', 0, 3, 0, 15, h - 3, 12, pickc(TILE, r(1)), 6);
-      } else P('box', 0, 0, 0, 15, h, 12, pickc(BRICK, r(1)), 6);
-      P('box', 0, h, 0, 15.2, 0.3, 12.2, ROOFGREEN);
-      P('box', 3.5, h, 2.5, 5, 2.6, 4.5, r(2) < 0.5 ? '#e6e1d6' : pickc(BRICK, r(1)), 1);
-      P('box', 3.5, h + 2.6, 2.5, 5.4, 0.25, 4.9, '#3f6f9f');
-      roofLife(P, h, r, -3, -2);
+        P('box', 0, 0, -3, 14, 0.06, 15, '#9d978d');
+        P('box', -6, 0, -9.4, 6, 0.6, 0.9, '#6f9450');
+      } else {
+        // 적벽돌 다세대: set back behind a brick 담장 with a coping and an iron 대문,
+        // a small yard and 화단 inside, the outside stair up the side.
+        bz = 2;
+        const brick = pickc(BRICK, r(1));
+        P('box', -0.5, 0, bz, 15, h, 12, brick, 6);
+        P('box', 8.4, 0, bz + 1, 1.6, h - 2.6, 4, brick);
+        P('box', 8.4, h - 2.6, bz + 1, 1.8, 0.25, 4.2, '#cfc8ba');
+        P('box', -1.6, 0, -9.3, 16.4, 1.7, 0.5, brick);
+        P('box', -1.6, 1.7, -9.3, 16.7, 0.16, 0.7, '#cfc8ba');
+        for (const sx of [-1, 1]) {
+          P('box', sx * 9.55, 0, -6.5, 0.5, 1.7, 6, brick);
+          P('box', sx * 9.55, 1.7, -6.5, 0.7, 0.16, 6.2, '#cfc8ba');
+        }
+        P('box', 8.1, 0, -9.3, 2.8, 2.1, 0.22, pickc(['#3d5a4a', '#2f3a40', '#4a5f7a'], r(3)));
+        P('box', 8.1, 0, -9.3, 0.4, 2.3, 0.5, '#cfc8ba');
+        P('box', -4.5, 0, -7.9, 7, 0.5, 1.4, '#6f9450');
+        if (r(4) < 0.6) P('tree', -6.5, 0.5, -7.9, 2.4, 3.2, 2.4, '#5e8f45');
+      }
+      P('box', bz ? -0.5 : 0, h, bz, 15.2, 0.3, 12.2, ROOFGREEN);
+      P('box', 3.5, h, bz + 2.5, 5, 2.6, 4.5, r(2) < 0.5 ? '#e6e1d6' : pickc(BRICK, r(1)), 1);
+      P('box', 3.5, h + 2.6, bz + 2.5, 5.4, 0.25, 4.9, '#3f6f9f');
+      roofLife(P, h, r, -3, bz - 2);
       break;
     }
     case B.Apt: {
