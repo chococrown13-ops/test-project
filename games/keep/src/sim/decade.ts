@@ -67,7 +67,7 @@ export function playDecade(g: Game): string[] {
   const demand = DEMAND[dec] ?? 0;
   for (const d of g.districts) {
     const cells: number[] = [];
-    for (let i = 0; i < N * N; i++) if (g.district[i] === d.id && !g.road[i] && g.ground[i] === Ground.Land) cells.push(i);
+    for (let i = 0; i < N * N; i++) if (g.district[i] === d.id && !g.road[i] && g.ground[i] !== Ground.Water) cells.push(i);
     // Land prices follow the country, the trains and the street life.
     d.land = clamp(d.land + demand * 20 + (d.station ? 5 : 0) + (d.vitality - 50) * 0.1 + d.tourism * 4 + (d.protected ? 2 : 0) - (d.land - 50) * 0.12);
     // Private redevelopment of old lots where land is dear, unless it's a 보존지구.

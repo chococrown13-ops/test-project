@@ -34,7 +34,7 @@ const pl = (g: Game, o: Offer) => g.places[o.place];
 export function areaCells(g: Game, o: Offer, keep = (t: number) => OLD.has(t) || t === B.Vacant || t === B.Place): number[] {
   const x = o.cell % N, y = (o.cell / N) | 0;
   return cellsNear(g, x, y, o.r, o.district).filter((i) => {
-    if (g.road[i] || g.ground[i] !== Ground.Land || !keep(g.btype[i])) return false;
+    if (g.road[i] || g.ground[i] === Ground.Water || !keep(g.btype[i])) return false;
     const p = g.places.find((q) => q.y * N + q.x === i && q.state !== 'lost');
     return !p || !p.protected;
   });

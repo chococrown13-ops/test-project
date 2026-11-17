@@ -88,43 +88,55 @@ export function generate(seed: number): Game {
     g.district[i] = best;
   }
 
-  // Roads: avenues on a loose grid, streets between, both bending a little with the land.
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    const i = idx(x, y);
-    if (g.ground[i] !== Ground.Land) continue;
-    const town = g.district[i] >= 0;
-    const ox = x + Math.round((nz(y / 40, 1.7) - 0.5) * 6), oy = y + Math.round((nz(x / 40, 5.3) - 0.5) * 6);
-    const avenue = (ox % 32 === 0 || oy % 32 === 0);
-    const street = town && (ox % 8 === 0 || oy % 8 === 4);
-    if (avenue && Math.hypot(x - C, y - C) < 118) g.road[i] = RoadT.Avenue;
-    else if (street && g.district[i] !== 3 || street && (ox % 16 === 0 || oy % 16 === 4)) g.road[i] = RoadT.Street;
-  }
-  // Bridges: every other north-south avenue carries straight on across the river.
-  let bridges = 0;
-  for (let x = 2; x < N - 2; x++) {
-    for (let y = 1; y < N - 1; y++) {
-      const i = idx(x, y);
-      if (g.road[i] !== RoadT.Avenue || g.road[idx(x - 1, y)] === RoadT.Avenue || g.ground[idx(x, y + 1)] !== Ground.Water) continue;
-      if (bridges++ % 2) break;
-      let yy = y + 1;
-      while (yy < N && g.ground[idx(x, yy)] === Ground.Water) { g.road[idx(x, yy)] = RoadT.Avenue; yy++; }
-      // And on a little way into the far bank.
-      for (let k = 0; k < 10 && yy + k < N; k++) if (g.ground[idx(x, yy + k)] === Ground.Land) g.road[idx(x, yy + k)] = RoadT.Avenue;
-      break;
+  // Roads: avenues on a loose grid, streets between. Each road is traced as one
+  // line that bends a little with the land; where it shifts sideways the gap is
+  // filled so the road always runs cell to cell, never corner to corner.
+  const trace = (vertical: boolean, base: number, k: number, kind: number, keep: (x: number, y: number) => boolean) => {
+    let prev = -1;
+    for (let t = 0; t < N; t++) {
+      const off = base + Math.round((nz(t / 40, 1.7 + k * 0.37) - 0.5) * 6);
+      const [x, y] = vertical ? [off, t] : [t, off];
+      if (!inside(x, y) || !keep(x, y)) { prev = -1; continue; }
+      const put = (cx: number, cy: number) => { const i = idx(cx, cy); if (g.road[i] < kind) g.road[i] = kind; };
+      if (prev >= 0 && prev !== off) for (let o = Math.min(prev, off); o <= Math.max(prev, off); o++) vertical ? put(o, t) : put(t, o);
+      put(x, y);
+      prev = off;
     }
+  };
+  const dry = (x: number, y: number) => g.ground[idx(x, y)] !== Ground.Water;
+  const near = (x: number, y: number) => Math.hypot(x - C, y - C) < 118;
+  // Avenues: every 32 cells. Every other north-south one crosses the river on a bridge.
+  for (let k = -3; k <= 3; k++) {
+    const b = C + k * 32;
+    trace(true, b, k, RoadT.Avenue, (x, y) => near(x, y) && (dry(x, y) || k % 2 === 0));
+    trace(false, b, k + 11, RoadT.Avenue, (x, y) => near(x, y) && dry(x, y));
+  }
+  // Streets: every 8 cells inside the town; sparser up the 달동네 hill.
+  const town = (x: number, y: number) => g.district[idx(x, y)] >= 0 && dry(x, y);
+  for (let k = -16; k <= 16; k++) {
+    const b = C + k * 8;
+    const sparse = (x: number, y: number) => g.district[idx(x, y)] !== 3 || k % 2 === 0;
+    trace(true, b, k + 30, RoadT.Street, (x, y) => town(x, y) && sparse(x, y));
+    trace(false, b + 4, k + 60, RoadT.Street, (x, y) => town(x, y) && sparse(x, y));
+  }
+  // Stubs: a road cell with no road beside it goes back to land.
+  for (let i = 0; i < N * N; i++) {
+    if (!g.road[i]) continue;
+    const x = i % N, y = (i / N) | 0;
+    if (![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => inside(x + dx, y + dy) && g.road[idx(x + dx, y + dy)])) g.road[i] = 0;
   }
 
   // 1970: low houses, shops on the bigger streets, the market, a few workshops; fields at the edge.
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     const i = idx(x, y);
-    if (g.road[i] || g.ground[i] !== Ground.Land) continue;
+    if (g.road[i] || g.ground[i] === Ground.Water) continue;
     const d = g.district[i];
     if (d < 0) { if (rand(g) < 0.55 && g.height[i] < 6) { g.btype[i] = B.Field; } continue; }
     const kind = g.districts[d].kind;
     const onAvenue = nearRoad(g, x, y, RoadT.Avenue);
     const r = rand(g);
     let t: number = B.Giwa;
-    if (kind === 'market' && Math.hypot(x - g.districts[d].cx, y - g.districts[d].cy) < 9) t = B.Market;
+    if (kind === 'market' && Math.hypot(x - g.districts[d].cx, y - g.districts[d].cy) < 5) t = B.Market;
     else if (onAvenue) t = r < 0.6 ? B.Shop : B.Slate;
     else if (kind === 'hill') t = r < 0.85 ? B.Slate : B.Giwa;
     else if (kind === 'station' && r < 0.12) t = B.Factory;
@@ -145,7 +157,7 @@ export function generate(seed: number): Game {
       const x = Math.round(d.cx + Math.cos(a) * r), y = Math.round(d.cy + Math.sin(a) * r);
       if (!inside(x, y)) continue;
       const i = idx(x, y);
-      if (g.district[i] !== d.id || g.road[i] || g.ground[i] !== Ground.Land || !nearRoad(g, x, y, RoadT.Street)) continue;
+      if (g.district[i] !== d.id || g.road[i] || g.ground[i] === Ground.Water || !nearRoad(g, x, y, RoadT.Street)) continue;
       if (g.places.some((p) => Math.hypot(p.x - x, p.y - y) < 6)) continue;
       const kind = kinds.length ? kinds.splice(Math.floor(rand(g) * kinds.length), 1)[0] : pick(g, PLACE_KINDS[d.kind]);
       const since = START_YEAR - 5 - Math.floor(rand(g) * 35);

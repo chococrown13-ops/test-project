@@ -94,6 +94,7 @@ export class KeepScene {
     this.composer.addPass(this.stylize);
     this.composer.addPass(new OutputPass());
     this.buildings.heightAt = (i) => this.cellBase(i);
+    this.buildings.topAt = (i) => this.cellTop(i);
   }
 
   /** Phones: no multisampling, half-size outline normals. */
@@ -179,31 +180,43 @@ export class KeepScene {
       const i = idx(x, y), t = g.btype[i], h = g.height[i];
       let col: string;
       if (g.ground[i] === Ground.Water) col = '#6aa3c2';
-      else if (g.ground[i] === Ground.Hill) col = shade('#93b46e', 1 - Math.min(0.25, h / 600));
       else if (t === B.Field) col = (x + y) % 2 ? '#c9cf7c' : '#b7c96f';
       else if (t === B.Park) col = '#93c072';
       else if (g.district[i] >= 0) col = t === B.Vacant || t === B.None ? '#d9cfb4' : '#e7dcc3';
+      else if (g.ground[i] === Ground.Hill) col = shade('#93b46e', 1 - Math.min(0.25, h / 600));
       else col = '#b3cc8a';
       ctx.fillStyle = col;
       ctx.fillRect(x * PX, y * PX, PX, PX);
       if (area.has(i)) { ctx.fillStyle = 'rgba(232, 92, 60, 0.42)'; ctx.fillRect(x * PX, y * PX, PX, PX); }
       else if (this.hl.district !== undefined && g.district[i] === this.hl.district) { ctx.fillStyle = 'rgba(242, 200, 60, 0.22)'; ctx.fillRect(x * PX, y * PX, PX, PX); }
     }
-    // Roads on top, with a pale kerb so they read at any zoom.
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-      const r = g.road[idx(x, y)];
-      if (!r) continue;
-      const av = r === RoadT.Avenue;
-      ctx.fillStyle = av ? '#f2ede2' : '#efe8d8';
-      ctx.fillRect(x * PX, y * PX, PX, PX);
-      ctx.fillStyle = av ? '#6d6e72' : '#a8a196';
-      const m = av ? 1 : 2;
-      ctx.fillRect(x * PX + m, y * PX + m, PX - 2 * m, PX - 2 * m);
-      // Join to road neighbours so the strip is continuous.
-      for (const [dx, dy] of [[1, 0], [0, 1]]) {
-        const nx = x + dx, ny = y + dy;
-        if (nx < N && ny < N && g.road[idx(nx, ny)]) ctx.fillRect(x * PX + m + dx * (PX - 2 * m), y * PX + m + dy * (PX - 2 * m), dx ? 2 * m : PX - 2 * m, dy ? 2 * m : PX - 2 * m);
+    // Roads: kerbs first for every road, then the asphalt on top, so a later
+    // cell's kerb can never cut across the road drawn before it.
+    const W = { [RoadT.Avenue]: [8, 6.4], [RoadT.Street]: [5.2, 3.6] } as Record<number, [number, number]>;
+    for (const pass of [0, 1]) {
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+        const r = g.road[idx(x, y)];
+        if (!r) continue;
+        const w = W[r][pass], cx = x * PX + PX / 2, cy = y * PX + PX / 2;
+        ctx.fillStyle = pass === 0 ? '#f1ebdd' : r === RoadT.Avenue ? '#66676c' : '#a39c90';
+        ctx.fillRect(cx - w / 2, cy - w / 2, w, w);
+        for (const [dx, dy] of [[1, 0], [0, 1]]) {
+          const nx = x + dx, ny = y + dy;
+          if (nx >= N || ny >= N) continue;
+          const r2 = g.road[idx(nx, ny)];
+          if (!r2) continue;
+          const ww = Math.min(w, W[r2][pass]);
+          if (dx) ctx.fillRect(cx, cy - ww / 2, PX, ww); else ctx.fillRect(cx - ww / 2, cy, ww, PX);
+        }
       }
+    }
+    // A thin yellow centre line down the avenues.
+    ctx.fillStyle = '#e8c64a';
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      if (g.road[idx(x, y)] !== RoadT.Avenue) continue;
+      const cx = x * PX + PX / 2, cy = y * PX + PX / 2;
+      if (x + 1 < N && g.road[idx(x + 1, y)] === RoadT.Avenue) ctx.fillRect(cx, cy - 0.5, PX, 1);
+      if (y + 1 < N && g.road[idx(x, y + 1)] === RoadT.Avenue) ctx.fillRect(cx - 0.5, cy, 1, PX);
     }
     // Faint 동네 boundaries.
     ctx.fillStyle = 'rgba(120, 100, 70, 0.35)';

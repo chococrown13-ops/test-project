@@ -163,6 +163,6 @@ export const placeAt = (g: Game, i: number) => g.places.find((p) => p.y * N + p.
 /** Buildable cells of a district: land, not road. */
 export function districtCells(g: Game, d: number): number[] {
   const out: number[] = [];
-  for (let i = 0; i < N * N; i++) if (g.district[i] === d && !g.road[i] && g.ground[i] === Ground.Land) out.push(i);
+  for (let i = 0; i < N * N; i++) if (g.district[i] === d && !g.road[i] && g.ground[i] !== Ground.Water) out.push(i);
   return out;
 }
