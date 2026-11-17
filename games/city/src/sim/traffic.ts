@@ -67,6 +67,7 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
       const goShop = rand(w) < (hour > 10 && hour < 17 ? 0.5 : 0.2);
       const pool = goShop && shops.length ? shops : works;
       let a: number | undefined, b: number | undefined;
+      let leaving = false;
       const ha = net.access.get(home)!;
       if (pool.length && rand(w) < 0.9) {
         const dest = pool[(rand(w) * pool.length) | 0];
@@ -75,11 +76,11 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
       } else if (outside.length) {
         // Some trips leave the city along the expressway.
         const edge = edgeCellOf(w, net.comp, outside[0]);
-        if (edge >= 0) [a, b] = morning ? [ha, edge] : [edge, ha];
+        if (edge >= 0) { [a, b] = morning ? [ha, edge] : [edge, ha]; leaving = true; }
       }
       if (a === undefined || b === undefined || a === b || net.comp[a] !== net.comp[b]) continue;
       // Near a bus stop or a station at both ends, some people leave the car at home.
-      const ride = tryTransit(w, a, b, rand(w));
+      const ride = tryTransit(w, a, b, rand(w), leaving);
       if (ride !== null) { tr.tripTime += ride; tr.trips++; continue; }
       const path = route(w, tr, a, b);
       if (!path || path.length < 2) continue;

@@ -1,5 +1,5 @@
 import { KINDS, N, ROAD_UPKEEP, Zone } from './defs';
-import { FARE, lineUpkeep } from './transit';
+import { fareIncome, lineUpkeep } from './transit';
 import { emptyMonth, notify, type MonthReport, type World } from './world';
 
 /** Monthly tax per resident / worker at a 10% rate, in 만원. */
@@ -33,7 +33,7 @@ export function accrueDay(w: World) {
 
 export function closeMonth(w: World) {
   const m = w.month;
-  m.income.T = w.lines.reduce((a, l) => a + l.ridersMonth, 0) * FARE;
+  m.income.T = fareIncome(w);
   const income = monthIncome(m);
   const expense = monthExpense(m);
   w.money += Math.round(income - expense);

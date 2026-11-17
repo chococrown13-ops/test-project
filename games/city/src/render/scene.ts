@@ -8,7 +8,7 @@ import { CELL, N, type BuildingKind } from '../sim/defs';
 import { NN } from '../sim/graph';
 import { calendarMonth, DAY_SECONDS, type Sim } from '../sim/sim';
 import { busRoute } from '../sim/transit';
-import type { LineKind } from '../sim/transit';
+import type { BusType, LineKind } from '../sim/transit';
 import { Atmosphere } from './atmosphere';
 import { StylizePass, type ArtStyle } from './stylize';
 import { BuildingLayer } from './buildings';
@@ -34,7 +34,7 @@ export class CityScene {
   readonly preview = new PreviewLayer();
   transit = new TransitLayer();
   /** The line being drawn, if any. */
-  draft: { kind: LineKind; stops: number[] } | null = null;
+  draft: { kind: LineKind; stops: number[]; bus?: BusType } | null = null;
   private sun = new THREE.DirectionalLight('#fff4e0', 2.4);
   private hemi = new THREE.HemisphereLight('#cfe6ff', '#6b7a55', 1.0);
   private atmo = new Atmosphere();

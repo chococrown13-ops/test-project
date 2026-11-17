@@ -7,7 +7,7 @@ import { altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPa
 import { buildCityNetwork } from './render/roadnet';
 import { findAccess } from './sim/network';
 import { hasOpenWater } from './sim/tools';
-import { createLine, removeLine, STOP_RADIUS, stopProblem, type LineKind } from './sim/transit';
+import { BUS_TYPES, type BusType, createLine, removeLine, STOP_RADIUS, stopProblem, type LineKind } from './sim/transit';
 import { bez, curveProblem, HALF_WIDTH, snapControl } from './sim/curves';
 import { createRealWorld, createWorld, idx, startRowOf } from './sim/world';
 import { drawPreview, drawTiles, loadIndex, loadTile, savedDraw, storeDraw, type Draw } from './ui/korea';
@@ -37,7 +37,7 @@ let running = false;
 let tool: ToolId = 'select';
 let cat: string | null = null;
 /** The bus or subway line being drawn: stops picked so far. */
-let draft: { kind: LineKind; stops: number[] } | null = null;
+let draft: { kind: LineKind; stops: number[]; bus?: BusType } | null = null;
 /** How road tools lay a drag: an L of straight runs, a 45° run first, or a curve bent after the drag. */
 type RoadMode = 'grid' | 'diag' | 'curve';
 let roadMode: RoadMode = 'grid';
@@ -73,6 +73,7 @@ function renderCats() {
   if (c) tools.innerHTML = c.tools.map((t) => `<button class="tool" data-tool="${t.id}" aria-pressed="${t.id === tool}">${t.swatch ? `<span class="sw" style="--sw:${t.swatch}"></span>` : ''}<span class="n">${t.name}</span>${t.price ? `<span class="p">${t.price}</span>` : ''}</button>`).join('')
     + (c.id === 'road' ? `<span class="cats-rule" aria-hidden="true"></span><button class="tool" data-policy="noAvenueParking" aria-pressed="${sim.w.noAvenueParking}"><span class="n">대로 주정차 금지</span><span class="p">${sim.w.noAvenueParking ? '시행 중' : '안 함'}</span></button>` : '')
     + (c.id === 'road' && TOOLS[tool]?.road !== undefined ? `<span class="cats-rule" aria-hidden="true"></span>` + ROAD_MODES.map((m) => `<button class="tool" data-roadmode="${m.id}" aria-pressed="${roadMode === m.id}" aria-keyshortcuts="T"><span class="n">${m.name}</span><span class="p">${m.hint}</span></button>`).join('') : '')
+    + (c.id === 'transit' ? `<span class="cats-rule" aria-hidden="true"></span><button class="tool" data-policy="transferDiscount" aria-pressed="${sim.w.transferDiscount}"><span class="n">환승 할인</span><span class="p">${sim.w.transferDiscount ? '시행 중' : '안 함'}</span></button>` : '')
     + (c.id === 'transit' ? `<button class="tool" data-panel="lines" aria-pressed="${panel === 'lines'}"><span class="n">노선 관리</span><span class="p">${sim.w.lines.length}개 운행 중</span></button>` : '');
   renderDraft();
 }
@@ -81,16 +82,16 @@ function renderDraft() {
   const el = $('draft');
   el.hidden = !draft;
   // Only touch the DOM when the text changes, so a press on 노선 완성 is never swallowed by a redraw.
-  const html = draft ? draftHtml(sim.w, draft.kind, draft.stops) : '';
+  const html = draft ? draftHtml(sim.w, draft.kind, draft.stops, draft.bus) : '';
   if (html && html !== el.dataset.html) { el.innerHTML = html; el.dataset.html = html; }
   scene.draft = draft;
 }
 
 function finishDraft() {
   if (!draft) return;
-  const err = createLine(sim.w, draft.kind, draft.stops);
+  const err = createLine(sim.w, draft.kind, draft.stops, draft.bus);
   if (err) { toast(err, 'warn'); return; }
-  draft = { kind: draft.kind, stops: [] };
+  draft = { kind: draft.kind, stops: [], bus: draft.bus };
   renderCats();
 }
 
@@ -101,7 +102,7 @@ function setTool(t: ToolId) {
   scene.preview.clear();
   hideTip();
   const def = TOOLS[t];
-  draft = def?.line ? { kind: def.line, stops: draft?.kind === def.line ? draft.stops : [] } : null;
+  draft = def?.line ? { kind: def.line, bus: def.bus, stops: draft?.kind === def.line ? draft.stops : [] } : null;
   scene.transit.showRoutes = !!def?.line || scene.overlay === 'transit';
   scene.setZoneable(!!def && def.zone !== undefined && def.zone !== Zone.None);
   // 정수장 by the water (unless the map uses wells), 수변공원 on the bank, 전망타워 on a hill: show where.
@@ -122,6 +123,12 @@ $('dock').addEventListener('click', (e) => {
     w.noAvenueParking = !w.noAvenueParking;
     updateParking(w);
     toast(w.noAvenueParking ? '대로에 차를 세울 수 없어요. 차가 잘 빠지지만 주변 주차난은 늘어요.' : '대로 갓길 주차를 다시 허용했어요.', 'info');
+    renderCats();
+  }
+  else if (el.dataset.policy === 'transferDiscount') {
+    const w = sim.w;
+    w.transferDiscount = !w.transferDiscount;
+    toast(w.transferDiscount ? '갈아타도 요금을 한 번만 내요. 환승하는 승객이 크게 늘지만 요금 수입은 줄어요.' : '갈아탈 때마다 요금을 따로 받아요. 수입은 늘지만 갈아타는 사람이 줄어요.', 'info');
     renderCats();
   }
   else if (el.dataset.draft && draft) {
@@ -317,8 +324,8 @@ function preview() {
     const i = idx(b.x, b.y);
     const why = stopProblem(w, def.line, i, draft.stops);
     p.show([i], why ? '#f0644f' : def.line === 'bus' ? '#2e9e4f' : '#263c96', def.line === 'bus' ? 0.6 : 3);
-    p.ringAt((b.x + 0.5) * CELL, (b.y + 0.5) * CELL, why ? 0 : STOP_RADIUS[def.line] * CELL);
-    showTip(b.px, b.py, why ?? (def.line === 'bus' ? `정류장 ${draft.stops.length + 1}번째로 추가` : `${draft.stops.length + 1}번째 역으로 추가`), !!why);
+    p.ringAt((b.x + 0.5) * CELL, (b.y + 0.5) * CELL, why ? 0 : (def.line === 'bus' ? BUS_TYPES[def.bus ?? 'branch'].radius : STOP_RADIUS.metro) * CELL);
+    showTip(b.px, b.py, why ?? (def.line === 'bus' ? `${BUS_TYPES[def.bus ?? 'branch'].name} 정류장 ${draft.stops.length + 1}번째로 추가` : `${draft.stops.length + 1}번째 역으로 추가`), !!why);
     return;
   }
   if (tool === 'bulldoze') {

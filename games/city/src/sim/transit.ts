@@ -12,12 +12,39 @@ import { idx, notify, type World } from './world';
  */
 export type LineKind = 'bus' | 'metro';
 
+/**
+ * Korean bus kinds, after the colour scheme Seoul brought in in 2004 and
+ * most cities follow:
+ *  - 마을버스: small buses round the back streets to the nearest station.
+ *    Cheap, short loops, stops close together.
+ *  - 지선버스 (green): neighbourhood to neighbourhood, feeding the trunk lines.
+ *  - 간선버스 (blue): long runs along the big roads, quicker on the
+ *    중앙버스전용차로.
+ *  - 광역버스 (red): straight out of town along the expressway; it carries
+ *    commuters leaving the city and barely anyone inside it.
+ */
+export type BusType = 'village' | 'branch' | 'trunk' | 'express';
+export const BUS_TYPES: Record<BusType, {
+  name: string; color: string; radius: number; share: number; speed: number;
+  cost: { line: number; stop: number }; upkeep: number; cellsPerBus: number;
+  /** Longest loop (cells) the line may drive, or 0 for no limit. */
+  maxLoop: number;
+}> = {
+  village: { name: '마을버스', color: '#f0a500', radius: 3, share: 0.3, speed: 2.6, cost: { line: 150, stop: 20 }, upkeep: 15, cellsPerBus: 22, maxLoop: 180 },
+  branch: { name: '지선버스', color: '#5bb025', radius: 4, share: 0.35, speed: 3.2, cost: { line: 400, stop: 60 }, upkeep: 45, cellsPerBus: 28, maxLoop: 0 },
+  trunk: { name: '간선버스', color: '#3d5bab', radius: 4, share: 0.4, speed: 3.8, cost: { line: 700, stop: 80 }, upkeep: 60, cellsPerBus: 34, maxLoop: 0 },
+  express: { name: '광역버스', color: '#d6262b', radius: 5, share: 0.55, speed: 5, cost: { line: 1500, stop: 100 }, upkeep: 90, cellsPerBus: 40, maxLoop: 0 },
+};
+export const busTypeOf = (l: Pick<TransitLine, 'kind' | 'bus'>): BusType => l.bus ?? 'branch';
+
 export interface TransitLine {
   id: number;
   kind: LineKind;
   name: string;
   color: string;
   stops: number[]; // cell indices: road cells for buses, station cells for the subway
+  /** Bus kind (older saves: 지선버스). */
+  bus?: BusType;
   /** Riders so far this month, and last month's total. */
   ridersMonth: number;
   riders: number;
@@ -37,7 +64,6 @@ const RIDERS_PER_TRIP = 40;
 /** Cells per second, against about 3.6 for a car on a free street. */
 const SPEED = { bus: 3.2, metro: 9 } as const;
 
-export const BUS_COLORS = ['#2e9e4f', '#2f6db5', '#d9483b', '#e0a400'];
 export const METRO_COLORS = ['#263c96', '#3cb44a', '#ef7c1c', '#00a5de', '#996cac', '#cd7c2f', '#747f00', '#e6186c', '#bdb092'];
 
 /* ------------------------------------------------------------ validation */
@@ -52,8 +78,8 @@ export function stopProblem(w: World, kind: LineKind, i: number, draft: number[]
   return null;
 }
 
-export function lineCost(kind: LineKind, stops: number[]): number {
-  if (kind === 'bus') return TRANSIT_COST.busLine + stops.length * TRANSIT_COST.busStop;
+export function lineCost(kind: LineKind, stops: number[], bus: BusType = 'branch'): number {
+  if (kind === 'bus') { const c = BUS_TYPES[bus].cost; return c.line + stops.length * c.stop; }
   let tunnel = 0;
   for (let k = 1; k < stops.length; k++) tunnel += tunnelLength(stops[k - 1], stops[k]);
   return stops.length * TRANSIT_COST.station + Math.round(tunnel * TRANSIT_COST.tunnel);
@@ -61,22 +87,43 @@ export function lineCost(kind: LineKind, stops: number[]): number {
 
 export const tunnelLength = (a: number, b: number) => Math.hypot((a % N) - (b % N), ((a / N) | 0) - ((b / N) | 0));
 
-export function createLine(w: World, kind: LineKind, stops: number[]): string | null {
+/** Why a bus line of this kind can't run these stops, or null. */
+export function busProblem(w: World, bus: BusType, stops: number[]): string | null {
+  const route = busRoute(w, stops);
+  if (!route) return '정류장끼리 도로로 이어져 있지 않아요.';
+  const T = BUS_TYPES[bus];
+  if (T.maxLoop && route.length > T.maxLoop) return `${T.name}는 짧은 동네 노선이에요. 한 바퀴가 ${T.maxLoop * CELL / 1000}km를 넘지 않게 해 주세요.`;
+  if (bus === 'express' && !stops.some((i) => i % N <= 6)) return '광역버스는 도시 밖으로 나가는 노선이에요. 서쪽 고속도로 입구 가까이에 정류장을 하나 두세요.';
+  return null;
+}
+
+/** Route numbers the Korean way: 간선 three digits, 지선 four, 광역 starting with 9, 마을버스 by the town's name. */
+function lineName(w: World, kind: LineKind, bus: BusType): string {
+  const n = w.lines.filter((l) => l.kind === kind && (kind === 'metro' || busTypeOf(l) === bus)).length;
+  if (kind === 'metro') return `${n + 1}호선`;
+  const town = w.name.replace(/(시|군)$/, '');
+  if (bus === 'village') return `${town}${String(n + 1).padStart(2, '0')}`;
+  if (bus === 'trunk') return `${(n % 7) + 1}${String(20 + w.nextLine * 7 % 70).padStart(2, '0')}번`;
+  if (bus === 'express') return `9${String(100 + w.nextLine * 13 % 900)}번`;
+  return `${(n % 7) + 1}${String(100 + w.nextLine * 37 % 900)}번`;
+}
+
+export function createLine(w: World, kind: LineKind, stops: number[], bus: BusType = 'branch'): string | null {
   if (stops.length < 2) return '정류장을 두 곳 이상 골라 주세요.';
   for (let k = 0; k < stops.length; k++) { const why = stopProblem(w, kind, stops[k], stops.slice(0, k)); if (why) return why; }
-  const cost = lineCost(kind, stops);
+  const cost = lineCost(kind, stops, bus);
   if (cost > w.money) return `예산이 부족해요. (${cost.toLocaleString('ko-KR')}만 원 필요)`;
-  if (kind === 'bus' && !busRoute(w, stops)) return '정류장끼리 도로로 이어져 있지 않아요.';
+  if (kind === 'bus') { const why = busProblem(w, bus, stops); if (why) return why; }
   w.money -= cost;
   const same = w.lines.filter((l) => l.kind === kind).length;
-  const color = kind === 'bus' ? BUS_COLORS[same % BUS_COLORS.length] : METRO_COLORS[same % METRO_COLORS.length];
-  const name = kind === 'bus' ? `${100 + w.nextLine * 3 + same}번 버스` : `${same + 1}호선`;
+  const color = kind === 'bus' ? BUS_TYPES[bus].color : METRO_COLORS[same % METRO_COLORS.length];
+  const name = lineName(w, kind, bus);
   if (kind === 'metro') for (const i of stops) {
     if (w.bld[i] >= 0 && w.buildings.get(w.bld[i])?.kind !== 'metro') demolish(w, w.bld[i]);
     if (w.bld[i] < 0) addBuilding(w, 'metro', i % N, (i / N) | 0);
     w.zone[i] = 0;
   }
-  w.lines.push({ id: w.nextLine++, kind, name, color, stops: [...stops], ridersMonth: 0, riders: 0 });
+  w.lines.push({ id: w.nextLine++, kind, name, color, stops: [...stops], ridersMonth: 0, riders: 0, ...(kind === 'bus' ? { bus } : {}) });
   w.ver.transit++;
   w.ver.zones++;
   invalidateNetwork();
@@ -150,7 +197,7 @@ function bfs(w: World, a: number, b: number): number[] | null {
 
 /* -------------------------------------------------------------- coverage */
 
-let cover: { ver: string; lines: Map<number, Uint8Array> } = { ver: '', lines: new Map() };
+let cover: { ver: string; lines: Map<number, Uint8Array>; links: Map<number, Set<number>> } = { ver: '', lines: new Map(), links: new Map() };
 
 /** Cells within walking distance of each line; also fills w.transit (0 none, 1 bus, 2 subway). */
 export function coverage(w: World): Map<number, Uint8Array> {
@@ -160,7 +207,7 @@ export function coverage(w: World): Map<number, Uint8Array> {
   w.transit.fill(0);
   for (const l of w.lines) {
     const m = new Uint8Array(N * N);
-    const r = STOP_RADIUS[l.kind];
+    const r = l.kind === 'bus' ? BUS_TYPES[busTypeOf(l)].radius : STOP_RADIUS[l.kind];
     // A bus picks people up all along its route (stops every few blocks); the subway only at stations.
     const route = l.kind === 'bus' ? busRoute(w, l.stops, l.id) : null;
     const centres = route ? [...l.stops, ...Array.from(route).filter((_, k) => k % 4 === 0).map(cellOf)] : l.stops;
@@ -176,29 +223,65 @@ export function coverage(w: World): Map<number, Uint8Array> {
     }
     lines.set(l.id, m);
   }
-  cover = { ver, lines };
+  // Transfer points: two lines link where a stop of one lies within the other's walking reach.
+  const links = new Map<number, Set<number>>();
+  for (const a of w.lines) {
+    const set = new Set<number>();
+    for (const b of w.lines) if (a !== b && (a.stops.some((s) => lines.get(b.id)![s]) || b.stops.some((s) => lines.get(a.id)![s]))) set.add(b.id);
+    links.set(a.id, set);
+  }
+  cover = { ver, lines, links };
   return lines;
 }
 
+/** Lines you can change to from a line (their stops within walking distance). */
+export function transferLinks(w: World): Map<number, Set<number>> { coverage(w); return cover.links; }
+
+const share = (l: TransitLine, outbound: boolean) => {
+  if (l.kind === 'metro') return MODE_SHARE.metro;
+  const t = busTypeOf(l);
+  // 광역버스 runs non-stop through town: it's for leaving the city, hardly for trips inside it.
+  if (t === 'express') return outbound ? BUS_TYPES.express.share : 0.06;
+  return outbound ? BUS_TYPES[t].share * 0.3 : BUS_TYPES[t].share;
+};
+const speed = (l: TransitLine) => (l.kind === 'metro' ? SPEED.metro : BUS_TYPES[busTypeOf(l)].speed);
+
 /**
  * Called for each trip about to become a car. Returns the trip time in
- * seconds if it goes by bus or subway instead, or null to drive.
+ * seconds if it goes by bus or subway instead, or null to drive. `outbound`
+ * trips leave the city along the expressway. A trip no single line covers
+ * may still change lines where two meet: often with the 환승 할인, rarely
+ * without it (paying twice).
  */
-export function tryTransit(w: World, from: number, to: number, roll: number): number | null {
+export function tryTransit(w: World, from: number, to: number, roll: number, outbound = false): number | null {
   if (!w.lines.length) return null;
   const cov = coverage(w);
-  // Subway lines are tried first; each covering line gets its own chance at the trip.
-  const cands = w.lines.filter((l) => { const m = cov.get(l.id); return m && m[from] && m[to]; }).sort((a, b) => MODE_SHARE[b.kind] - MODE_SHARE[a.kind]);
-  let best: TransitLine | null = null;
+  const d = Math.abs((from % N) - (to % N)) + Math.abs(((from / N) | 0) - ((to / N) | 0));
+  // A 광역버스 runs on out along the expressway: the far end of a trip leaving town is on its route.
+  const at = (l: TransitLine, c: number) => cov.get(l.id)![c] === 1 || (outbound && l.kind === 'bus' && busTypeOf(l) === 'express' && c % N === 0);
+  // Direct: the fastest kinds get first chance; each covering line gets its own.
+  const cands = w.lines.filter((l) => cov.has(l.id) && at(l, from) && at(l, to)).sort((a, b) => share(b, outbound) - share(a, outbound));
   for (const l of cands) {
-    const p = MODE_SHARE[l.kind];
-    if (roll < p) { best = l; break; }
+    const p = share(l, outbound);
+    if (roll < p) { l.ridersMonth += RIDERS_PER_TRIP; return d / speed(l) + 2.5; }
     roll = (roll - p) / (1 - p);
   }
-  if (!best) return null;
-  best.ridersMonth += RIDERS_PER_TRIP;
-  const d = Math.abs((from % N) - (to % N)) + Math.abs(((from / N) | 0) - ((to / N) | 0));
-  return d / SPEED[best.kind] + 2.5;
+  // One change of line.
+  const links = cover.links;
+  const starts = w.lines.filter((l) => cov.has(l.id) && at(l, from));
+  for (const a of starts) for (const bId of links.get(a.id) ?? []) {
+    const b = w.lines.find((l) => l.id === bId)!;
+    if (!at(b, to) || at(a, to)) continue;
+    const p = Math.min(share(a, false), share(b, outbound)) * (w.transferDiscount ? 0.75 : 0.25);
+    if (roll < p) {
+      a.ridersMonth += RIDERS_PER_TRIP;
+      b.ridersMonth += RIDERS_PER_TRIP;
+      w.transfersMonth += RIDERS_PER_TRIP;
+      return d / Math.min(speed(a), speed(b)) + 6; // walking across and waiting for the second bus
+    }
+    roll = (roll - p) / (1 - p);
+  }
+  return null;
 }
 
 /** Land value near stations and stops: the 역세권 premium. */
@@ -221,11 +304,11 @@ export function transitLandBonus(w: World, bonus: Float32Array) {
 export function busCount(w: World, l: TransitLine): number {
   if (l.kind !== 'bus') return 0;
   const p = busRoute(w, l.stops, l.id);
-  return p ? Math.max(1, Math.round(p.length / 28)) : 0;
+  return p ? Math.max(1, Math.round(p.length / BUS_TYPES[busTypeOf(l)].cellsPerBus)) : 0;
 }
 
 export function lineUpkeep(w: World, l: TransitLine): number {
-  if (l.kind === 'bus') return busCount(w, l) * TRANSIT_UPKEEP.bus;
+  if (l.kind === 'bus') return busCount(w, l) * BUS_TYPES[busTypeOf(l)].upkeep;
   let t = 0;
   for (let k = 1; k < l.stops.length; k++) t += tunnelLength(l.stops[k - 1], l.stops[k]);
   return l.stops.length * TRANSIT_UPKEEP.station + t * TRANSIT_UPKEEP.tunnel;
@@ -234,7 +317,16 @@ export function lineUpkeep(w: World, l: TransitLine): number {
 /** Close the month for every line: last month's riders become the visible figure. */
 export function closeTransitMonth(w: World) {
   for (const l of w.lines) { l.riders = l.ridersMonth; l.ridersMonth = 0; }
+  w.transfers = w.transfersMonth;
+  w.transfersMonth = 0;
 }
+
+/**
+ * Fare income for the month. Each boarding pays 1,400원, except that with the
+ * 환승 할인 a change of line is free (the trip pays once; in reality a small
+ * distance top-up, left out here).
+ */
+export const fareIncome = (w: World) => (w.lines.reduce((a, l) => a + l.ridersMonth, 0) - (w.transferDiscount ? w.transfersMonth : 0)) * FARE;
 
 export const metroPathLength = (l: TransitLine) => {
   let t = 0;

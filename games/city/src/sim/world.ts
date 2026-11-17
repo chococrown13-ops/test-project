@@ -77,6 +77,11 @@ export interface World {
   transit: Uint8Array;
   lines: TransitLine[];
   nextLine: number;
+  /** Policy: a change of line within the hour is free (통합요금제 환승 할인). */
+  transferDiscount: boolean;
+  /** Riders who changed lines, this month and last. */
+  transfersMonth: number;
+  transfers: number;
   buildings: Map<number, Building>;
   nextId: number;
   tax: { R: number; C: number; I: number };
@@ -166,6 +171,9 @@ export function createWorld(seed = 20261028, name = '새솔시', map: MapKind = 
     transit: new Uint8Array(size),
     lines: [],
     nextLine: 1,
+    transferDiscount: true,
+    transfersMonth: 0,
+    transfers: 0,
     buildings: new Map(),
     nextId: 1,
     tax: { R: 9, C: 9, I: 9 },
