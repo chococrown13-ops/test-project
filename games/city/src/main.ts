@@ -4,6 +4,8 @@ import { loadLocal, saveLocal } from './sim/save';
 import { updateParking } from './sim/parking';
 import { createSim, tick, type Sim } from './sim/sim';
 import { altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
+import { findAccess } from './sim/network';
+import { hasOpenWater } from './sim/tools';
 import { createLine, removeLine, STOP_RADIUS, stopProblem, type LineKind } from './sim/transit';
 import { bez, curveProblem, HALF_WIDTH, snapControl } from './sim/curves';
 import { createRealWorld, createWorld, idx, startRowOf } from './sim/world';
@@ -100,6 +102,9 @@ function setTool(t: ToolId) {
   draft = def?.line ? { kind: def.line, stops: draft?.kind === def.line ? draft.stops : [] } : null;
   scene.transit.showRoutes = !!def?.line || scene.overlay === 'transit';
   scene.setZoneable(!!def && def.zone !== undefined && def.zone !== Zone.None);
+  // 정수장 by the water (unless the map uses wells), 수변공원 on the bank, 전망타워 on a hill: show where.
+  const k = def?.kind;
+  scene.setSites(k === 'riverpark' || k === 'tower' || (k === 'water' && hasOpenWater(sim.w)) ? k : null);
   if (t !== 'select') closeInfo();
   renderCats();
 }
@@ -282,8 +287,11 @@ function preview() {
     const cost = roadCost(w, cells, def.road);
     const hill = cells.some((i) => w.ground[i] === Ground.Mountain);
     const bad = hill || roadBlocked(w, cells) || cost > w.money;
-    p.show(cells, bad ? '#ff5a5a' : def.road === Road.Avenue ? '#8fd0ff' : '#c6f0ff');
-    showTip(b.px, b.py, hill ? '산은 터널로만 지날 수 있어요' : roadBlocked(w, cells) ? '시설과 겹쳐서 놓을 수 없어요' : cost > w.money ? `예산이 부족해요, ${won(cost)} 필요` : `${roadMode === 'diag' ? '대각선 ' : ''}${Math.round(cells.length * 10)}m, ${won(cost)}`, bad);
+    // Allowed, but a road touching no other road is cut off from the city: say so while dragging.
+    const loose = !bad && !cells.some((i) => { const x = i % N, y = (i / N) | 0; return w.road[i] || [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => x + dx >= 0 && y + dy >= 0 && x + dx < N && y + dy < N && !!w.road[idx(x + dx, y + dy)]); });
+    p.show(cells, bad ? '#ff5a5a' : loose ? '#ffb347' : def.road === Road.Avenue ? '#8fd0ff' : '#c6f0ff');
+    const len = `${roadMode === 'diag' ? '대각선 ' : ''}${Math.round(cells.length * 10)}m, ${won(cost)}`;
+    showTip(b.px, b.py, hill ? '산은 터널로만 지날 수 있어요' : roadBlocked(w, cells) ? '시설과 겹쳐서 놓을 수 없어요' : cost > w.money ? `예산이 부족해요, ${won(cost)} 필요` : loose ? `기존 도로와 이어지지 않아요 · ${len}` : len, bad || loose);
     return;
   }
   if (def.level) {
@@ -321,10 +329,13 @@ function preview() {
   if (def.kind) {
     const f = footprintAt(def, b.x, b.y);
     const why = placeProblem(w, def.kind, f.x, f.y);
-    p.show(rectCells(f.x, f.y, f.x + f.s - 1, f.y + f.s - 1), why ? '#ff5a5a' : '#7cf0a6', 3);
+    // Allowed but cut off: a facility away from every road does nothing until one reaches it. Say so before it's built.
+    const off = !why && def.kind !== 'tower' && findAccess(w, { x: f.x, y: f.y, size: f.s }) < 0;
+    p.show(rectCells(f.x, f.y, f.x + f.s - 1, f.y + f.s - 1), why ? '#ff5a5a' : off ? '#ffb347' : '#7cf0a6', 3);
     const svc = SERVICE[def.kind];
     p.ringAt((f.x + f.s / 2) * CELL, (f.y + f.s / 2) * CELL, svc ? svc.radius * CELL : 0);
-    showTip(b.px, b.py, why ?? `${def.name}, ${won(KINDS[def.kind].cost ?? 0)}, 유지비 월 ${won(KINDS[def.kind].upkeep ?? 0)}`, !!why);
+    const price = `${def.name}, ${won(KINDS[def.kind].cost ?? 0)}, 유지비 월 ${won(KINDS[def.kind].upkeep ?? 0)}`;
+    showTip(b.px, b.py, why ?? (off ? `도로에 닿지 않아요. 여기 지으면 도로를 이어 줄 때까지 작동하지 않아요 · ${price}` : price), !!why || off);
   }
 }
 

@@ -2,6 +2,7 @@ import { closeMonth, accrueDay } from './economy';
 import { grow, updateBuildings, updateDemand, updateLand } from './growth';
 import { updateUtilities } from './network';
 import { updateParking } from './parking';
+import { hasOpenWater } from './tools';
 import { closeDay, createTraffic, stepTraffic, type Traffic } from './traffic';
 import { closeTransitMonth, pruneLines } from './transit';
 import { notify, type World } from './world';
@@ -72,7 +73,7 @@ function warnings(w: World) {
   const st = w.stats;
   if (st.pop > 50 && st.powerSupply === 0) notify(w, '전기가 없어요. 발전소를 짓고 도로로 연결하세요.', 'warn');
   else if (st.powerSupply && st.powerUse > st.powerSupply * 0.95) notify(w, '전력이 부족해요. 발전소를 더 지으세요.', 'warn');
-  if (st.pop > 50 && st.waterSupply === 0) notify(w, '수돗물이 없어요. 물가에 정수장을 지으세요.', 'warn');
+  if (st.pop > 50 && st.waterSupply === 0) notify(w, hasOpenWater(w) ? '수돗물이 없어요. 물가에 정수장을 짓고 도로로 이어 주세요.' : '수돗물이 없어요. 정수장을 짓고 도로로 이어 주세요. 이 땅은 지하수를 써요.', 'warn');
   else if (st.waterSupply && st.waterUse > st.waterSupply * 0.95) notify(w, '수돗물이 부족해요. 정수장을 늘리세요.', 'warn');
   if (st.pop > 800 && st.sewageCap < st.waterUse * 0.8) notify(w, '하수처리 용량이 모자라요. 하수처리장을 지으세요.', 'warn');
   if (st.parkDemand > 200 && st.parkUnmet > st.parkDemand * 0.25) notify(w, '주차할 곳이 모자라요. 공영주차장이나 주차타워를 지어 보세요.', 'warn');

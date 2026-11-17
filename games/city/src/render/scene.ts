@@ -4,7 +4,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { CELL, N } from '../sim/defs';
+import { CELL, N, type BuildingKind } from '../sim/defs';
 import { NN } from '../sim/graph';
 import { calendarMonth, DAY_SECONDS, type Sim } from '../sim/sim';
 import { busRoute } from '../sim/transit';
@@ -147,6 +147,13 @@ export class CityScene {
     this.ground.overlay = o;
     this.roads.setTrafficOverlay(o === 'traffic');
     this.transit.showRoutes = o === 'transit';
+    this.paintVer = '';
+  }
+
+  /** Tint where a site-bound facility can go (or nothing). */
+  setSites(kind: BuildingKind | null) {
+    if (this.ground.showSites === kind) return;
+    this.ground.showSites = kind;
     this.paintVer = '';
   }
 

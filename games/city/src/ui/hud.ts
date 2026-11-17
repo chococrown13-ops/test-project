@@ -1,6 +1,7 @@
 import { displayName, Ground, KINDS, LEVEL_NAME, N, Road, SERVICE, ZONE_NAME, Zone } from '../sim/defs';
 import { monthExpense, monthIncome } from '../sim/economy';
 import { curveInfo } from '../sim/curves';
+import { hasOpenWater } from '../sim/tools';
 import { curbCapacity, LOT_SPACES } from '../sim/parking';
 import { network } from '../sim/network';
 import { busCount, lineCost, lineUpkeep, type LineKind } from '../sim/transit';
@@ -63,7 +64,7 @@ export function toast(text: string, tone: 'info' | 'warn' | 'good' = 'info') {
 
 /* -------------------------------------------------------------- goals */
 
-interface Goal { text: string; done: (w: World) => boolean }
+interface Goal { text: string | ((w: World) => string); done: (w: World) => boolean }
 const count = (w: World, f: (b: Building) => boolean) => { let n = 0; w.buildings.forEach((b) => { if (f(b)) n++; }); return n; };
 const roads = (w: World) => { let n = 0; for (let i = 0; i < N * N; i++) if (w.road[i]) n++; return n; };
 const zoned = (w: World, z: number) => { for (let i = 0; i < N * N; i++) if (w.zone[i] === z) return true; return false; };
@@ -72,7 +73,7 @@ export const GOALS: Goal[] = [
   { text: '서쪽 고속도로 끝에서 이어지는 도로를 깔아 보세요. 도구는 아래 도로에 있어요.', done: (w) => roads(w) > 40 },
   { text: '도로 옆에 주거 구역을 칠하세요. 도로에서 3칸까지 칠할 수 있어요.', done: (w) => zoned(w, Zone.R) },
   { text: '발전소를 짓고 도로로 연결하세요. 전기는 도로를 따라 흘러요.', done: (w) => w.stats.powerSupply > 0 },
-  { text: '물가에 정수장을 지어 수돗물을 공급하세요.', done: (w) => w.stats.waterSupply > 0 },
+  { text: (w) => (hasOpenWater(w) ? '물가에 정수장을 지어 수돗물을 공급하세요. 도로에 붙여야 작동해요.' : '정수장을 지어 수돗물을 공급하세요. 이 땅은 지하수를 써서 어디든 지을 수 있어요. 도로에 붙여야 작동해요.'), done: (w) => w.stats.waterSupply > 0 },
   { text: '상업과 산업 구역을 만들어 일자리를 주세요.', done: (w) => zoned(w, Zone.C) && zoned(w, Zone.I) },
   { text: '인구 300명을 모아 보세요. 위쪽 수요 막대를 참고하세요.', done: (w) => w.stats.pop >= 300 },
   { text: '하수처리장을 지어 하수를 처리하세요. 주거지와 떨어뜨리면 좋아요.', done: (w) => w.stats.sewageCap > 0 },
@@ -93,7 +94,7 @@ export function updateGoal(w: World): number {
   let k = 0;
   while (k < GOALS.length && GOALS[k].done(w)) k++;
   $('goalStep').textContent = `${Math.min(k + 1, GOALS.length)}/${GOALS.length}`;
-  $('goalText').textContent = k < GOALS.length ? GOALS[k].text : '모든 목표를 이뤘어요. 이제 마음껏 도시를 키워 보세요.';
+  $('goalText').textContent = k < GOALS.length ? (typeof GOALS[k].text === 'function' ? (GOALS[k].text as (w: World) => string)(w) : (GOALS[k].text as string)) : '모든 목표를 이뤘어요. 이제 마음껏 도시를 키워 보세요.';
   $('goalBar').style.transform = `scaleX(${(k / GOALS.length).toFixed(3)})`;
   $('goal').classList.toggle('done', k >= GOALS.length);
   return k;
