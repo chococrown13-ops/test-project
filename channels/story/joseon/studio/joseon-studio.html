@@ -41,6 +41,7 @@ h1,h2{font-family:var(--display);margin:0;text-wrap:balance}
 .ep.sel{border-color:var(--seal);box-shadow:0 0 0 2px var(--seal) inset}
 .ep-no{font-family:var(--display);font-size:13px;color:var(--ink-soft)}
 .ep-title{font-weight:700;font-size:14px;line-height:1.4}
+.ep-due{font-size:11px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
 .pill{justify-self:start;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;background:var(--chip);color:var(--ink)}
 .pill.s-plan{background:var(--chip)}
 .pill.s-script{background:#d7e3f2;color:#1c2433}
@@ -103,7 +104,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
   </nav>
 
   <section class="panel" aria-labelledby="h-board">
-    <div class="panel-head"><h2 id="h-board">시즌 1 회차 보드</h2><small>회차를 누르면 아래에 올리기 체크가 열려요</small></div>
+    <div class="panel-head"><h2 id="h-board">시즌 1 회차 보드</h2><small>매주 화요일 저녁 7시 연재 · 회차를 누르면 아래에 올리기 체크가 열려요</small></div>
     <div class="board" id="board"><div class="empty">회차를 불러오는 중이에요.</div></div>
   </section>
 
@@ -144,6 +145,7 @@ function renderBoard(){
     return `<button class="ep ${e.id===SEL?"sel":""}" data-id="${esc(e.id)}">
       <span class="ep-no">${esc(e.no)}화</span>
       <span class="ep-title">${esc(e.title)}</span>
+      ${e.due ? `<span class="ep-due">${esc(e.due)} 저녁 7시 공개</span>` : ""}
       <span class="pill s-${esc(e.status)}">${esc(SLABEL[e.status]||e.status)}${items.length?` · 체크 ${d}/${items.length}`:""}</span>
     </button>`; }).join("");
   b.querySelectorAll(".ep").forEach(el => el.onclick = () => { SEL = el.dataset.id; try{localStorage.setItem("js-sel",SEL)}catch(e){} renderBoard(); renderDetail(); });
