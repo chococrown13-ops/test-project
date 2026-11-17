@@ -147,6 +147,31 @@ export class Network {
     return made;
   }
 
+  /**
+   * Join roads that run straight on through a node of degree two (same kind)
+   * into one edge, so no short stub sits beside a junction.
+   */
+  simplify() {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const n of [...this.nodes.values()]) {
+        const es = this.at(n.id);
+        if (es.length !== 2 || es[0] === es[1] || es[0].kind !== es[1].kind) continue;
+        const [e1, e2] = es;
+        const o1 = e1.a === n.id ? e1.b : e1.a, o2 = e2.a === n.id ? e2.b : e2.a;
+        if (o1 === o2 || o1 === n.id || o2 === n.id) continue;
+        if (dot(this.leave(e1, n.id), this.leave(e2, n.id)) > -0.995) continue;
+        const path = [...reversePath(this.pathFrom(e1, n.id)), ...this.pathFrom(e2, n.id)];
+        this.edges.delete(e1.id); this.edges.delete(e2.id);
+        this.nodes.delete(n.id);
+        this.edges.set(this.eid, { id: this.eid++, a: o1, b: o2, path, kind: e1.kind });
+        this.version++;
+        changed = true;
+      }
+    }
+  }
+
   remove(edgeId: number) {
     const e = this.edges.get(edgeId);
     if (!e) return;
@@ -212,21 +237,28 @@ export function buildGeometry(net: Network): Geometry {
       const da = net.leave(a, n.id), db = net.leave(b, n.id);
       return Math.atan2(da.z, da.x) - Math.atan2(db.z, db.x);
     });
+    // Two roads running straight on through a node (a curve's end, a change of segment) are one road:
+    // no junction, no trim, the markings carry on unbroken.
+    const straight = es.length === 2 && es[0].kind === es[1].kind && dot(net.leave(es[0], n.id), net.leave(es[1], n.id)) < -0.995;
+    if (straight) continue;
     order.set(n.id, es);
     const far = 60;
     for (let i = 0; i < es.length; i++) {
       const e1 = es[i], e2 = es[(i + 1) % es.length];
       if (e1 === e2) continue;
       // With angles increasing clockwise on screen (z south), e2 lies clockwise of e1:
-      // e1's right kerb meets e2's left kerb.
-      const h1 = net.types[e1.kind].half, h2 = net.types[e2.kind].half;
-      const b1 = boundary(net, e1, n.id, -h1, far), b2 = boundary(net, e2, n.id, h2, far);
-      const c = polyCross(b1, b2);
-      if (c) { setTrim(e1, n.id, c.ta); setTrim(e2, n.id, c.tb); }
+      // e1's right side meets e2's left side. Trim until the outer edges of the pavements
+      // clear each other, not just the asphalt, so no pavement pokes into the junction.
+      const T1 = net.types[e1.kind], T2 = net.types[e2.kind];
+      for (const [o1, o2] of [[T1.half, T2.half], [T1.half + T1.kerb, T2.half + T2.kerb]]) {
+        const b1 = boundary(net, e1, n.id, -o1, far), b2 = boundary(net, e2, n.id, o2, far);
+        const c = polyCross(b1, b2);
+        if (c) { setTrim(e1, n.id, c.ta); setTrim(e2, n.id, c.tb); }
+      }
     }
-    // Roads that meet nearly straight on (a bend, no side road) need only a sliver; others a clear box.
-    const straight = es.length === 2 && dot(net.leave(es[0], n.id), net.leave(es[1], n.id)) < -0.95;
-    for (const e of es) setTrim(e, n.id, straight ? 0.5 : net.types[e.kind].half * 0.6 + 1);
+    // Room for the crossing at every real junction; a bend needs only a sliver.
+    const bend = es.length === 2;
+    for (const e of es) setTrim(e, n.id, bend ? 0.5 : net.types[e.kind].half * 0.6 + 1);
   }
   // Trims can't eat a whole road: cap each end at 45% of the length.
   for (const e of net.edges.values()) {

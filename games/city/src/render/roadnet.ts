@@ -111,7 +111,9 @@ export function buildCityNetwork(w: World): Network {
     const dx1 = (l[0] % N) - (i % N), dy1 = ((l[0] / N) | 0) - ((i / N) | 0);
     const dx2 = (l[1] % N) - (i % N), dy2 = ((l[1] / N) | 0) - ((i / N) | 0);
     if (dx1 !== -dx2 || dy1 !== -dy2) return true;
-    if (w.road[l[0]] !== w.road[i] || w.road[l[1]] !== w.road[i]) return true;
+    // A change of road type makes a node, except next to a curve: the curve's junction is the node there.
+    const curveish = (c: number) => own[c] === 1 || pos.has(c);
+    if ((w.road[l[0]] !== w.road[i] && !curveish(l[0])) || (w.road[l[1]] !== w.road[i] && !curveish(l[1]))) return true;
     // A bridge starts and ends at a node, so its deck lines up with the run.
     return (w.ground[l[0]] === Ground.Water) !== (w.ground[i] === Ground.Water) || (w.ground[l[1]] === Ground.Water) !== (w.ground[i] === Ground.Water);
   };
@@ -139,5 +141,6 @@ export function buildCityNetwork(w: World): Network {
       net.addEdge(node(i), off.id, [{ kind: 'line', a: net.nodes.get(node(i))!.p, b: off.p }], KIND[w.road[i]] ?? 'street');
     }
   }
+  net.simplify();
   return net;
 }
