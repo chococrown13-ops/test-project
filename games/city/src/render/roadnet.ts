@@ -2,7 +2,7 @@ import { CELL, Ground, N, Road } from '../sim/defs';
 import { curveInfo, curvePath, HALF_WIDTH, KERB_W } from '../sim/curves';
 import { forEachNeighbour, NN } from '../sim/graph';
 import type { World } from '../sim/world';
-import { nearestOnPath, pathAt, pathLength, splitPath, type Path, type V } from '../../../shared/roads/geom';
+import { nearestOnPath, pathAt, pathCrossings, pathLength, splitPath, type Path, type V } from '../../../shared/roads/geom';
 import { type Kind, Network, type RoadType } from '../../../shared/roads/network';
 
 /**
@@ -33,13 +33,17 @@ export function buildCityNetwork(w: World): Network {
   const links = (i: number) => { const out: number[] = []; forEachNeighbour(w, i, (n) => { if (n < NN) out.push(n); }); return out; };
   const chain = new Set<string>();
   const key = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
-  for (const c of w.curves) for (let k = 1; k < c.cells.length; k++) chain.add(key(c.cells[k - 1], c.cells[k]));
+  // (A link between two older road cells stays a grid link even if the curve also runs along it: that street goes straight on.)
+  for (const c of w.curves) for (let k = 1; k < c.cells.length; k++) if (own[c.cells[k - 1]] || own[c.cells[k]]) chain.add(key(c.cells[k - 1], c.cells[k]));
   const gridLinks = (i: number) => links(i).filter((n) => !chain.has(key(i, n)));
 
   // Where a cell's node stands (moved onto a curve where the curve passes through or is joined).
   const pos = new Map<number, V>();
   const nodeOf = new Map<number, number>();
-  const node = (cell: number) => {
+  /** Cells that share one junction (several cells where one road meets a curve). */
+  const alias = new Map<number, number>();
+  const node = (cell0: number) => {
+    const cell = alias.get(cell0) ?? cell0;
     let id = nodeOf.get(cell);
     if (id === undefined) { id = net.node(pos.get(cell) ?? centre(cell)).id; nodeOf.set(cell, id); }
     return id;
@@ -50,23 +54,45 @@ export function buildCityNetwork(w: World): Network {
     const { path } = curvePath(c);
     const L = pathLength(path);
     const inChain = new Set(c.cells);
-    const taps: { t: number; cell: number }[] = [];
+    const taps: { t: number; cell: number; p: V }[] = [];
     for (let k = 1; k < c.cells.length - 1; k++) {
       const cell = c.cells[k];
-      const side = gridLinks(cell).some((n) => !inChain.has(n));
-      if (!own[cell] || side) {
-        const t = nearestOnPath(path, centre(cell)).t;
-        if (t > 1 && t < L - 1) { taps.push({ t, cell }); pos.set(cell, pathAt(path, t).p); }
+      const outside = gridLinks(cell).filter((n) => !inChain.has(n) || (!own[cell] && !own[n]));
+      if (own[cell] && !outside.length) continue;
+      // The junction goes where the meeting road's own straight line crosses the curve, so that road stays straight.
+      let hit: { t: number; p: V } | null = null;
+      for (const n of outside) {
+        // The meeting road's own direction: the way it runs into n (it may join the curve sideways in the cell graph).
+        const before = own[n] ? [] : gridLinks(n).filter((m) => m !== cell && !inChain.has(m));
+        const from = before.length === 1 ? centre(before[0]) : centre(n);
+        const a = centre(n), b = before.length === 1 ? { x: a.x * 2 - from.x, z: a.z * 2 - from.z } : centre(cell);
+        const d = { x: b.x - a.x, z: b.z - a.z };
+        const far = { x: a.x + d.x * 4, z: a.z + d.z * 4 }, back = { x: a.x - d.x * 2, z: a.z - d.z * 2 };
+        const xs = pathCrossings(path, [{ kind: 'line', a: back, b: far }]);
+        for (const x of xs) if (!hit || Math.hypot(x.p.x - b.x, x.p.z - b.z) < Math.hypot(hit.p.x - b.x, hit.p.z - b.z)) hit = { t: x.ta, p: x.p };
+        if (hit) break;
       }
+      if (!hit) { const q = nearestOnPath(path, centre(cell)); hit = { t: q.t, p: pathAt(path, q.t).p }; }
+      if (hit.t > 1 && hit.t < L - 1) taps.push({ t: hit.t, cell, p: hit.p });
     }
     taps.sort((a, b) => a.t - b.t);
+    // Junctions closer than 12 m along the curve are one junction.
+    for (let k = 1; k < taps.length; k++) {
+      const head = alias.get(taps[k - 1].cell) ?? taps[k - 1].cell;
+      if (taps[k].t - taps[k - 1].t < 12) {
+        alias.set(taps[k].cell, head);
+        taps[k].t = taps[k - 1].t;
+        taps[k].p = taps[k - 1].p;
+      }
+    }
+    for (const tp of taps) pos.set(tp.cell, tp.p);
     pos.set(c.cells[0], { x: c.ax, z: c.az });
     pos.set(c.cells[c.cells.length - 1], { x: c.bx, z: c.bz });
     const stops = [{ t: 0, cell: c.cells[0] }, ...taps, { t: L, cell: c.cells[c.cells.length - 1] }];
     const kind = KIND[c.t] ?? 'street';
     let rest: Path = path, done = 0;
     for (let k = 1; k < stops.length; k++) {
-      if (stops[k].cell === stops[k - 1].cell) continue;
+      if ((alias.get(stops[k].cell) ?? stops[k].cell) === (alias.get(stops[k - 1].cell) ?? stops[k - 1].cell)) continue;
       const [piece, after] = splitPath(rest, stops[k].t - done);
       rest = after; done = stops[k].t;
       if (pathLength(piece) < 0.5) continue;

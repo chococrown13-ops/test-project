@@ -4,6 +4,7 @@ import { loadLocal, saveLocal } from './sim/save';
 import { updateParking } from './sim/parking';
 import { createSim, tick, type Sim } from './sim/sim';
 import { altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
+import { buildCityNetwork } from './render/roadnet';
 import { findAccess } from './sim/network';
 import { hasOpenWater } from './sim/tools';
 import { createLine, removeLine, STOP_RADIUS, stopProblem, type LineKind } from './sim/transit';
@@ -648,4 +649,4 @@ function frame(t: number) {
 requestAnimationFrame(frame);
 
 // Debug/test hook.
-(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, setTool, setSpeed, tools: { placeRoad, placeCurve, curveOf, roadPath } };
+(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, setTool, setSpeed, tools: { placeRoad, placeCurve, curveOf, roadPath }, roadnet: () => buildCityNetwork(sim.w) };
