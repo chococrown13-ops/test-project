@@ -198,7 +198,7 @@ export class KeepScene {
         const r = g.road[idx(x, y)];
         if (!r) continue;
         const w = W[r][pass], cx = x * PX + PX / 2, cy = y * PX + PX / 2;
-        ctx.fillStyle = pass === 0 ? '#f1ebdd' : r === RoadT.Avenue ? '#66676c' : r === RoadT.Street ? '#a39c90' : '#b6ad9b';
+        ctx.fillStyle = pass === 0 ? '#f1ebdd' : r === RoadT.Avenue ? '#6c6d71' : r === RoadT.Street ? '#a39c90' : '#b6ad9b';
         ctx.fillRect(cx - w / 2, cy - w / 2, w, w);
         for (const [dx, dy] of [[1, 0], [0, 1]]) {
           const nx = x + dx, ny = y + dy;
@@ -210,14 +210,41 @@ export class KeepScene {
         }
       }
     }
-    // A thin yellow centre line down the avenues.
-    ctx.fillStyle = '#e8c64a';
+    // Avenue markings: a fine, soft yellow centre line that stops short of
+    // every junction, and zebra crossings on the approaches.
+    const av = (x: number, y: number) => x >= 0 && y >= 0 && x < N && y < N && g.road[idx(x, y)] === RoadT.Avenue;
+    // A junction worth breaking the line for: a crossroads with a street or avenue on both
+    // sides. Alleys and side streets that only join from one side don't break it.
+    const big = (x: number, y: number) => x >= 0 && y >= 0 && x < N && y < N && g.road[idx(x, y)] >= RoadT.Street;
+    const junction = (x: number, y: number) => av(x, y) && (
+      (av(x - 1, y) || av(x + 1, y)) && (av(x, y - 1) || av(x, y + 1)) ||
+      (av(x - 1, y) || av(x + 1, y)) && big(x, y - 1) && big(x, y + 1) ||
+      (av(x, y - 1) || av(x, y + 1)) && big(x - 1, y) && big(x + 1, y));
+    const avJunction = (x: number, y: number) => av(x, y) && (av(x - 1, y) || av(x + 1, y)) && (av(x, y - 1) || av(x, y + 1));
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = '#e3c55a';
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-      if (g.road[idx(x, y)] !== RoadT.Avenue) continue;
+      if (!av(x, y) || junction(x, y)) continue;
       const cx = x * PX + PX / 2, cy = y * PX + PX / 2;
-      if (x + 1 < N && g.road[idx(x + 1, y)] === RoadT.Avenue) ctx.fillRect(cx, cy - 0.5, PX, 1);
-      if (y + 1 < N && g.road[idx(x, y + 1)] === RoadT.Avenue) ctx.fillRect(cx - 0.5, cy, 1, PX);
+      if (av(x + 1, y) && !junction(x + 1, y)) ctx.fillRect(cx, cy - 0.35, PX, 0.7);
+      if (av(x, y + 1) && !junction(x, y + 1)) ctx.fillRect(cx - 0.35, cy, 0.7, PX);
     }
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#f4f1ea';
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      if (!av(x, y) || junction(x, y)) continue;
+      const cx = x * PX + PX / 2, cy = y * PX + PX / 2;
+      // Zebra on the side facing an avenue junction: short bars across the carriageway.
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        if (!avJunction(x + dx, y + dy)) continue;
+        for (let k = -1; k <= 1; k++) {
+          if (dx) ctx.fillRect(cx + dx * (PX / 2 - 1.8) - 1.2, cy + k * 2 - 0.5, 2.4, 1);
+          else ctx.fillRect(cx + k * 2 - 0.5, cy + dy * (PX / 2 - 1.8) - 1.2, 1, 2.4);
+        }
+      }
+    }
+    ctx.restore();
     // Faint 동네 boundaries.
     ctx.fillStyle = 'rgba(120, 100, 70, 0.35)';
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {

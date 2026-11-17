@@ -91,10 +91,10 @@ export function generate(seed: number): Game {
   // Roads: avenues on a loose grid, streets between. Each road is traced as one
   // line that bends a little with the land; where it shifts sideways the gap is
   // filled so the road always runs cell to cell, never corner to corner.
-  const trace = (vertical: boolean, base: number, k: number, kind: number, keep: (x: number, y: number) => boolean) => {
+  const trace = (vertical: boolean, base: number, k: number, kind: number, keep: (x: number, y: number) => boolean, amp = 4) => {
     let prev = -1;
     for (let t = 0; t < N; t++) {
-      const off = base + Math.round((nz(t / 40, 1.7 + k * 0.37) - 0.5) * 6);
+      const off = base + Math.round((nz(t / 40, 1.7 + k * 0.37) - 0.5) * amp);
       const [x, y] = vertical ? [off, t] : [t, off];
       if (!inside(x, y) || !keep(x, y)) { prev = -1; continue; }
       const put = (cx: number, cy: number) => { const i = idx(cx, cy); if (g.road[i] < kind) g.road[i] = kind; };
@@ -105,18 +105,20 @@ export function generate(seed: number): Game {
   };
   const dry = (x: number, y: number) => g.ground[idx(x, y)] !== Ground.Water;
   const near = (x: number, y: number) => Math.hypot(x - C, y - C) < 118;
-  // Avenues: every 32 cells. Every other north-south one crosses the river on a bridge.
+  // Avenues: dead straight, every 32 cells (a planned 대로 grid). Every other
+  // north-south one crosses the river on a bridge.
   for (let k = -3; k <= 3; k++) {
     const b = C + k * 32;
-    trace(true, b, k, RoadT.Avenue, (x, y) => near(x, y) && (dry(x, y) || k % 2 === 0));
-    trace(false, b, k + 11, RoadT.Avenue, (x, y) => near(x, y) && dry(x, y));
+    trace(true, b, k, RoadT.Avenue, (x, y) => near(x, y) && (dry(x, y) || k % 2 === 0), 0);
+    trace(false, b, k + 11, RoadT.Avenue, (x, y) => near(x, y) && dry(x, y), 0);
   }
   // Streets: every 8 cells inside the town; sparser up the 달동네 hill.
   const town = (x: number, y: number) => g.district[idx(x, y)] >= 0 && dry(x, y);
   for (let k = -16; k <= 16; k++) {
     const b = C + k * 8;
     const sparse = (x: number, y: number) => g.district[idx(x, y)] !== 3 || k % 2 === 0;
-    trace(true, b, k + 30, RoadT.Street, (x, y) => town(x, y) && sparse(x, y));
+    // (Every fourth north-south street would sit on an avenue: leave it to the avenue.)
+    if (k % 4 !== 0) trace(true, b, k + 30, RoadT.Street, (x, y) => town(x, y) && sparse(x, y));
     trace(false, b + 4, k + 60, RoadT.Street, (x, y) => town(x, y) && sparse(x, y));
   }
   // Stubs: a road cell with no road beside it goes back to land.
