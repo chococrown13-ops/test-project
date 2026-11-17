@@ -8,6 +8,20 @@ import { BuildingLayer } from './buildings';
 import { buildMarkings } from './markings';
 
 const PX = 8; // ground texture pixels per cell
+/** Where the sun sits relative to what it lights: late afternoon, from the south-west. */
+const SUN = new THREE.Vector3(-700, 900, 500);
+/** A shadow's reach on the ground per metre of height (away from the sun). */
+const CAST = { x: -SUN.x / SUN.y, z: -SUN.z / SUN.y };
+
+/** Convex hull of 2-D points (monotone chain), for a shadow outline. */
+function hull(pts: [number, number][]): [number, number][] {
+  pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o: number[], a: number[], b: number[]) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo: [number, number][] = [], up: [number, number][] = [];
+  for (const p of pts) { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cross(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
+}
 
 /** Orbit camera over a 5 km 구: eases toward its goal so every move feels smooth. */
 export class KeepCamera {
@@ -24,6 +38,12 @@ export class KeepCamera {
     const ground = (dist * 0.73) / Math.sin(this.goal.pitch);
     const k = ground * lift;
     this.focus(x + Math.sin(this.goal.yaw) * k, z + Math.cos(this.goal.yaw) * k, dist);
+  }
+  /** Still easing toward the goal? */
+  moving() {
+    const g = this.goal, e = this.dist * 1e-4;
+    return Math.abs(g.x - this.target.x) > e || Math.abs(g.z - this.target.z) > e || Math.abs(g.dist - this.dist) > e
+      || Math.abs(g.yaw - this.yaw) > 1e-4 || Math.abs(g.pitch - this.pitch) > 1e-4;
   }
   /** Jump straight to the goal (first frame, tests). */
   snap() { Object.assign(this, { dist: this.goal.dist, yaw: this.goal.yaw, pitch: this.goal.pitch }); this.target.x = this.goal.x; this.target.z = this.goal.z; this.update(0); }
@@ -46,6 +66,14 @@ export class KeepCamera {
     this.cam.lookAt(this.target);
   }
 }
+
+/**
+ * Graphics level. high: full resolution, 4x MSAA, soft shadows, ink outlines,
+ * all details. medium: lighter resolution, smaller shadows, half-size outline
+ * buffer, details only up close. low: native pixels, no shadows, no outlines,
+ * details only very close.
+ */
+export type Quality = 'high' | 'medium' | 'low';
 
 export interface Highlight { cells?: number[]; district?: number; place?: number }
 
@@ -99,15 +127,37 @@ export class KeepScene {
     this.buildings.topAt = (i) => this.cellTop(i);
   }
 
-  /** Phones: no multisampling, half-size outline normals. */
-  setLight(light: boolean) {
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, light ? 1.25 : 2));
-    for (const t of [this.composer.renderTarget1, this.composer.renderTarget2]) { const s = light ? 0 : 4; if (t.samples !== s) { t.samples = s; t.dispose(); } }
-    this.stylize.normalScale = light ? 0.5 : 1;
+  quality: Quality = 'high';
+  private baked = false;
+  private shadowCanvas = document.createElement('canvas');
+  private shadowsFresh = false;
+
+  setQuality(q: Quality) {
+    this.quality = q;
+    const dpr = window.devicePixelRatio || 1;
+    this.renderer.setPixelRatio(q === 'high' ? Math.min(dpr, 2) : q === 'medium' ? Math.min(dpr, 1.5) : 1);
+    const samples = q === 'high' ? 4 : 0;
+    for (const t of [this.composer.renderTarget1, this.composer.renderTarget2]) if (t.samples !== samples) { t.samples = samples; t.dispose(); }
+    // Shadows: switching the light's flag off skips the shadow pass entirely.
+    // 높게 casts shadows live. 보통 and 가볍게 use shadows baked into the ground
+    // once per change: no shadow pass at all, buildings still throw shade.
+    this.sun.castShadow = q === 'high';
+    const bake = q !== 'high';
+    if (bake !== this.baked) { this.baked = bake; if (this.g) this.paint(); }
+    const size = q === 'high' ? 2048 : 1024;
+    if (this.sun.shadow.mapSize.x !== size) { this.sun.shadow.mapSize.set(size, size); this.sun.shadow.map?.dispose(); this.sun.shadow.map = null; }
+    // Ink outlines need a second render of the scene for normals.
+    this.stylize.enabled = q !== 'low';
+    this.stylize.normalScale = q === 'high' ? 1 : 0.5;
+    this.buildings.detailDist = q === 'high' ? 1100 : q === 'medium' ? 650 : 380;
     const v = new THREE.Vector2();
     this.renderer.getSize(v);
     this.resize(v.x, v.y);
   }
+
+  /** Something changed on screen: draw the next couple of frames. */
+  invalidate() { this.dirty = 2; }
+  private dirty = 2;
 
   resize(w: number, h: number) {
     this.renderer.setSize(w, h, false);
@@ -115,6 +165,7 @@ export class KeepScene {
     this.composer.setSize(w, h);
     this.view.cam.aspect = w / h;
     this.view.cam.updateProjectionMatrix();
+    this.invalidate();
   }
 
   /** A new map: terrain, ground paint, trees, buildings, pins. */
@@ -126,7 +177,10 @@ export class KeepScene {
     this.buildTrees();
     this.buildMarks();
     this.buildings.build(g);
+    this.shadowsFresh = false;
+    if (this.baked) this.paint();
     this.buildPins();
+    this.invalidate();
   }
 
   /** The map changed over a decade: repaint and let the new buildings rise. */
@@ -135,10 +189,13 @@ export class KeepScene {
     this.buildTrees();
     this.buildMarks();
     this.buildings.build(this.g, fresh, from);
+    this.shadowsFresh = false;
+    if (this.baked) this.paint();
     this.buildPins();
+    this.invalidate();
   }
 
-  setHighlight(h: Highlight) { this.hl = h; this.paint(); this.buildPins(); }
+  setHighlight(h: Highlight) { this.hl = h; this.paint(); this.buildPins(); this.invalidate(); }
 
   private buildTerrain() {
     const g = this.g, c = this.corner;
@@ -215,6 +272,13 @@ export class KeepScene {
       }
     }
     // (Lane markings are real geometry: see markings.ts.)
+    if (this.baked) {
+      if (!this.shadowsFresh) this.bakeShadows();
+      ctx.save();
+      ctx.globalAlpha = 0.32;
+      ctx.drawImage(this.shadowCanvas, 0, 0);
+      ctx.restore();
+    }
     // Faint 동네 boundaries.
     ctx.fillStyle = 'rgba(120, 100, 70, 0.35)';
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
@@ -241,6 +305,43 @@ export class KeepScene {
     return a * (1 - fx) * (1 - fz) + b * fx * (1 - fz) + d * (1 - fx) * fz + e * fx * fz;
   }
 
+  /**
+   * Bake every building's and tree's shadow into one layer: each part's
+   * footprint, swept from its foot to its top along the sun's direction and
+   * drawn as a solid outline. Drawn opaque on its own canvas so overlapping
+   * shadows don't darken twice, then laid on the ground at partial strength.
+   */
+  private bakeShadows() {
+    const c = this.shadowCanvas;
+    c.width = c.height = N * PX;
+    const ctx = c.getContext('2d')!;
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.fillStyle = 'rgb(38, 44, 66)';
+    const k = PX / CELL;
+    const cast = (x: number, y: number, z: number, w: number, h: number, d: number, rot: number) => {
+      if (w * h * d < 2) return;
+      const g0 = this.groundAt(x, z);
+      const lo = Math.max(0, y - g0), hi = Math.max(0, y + h - g0);
+      if (hi < 0.5) return;
+      const cs = Math.cos(rot), sn = Math.sin(rot);
+      const pts: [number, number][] = [];
+      for (const [dx, dz] of [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]]) {
+        const fx = x + dx * cs + dz * sn, fz = z - dx * sn + dz * cs;
+        for (const t of [lo, hi]) pts.push([(fx + CAST.x * t) * k, (fz + CAST.z * t) * k]);
+      }
+      const hp = hull(pts);
+      ctx.beginPath();
+      ctx.moveTo(hp[0][0], hp[0][1]);
+      for (let i = 1; i < hp.length; i++) ctx.lineTo(hp[i][0], hp[i][1]);
+      ctx.closePath();
+      ctx.fill();
+    };
+    for (const p of this.buildings.placed) cast(p.x, p.y, p.z, p.w, p.h, p.d, p.rot);
+    for (const [x, y, z, sz] of this.treeSpots) cast(x, y, z, sz * 0.6, sz * 1.6, sz * 0.6, 0);
+    this.shadowsFresh = true;
+  }
+  private treeSpots: [number, number, number, number][] = [];
+
   private buildTrees() {
     const g = this.g;
     const spots: [number, number, number, number][] = [];
@@ -252,6 +353,7 @@ export class KeepScene {
       const x = (i % N) * CELL + CELL * h(i, 2), z = ((i / N) | 0) * CELL + CELL * h(i, 3);
       spots.push([x, this.cellBase(i), z, 8 + h(i, 4) * 10]);
     }
+    this.treeSpots = spots;
     if (this.trees) { this.scene.remove(this.trees); this.trees.dispose(); }
     const mesh = new THREE.InstancedMesh(new THREE.ConeGeometry(0.5, 1, 6).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), spots.length);
     const m4 = new THREE.Matrix4(), col = new THREE.Color();
@@ -337,9 +439,20 @@ export class KeepScene {
     return { cell: idx(x, y) };
   }
 
-  frame(dt: number) {
+  /**
+   * Advance and, only if anything on screen changed, draw. A still map costs
+   * nothing: no redraw while the camera rests and nothing is rising.
+   * Returns whether a frame was drawn.
+   */
+  frame(dt: number): boolean {
+    const moving = this.view.moving();
     this.view.update(dt);
+    if (this.buildings.animating) this.dirty = 2;
     this.buildings.tick(dt);
+    if (moving) this.dirty = 2;
+    if (this.dirty <= 0) return false;
+    this.dirty--;
+    this.buildings.setDistance(this.view.dist);
     // Pins keep a steady size on screen as the camera zooms.
     const k = Math.max(1, this.view.dist / 900);
     if (Math.abs(k - this.pinScale) / this.pinScale > 0.08) {
@@ -348,7 +461,7 @@ export class KeepScene {
     }
     const t = this.view.target;
     // Late-afternoon sun from the south-west; the shadow box follows the view.
-    this.sun.position.set(t.x - 700, 900, t.z + 500);
+    this.sun.position.set(t.x + SUN.x, SUN.y, t.z + SUN.z);
     this.sun.target.position.copy(t);
     const s = Math.min(1600, Math.max(250, this.view.dist * 0.9));
     const cam = this.sun.shadow.camera;
@@ -363,5 +476,6 @@ export class KeepScene {
     }
     this.stylize.configure(this.view.dist, 0);
     this.composer.render(dt);
+    return true;
   }
 }

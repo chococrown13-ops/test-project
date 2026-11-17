@@ -1,7 +1,7 @@
 import '../../city/src/tokens.css';
 import '../../city/src/base.css';
 import './style.css';
-import { KeepScene } from './render/scene';
+import { KeepScene, type Quality } from './render/scene';
 import { affected, CARDS, type Lean, threatened } from './sim/cards';
 import { indicators } from './sim/decade';
 import { clearSave, decide, ending, lifetime, load, newGame, options, save, type TurnResult } from './sim/game';
@@ -13,7 +13,36 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const canvas = $<HTMLCanvasElement>('view');
 const scene = new KeepScene(canvas);
 const phone = matchMedia('(max-width: 760px)').matches || /Mobi|Android/i.test(navigator.userAgent);
-if (phone) scene.setLight(true);
+
+/* ---------- graphics level ---------- */
+
+type QSetting = 'auto' | Quality;
+const QNAME: Record<Quality, string> = { high: '높게', medium: '보통', low: '가볍게' };
+const QNOTE: Record<Quality, string> = {
+  high: '선명한 해상도, 그림자, 외곽선, 작은 부품까지 모두 그려요.',
+  medium: '해상도와 그림자를 줄이고, 작은 부품은 가까이서만 그려요.',
+  low: '그림자와 외곽선을 끄고 작은 부품은 아주 가까이서만 그려요.',
+};
+let qSetting: QSetting = 'auto';
+try { const v = localStorage.getItem('keep.quality'); if (v === 'auto' || v === 'high' || v === 'medium' || v === 'low') qSetting = v; } catch { /* default */ }
+/** In 자동, start from what the device probably manages, then measure and step down if it struggles. */
+let probe: { frames: number; sum: number; start: number; prev?: number } | null = null;
+function applyQuality(q: Quality) { scene.setQuality(q); renderGfx(); }
+function startQuality() {
+  if (qSetting === 'auto') { applyQuality(phone ? 'medium' : 'high'); probe = { frames: 0, sum: 0, start: performance.now() }; }
+  else { applyQuality(qSetting); probe = null; }
+}
+function renderGfx() {
+  document.querySelectorAll<HTMLButtonElement>('.seg [data-q]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.q === qSetting)));
+  const note = $('gfxNote');
+  if (note) note.textContent = qSetting === 'auto' ? `지금은 '${QNAME[scene.quality]}'이에요. 기기 속도를 재서 맞춰요.` : QNOTE[qSetting];
+}
+document.querySelectorAll<HTMLButtonElement>('.seg [data-q]').forEach((b) => b.addEventListener('click', () => {
+  qSetting = b.dataset.q as QSetting;
+  try { localStorage.setItem('keep.quality', qSetting); } catch { /* not saved */ }
+  startQuality();
+}));
+startQuality();
 
 let g: Game = load() ?? newGame();
 let selected = -1;
@@ -396,11 +425,31 @@ if (!seen && !g.done) $<HTMLDialogElement>('help').showModal();
 
 let last = performance.now();
 let labelT = 0;
+let drewLast = false;
 function loop(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  scene.frame(dt);
-  if ((labelT += dt) > 0.05) { labelT = 0; renderLabels(); }
+  // While measuring for 자동, keep drawing so the timing is real.
+  if (probe) scene.invalidate();
+  const drew = scene.frame(dt);
+  if (probe && drew) {
+    if (probe.frames > 0) probe.sum += now - (probe.prev ?? now);
+    probe.prev = now;
+    probe.frames++;
+    if (probe.frames >= 40 || now - probe.start > 5000) {
+      const avg = probe.sum / Math.max(1, probe.frames - 1);
+      const down: Record<Quality, Quality | null> = { high: 'medium', medium: 'low', low: null };
+      const next = avg > 40 ? down[scene.quality] : null;
+      if (next) {
+        applyQuality(next);
+        toast(`기기에 맞춰 그래픽을 '${QNAME[next]}' 단계로 낮췄어요.`);
+        probe = { frames: 0, sum: 0, start: performance.now() };
+      } else probe = null;
+    }
+  }
+  // Labels only move when the picture does.
+  if (drew && ((labelT += dt) > 0.05 || !drewLast)) { labelT = 0; renderLabels(); }
+  drewLast = drew;
   requestAnimationFrame(loop);
 }
 resize();

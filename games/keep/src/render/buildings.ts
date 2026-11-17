@@ -72,7 +72,8 @@ function hanokRoof(): THREE.BufferGeometry {
   };
   const tris: THREE.Vector3[] = [];
   const quad = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3) => tris.push(a, b, c, a, c, d);
-  const NS = 8, NT = 4;
+  // Few segments: the curve reads fine at 4 along, 2 up (48 triangles a roof).
+  const NS = 4, NT = 2, NE = 2;
   // Long slopes (north and south).
   for (const sz of [-1, 1]) for (let i = 0; i < NS; i++) for (let j = 0; j < NT; j++) {
     const P = (ii: number, jj: number) => {
@@ -82,9 +83,9 @@ function hanokRoof(): THREE.BufferGeometry {
     quad(P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1));
   }
   // Hip ends (east and west): from the short eave up to the ridge end.
-  for (const sx of [-1, 1]) for (let i = 0; i < NS; i++) for (let j = 0; j < NT; j++) {
+  for (const sx of [-1, 1]) for (let i = 0; i < NE; i++) for (let j = 0; j < NT; j++) {
     const P = (ii: number, jj: number) => {
-      const w = -0.5 + ii / NS, t = jj / NT;
+      const w = -0.5 + ii / NE, t = jj / NT;
       const e = new THREE.Vector3(sx * 0.5, lift(w), w);
       return slope(e, ridge(sx * RL), t);
     };
@@ -196,6 +197,9 @@ function material(): THREE.MeshStandardMaterial {
   m.customProgramCacheKey = () => 'keep-building-2';
   return m;
 }
+
+/** Tanks, pots, signboards, walls, gates: small enough to leave out from afar. */
+const isFine = (p: Part) => p.w * p.h * p.d < 30;
 
 type Put = (s: Shape, dx: number, dy: number, dz: number, w: number, h: number, d: number, c: string, win?: Win, dr?: number) => void;
 
@@ -503,13 +507,17 @@ function placeParts(p: Place, i: number, y0: number, g: Game, out: Part[]) {
 
 export class BuildingLayer {
   readonly group = new THREE.Group();
-  private meshes = new Map<Shape, THREE.InstancedMesh>();
+  /** One instanced mesh per shape, per 64x64-cell chunk (so off-screen chunks are culled), per detail level. */
+  private meshes = new Map<string, THREE.InstancedMesh>();
+  private fine: THREE.InstancedMesh[] = [];
+  /** Small parts (tanks, pots, signs, walls) are drawn only within this camera distance. */
+  detailDist = 1100;
   private mat = material();
   private plain = new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true });
   private roofMat = new THREE.MeshStandardMaterial({ roughness: 0.8, side: THREE.DoubleSide });
   private parts: Part[] = [];
   /** Parts rising this decade, with their start delay. */
-  private growing: { s: Shape; k: number; part: Part; delay: number }[] = [];
+  private growing: { key: string; k: number; part: Part; delay: number }[] = [];
   private t = 0;
   heightAt: (i: number) => number = () => 0;
   /** Highest corner of a cell: on a slope, houses stand on a stone 축대 up to here. */
@@ -542,19 +550,31 @@ export class BuildingLayer {
       if (y % 3 === 0) parts.push({ s: 'box', x: x * CELL + CELL / 2, y: -3, z: y * CELL + CELL / 2, w: 3, h: 4.2, d: 3, rot: 0, c: '#8a8580', win: 0, cell: -1, base: 0 });
     }
     this.parts = parts;
-    const by = new Map<Shape, Part[]>();
-    for (const p of parts) { let a = by.get(p.s); if (!a) by.set(p.s, (a = [])); a.push(p); }
+    const by = new Map<string, Part[]>();
+    const CH = 64 * CELL;
+    for (const p of parts) {
+      const key = `${p.s}|${Math.floor(p.x / CH)},${Math.floor(p.z / CH)}|${isFine(p) ? 1 : 0}`;
+      let a = by.get(key);
+      if (!a) by.set(key, (a = []));
+      a.push(p);
+    }
     for (const m of this.meshes.values()) { this.group.remove(m); m.geometry.dispose(); m.dispose(); }
     this.meshes.clear();
+    this.fine = [];
+    const geos = new Map<Shape, THREE.BufferGeometry>();
     this.growing = [];
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color(), up = new THREE.Vector3(0, 1, 0);
-    for (const [s, list] of by) {
-      const geo = geometry(s);
+    for (const [key, list] of by) {
+      const s = key.split('|')[0] as Shape, fine = key.endsWith('|1');
+      let base = geos.get(s);
+      if (!base) geos.set(s, (base = geometry(s)));
+      const geo = base.clone();
       const win = new Float32Array(list.length);
       list.forEach((p, k) => (win[k] = p.win));
       geo.setAttribute('aWin', new THREE.InstancedBufferAttribute(win, 1));
       const mesh = new THREE.InstancedMesh(geo, s === 'box' ? this.mat : s === 'hanok' ? this.roofMat : this.plain, list.length);
-      mesh.castShadow = true;
+      // Small parts cast no shadow worth the cost.
+      mesh.castShadow = !fine;
       mesh.receiveShadow = true;
       list.forEach((p, k) => {
         q.setFromAxisAngle(up, p.rot);
@@ -564,18 +584,26 @@ export class BuildingLayer {
         if (fresh && p.cell >= 0 && fresh.has(p.cell)) {
           const fx = p.cell % N, fy = (p.cell / N) | 0;
           const dist = from ? Math.hypot(fx - from.x, fy - from.y) : 0;
-          this.growing.push({ s, k, part: p, delay: Math.min(1.6, dist * 0.03) + hash(p.cell, 99) * 0.25 });
+          this.growing.push({ key, k, part: p, delay: Math.min(1.6, dist * 0.03) + hash(p.cell, 99) * 0.25 });
         }
       });
       mesh.computeBoundingSphere();
-      this.meshes.set(s, mesh);
+      this.meshes.set(key, mesh);
+      if (fine) this.fine.push(mesh);
       this.group.add(mesh);
     }
+    for (const g0 of geos.values()) g0.dispose();
     this.t = 0;
     if (this.growing.length) this.tick(0);
   }
 
   get animating() { return this.growing.length > 0; }
+
+  /** Show or hide the small parts for the camera distance. */
+  setDistance(dist: number) {
+    const on = dist < this.detailDist;
+    for (const m of this.fine) m.visible = on;
+  }
 
   /** Advance the rising animation. */
   tick(dt: number) {
@@ -588,7 +616,7 @@ export class BuildingLayer {
       const k = Math.max(0, Math.min(1, (this.t - gr.delay) / 0.7));
       if (k < 1) done = false;
       const e = 1 - (1 - k) ** 3;
-      const p = gr.part, mesh = this.meshes.get(gr.s)!;
+      const p = gr.part, mesh = this.meshes.get(gr.key)!;
       q.setFromAxisAngle(up, p.rot);
       // Roofs ride up with the walls under them.
       m4.compose(new THREE.Vector3(p.x, p.base + (p.y - p.base) * e, p.z), q, new THREE.Vector3(p.w, Math.max(0.01, p.h * e), p.d));
@@ -601,4 +629,7 @@ export class BuildingLayer {
 
   /** Total parts, for tests. */
   get count() { return this.parts.length; }
+
+  /** Every part as placed (for baking shadows onto the ground). */
+  get placed(): readonly { x: number; y: number; z: number; w: number; h: number; d: number; rot: number }[] { return this.parts; }
 }

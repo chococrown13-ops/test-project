@@ -53,6 +53,16 @@
     <dialog id="album" class="modal album"></dialog>
     <dialog id="menu" class="modal menu">
       <h2>메뉴</h2>
+      <fieldset class="gfx">
+        <legend>그래픽</legend>
+        <div class="seg" role="radiogroup" aria-label="그래픽 품질">
+          <button type="button" data-q="auto" role="radio">자동</button>
+          <button type="button" data-q="high" role="radio">높게</button>
+          <button type="button" data-q="medium" role="radio">보통</button>
+          <button type="button" data-q="low" role="radio">가볍게</button>
+        </div>
+        <p id="gfxNote" class="muted gfx-note"></p>
+      </fieldset>
       <div class="menu-list">
         <button class="btn" data-act="album">사라진 것들, 남은 것들</button>
         <button class="btn" data-act="help">어떻게 하나요?</button>
