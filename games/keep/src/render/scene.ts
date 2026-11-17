@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { FXAAPass } from 'three/examples/jsm/postprocessing/FXAAPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { StylizePass } from '../../../city/src/render/stylize';
@@ -84,6 +85,9 @@ export class KeepScene {
   readonly buildings = new BuildingLayer();
   private composer: EffectComposer;
   private stylize: StylizePass;
+  private fxaa: FXAAPass;
+  /** A rebuild spread over frames (see update). */
+  private job: Generator<void> | null = null;
   private sun = new THREE.DirectionalLight('#fff1dc', 2.5);
   private terrain!: THREE.Mesh;
   private groundCanvas = document.createElement('canvas');
@@ -123,6 +127,10 @@ export class KeepScene {
     this.stylize = new StylizePass(this.scene, this.view.cam);
     this.composer.addPass(this.stylize);
     this.composer.addPass(new OutputPass());
+    // Without multisampling (보통, 가볍게) a cheap FXAA pass smooths the jagged edges.
+    this.fxaa = new FXAAPass();
+    this.fxaa.enabled = false;
+    this.composer.addPass(this.fxaa);
     this.buildings.heightAt = (i) => this.cellBase(i);
     this.buildings.topAt = (i) => this.cellTop(i);
   }
@@ -137,6 +145,7 @@ export class KeepScene {
     const dpr = window.devicePixelRatio || 1;
     this.renderer.setPixelRatio(q === 'high' ? Math.min(dpr, 2) : q === 'medium' ? Math.min(dpr, 1.5) : 1);
     const samples = q === 'high' ? 4 : 0;
+    this.fxaa.enabled = samples === 0;
     for (const t of [this.composer.renderTarget1, this.composer.renderTarget2]) if (t.samples !== samples) { t.samples = samples; t.dispose(); }
     // Shadows: switching the light's flag off skips the shadow pass entirely.
     // 높게 casts shadows live. 보통 and 가볍게 use shadows baked into the ground
@@ -185,12 +194,23 @@ export class KeepScene {
 
   /** The map changed over a decade: repaint and let the new buildings rise. */
   update(fresh: Set<number>, from?: { x: number; y: number }) {
-    this.paint();
+    // Spread the work over frames (a few milliseconds each) so the view never freezes.
+    this.job = this.updateSteps(fresh, from);
+    this.invalidate();
+  }
+
+  /** Is a spread-out rebuild still running? */
+  get busy() { return this.job !== null; }
+
+  private *updateSteps(fresh: Set<number>, from?: { x: number; y: number }): Generator<void> {
     this.buildTrees();
+    yield;
     this.buildMarks();
-    this.buildings.build(this.g, fresh, from);
-    this.shadowsFresh = false;
-    if (this.baked) this.paint();
+    yield;
+    yield* this.buildings.buildSteps(this.g, fresh, from);
+    this.shadowsFresh = !this.baked;
+    if (this.baked) yield* this.bakeSteps();
+    yield* this.paintSteps();
     this.buildPins();
     this.invalidate();
   }
@@ -233,11 +253,14 @@ export class KeepScene {
     return Math.max(c[y * W + x], c[y * W + x + 1], c[(y + 1) * W + x], c[(y + 1) * W + x + 1]);
   }
 
-  private paint() {
+  private paint() { for (const _ of this.paintSteps()) { /* all at once */ } }
+
+  private *paintSteps(): Generator<void> {
     const g = this.g, ctx = this.groundCanvas.getContext('2d')!;
     const area = new Set(this.hl.cells ?? []);
     const shade = (hex: string, k: number) => { const n = parseInt(hex.slice(1), 16); const f = (v: number) => Math.max(0, Math.min(255, Math.round(v * k))); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`; };
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      if (x === 0 && (y & 63) === 63) yield;
       const i = idx(x, y), t = g.btype[i], h = g.height[i];
       let col: string;
       if (g.ground[i] === Ground.Water) col = '#6aa3c2';
@@ -256,6 +279,7 @@ export class KeepScene {
     const W = { [RoadT.Avenue]: [8, 6.4], [RoadT.Street]: [5.2, 3.6], [RoadT.Alley]: [3.4, 2.2] } as Record<number, [number, number]>;
     for (const pass of [0, 1]) {
       for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      if (x === 0 && (y & 63) === 63) yield;
         const r = g.road[idx(x, y)];
         if (!r) continue;
         const w = W[r][pass], cx = x * PX + PX / 2, cy = y * PX + PX / 2;
@@ -282,6 +306,7 @@ export class KeepScene {
     // Faint 동네 boundaries.
     ctx.fillStyle = 'rgba(120, 100, 70, 0.35)';
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      if (x === 0 && (y & 63) === 63) yield;
       const d = g.district[idx(x, y)];
       if (d < 0) continue;
       if (x + 1 < N && g.district[idx(x + 1, y)] >= 0 && g.district[idx(x + 1, y)] !== d) ctx.fillRect((x + 1) * PX - 1, y * PX, 2, PX);
@@ -311,7 +336,9 @@ export class KeepScene {
    * drawn as a solid outline. Drawn opaque on its own canvas so overlapping
    * shadows don't darken twice, then laid on the ground at partial strength.
    */
-  private bakeShadows() {
+  private bakeShadows() { for (const _ of this.bakeSteps()) { /* all at once */ } }
+
+  private *bakeSteps(): Generator<void> {
     const c = this.shadowCanvas;
     c.width = c.height = N * PX;
     const ctx = c.getContext('2d')!;
@@ -336,7 +363,8 @@ export class KeepScene {
       ctx.closePath();
       ctx.fill();
     };
-    for (const p of this.buildings.placed) cast(p.x, p.y, p.z, p.w, p.h, p.d, p.rot);
+    let n = 0;
+    for (const p of this.buildings.placed) { cast(p.x, p.y, p.z, p.w, p.h, p.d, p.rot); if (++n % 4000 === 0) yield; }
     for (const [x, y, z, sz] of this.treeSpots) cast(x, y, z, sz * 0.6, sz * 1.6, sz * 0.6, 0);
     this.shadowsFresh = true;
   }
@@ -445,6 +473,12 @@ export class KeepScene {
    * Returns whether a frame was drawn.
    */
   frame(dt: number): boolean {
+    // Advance a spread-out rebuild by a few milliseconds a frame.
+    if (this.job) {
+      const t0 = performance.now();
+      while (performance.now() - t0 < 6) if (this.job.next().done) { this.job = null; break; }
+      this.dirty = 2;
+    }
     const moving = this.view.moving();
     this.view.update(dt);
     if (this.buildings.animating) this.dirty = 2;

@@ -525,6 +525,15 @@ export class BuildingLayer {
 
   /** Rebuild everything. Cells in `fresh` rise from the ground, nearest `from` first. */
   build(g: Game, fresh?: Set<number>, from?: { x: number; y: number }) {
+    for (const _ of this.buildSteps(g, fresh, from)) { /* run to the end */ }
+  }
+
+  /**
+   * The same rebuild in small steps (yielding every few thousand cells and
+   * after each mesh), so a caller can spread it over frames. The old city
+   * stays on screen until the new one is complete, then they swap at once.
+   */
+  *buildSteps(g: Game, fresh?: Set<number>, from?: { x: number; y: number }): Generator<void> {
     const parts: Part[] = [];
     const places = new Map<number, Place>();
     for (const p of g.places) if (p.state !== 'lost') places.set(p.y * N + p.x, p);
@@ -542,6 +551,7 @@ export class BuildingLayer {
       }
       if (p) placeParts(p, i, y0, g, parts);
       else partsFor(g, i, y0, parts);
+      if ((i & 4095) === 4095) yield;
     }
     // Bridge decks: avenue over water.
     for (let i = 0; i < N * N; i++) if (g.road[i] === RoadT.Avenue && g.ground[i] === 1) {
@@ -558,11 +568,9 @@ export class BuildingLayer {
       if (!a) by.set(key, (a = []));
       a.push(p);
     }
-    for (const m of this.meshes.values()) { this.group.remove(m); m.geometry.dispose(); m.dispose(); }
-    this.meshes.clear();
-    this.fine = [];
+    const meshes = new Map<string, THREE.InstancedMesh>(), fineList: THREE.InstancedMesh[] = [];
+    const growing: typeof this.growing = [];
     const geos = new Map<Shape, THREE.BufferGeometry>();
-    this.growing = [];
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color(), up = new THREE.Vector3(0, 1, 0);
     for (const [key, list] of by) {
       const s = key.split('|')[0] as Shape, fine = key.endsWith('|1');
@@ -584,15 +592,21 @@ export class BuildingLayer {
         if (fresh && p.cell >= 0 && fresh.has(p.cell)) {
           const fx = p.cell % N, fy = (p.cell / N) | 0;
           const dist = from ? Math.hypot(fx - from.x, fy - from.y) : 0;
-          this.growing.push({ key, k, part: p, delay: Math.min(1.6, dist * 0.03) + hash(p.cell, 99) * 0.25 });
+          growing.push({ key, k, part: p, delay: Math.min(1.6, dist * 0.03) + hash(p.cell, 99) * 0.25 });
         }
       });
       mesh.computeBoundingSphere();
-      this.meshes.set(key, mesh);
-      if (fine) this.fine.push(mesh);
-      this.group.add(mesh);
+      meshes.set(key, mesh);
+      if (fine) fineList.push(mesh);
+      yield;
     }
     for (const g0 of geos.values()) g0.dispose();
+    // Swap old for new in one go.
+    for (const m of this.meshes.values()) { this.group.remove(m); m.geometry.dispose(); m.dispose(); }
+    this.meshes = meshes;
+    this.fine = fineList;
+    for (const m of meshes.values()) this.group.add(m);
+    this.growing = growing;
     this.t = 0;
     if (this.growing.length) this.tick(0);
   }
