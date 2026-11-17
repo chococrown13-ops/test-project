@@ -1,6 +1,6 @@
 import { losePlace, newBuilding, onAvenue, rebuild } from './decade';
 import { eul, eun, iga, KIND_NAME, ro } from './text';
-import { B, cellsNear, clamp, type District, districtCells, type Game, Ground, N, OLD, type Offer, type Place, rand, RoadT } from './world';
+import { B, carveAlleys, cellsNear, clamp, type District, districtCells, type Game, Ground, N, OLD, type Offer, type Place, rand, RoadT, touchesRoad } from './world';
 
 export type Cat = '재개발' | '보존' | '고쳐쓰기' | '기반' | '청원' | '제안' | '쉼';
 export interface Lean { m: number; v: number; r: number; b: number }
@@ -317,11 +317,22 @@ const list: Card[] = [
     desc: () => '옛 동네는 그대로 두고 강 건너에 새 아파트를 지어요. 대신 젊은 사람들이 그쪽으로 떠나요.',
     apply: (g, _o, out) => {
       let n = 0;
+      const site = new Set<number>();
       for (let i = 0; i < N * N; i++) {
         if (g.btype[i] !== B.Field || g.district[i] >= 0) continue;
         const x = i % N, y = (i / N) | 0;
         if (y < N * 0.8 || Math.hypot(x - N / 2, y - N * 0.86) > 46) continue;
-        g.btype[i] = rand(g) < 0.8 ? B.Apt : B.Park; g.floors[i] = 12 + Math.floor(rand(g) * 10); g.built[i] = g.year; n++;
+        site.add(i);
+        // A planned grid: streets every few cells, 단지 between.
+        if (x % 6 === 0 || y % 5 === 0) { g.btype[i] = B.None; g.road[i] = RoadT.Street; continue; }
+        g.btype[i] = rand(g) < 0.8 ? B.Apt : B.Park; g.floors[i] = 12 + Math.floor(rand(g) * 10); g.built[i] = g.year;
+      }
+      carveAlleys(g, (i) => site.has(i));
+      for (const i of site) {
+        if (g.road[i]) { g.btype[i] = B.None; continue; }
+        // Anything the roads still can't reach stays a field.
+        if (!touchesRoad(g, i % N, (i / N) | 0)) { g.btype[i] = B.Field; continue; }
+        if (g.btype[i] === B.Apt) n++;
       }
       for (const d of g.districts) { d.land = clamp(d.land - 6); d.vitality = clamp(d.vitality - 4); }
       g.newtown = true;

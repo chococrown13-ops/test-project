@@ -14,7 +14,8 @@ export const START_YEAR = 1970;
 export const TURNS = 10;
 
 export const Ground = { Land: 0, Water: 1, Hill: 2 } as const;
-export const RoadT = { None: 0, Street: 1, Avenue: 2 } as const;
+/** 골목 (alley) is the narrow lane that reaches the lots a street can't. */
+export const RoadT = { None: 0, Alley: 1, Street: 2, Avenue: 3 } as const;
 
 /** What stands on a cell. */
 export const B = {
@@ -165,4 +166,86 @@ export function districtCells(g: Game, d: number): number[] {
   const out: number[] = [];
   for (let i = 0; i < N * N; i++) if (g.district[i] === d && !g.road[i] && g.ground[i] !== Ground.Water) out.push(i);
   return out;
+}
+
+/** Is any of the four neighbours a road? */
+export function touchesRoad(g: { road: Uint8Array }, x: number, y: number): boolean {
+  return (x > 0 && g.road[y * N + x - 1] > 0) || (x < N - 1 && g.road[y * N + x + 1] > 0)
+    || (y > 0 && g.road[(y - 1) * N + x] > 0) || (y < N - 1 && g.road[(y + 1) * N + x] > 0);
+}
+
+/**
+ * Make sure every lot in `need` faces a road: cut 골목 through the blocks the
+ * streets leave too deep, then, for anything still shut in, a dead-end lane
+ * from the nearest road. Only alleys that join the road network are kept.
+ */
+export function carveAlleys(g: Game, need: (i: number) => boolean) {
+  const open = (i: number) => need(i) && !g.road[i];
+  // 1. Blocks: connected lots between roads. Lanes run along the long side, every third row.
+  const block = new Int32Array(N * N).fill(-1);
+  let nb = 0;
+  for (let s = 0; s < N * N; s++) {
+    if (!open(s) || block[s] >= 0) continue;
+    const cells: number[] = [s];
+    block[s] = nb;
+    for (let k = 0; k < cells.length; k++) {
+      const i = cells[k], x = i % N, y = (i / N) | 0;
+      for (const j of [x > 0 ? i - 1 : -1, x < N - 1 ? i + 1 : -1, y > 0 ? i - N : -1, y < N - 1 ? i + N : -1]) if (j >= 0 && block[j] < 0 && open(j)) { block[j] = nb; cells.push(j); }
+    }
+    nb++;
+    let x0 = N, x1 = 0, y0 = N, y1 = 0;
+    for (const i of cells) { const x = i % N, y = (i / N) | 0; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    const wide = x1 - x0 >= y1 - y0;
+    const span = wide ? y1 - y0 : x1 - x0;
+    for (const i of cells) {
+      const x = i % N, y = (i / N) | 0;
+      const r = wide ? y - y0 : x - x0;
+      if (r % 3 === 2 && r < span) g.road[i] = RoadT.Alley;
+    }
+  }
+  // 2. Keep only alleys joined to the street network.
+  const reach = new Uint8Array(N * N);
+  const q: number[] = [];
+  for (let i = 0; i < N * N; i++) if (g.road[i] >= RoadT.Street) { reach[i] = 1; q.push(i); }
+  for (let k = 0; k < q.length; k++) {
+    const i = q[k], x = i % N, y = (i / N) | 0;
+    for (const j of [x > 0 ? i - 1 : -1, x < N - 1 ? i + 1 : -1, y > 0 ? i - N : -1, y < N - 1 ? i + N : -1]) if (j >= 0 && !reach[j] && g.road[j]) { reach[j] = 1; q.push(j); }
+  }
+  for (let i = 0; i < N * N; i++) if (g.road[i] === RoadT.Alley && !reach[i]) g.road[i] = 0;
+  // 3. Anything still shut in: a dead-end lane back to the nearest road, through
+  //    other lots or open land if it must, every step of it joined up.
+  const pass = (i: number) => open(i) || (g.ground[i] !== Ground.Water && !g.road[i] && (g.btype[i] === B.None || g.btype[i] === B.Field));
+  const dist = new Int32Array(N * N).fill(-1);
+  const bq: number[] = [];
+  for (let i = 0; i < N * N; i++) if (g.road[i]) { dist[i] = 0; bq.push(i); }
+  for (let k = 0; k < bq.length; k++) {
+    const i = bq[k], x = i % N, y = (i / N) | 0;
+    for (const j of [x > 0 ? i - 1 : -1, x < N - 1 ? i + 1 : -1, y > 0 ? i - N : -1, y < N - 1 ? i + N : -1]) if (j >= 0 && dist[j] < 0 && pass(j)) { dist[j] = dist[i] + 1; bq.push(j); }
+  }
+  const order = bq.filter((i) => dist[i] >= 2 && need(i)).sort((a, b) => dist[a] - dist[b]);
+  for (const i of order) {
+    if (g.road[i] || touchesRoad(g, i % N, (i / N) | 0)) continue;
+    let c = i;
+    for (let guard = 0; guard < N; guard++) {
+      const x = c % N, y = (c / N) | 0;
+      // Step toward the network, preferring a cell that already sits on a road (straight lanes, no zigzags).
+      let best = -1, bs = Infinity;
+      for (const j of [x > 0 ? c - 1 : -1, x < N - 1 ? c + 1 : -1, y > 0 ? c - N : -1, y < N - 1 ? c + N : -1]) {
+        if (j < 0 || dist[j] !== dist[c] - 1 || g.road[j]) continue;
+        const s2 = touchesRoad(g, j % N, (j / N) | 0) ? 0 : 1;
+        if (s2 < bs) { bs = s2; best = j; }
+      }
+      if (best < 0) break;
+      // Joined if it touches a road other than the lane we're laying behind us.
+      const bx = best % N, by = (best / N) | 0;
+      const joined = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
+        const nx = bx + dx, ny = by + dy;
+        return nx >= 0 && ny >= 0 && nx < N && ny < N && ny * N + nx !== c && g.road[ny * N + nx] > 0;
+      });
+      g.road[best] = RoadT.Alley;
+      if (g.btype[best] === B.Field) g.btype[best] = B.None;
+      if (joined) break;
+      c = best;
+    }
+  }
 }

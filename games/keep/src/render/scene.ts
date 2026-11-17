@@ -192,13 +192,13 @@ export class KeepScene {
     }
     // Roads: kerbs first for every road, then the asphalt on top, so a later
     // cell's kerb can never cut across the road drawn before it.
-    const W = { [RoadT.Avenue]: [8, 6.4], [RoadT.Street]: [5.2, 3.6] } as Record<number, [number, number]>;
+    const W = { [RoadT.Avenue]: [8, 6.4], [RoadT.Street]: [5.2, 3.6], [RoadT.Alley]: [3.4, 2.2] } as Record<number, [number, number]>;
     for (const pass of [0, 1]) {
       for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
         const r = g.road[idx(x, y)];
         if (!r) continue;
         const w = W[r][pass], cx = x * PX + PX / 2, cy = y * PX + PX / 2;
-        ctx.fillStyle = pass === 0 ? '#f1ebdd' : r === RoadT.Avenue ? '#66676c' : '#a39c90';
+        ctx.fillStyle = pass === 0 ? '#f1ebdd' : r === RoadT.Avenue ? '#66676c' : r === RoadT.Street ? '#a39c90' : '#b6ad9b';
         ctx.fillRect(cx - w / 2, cy - w / 2, w, w);
         for (const [dx, dy] of [[1, 0], [0, 1]]) {
           const nx = x + dx, ny = y + dy;

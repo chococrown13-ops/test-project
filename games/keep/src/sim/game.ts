@@ -104,7 +104,7 @@ export function lifetime(g: Game): Indicators {
 
 /* ---------- saving ---------- */
 
-const KEY = 'keep.save.v1';
+const KEY = 'keep.save.v2'; // v2: road types renumbered for 골목
 const b64 = (a: ArrayBufferView) => { const u = new Uint8Array(a.buffer, a.byteOffset, a.byteLength); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); };
 const unb64 = (s: string) => { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; };
 const ARRAYS = { ground: Uint8Array, height: Float32Array, road: Uint8Array, district: Int8Array, btype: Uint8Array, built: Int16Array, floors: Uint8Array } as const;

@@ -1,4 +1,4 @@
-import { B, CELL, type DistrictKind, type Game, Ground, idx, inside, N, pick, type Place, type PlaceKind, rand, RoadT, START_YEAR } from './world';
+import { B, carveAlleys, CELL, type DistrictKind, type Game, Ground, idx, inside, N, pick, type Place, type PlaceKind, rand, RoadT, START_YEAR } from './world';
 import { founderName, placeName, placeStory } from './text';
 
 /** Smooth value noise in 0..1. */
@@ -125,6 +125,9 @@ export function generate(seed: number): Game {
     const x = i % N, y = (i / N) | 0;
     if (![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => inside(x + dx, y + dy) && g.road[idx(x + dx, y + dy)])) g.road[i] = 0;
   }
+
+  // 골목: every lot in the town gets a road at its door.
+  carveAlleys(g, (i) => g.district[i] >= 0 && g.ground[i] !== Ground.Water);
 
   // 1970: low houses, shops on the bigger streets, the market, a few workshops; fields at the edge.
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
