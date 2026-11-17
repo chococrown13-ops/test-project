@@ -284,8 +284,56 @@ export function tryTransit(w: World, from: number, to: number, roll: number, out
   return null;
 }
 
+/* -------------------------------------------------------------- 역세권 */
+
+/**
+ * 역세권: the area within walking distance of a subway station. Korean
+ * planning law draws the first ring at 250 m (1차 역세권); here that is 25
+ * cells. Land is worth more there, so it fills and grows denser first.
+ */
+export const STATION_AREA = 25;
+
+let areaCache: { ver: string; m: Uint8Array } = { ver: '', m: new Uint8Array(0) };
+/** 1 for cells within 250 m of a subway station. */
+export function stationArea(w: World): Uint8Array {
+  const ver = `${w.ver.transit}:${w.lines.length}`;
+  if (areaCache.ver === ver && areaCache.m.length === N * N) return areaCache.m;
+  const m = new Uint8Array(N * N), r = STATION_AREA;
+  for (const s of stationCells(w)) {
+    const sx = s % N, sy = (s / N) | 0;
+    for (let y = Math.max(0, sy - r); y <= Math.min(N - 1, sy + r); y++)
+      for (let x = Math.max(0, sx - r); x <= Math.min(N - 1, sx + r); x++) if ((x - sx) ** 2 + (y - sy) ** 2 <= r * r) m[idx(x, y)] = 1;
+  }
+  areaCache = { ver, m };
+  return m;
+}
+
+export const stationCells = (w: World) => [...new Set(w.lines.filter((l) => l.kind === 'metro').flatMap((l) => l.stops))];
+
+/** People living and working in the 역세권, and its share of the city. */
+export function stationAreaStats(w: World): { pop: number; jobs: number; share: number; stations: number } {
+  const m = stationArea(w);
+  let pop = 0, jobs = 0;
+  w.buildings.forEach((b) => {
+    const d = KINDS[b.kind];
+    if (!d.zone || !m[idx(b.x, b.y)]) return;
+    if (d.residents) pop += b.occ; else jobs += b.occ;
+  });
+  return { pop: Math.round(pop), jobs: Math.round(jobs), share: w.stats.pop ? pop / w.stats.pop : 0, stations: stationCells(w).length };
+}
+
 /** Land value near stations and stops: the 역세권 premium. */
 export function transitLandBonus(w: World, bonus: Float32Array) {
+  // The whole 역세권 is worth a little more, most of all close to the station.
+  const r = STATION_AREA;
+  for (const s of stationCells(w)) {
+    const sx = s % N, sy = (s / N) | 0;
+    for (let y = Math.max(0, sy - r); y <= Math.min(N - 1, sy + r); y++)
+      for (let x = Math.max(0, sx - r); x <= Math.min(N - 1, sx + r); x++) {
+        const d = Math.hypot(x - sx, y - sy);
+        if (d <= r) bonus[idx(x, y)] = Math.max(bonus[idx(x, y)], 5 * (1 - d / (r + 1)));
+      }
+  }
   for (const l of w.lines) {
     const r = l.kind === 'metro' ? 6 : 3, v = l.kind === 'metro' ? 12 : 3;
     for (const s of l.stops) {

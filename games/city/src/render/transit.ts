@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CELL, N, Road } from '../sim/defs';
-import { BUS_TYPES, type BusType, busCount, busRoute, busTypeOf, type LineKind } from '../sim/transit';
+import { BUS_TYPES, type BusType, busCount, busRoute, busTypeOf, type LineKind, STATION_AREA } from '../sim/transit';
 import type { World } from '../sim/world';
 import { shared } from './materials';
 import { nodeCentre, nodeY } from './roadheight';
@@ -85,7 +85,7 @@ export class TransitLayer {
   private rebuild(w: World) {
     this.clear(this.stops);
     this.clear(this.routes);
-    const done = new Set<number>();
+    const done = new Set<number>(), areaDone = new Set<number>();
     for (const l of w.lines) {
       if (l.kind === 'bus') {
         for (const s of l.stops) if (!done.has(s)) { done.add(s); this.shelter(w, s, l.color); }
@@ -94,6 +94,8 @@ export class TransitLayer {
       } else {
         this.routes.add(ribbon(l.stops.map(centre), l.color, 3.2, 0.9));
         for (const s of l.stops) this.routes.add(disc(centre(s), l.color, 4.2));
+        // The 역세권: a soft disc and a dashed rim 250 m round each station.
+        for (const s of l.stops) if (!areaDone.has(s)) { areaDone.add(s); this.routes.add(stationRing(centre(s), l.color)); }
       }
     }
   }
@@ -209,6 +211,21 @@ function ribbon(pts: { x: number; z: number }[], color: string, width: number, y
   const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
   mesh.renderOrder = 4;
   return mesh;
+}
+
+/** The 250 m 역세권 round a station: a faint fill and a dashed rim in the line's colour. */
+function stationRing(c: { x: number; z: number }, color: string): THREE.Group {
+  const R = STATION_AREA * CELL, g = new THREE.Group();
+  const fill = new THREE.Mesh(new THREE.CircleGeometry(R, 64).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.08, depthWrite: false }));
+  fill.position.set(c.x, 0.6, c.z);
+  fill.renderOrder = 3;
+  g.add(fill);
+  const n = 48;
+  for (let k = 0; k < n; k += 2) {
+    const a0 = (k / n) * Math.PI * 2, a1 = ((k + 1) / n) * Math.PI * 2;
+    g.add(ribbon([{ x: c.x + Math.cos(a0) * R, z: c.z + Math.sin(a0) * R }, { x: c.x + Math.cos(a1) * R, z: c.z + Math.sin(a1) * R }], color, 1.6, 0.7));
+  }
+  return g;
 }
 
 function disc(c: { x: number; z: number }, color: string, r: number, y = 1.0): THREE.Mesh {

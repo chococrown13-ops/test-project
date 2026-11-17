@@ -2,7 +2,7 @@
 import { Road } from '../src/sim/defs';
 import { placeRoad, roadPath } from '../src/sim/tools';
 import { createWorld, idx, riverY } from '../src/sim/world';
-import { busProblem, BUS_TYPES, busTypeOf, createLine, fareIncome, tryTransit, FARE } from '../src/sim/transit';
+import { busProblem, BUS_TYPES, busTypeOf, createLine, fareIncome, tryTransit, FARE, stationArea, STATION_AREA } from '../src/sim/transit';
 
 let fails = 0;
 const check = (name: string, ok: boolean, extra = '') => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name} ${extra}`); if (!ok) fails++; };
@@ -53,4 +53,10 @@ const count = (outbound: boolean, a: number, b: number) => { ex.ridersMonth = 0;
 const out = count(true, idx(58, row - 2), idx(0, row)), inside = count(false, idx(58, row - 2), idx(8, row - 2));
 check('광역버스 serves the trip out of town', out > inside * 3, `${out} vs ${inside}`);
 
+// 역세권: 250 m round each station, worth more.
+w.money = 1e7;
+const me = createLine(w, 'metro', [idx(51, row - 12), idx(81, row - 12)]);
+console.log('metro:', me);
+const area = stationArea(w);
+check('역세권 covers 250 m round a station', area[idx(51, row - 12 - STATION_AREA)] === 1 && area[idx(51, row - 14 - STATION_AREA)] === 0);
 console.log(fails ? `${fails} FAILED` : 'all passed');

@@ -656,4 +656,6 @@ function frame(t: number) {
 requestAnimationFrame(frame);
 
 // Debug/test hook.
-(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, setTool, setSpeed, tools: { placeRoad, placeCurve, curveOf, roadPath }, roadnet: () => buildCityNetwork(sim.w) };
+(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, setTool, setSpeed, tools: { placeRoad, placeCurve, curveOf, roadPath, paintZone, rectCells, placeFacility, createLine }, roadnet: () => buildCityNetwork(sim.w),
+  /** For automated play: a fresh 가상 지형 world, and the sim's own tick. */
+  useWorld: (seed: number) => useWorld(createWorld(seed)), tick: (dt: number, speed: number) => tick(sim, dt, speed) };

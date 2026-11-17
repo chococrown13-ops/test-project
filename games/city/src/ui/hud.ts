@@ -4,7 +4,7 @@ import { curveInfo } from '../sim/curves';
 import { hasOpenWater } from '../sim/tools';
 import { curbCapacity, LOT_SPACES } from '../sim/parking';
 import { network } from '../sim/network';
-import { BUS_TYPES, type BusType, busCount, busTypeOf, lineCost, lineUpkeep, type LineKind } from '../sim/transit';
+import { BUS_TYPES, type BusType, busCount, busTypeOf, lineCost, lineUpkeep, type LineKind, STATION_AREA, stationArea, stationAreaStats } from '../sim/transit';
 import { bh, bw, idx, lotsOf, type Building, type World } from '../sim/world';
 import type { Overlay } from '../render/ground';
 
@@ -84,6 +84,7 @@ export const GOALS: Goal[] = [
   { text: '첫 아파트 단지를 세우세요. 땅값 높은 다세대 4채가 모이면 재건축돼요.', done: (w) => count(w, (b) => b.kind === 'r3') > 0 },
   { text: '인구 5,000명. 대로와 버스로 교통 체증을 줄이세요.', done: (w) => w.stats.pop >= 5000 },
   { text: '지하철 1호선을 개통하세요. 역 주변은 역세권이 돼요.', done: (w) => w.lines.some((l) => l.kind === 'metro') },
+  { text: '역세권을 키우세요. 역에서 250m 안에 1,000명이 살게 해 보세요. 역 주변을 주거와 상업으로 채우면 돼요.', done: (w) => stationAreaStats(w).pop >= 1000 },
   { text: '고가도로, 지하차도, 터널 중 하나로 막힌 길을 뚫어 보세요.', done: (w) => w.roadAlt.some((r) => r > 0) },
   { text: '명소를 하나 지어 보세요. 전통시장, 수변공원, 고궁, 전망타워가 있어요.', done: (w) => count(w, (b) => ['market', 'riverpark', 'palace', 'tower'].includes(b.kind)) > 0 },
   { text: '첫 오피스 타워를 올리세요. 상업 구역의 땅값이 관건이에요.', done: (w) => count(w, (b) => b.kind === 'c3') > 0 },
@@ -134,13 +135,17 @@ export function infoHtml(w: World, x: number, y: number): string {
       if (d.zone === Zone.R) {
         h += '<h4>공공 서비스</h4>';
         h += kv('교육', mark(!!w.edu[i])) + kv('치안', mark(!!w.safety[i])) + kv('의료', mark(!!w.health[i])) + kv('소방', mark(!!w.fire[i]));
-        h += kv('대중교통', w.transit[i] === 2 ? state('ok', '역세권') : w.transit[i] ? state('ok', '버스') : state('meh', '없음'));
+        h += kv('대중교통', stationArea(w)[i] ? state('ok', '역세권') : w.transit[i] ? state('ok', '버스') : state('meh', '없음'));
       }
       if (!hasRoad) h += kv('도로', state('no', '연결 안 됨'));
       if (d.level && d.level < 3) h += `<p class="hint">${nextHint(w, b)}</p>`;
     } else if (b.kind === 'metro') {
       const lines = w.lines.filter((l) => l.stops.includes(i));
-      h += `<p class="hint">${d.desc}</p>`;
+      h += `<p class="hint">${d.desc}. 역에서 250m 안이 역세권이에요.</p>`;
+      // This station's own 역세권.
+      let pop = 0, jobs = 0;
+      w.buildings.forEach((o) => { const k = KINDS[o.kind]; if (!k.zone || Math.hypot(o.x - b.x, o.y - b.y) > STATION_AREA) return; if (k.residents) pop += o.occ; else jobs += o.occ; });
+      h += kv('역세권 인구', `${num(pop)}명`) + kv('역세권 일자리', `${num(jobs)}개`);
       for (const l of lines) h += kv(`<span class="sw" style="--sw:${l.color}"></span>${esc(l.name)}`, `지난달 ${num(l.riders)}명`);
     } else {
       h += `<p class="hint">${d.desc ?? ''}</p>`;
@@ -226,6 +231,8 @@ export function statsHtml(w: World, overlay: Overlay): string {
   h += '<h4>교통</h4>';
   h += kv('평균 통근', `${Math.round(s.commute)}분`) + kv('도로 혼잡도', state(toneOf(100 - s.congestion * 100), `${Math.round(s.congestion * 100)}%`));
   h += kv('대중교통 승객', `지난달 ${num(w.lines.reduce((a, l) => a + l.riders, 0))}명`);
+  const sa = stationAreaStats(w);
+  if (sa.stations) h += kv('역세권 인구', `${num(sa.pop)}명 (${Math.round(sa.share * 100)}%)`) + kv('역세권 일자리', `${num(sa.jobs)}개`);
   h += '<h4>주차</h4>';
   const lots = [...w.buildings.values()].reduce((a, b) => a + (LOT_SPACES[b.kind] ?? 0), 0);
   h += kv('주차 수요', `${num(s.parkDemand)}대`) + kv('갓길 / 주차장', `${num(s.parkCurb)}면 / ${num(lots)}면`);
