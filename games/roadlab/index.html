@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7f3e6" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+    <title>도로 실험실</title>
+  </head>
+  <body>
+    <canvas id="view" aria-label="도로 그리기 판"></canvas>
+    <header class="bar">
+      <h1>도로 실험실</h1>
+      <div class="seg" role="radiogroup" aria-label="도구">
+        <button data-tool="curve" aria-checked="true">곡선</button>
+        <button data-tool="line" aria-checked="false">직선</button>
+        <button data-tool="erase" aria-checked="false">지우기</button>
+      </div>
+      <div class="seg" role="radiogroup" aria-label="도로 종류">
+        <button data-kind="street" aria-checked="true">골목길</button>
+        <button data-kind="avenue" aria-checked="false">큰길</button>
+      </div>
+      <button id="demo" class="btn">예시</button>
+      <button id="clear" class="btn">모두 지우기</button>
+    </header>
+    <p id="hint" class="hint" role="status"></p>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

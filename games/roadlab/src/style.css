@@ -1,0 +1,13 @@
+:root { --paper: #f7f3e6; --card: #fffdf7; --ink: #1f2733; --muted: #66707c; --edge: #ddd3bd; --accent: #f2c94c; --bad: #d9473b; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #cfd8c4; color: var(--ink); font-family: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+#view { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
+.bar { position: fixed; top: max(10px, env(safe-area-inset-top)); left: 10px; right: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; background: color-mix(in oklab, var(--card) 94%, transparent); border: 1px solid var(--edge); border-radius: 18px; box-shadow: 0 10px 24px -14px rgb(0 0 0 / .35); }
+h1 { margin: 0 6px 0 4px; font: 700 1.1rem "Gowun Batang", serif; }
+.seg { display: inline-grid; grid-auto-flow: column; gap: 3px; padding: 3px; border-radius: 999px; background: #efe8d6; }
+.seg button { border: 0; background: transparent; border-radius: 999px; padding: 8px 12px; font: inherit; font-weight: 700; color: #3a4350; cursor: pointer; min-height: 36px; }
+.seg button[aria-checked="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / .18); }
+.btn { border: 1px solid var(--edge); background: var(--card); border-radius: 999px; padding: 8px 14px; font: inherit; font-weight: 700; cursor: pointer; min-height: 38px; }
+.hint { pointer-events: none; position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); margin: 0; padding: 10px 16px; border-radius: 999px; background: rgb(31 39 51 / .88); color: #fff; font-weight: 600; font-size: .9rem; max-width: calc(100vw - 32px); text-align: center; }
+.hint.bad { background: var(--bad); }
+@media (max-width: 640px) { h1 { width: 100%; } .bar { gap: 6px; } .seg button { padding: 6px 10px; } }

@@ -47,6 +47,9 @@ export function deserialize(json: string): World {
   w.month.income.T ??= 0;
   w.month.expense.transit ??= 0;
   w.nextLine ??= 1;
+  w.transferDiscount ??= true;
+  w.transfersMonth ??= 0;
+  w.transfers ??= 0;
   w.buildings = new Map(o.buildings.map((b: { id: number }) => [b.id, b]));
   w.ver = { roads: w.ver.roads + 1, zones: w.ver.zones + 1, buildings: w.ver.buildings + 1, transit: (w.ver.transit ?? 0) + 1 };
   return w;

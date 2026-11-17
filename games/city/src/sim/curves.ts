@@ -2,10 +2,16 @@ import { CELL, Ground, KINDS, N, Road } from './defs';
 // Not imported from graph.ts: graph.ts asks this module which links are real.
 const NN = N * N;
 import type { World } from './world';
+import { fillet, minRadius, pathAt, pathLength, type Path } from '../../../shared/roads/geom';
 
 /**
- * Curved roads. A curve is a quadratic Bézier from the centre of cell A to
- * the centre of cell B, bent toward a control point, all in metres. The
+ * Curved roads. A curve runs from the centre of cell A toward a bend point
+ * C, then on to the centre of cell B; the corner at C is rounded by the
+ * largest circular arc that fits (straight, arc, straight). It used to be a
+ * quadratic Bézier with C as its control point: C is still where the two
+ * end directions meet, so curves in older saves keep their ends and simply
+ * take the cleaner shape. An arc, unlike a Bézier, widens into an arc, so the
+ * road's kerbs stay exactly parallel on any bend. The
  * simulation still runs on the cell grid: a curve is rasterised into a chain
  * of road cells (with diagonal links where the chain steps corner to corner),
  * so traffic, zoning and transit work on it unchanged. The curve itself is
@@ -27,26 +33,37 @@ export interface Curve {
 export const HALF_WIDTH = { [Road.Street]: 3, [Road.Avenue]: 4 } as const;
 export const KERB_W = { [Road.Street]: 2, [Road.Avenue]: 1 } as const;
 
-export function bez(c: Pick<Curve, 'ax' | 'az' | 'cx' | 'cz' | 'bx' | 'bz'>, u: number) {
-  const v = 1 - u;
-  return { x: v * v * c.ax + 2 * v * u * c.cx + u * u * c.bx, z: v * v * c.az + 2 * v * u * c.cz + u * u * c.bz };
+type Ends = Pick<Curve, 'ax' | 'az' | 'cx' | 'cz' | 'bx' | 'bz'>;
+const pathCache = new Map<string, { path: Path; len: number }>();
+/** The curve's centreline as lines and an arc (cached by its three points). */
+export function curvePath(c: Ends): { path: Path; len: number } {
+  const key = `${c.ax},${c.az},${c.cx},${c.cz},${c.bx},${c.bz}`;
+  let hit = pathCache.get(key);
+  if (!hit) {
+    const path = fillet({ x: c.ax, z: c.az }, { x: c.cx, z: c.cz }, { x: c.bx, z: c.bz });
+    hit = { path, len: pathLength(path) };
+    if (pathCache.size > 512) pathCache.clear();
+    pathCache.set(key, hit);
+  }
+  return hit;
+}
+
+/** Point at fraction u (0..1) of the way along the curve, by distance. */
+export function bez(c: Ends, u: number) {
+  const { path, len } = curvePath(c);
+  return pathAt(path, Math.max(0, Math.min(1, u)) * len).p;
 }
 
 /** Unit tangent at u. */
-export function bezTan(c: Pick<Curve, 'ax' | 'az' | 'cx' | 'cz' | 'bx' | 'bz'>, u: number) {
-  let x = 2 * (1 - u) * (c.cx - c.ax) + 2 * u * (c.bx - c.cx);
-  let z = 2 * (1 - u) * (c.cz - c.az) + 2 * u * (c.bz - c.cz);
-  const l = Math.hypot(x, z);
-  if (l < 1e-6) { x = c.bx - c.ax; z = c.bz - c.az; }
-  const m = Math.hypot(x, z) || 1;
-  return { x: x / m, z: z / m };
+export function bezTan(c: Ends, u: number) {
+  const { path, len } = curvePath(c);
+  return pathAt(path, Math.max(0, Math.min(1, u)) * len).d;
 }
 
-export function bezLength(c: Pick<Curve, 'ax' | 'az' | 'cx' | 'cz' | 'bx' | 'bz'>): number {
-  let len = 0, p = bez(c, 0);
-  for (let k = 1; k <= 32; k++) { const q = bez(c, k / 32); len += Math.hypot(q.x - p.x, q.z - p.z); p = q; }
-  return len;
-}
+export function bezLength(c: Ends): number { return curvePath(c).len; }
+
+/** Tightest bend each road type takes: wide enough that the inner kerb never folds over. */
+export const MIN_RADIUS = { [Road.Street]: 12, [Road.Avenue]: 18 } as const;
 
 const cellAt = (x: number, z: number) => {
   const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
@@ -200,6 +217,12 @@ export function curveProblem(w: World, c: Pick<Curve, 'ax' | 'az' | 'cx' | 'cz' 
   if (cells.length < 3) return '곡선 도로는 세 칸 이상 떨어진 두 점을 이어야 해요.';
   const len = bezLength(c), chord = Math.hypot(c.bx - c.ax, c.bz - c.az);
   if (len > chord * 1.9) return '너무 심하게 휘었어요. 굽힘을 줄여 주세요.';
+  // One curve turns at most 150°: a U-turn is two curves (or a block round).
+  const d1 = { x: c.cx - c.ax, z: c.cz - c.az }, d2 = { x: c.bx - c.cx, z: c.bz - c.cz };
+  const turn = Math.abs(Math.atan2(d1.x * d2.z - d1.z * d2.x, d1.x * d2.x + d1.z * d2.z));
+  if (turn > (150 * Math.PI) / 180) return '한 번에 너무 많이 돌아요. 곡선 두 개로 나눠 주세요.';
+  const r = minRadius(curvePath(c).path), need = MIN_RADIUS[c.t as 1 | 2] ?? 12;
+  if (r < need) return `커브가 너무 급해요 (반지름 ${Math.round(r)}m, ${need}m 이상 필요). 꺾는 점을 더 멀리 두세요.`;
   for (const i of coverCells(c)) {
     if (cells.includes(i)) continue;
     const id = w.bld[i];

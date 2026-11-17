@@ -17,6 +17,7 @@ export default defineConfig({
         sudoku: 'games/sudoku/index.html',
         city: 'games/city/index.html',
         keep: 'games/keep/index.html',
+        roadlab: 'games/roadlab/index.html',
       },
     },
   },

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CELL, N, Road } from '../sim/defs';
-import { busCount, busRoute, type LineKind } from '../sim/transit';
+import { BUS_TYPES, type BusType, busCount, busRoute, busTypeOf, type LineKind, STATION_AREA } from '../sim/transit';
 import type { World } from '../sim/world';
 import { shared } from './materials';
 import { nodeCentre, nodeY } from './roadheight';
@@ -66,7 +66,7 @@ export class TransitLayer {
   }
 
   /** `time` is simulated seconds, so vehicles stop when the game is paused. */
-  update(w: World, time: number, draft: { kind: LineKind; stops: number[] } | null) {
+  update(w: World, time: number, draft: { kind: LineKind; stops: number[]; bus?: BusType } | null) {
     const ver = `${w.ver.transit}:${w.ver.roads}:${w.lines.length}`;
     if (ver !== this.ver) { this.ver = ver; this.rebuild(w); }
     const dk = draft ? `${draft.kind}:${draft.stops.join(',')}:${w.ver.roads}` : '';
@@ -85,7 +85,7 @@ export class TransitLayer {
   private rebuild(w: World) {
     this.clear(this.stops);
     this.clear(this.routes);
-    const done = new Set<number>();
+    const done = new Set<number>(), areaDone = new Set<number>();
     for (const l of w.lines) {
       if (l.kind === 'bus') {
         for (const s of l.stops) if (!done.has(s)) { done.add(s); this.shelter(w, s, l.color); }
@@ -94,6 +94,8 @@ export class TransitLayer {
       } else {
         this.routes.add(ribbon(l.stops.map(centre), l.color, 3.2, 0.9));
         for (const s of l.stops) this.routes.add(disc(centre(s), l.color, 4.2));
+        // The 역세권: a soft disc and a dashed rim 250 m round each station.
+        for (const s of l.stops) if (!areaDone.has(s)) { areaDone.add(s); this.routes.add(stationRing(centre(s), l.color)); }
       }
     }
   }
@@ -119,10 +121,10 @@ export class TransitLayer {
     this.stops.add(g);
   }
 
-  private drawDraft(w: World, draft: { kind: LineKind; stops: number[] } | null) {
+  private drawDraft(w: World, draft: { kind: LineKind; stops: number[]; bus?: BusType } | null) {
     this.clear(this.draft);
     if (!draft || !draft.stops.length) return;
-    const color = draft.kind === 'bus' ? '#2e9e4f' : '#263c96';
+    const color = draft.kind === 'bus' ? BUS_TYPES[draft.bus ?? 'branch'].color : '#263c96';
     for (const s of draft.stops) this.draft.add(disc(centre(s), color, draft.kind === 'bus' ? 3 : 4.5, 1.2));
     if (draft.stops.length < 2) return;
     const pts = draft.kind === 'bus' ? Array.from(busRoute(w, draft.stops) ?? []).map((n) => nodeCentre(n, w)) : draft.stops.map(centre);
@@ -130,7 +132,7 @@ export class TransitLayer {
   }
 
   private moveVehicles(w: World, time: number) {
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), small = new THREE.Vector3(0.62, 0.85, 0.85), coach = new THREE.Vector3(1.05, 1.15, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
     const t = time;
     let nb = 0, nt = 0;
     for (const l of w.lines) {
@@ -139,12 +141,14 @@ export class TransitLayer {
         const path = busRoute(w, l.stops, l.id);
         if (!path || path.length < 2) continue;
         const n = busCount(w, l), L = path.length - 1;
+        // 마을버스 are small; 광역버스 are tall coaches.
+        const bt = busTypeOf(l), size = bt === 'village' ? small : bt === 'express' ? coach : one;
         for (let k = 0; k < n && nb < MAX_BUSES; k++) {
           const s = (t * BUS_SPEED + (k * L) / n) % L;
           const a = along(w, path, s - 0.35, true), b = along(w, path, s + 0.35, true);
           q.setFromAxisAngle(up, Math.atan2(-(b.z - a.z), b.x - a.x));
           p.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
-          this.buses.setMatrixAt(nb, m.compose(p, q, one));
+          this.buses.setMatrixAt(nb, m.compose(p, q, size));
           this.buses.setColorAt(nb++, c);
         }
       } else if (this.showRoutes) {
@@ -207,6 +211,21 @@ function ribbon(pts: { x: number; z: number }[], color: string, width: number, y
   const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
   mesh.renderOrder = 4;
   return mesh;
+}
+
+/** The 250 m 역세권 round a station: a faint fill and a dashed rim in the line's colour. */
+function stationRing(c: { x: number; z: number }, color: string): THREE.Group {
+  const R = STATION_AREA * CELL, g = new THREE.Group();
+  const fill = new THREE.Mesh(new THREE.CircleGeometry(R, 64).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.08, depthWrite: false }));
+  fill.position.set(c.x, 0.6, c.z);
+  fill.renderOrder = 3;
+  g.add(fill);
+  const n = 48;
+  for (let k = 0; k < n; k += 2) {
+    const a0 = (k / n) * Math.PI * 2, a1 = ((k + 1) / n) * Math.PI * 2;
+    g.add(ribbon([{ x: c.x + Math.cos(a0) * R, z: c.z + Math.sin(a0) * R }, { x: c.x + Math.cos(a1) * R, z: c.z + Math.sin(a1) * R }], color, 1.6, 0.7));
+  }
+  return g;
 }
 
 function disc(c: { x: number; z: number }, color: string, r: number, y = 1.0): THREE.Mesh {

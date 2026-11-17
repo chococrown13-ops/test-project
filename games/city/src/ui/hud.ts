@@ -4,7 +4,7 @@ import { curveInfo } from '../sim/curves';
 import { hasOpenWater } from '../sim/tools';
 import { curbCapacity, LOT_SPACES } from '../sim/parking';
 import { network } from '../sim/network';
-import { busCount, lineCost, lineUpkeep, type LineKind } from '../sim/transit';
+import { BUS_TYPES, type BusType, busCount, busTypeOf, lineCost, lineUpkeep, type LineKind, STATION_AREA, stationArea, stationAreaStats } from '../sim/transit';
 import { bh, bw, idx, lotsOf, type Building, type World } from '../sim/world';
 import type { Overlay } from '../render/ground';
 
@@ -84,6 +84,7 @@ export const GOALS: Goal[] = [
   { text: '첫 아파트 단지를 세우세요. 땅값 높은 다세대 4채가 모이면 재건축돼요.', done: (w) => count(w, (b) => b.kind === 'r3') > 0 },
   { text: '인구 5,000명. 대로와 버스로 교통 체증을 줄이세요.', done: (w) => w.stats.pop >= 5000 },
   { text: '지하철 1호선을 개통하세요. 역 주변은 역세권이 돼요.', done: (w) => w.lines.some((l) => l.kind === 'metro') },
+  { text: '역세권을 키우세요. 역에서 250m 안에 1,000명이 살게 해 보세요. 역 주변을 주거와 상업으로 채우면 돼요.', done: (w) => stationAreaStats(w).pop >= 1000 },
   { text: '고가도로, 지하차도, 터널 중 하나로 막힌 길을 뚫어 보세요.', done: (w) => w.roadAlt.some((r) => r > 0) },
   { text: '명소를 하나 지어 보세요. 전통시장, 수변공원, 고궁, 전망타워가 있어요.', done: (w) => count(w, (b) => ['market', 'riverpark', 'palace', 'tower'].includes(b.kind)) > 0 },
   { text: '첫 오피스 타워를 올리세요. 상업 구역의 땅값이 관건이에요.', done: (w) => count(w, (b) => b.kind === 'c3') > 0 },
@@ -134,13 +135,17 @@ export function infoHtml(w: World, x: number, y: number): string {
       if (d.zone === Zone.R) {
         h += '<h4>공공 서비스</h4>';
         h += kv('교육', mark(!!w.edu[i])) + kv('치안', mark(!!w.safety[i])) + kv('의료', mark(!!w.health[i])) + kv('소방', mark(!!w.fire[i]));
-        h += kv('대중교통', w.transit[i] === 2 ? state('ok', '역세권') : w.transit[i] ? state('ok', '버스') : state('meh', '없음'));
+        h += kv('대중교통', stationArea(w)[i] ? state('ok', '역세권') : w.transit[i] ? state('ok', '버스') : state('meh', '없음'));
       }
       if (!hasRoad) h += kv('도로', state('no', '연결 안 됨'));
       if (d.level && d.level < 3) h += `<p class="hint">${nextHint(w, b)}</p>`;
     } else if (b.kind === 'metro') {
       const lines = w.lines.filter((l) => l.stops.includes(i));
-      h += `<p class="hint">${d.desc}</p>`;
+      h += `<p class="hint">${d.desc}. 역에서 250m 안이 역세권이에요.</p>`;
+      // This station's own 역세권.
+      let pop = 0, jobs = 0;
+      w.buildings.forEach((o) => { const k = KINDS[o.kind]; if (!k.zone || Math.hypot(o.x - b.x, o.y - b.y) > STATION_AREA) return; if (k.residents) pop += o.occ; else jobs += o.occ; });
+      h += kv('역세권 인구', `${num(pop)}명`) + kv('역세권 일자리', `${num(jobs)}개`);
       for (const l of lines) h += kv(`<span class="sw" style="--sw:${l.color}"></span>${esc(l.name)}`, `지난달 ${num(l.riders)}명`);
     } else {
       h += `<p class="hint">${d.desc ?? ''}</p>`;
@@ -226,6 +231,8 @@ export function statsHtml(w: World, overlay: Overlay): string {
   h += '<h4>교통</h4>';
   h += kv('평균 통근', `${Math.round(s.commute)}분`) + kv('도로 혼잡도', state(toneOf(100 - s.congestion * 100), `${Math.round(s.congestion * 100)}%`));
   h += kv('대중교통 승객', `지난달 ${num(w.lines.reduce((a, l) => a + l.riders, 0))}명`);
+  const sa = stationAreaStats(w);
+  if (sa.stations) h += kv('역세권 인구', `${num(sa.pop)}명 (${Math.round(sa.share * 100)}%)`) + kv('역세권 일자리', `${num(sa.jobs)}개`);
   h += '<h4>주차</h4>';
   const lots = [...w.buildings.values()].reduce((a, b) => a + (LOT_SPACES[b.kind] ?? 0), 0);
   h += kv('주차 수요', `${num(s.parkDemand)}대`) + kv('갓길 / 주차장', `${num(s.parkCurb)}면 / ${num(lots)}면`);
@@ -240,20 +247,28 @@ export function linesHtml(w: World, confirm: number | null): string {
   if (!w.lines.length) return `${h}<p class="hint">아직 노선이 없어요. 아래 대중교통에서 버스 노선이나 지하철 노선을 고르고, 지도에서 정류장을 차례로 찍은 뒤 완성을 누르세요.</p>`;
   h += '<table class="lines"><thead><tr><th scope="col">노선</th><th scope="col" class="num">정류장</th><th scope="col" class="num">지난달 승객</th><th scope="col" class="num">월 운영비</th><th scope="col"><span class="visually-hidden">폐선</span></th></tr></thead><tbody>';
   for (const l of w.lines) {
-    const extra = l.kind === 'bus' ? `버스 ${busCount(w, l)}대` : '지하';
+    const extra = l.kind === 'bus' ? `${BUS_TYPES[busTypeOf(l)].name} · ${busCount(w, l)}대` : '지하철';
     h += `<tr><th scope="row"><span class="sw" style="--sw:${l.color}"></span>${esc(l.name)}<small>${extra}</small></th><td class="num">${l.stops.length}</td><td class="num">${num(l.riders)}</td><td class="num">${won(lineUpkeep(w, l))}</td><td>`;
     h += confirm === l.id
       ? `<button class="btn danger small" data-remove-line="${l.id}" data-confirmed>폐선 확인</button>`
       : `<button class="btn small" data-remove-line="${l.id}">폐선</button>`;
     h += '</td></tr>';
   }
-  return `${h}</tbody></table><p class="hint">요금은 1인 1,400원이에요. 역과 정류장 주변은 땅값과 만족도가 올라요.</p>`;
+  const tr = w.transfers ? ` 지난달 갈아탄 승객은 ${num(w.transfers)}명이에요.` : '';
+  return `${h}</tbody></table><p class="hint">요금은 1인 1,400원이에요. ${w.transferDiscount ? '환승 할인 중이라 갈아타도 한 번만 내요.' : '환승 할인이 없어서 갈아탈 때마다 따로 내요.'}${tr} 역과 정류장 주변은 땅값과 만족도가 올라요.</p>
+<p class="hint">마을버스는 골목 구석에서 역까지, 지선버스는 동네와 동네를, 간선버스는 큰길을 따라 멀리, 광역버스는 도시 밖으로 나가는 사람을 태워요. 노선끼리 정류장이 가까우면 갈아탈 수 있어요.</p>`;
 }
 
 /** The bar shown while a line is being drawn. */
-export function draftHtml(w: World, kind: LineKind, stops: number[]): string {
-  const cost = stops.length >= 2 ? lineCost(kind, stops) : 0;
-  const what = kind === 'bus' ? '버스 정류장을 도로 위에' : '지하철역을 빈 땅이나 구역에';
+export function draftHtml(w: World, kind: LineKind, stops: number[], bus: BusType = 'branch'): string {
+  const cost = stops.length >= 2 ? lineCost(kind, stops, bus) : 0;
+  const BUS_HINT: Record<BusType, string> = {
+    village: '마을버스 정류장을 골목과 역 근처에 (한 바퀴 1.8km 이내)',
+    branch: '지선버스 정류장을 도로 위에',
+    trunk: '간선버스 정류장을 큰길 위에',
+    express: '광역버스 정류장을 도로 위에 (하나는 서쪽 고속도로 입구 가까이)',
+  };
+  const what = kind === 'bus' ? BUS_HINT[bus] : '지하철역을 빈 땅이나 구역에';
   const msg = stops.length ? `정류장 ${stops.length}곳${cost ? `, ${won(cost)} 원` : ''}` : `${what} 차례로 찍으세요.`;
   return `<span class="draft-msg">${msg}</span><button class="btn small" data-draft="undo"${stops.length ? '' : ' disabled'}>되돌리기</button><button class="btn small" data-draft="cancel">취소</button><button class="btn primary small" data-draft="done"${stops.length >= 2 && cost <= w.money ? '' : ' disabled'}>노선 완성</button>`;
 }
