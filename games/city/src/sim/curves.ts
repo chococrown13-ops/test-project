@@ -176,9 +176,8 @@ export function curveInfo(w: World): CurveInfo {
     for (let k = 1; k < c.cells.length; k++) links.add(lk(c.cells[k - 1], c.cells[k]));
   }
   for (const rb of w.roundabouts) for (const i of roundaboutCells(rb)) if (!w.road[i]) cover[i] = 1;
-  // Roads meeting a curve from the side: each joins at its nearest chain cell only. A road running
-  // alongside (within the shallowest meeting angle of the curve) does not join it: it just passes by.
-  const anyChain = chain;
+  // Roads meeting a curve from the side: a road that ends beside it joins at its nearest chain cell
+  // (unless it runs alongside, within the shallowest meeting angle). Roads that only pass by stay apart.
   const parallel = (j: number, d: { x: number; z: number }) => {
     const x = j % N, y = (j / N) | 0;
     let n = 0, along = 0;
@@ -186,11 +185,12 @@ export function curveInfo(w: World): CurveInfo {
       const nx = x + dx, ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= N || ny >= N) continue;
       const k = ny * N + nx;
-      if (!w.road[k] || anyChain[k] || owned[k]) continue;
+      if (!w.road[k] || owned[k]) continue;
       n++;
       if (Math.abs(dx * d.x + dy * d.z) > Math.cos((MIN_MEET_DEG * Math.PI) / 180)) along++;
     }
-    return n > 0 && along === n;
+    // A road running past (straight on, or a junction) never joins sideways: only one that ends here does.
+    return n > 1 || (n > 0 && along === n);
   };
   for (const c of w.curves) {
     const chain = new Set(c.cells);

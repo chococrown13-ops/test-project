@@ -128,21 +128,25 @@ export function buildCityNetwork(w: World): Network {
       if (hit.t > 1 && hit.t < L - 1) taps.push({ t: hit.t, cell, p: hit.p });
     }
     taps.sort((a, b) => a.t - b.t);
-    // Junctions closer than 12 m along the curve are one junction. A junction two curves share keeps its
-    // place (the other curve has it too); a plain one folds into it. Two shared ones stay apart.
-    for (let k = 1; k < taps.length; k++) {
-      const a = taps[k - 1], b = taps[k];
+    const first = c.cells[0], last = c.cells[c.cells.length - 1];
+    const stops: Tap[] = [{ t: 0, cell: first, p: { x: c.ax, z: c.az } }, ...taps, { t: L, cell: last, p: { x: c.bx, z: c.bz } }];
+    // Junctions closer than 12 m along the curve are one junction. One two curves share keeps its place
+    // (the other curve has it too), then the curve's own ends; a plain one folds into either. Two that
+    // both hold their place stay apart.
+    const ends = new Set([R(first), R(last)]);
+    const rank = (k: number) => (shared.has(k) ? 2 : ends.has(k) ? 1 : 0);
+    for (let k = 1; k < stops.length; k++) {
+      const a = stops[k - 1], b = stops[k];
       if (b.t - a.t >= 12) continue;
       const ka = R(a.cell), kb = R(b.cell);
-      if (ka === kb) { b.t = a.t; b.p = a.p; continue; }
-      const sa = shared.has(ka), sb = shared.has(kb);
-      if (sa && sb) continue;
-      if (sb) { alias.set(ka, kb); a.p = b.p; a.t = b.t; } else { alias.set(kb, ka); b.t = a.t; b.p = a.p; }
+      if (ka === kb) { if (k < stops.length - 1) { b.t = a.t; b.p = a.p; } continue; }
+      const ra = rank(ka), rb = rank(kb);
+      if (ra && rb) continue;
+      if (rb > ra) { alias.set(ka, kb); a.p = b.p; a.t = b.t; } else { alias.set(kb, ka); b.t = a.t; b.p = a.p; }
     }
-    for (const tp of taps) if (!shared.has(R(tp.cell))) pos.set(R(tp.cell), tp.p);
+    for (const tp of taps) if (!shared.has(R(tp.cell)) && !ends.has(R(tp.cell))) pos.set(R(tp.cell), tp.p);
     // The curve's ends stand where it was drawn, unless it ends on another curve (that junction is shared).
-    for (const [cell, p] of [[c.cells[0], { x: c.ax, z: c.az }], [c.cells[c.cells.length - 1], { x: c.bx, z: c.bz }]] as [number, V][]) if (!shared.has(R(cell))) pos.set(R(cell), p);
-    const stops = [{ t: 0, cell: c.cells[0] }, ...taps, { t: L, cell: c.cells[c.cells.length - 1] }];
+    for (const [cell, p] of [[first, { x: c.ax, z: c.az }], [last, { x: c.bx, z: c.bz }]] as [number, V][]) if (!shared.has(R(cell))) pos.set(R(cell), p);
     const kind = KIND[c.t] ?? 'street';
     let rest: Path = path, done = 0, from = 0;
     for (let k = 1; k < stops.length; k++) {
