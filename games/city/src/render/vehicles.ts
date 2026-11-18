@@ -6,7 +6,7 @@ import { CELL, N } from '../sim/defs';
 import { MAX_CARS, type Car, type Traffic } from '../sim/traffic';
 import type { World } from '../sim/world';
 import { shared } from './materials';
-import { nodeCentre, nodeY } from './roadheight';
+import { nodeCentre, roadY } from './roadheight';
 
 /** `glow` lights a part at night: positive is a warm headlight, negative a red tail light. */
 function tinted(g: THREE.BufferGeometry, k: number, glow = 0) {
@@ -110,7 +110,7 @@ export class VehicleLayer {
 
   update(w: World, tr: Traffic) {
     this.updateParked(w);
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), pitch = new THREE.Quaternion(), fwdZ = new THREE.Vector3(0, 0, 1), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
     const n = [0, 0, 0, 0];
     const a = { x: 0, z: 0, y: 0 }, b = { x: 0, z: 0, y: 0 };
     for (const car of tr.cars) {
@@ -120,7 +120,8 @@ export class VehicleLayer {
       const dx = b.x - a.x, dz = b.z - a.z;
       if (dx * dx + dz * dz < 1e-4) continue;
       const k = car.kind, i = n[k]++;
-      q.setFromAxisAngle(up, Math.atan2(-dz, dx));
+      // Heading, then the nose up or down the slope (ramps).
+      q.setFromAxisAngle(up, Math.atan2(-dz, dx)).multiply(pitch.setFromAxisAngle(fwdZ, Math.atan2(b.y - a.y, Math.hypot(dx, dz))));
       p.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
       m.compose(p, q, one);
       this.meshes[k].setMatrixAt(i, m);
@@ -155,5 +156,5 @@ function sample(w: World, car: Car, s: number, out: { x: number; z: number; y: n
   // Right of travel direction (dx, dz) with y up is (-dz, dx); diagonals use the unit vector.
   out.x = p0.x + (p1.x - p0.x) * f - dz * lane;
   out.z = p0.z + (p1.z - p0.z) * f + dx * lane;
-  out.y = nodeY(w, n0) + (nodeY(w, n1) - nodeY(w, n0)) * f;
+  out.y = roadY(w, n0, n1, f, out.x, out.z);
 }

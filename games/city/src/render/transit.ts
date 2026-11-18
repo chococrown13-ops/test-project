@@ -4,7 +4,7 @@ import { CELL, N, Road } from '../sim/defs';
 import { BUS_TYPES, type BusType, busCount, busRoute, busTypeOf, type LineKind, STATION_AREA } from '../sim/transit';
 import type { World } from '../sim/world';
 import { shared } from './materials';
-import { nodeCentre, nodeY } from './roadheight';
+import { nodeCentre, roadY } from './roadheight';
 import { roadTypeOf } from '../sim/graph';
 
 const BUS_SPEED = 2.4; // cells per second at 1x
@@ -133,7 +133,7 @@ export class TransitLayer {
   }
 
   private moveVehicles(w: World, time: number) {
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), small = new THREE.Vector3(0.62, 0.85, 0.85), coach = new THREE.Vector3(1.05, 1.15, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), pitch = new THREE.Quaternion(), fwdZ = new THREE.Vector3(0, 0, 1), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), small = new THREE.Vector3(0.62, 0.85, 0.85), coach = new THREE.Vector3(1.05, 1.15, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
     const t = time;
     let nb = 0, nt = 0;
     for (const l of w.lines) {
@@ -147,7 +147,7 @@ export class TransitLayer {
         for (let k = 0; k < n && nb < MAX_BUSES; k++) {
           const s = (t * BUS_SPEED + (k * L) / n) % L;
           const a = along(w, path, s - 0.35, true), b = along(w, path, s + 0.35, true);
-          q.setFromAxisAngle(up, Math.atan2(-(b.z - a.z), b.x - a.x));
+          q.setFromAxisAngle(up, Math.atan2(-(b.z - a.z), b.x - a.x)).multiply(pitch.setFromAxisAngle(fwdZ, Math.atan2(b.y - a.y, Math.hypot(b.x - a.x, b.z - a.z))));
           p.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
           this.buses.setMatrixAt(nb, m.compose(p, q, size));
           this.buses.setColorAt(nb++, c);
@@ -190,11 +190,11 @@ function along(w: World, path: Int32Array, s: number, loop: boolean) {
   const a = nodeCentre(path[i], w), b = nodeCentre(path[i + 1], w);
   const len = Math.hypot(b.x - a.x, b.z - a.z) || 1;
   const dx = (b.x - a.x) / len, dz = (b.z - a.z) / len;
-  const y = nodeY(w, path[i]) + (nodeY(w, path[i + 1]) - nodeY(w, path[i])) * f;
   // Inner lane of an avenue (its 중앙버스전용차로), or the one lane each way of a street.
   const node = path[f < 0.5 ? i : i + 1];
   const lane = roadTypeOf(w, node) === Road.Avenue ? 1.25 : node < w.parked.length && w.parked[node] ? 1.2 : 1.7;
-  return { x: a.x + (b.x - a.x) * f - dz * lane, z: a.z + (b.z - a.z) * f + dx * lane, y };
+  const x = a.x + (b.x - a.x) * f - dz * lane, z = a.z + (b.z - a.z) * f + dx * lane;
+  return { x, z, y: roadY(w, path[i], path[i + 1], f, x, z) };
 }
 
 /** A flat coloured band through points, for route maps. */

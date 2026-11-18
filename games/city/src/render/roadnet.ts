@@ -1,6 +1,7 @@
-import { CELL, ELEVATED_Y, Ground, Level, N, Road } from '../sim/defs';
+import { CELL, Ground, Level, N, Road } from '../sim/defs';
 import { curveInfo, curvePath, HALF_WIDTH, KERB_W } from '../sim/curves';
 import { altNeighbours, forEachNeighbour, NN } from '../sim/graph';
+import { deckHeightAt } from './roadheight';
 import type { World } from '../sim/world';
 import { nearestOnPath, pathAt, pathCrossings, pathLength, splitPath, type Path, type V } from '../../../shared/roads/geom';
 import { type Kind, Network, type RoadType } from '../../../shared/roads/network';
@@ -153,7 +154,6 @@ export function buildCityNetwork(w: World): Network {
  */
 export function buildElevatedNetwork(w: World): { net: Network; heightAt: (x: number, z: number) => number; isRamp: (c: number) => boolean } {
   const net = new Network(CITY_TYPES);
-  const H = ELEVATED_Y;
   const elev = (c: number) => c >= 0 && c < N * N && w.roadAlt[c] !== 0 && w.altLevel[c] === Level.Elevated;
   const nbs = (c: number) => altNeighbours(w, c).filter(elev);
   const rampDir = (c: number) => { const n = nbs(c); if (n.length !== 1) return null; return { x: (n[0] % N) - (c % N), z: ((n[0] / N) | 0) - ((c / N) | 0) }; };
@@ -191,27 +191,6 @@ export function buildElevatedNetwork(w: World): { net: Network; heightAt: (x: nu
     }
   }
   net.simplify();
-  // Deck height: ramps rise across their cell; the deck's edges spill over the cells beside it.
-  const at = (c: number, x: number, z: number) => {
-    const d = rampDir(c);
-    if (!d) return H;
-    const o = nodePos(c);
-    const s = Math.max(0, Math.min(1, ((x - o.x) * d.x + (z - o.z) * d.z) / CELL));
-    return 0.02 + s * (H - 0.02);
-  };
-  const heightAt = (x: number, z: number) => {
-    const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
-    const c = cz * N + cx;
-    if (cx >= 0 && cz >= 0 && cx < N && cz < N && elev(c)) return at(c, x, z);
-    // Off the deck's own cells (its pavement spills over): the nearest deck cell decides.
-    let best = -1, bd = Infinity;
-    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
-      const nx = cx + dx, nz = cz + dz, n = nz * N + nx;
-      if (nx < 0 || nz < 0 || nx >= N || nz >= N || !elev(n)) continue;
-      const p = centre(n), dd = (p.x - x) ** 2 + (p.z - z) ** 2;
-      if (dd < bd) { bd = dd; best = n; }
-    }
-    return best >= 0 ? at(best, x, z) : H;
-  };
+  const heightAt = (x: number, z: number) => deckHeightAt(w, x, z);
   return { net, heightAt, isRamp };
 }
