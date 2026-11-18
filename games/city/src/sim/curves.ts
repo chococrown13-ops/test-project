@@ -222,7 +222,7 @@ export function nearestCurve(w: World, x: number, z: number, max: number) {
 
 /** Why a curve can't run here (beyond what placeRoad checks), or null. */
 export function curveProblem(w: World, c: Pick<Curve, 'ax' | 'az' | 'cx' | 'cz' | 'bx' | 'bz' | 't'>, cells: number[]): string | null {
-  if (cells.length < 3) return '곡선 도로는 세 칸 이상 떨어진 두 점을 이어야 해요.';
+  if (cells.length < 3) return '세 칸 이상 떨어진 두 점을 이어 주세요.';
   const len = bezLength(c), chord = Math.hypot(c.bx - c.ax, c.bz - c.az);
   if (len > chord * 1.9) return '너무 심하게 휘었어요. 굽힘을 줄여 주세요.';
   // One curve turns at most 150°: a U-turn is two curves (or a block round).

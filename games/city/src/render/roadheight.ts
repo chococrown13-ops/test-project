@@ -46,13 +46,23 @@ export function nodeCentre(node: number, w?: World) {
  */
 export function deckHeightAt(w: World, x: number, z: number): number {
   const elev = (c: number) => c >= 0 && c < NN && w.roadAlt[c] !== 0 && w.altLevel[c] === Level.Elevated;
+  const nbs = (c: number) => altNeighbours(w, c).filter(elev);
+  // Ramps are two cells: the end cell (step 0) and the one inside it (step 1). The deck climbs
+  // steadily over both, from the ground at the end cell's outer edge to full height 20 m on.
   const at = (c: number) => {
-    const nb = altNeighbours(w, c).filter(elev);
-    if (nb.length !== 1) return ELEVATED_Y;
-    const dx = (nb[0] % N) - (c % N), dz = ((nb[0] / N) | 0) - ((c / N) | 0);
+    const nb = nbs(c);
+    let step: number, from: number;
+    if (nb.length === 1) { step = 0; from = nb[0]; }
+    else {
+      const end = nb.find((n) => nbs(n).length === 1);
+      if (end === undefined || nb.length !== 2) return ELEVATED_Y;
+      step = 1; from = nb.find((n) => n !== end)!;
+    }
+    // Inward: toward `from` (the deck side).
+    const dx = (from % N) - (c % N), dz = ((from / N) | 0) - ((c / N) | 0);
     const ox = (c % N) * CELL + CELL / 2 - dx * CELL / 2, oz = ((c / N) | 0) * CELL + CELL / 2 - dz * CELL / 2;
     const s = Math.max(0, Math.min(1, ((x - ox) * dx + (z - oz) * dz) / CELL));
-    return 0.02 + s * (ELEVATED_Y - 0.02);
+    return 0.02 + Math.min(1, (step + s) / 2) * (ELEVATED_Y - 0.02);
   };
   const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
   if (cx >= 0 && cz >= 0 && cx < N && cz < N && elev(cz * N + cx)) return at(cz * N + cx);
