@@ -72,7 +72,7 @@ function shopHouse(P: Put, floors: number, r: () => number, ground: string) {
     P('box', sx, k * 3 + 2.05, -3.95, sw, 0.85, 0.3, k === 0 ? ground : pick(SIGNS, r()), STYLE.sign);
     P('box', sx, k * 3 + 2.3, -4.12, sw * 0.6, 0.35, 0.08, '#f6f1e4');
   }
-  P('box', 3.9, 3.4, -4.6, 0.3, Math.min(h - 3.6, 4), 1.2, pick(SIGNS, r()), STYLE.sign);
+  P('box', 3.9, 3.4, -4.3, 0.3, Math.min(h - 3.6, 4), 1.2, pick(SIGNS, r()), STYLE.sign);
   P('box', 0, h, 0.3, 8.6, 0.25, 8.2, ROOFGREEN);
   roofLife(P, h, r, -1, 0.5);
 }
@@ -106,8 +106,7 @@ function avenueShift(w: World, b: Building): { x: number; z: number } {
 function rawParts(b: Building, w: World): Part[] {
   const r = seq(b.look + b.id * 0.0137);
   const S = b.size * CELL;
-  const sh = avenueShift(w, b);
-  const cx = b.x * CELL + S / 2 + sh.x, cz = b.y * CELL + S / 2 + sh.z;
+  const cx = b.x * CELL + S / 2, cz = b.y * CELL + S / 2;
   const out: Part[] = [];
   const box = (x: number, y: number, z: number, sx: number, sy: number, sz: number, color: string, style = STYLE.plain, sign?: string, rot = 0) =>
     out.push({ shape: 'box', x: cx + x, y, z: cz + z, sx, sy, sz, rot, color, style, sign });
@@ -153,10 +152,10 @@ function rawParts(b: Building, w: World): Part[] {
         const sx = r() < 0.5 ? -1 : 1;
         P('box', sx * 3, 0, -1.6, 2.8, 0.4, 3.4, STONE);
         P('box', sx * 3, 0.4, -1.6, 2, 2.2, 3, PLASTER, STYLE.hanok);
-        P('hanok', sx * 3, 2.6, -1.6, 4.2, 1.5, 3, roof, Math.PI / 2);
-        P('box', -sx * 1, 0, -4.7, 7.6, 1.5, 0.35, '#d6cab1');
-        P('box', -sx * 1, 1.5, -4.7, 7.9, 0.25, 0.7, roof);
-        P('box', -sx * 3.9, 0, -4.7, 0.5, 2.2, 0.5, TIMBER);
+        P('hanok', sx * 3, 2.6, -1.6, 4.2, 1.5, 3, roof, STYLE.plain, Math.PI / 2);
+        P('box', -sx * 1, 0, -4.6, 7.6, 1.5, 0.35, '#d6cab1');
+        P('box', -sx * 1, 1.5, -4.6, 7.7, 0.25, 0.7, roof);
+        P('box', -sx * 3.9, 0, -4.6, 0.5, 2.2, 0.5, TIMBER);
       }
       break;
     }
@@ -200,7 +199,7 @@ function rawParts(b: Building, w: World): Part[] {
       // The trade decides the ground-floor sign: 편의점, 치킨집, 카페, PC방, 노래방, 부동산, 분식집.
       const v = variantOf('c1', b.look);
       shopHouse(P, b.floors, r, C1_SIGN[v]);
-      if (v === 2) P('prism', 0, 2.5, -4.5, 7, 0.6, 1.2, '#2f5a43'); // café awning
+      if (v === 2) P('prism', 0, 2.5, -4.3, 7, 0.6, 1.2, '#2f5a43'); // café awning
       break;
     }
     case 'c2': {
@@ -242,7 +241,7 @@ function rawParts(b: Building, w: World): Part[] {
       const roof = pick(['#4a78a8', '#4a78a8', '#5d86b2', '#3f6f9f'], r());
       for (let k = 0; k < 2; k++) P('gable', 0, h, -2.15 + k * 4.3, 9.2, 1.6, 4.4, roof);
       if (big) P('cyl', 3.4, 0, 3.4, 1.2, h + 9, 1.2, '#b25b44');
-      else if (r() < 0.5) P('cyl', -3.2, 0, -4.8, 2.2, 3.2, 2.2, '#d1d6d9');
+      else if (r() < 0.5) P('cyl', -3.2, 0, 3.4, 2.2, 3.2, 2.2, '#d1d6d9');
       break;
     }
     case 'i3': {
@@ -273,6 +272,21 @@ function rawParts(b: Building, w: World): Part[] {
         shape('cyl', px, 0, pz, 9, 2.4, 9, '#c7cfd4');
         shape('cyl', px, 2.4, pz, 8, 0.05, 8, '#4a8db5');
       }
+      break;
+    }
+    case 'well': {
+      // 지하수 관정: a pump house, a raised steel tank, and the capped well heads with their pipes.
+      box(-4, 0, -3, 7, 3.4, 6, '#e3ded2', STYLE.factory);
+      shape('gable', -4, 3.4, -3, 7.4, 1.4, 6.4, '#3f6f9f');
+      for (const [px, pz] of [[-5, 5.5], [5, 6.5], [6.5, -6.5]]) {
+        box(px, 0, pz, 2.2, 0.3, 2.2, '#b9b4ab');
+        shape('cyl', px, 0.3, pz, 0.8, 1.3, 0.8, '#2f77b5');
+      }
+      box(1, 0.5, 6, 8, 0.25, 0.25, '#8d9399');
+      box(5.5, 0.5, -1, 0.25, 0.25, 11, '#8d9399');
+      for (const [px, pz] of [[3, -6.5], [8, -6.5], [3, -1.5], [8, -1.5]]) box(px, 0, pz, 0.4, 6, 0.4, '#8d9399');
+      shape('cyl', 5.5, 6, -4, 6, 3.6, 6, '#dfe6ea');
+      shape('cyl', 5.5, 9.6, -4, 6.2, 0.3, 6.2, '#2f77b5');
       break;
     }
     case 'sewage': {
@@ -404,13 +418,35 @@ function rawParts(b: Building, w: World): Part[] {
  * since a block reads the same every quarter turn), shrunk so the turned
  * footprint still fits its lot, and nudged back off the pavement.
  */
-function parts(b: Building, w: World): Part[] {
+export function parts(b: Building, w: World): Part[] {
+  return squeeze(b, w, lotParts(b, w));
+}
+
+/**
+ * Beside an avenue the building gives up the strip its pavement spills over:
+ * squeezed toward the back of the lot (not pushed, which would put it on the neighbour's).
+ */
+function squeeze(b: Building, w: World, out: Part[]): Part[] {
+  const sh = avenueShift(w, b);
+  if (!sh.x && !sh.z) return out;
+  const Wm = bw(b) * CELL, Dm = bh(b) * CELL, cx = b.x * CELL + Wm / 2, cz = b.y * CELL + Dm / 2;
+  const kx = (Wm - Math.abs(sh.x)) / Wm, kz = (Dm - Math.abs(sh.z)) / Dm;
+  for (const p of out) {
+    p.x = cx + sh.x / 2 + (p.x - cx) * kx;
+    p.z = cz + sh.z / 2 + (p.z - cz) * kz;
+    const c = Math.abs(Math.cos(p.rot)), sn = Math.abs(Math.sin(p.rot));
+    const fx = c * kx + sn * kz, fz = c * kz + sn * kx;
+    p.sx *= fx; p.sz *= fz;
+  }
+  return out;
+}
+
+function lotParts(b: Building, w: World): Part[] {
   if (bw(b) !== b.size || bh(b) !== b.size) return stretched(b, w);
   const out = rawParts(b, w);
   if (!KINDS[b.kind].zone || !w.curves.length) return out;
   const S = b.size * CELL;
-  const sh = avenueShift(w, b);
-  const cx = b.x * CELL + S / 2 + sh.x, cz = b.y * CELL + S / 2 + sh.z;
+  const cx = b.x * CELL + S / 2, cz = b.y * CELL + S / 2;
   const near = nearestCurve(w, cx, cz, S / 2 + 9);
   if (!near) return out;
   const a = network(w).access.get(b.id);
@@ -443,8 +479,8 @@ function parts(b: Building, w: World): Part[] {
  * 다세대, a shop a row of shopfronts, two apartment slabs longer 동.
  */
 function stretched(b: Building, w: World): Part[] {
-  if (b.kind === 'r3') return complex(b, w);
-  if (b.kind === 'c3') return officeBlock(b, w);
+  if (b.kind === 'r3') return complex(b);
+  if (b.kind === 'c3') return officeBlock(b);
   const W = bw(b), D = bh(b), base = b.size;
   const out = rawParts({ ...b, x: b.x + (W - base) / 2, y: b.y + (D - base) / 2 }, w);
   const cx = (b.x + W / 2) * CELL, cz = (b.y + D / 2) * CELL;
@@ -463,11 +499,10 @@ function stretched(b: Building, w: World): Part[] {
  * side (two to a row on a long plot), or a grid of 탑상형 towers, one per
  * cell. A bigger block gets more 동, not fatter ones.
  */
-function complex(b: Building, w: World): Part[] {
+function complex(b: Building): Part[] {
   const r = seq(b.look + b.id * 0.0137);
   const Wm = bw(b) * CELL, Dm = bh(b) * CELL;
-  const sh = avenueShift(w, b);
-  const cx = b.x * CELL + Wm / 2 + sh.x, cz = b.y * CELL + Dm / 2 + sh.z;
+  const cx = b.x * CELL + Wm / 2, cz = b.y * CELL + Dm / 2;
   const H = b.floors * 3;
   const col = pick(APT, r()), brand = pick(BRAND, r());
   const out: Part[] = [];
@@ -510,11 +545,10 @@ function complex(b: Building, w: World): Part[] {
 }
 
 /** Office plots: a podium over the whole lot, with a tower for every two cells of frontage. */
-function officeBlock(b: Building, w: World): Part[] {
+function officeBlock(b: Building): Part[] {
   const r = seq(b.look + b.id * 0.0137);
   const Wm = bw(b) * CELL, Dm = bh(b) * CELL;
-  const sh = avenueShift(w, b);
-  const cx = b.x * CELL + Wm / 2 + sh.x, cz = b.y * CELL + Dm / 2 + sh.z;
+  const cx = b.x * CELL + Wm / 2, cz = b.y * CELL + Dm / 2;
   const H = b.floors * 3;
   const out: Part[] = [];
   const box = (x: number, y: number, z: number, sx: number, sy: number, sz: number, color: string, style = STYLE.plain, sign?: string) =>

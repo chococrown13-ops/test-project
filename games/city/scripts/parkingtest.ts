@@ -52,14 +52,14 @@ let hot = -1, best = 0;
 // The worst neighbourhood: most unmet parking within a tower's reach.
 for (let i = 0; i < w.parkPress.length; i++) {
   if (w.road[i] || !w.parkPress[i]) continue;
-  const x0 = i % 128, y0 = (i / 128) | 0;
+  const x0 = i % N, y0 = (i / N) | 0;
   let sum = 0;
-  for (let dy = -5; dy <= 5; dy++) for (let dx = -5; dx <= 5; dx++) { const x = x0 + dx, y = y0 + dy; if (x >= 0 && y >= 0 && x < 128 && y < 128 && !w.road[idx(x, y)]) sum += w.parkPress[idx(x, y)]; }
+  for (let dy = -5; dy <= 5; dy++) for (let dx = -5; dx <= 5; dx++) { const x = x0 + dx, y = y0 + dy; if (x >= 0 && y >= 0 && x < N && y < N && !w.road[idx(x, y)]) sum += w.parkPress[idx(x, y)]; }
   if (sum > best) { best = sum; hot = i; }
 }
 let placed = false;
 if (hot >= 0) {
-  const hx = hot % 128, hy = (hot / 128) | 0;
+  const hx = hot % N, hy = (hot / N) | 0;
   outer: for (let r = 0; r < 6; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
     const x = hx + dx, y = hy + dy;
     if (!w.road[idx(x, y)] && w.bld[idx(x, y)] >= 0 && !placeFacility(w, 'parktower', x, y)) { placed = true; break outer; }

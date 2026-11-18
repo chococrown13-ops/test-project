@@ -1,3 +1,5 @@
+import { deflateSync, inflateSync, strFromU8, strToU8 } from 'three/examples/jsm/libs/fflate.module.js';
+import { N } from './defs';
 import { createWorld, type World } from './world';
 
 const KEY = 'city.save.v1';
@@ -56,10 +58,21 @@ export function deserialize(json: string): World {
   return w;
 }
 
+/** Saves are deflated (a 256 x 256 city is several MB of JSON, past what localStorage holds), marked with a leading 'Z'. */
+export function pack(w: World): string {
+  return 'Z' + b64(deflateSync(strToU8(serialize(w)), { level: 6 }));
+}
+export function unpack(s: string): World | null {
+  const json = s.startsWith('Z') ? strFromU8(inflateSync(unb64(s.slice(1), (b) => new Uint8Array(b)))) : s;
+  const w = deserialize(json);
+  // A save from the smaller 128 x 128 map doesn't fit this one.
+  return w.ground.length === N * N ? w : null;
+}
+
 export function saveLocal(w: World): boolean {
-  try { localStorage.setItem(KEY, serialize(w)); return true; } catch { return false; }
+  try { localStorage.setItem(KEY, pack(w)); return true; } catch { return false; }
 }
 export function loadLocal(): World | null {
-  try { const s = localStorage.getItem(KEY); return s ? deserialize(s) : null; } catch { return null; }
+  try { const s = localStorage.getItem(KEY); return s ? unpack(s) : null; } catch { return null; }
 }
 export function clearLocal() { try { localStorage.removeItem(KEY); } catch { /* ignore */ } }

@@ -86,7 +86,8 @@ export function waterMask(seed: number, kind: MapKind): Uint8Array {
       }
       case 'island': {
         const a = Math.atan2(y - N / 2, x - N / 2);
-        const r = N * 0.4 + (vnoise(Math.cos(a) * 2.5 + o, Math.sin(a) * 2.5) - 0.5) * 14;
+        // A ring of sea about 14 cells wide whatever the map size, so the expressway link from the west edge lands on it.
+        const r = N / 2 - 14 + (vnoise(Math.cos(a) * 2.5 + o, Math.sin(a) * 2.5) - 0.5) * 14;
         wet = Math.hypot(x - N / 2, y - N / 2) > r;
         break;
       }
