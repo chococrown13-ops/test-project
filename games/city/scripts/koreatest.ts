@@ -24,9 +24,9 @@ for (const t of tiles) {
   const w = createRealWorld(1, 't', { cells, row: t.row, id: t.id, name: info.name, prov: info.prov, lat: t.lat, lon: t.lon });
   check(`${t.id} start road on flat land`, [...Array(23).keys()].every((x) => w.ground[idx(x, t.row)] === Ground.Land));
   if (!hasOpenWater(w)) noWater++;
-  // Somewhere for a water plant reachable from the road.
+  // Somewhere for a water plant (or a well) reachable from the road.
   let spot = false;
-  for (let i = 0; i < N * N && !spot; i += 3) if (!placeProblem(w, 'water', i % N, (i / N) | 0)) spot = true;
+  for (let i = 0; i < N * N && !spot; i += 3) if (!placeProblem(w, 'water', i % N, (i / N) | 0) || !placeProblem(w, 'well', i % N, (i / N) | 0)) spot = true;
   check(`${t.id} room for a water plant`, spot);
 }
 console.log('tiles without open water (wells allowed):', noWater);
