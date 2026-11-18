@@ -2,7 +2,8 @@ import { CELL, Ground, KINDS, N, Road } from './defs';
 // Not imported from graph.ts: graph.ts asks this module which links are real.
 const NN = N * N;
 import type { World } from './world';
-import { fillet, minRadius, pathAt, pathLength, type Path } from '../../../shared/roads/geom';
+import { curveMeetProblem, MIN_MEET_DEG, roundaboutCells } from './roundabout';
+import { fillet, minRadius, nearestOnPath, pathAt, pathLength, type Path } from '../../../shared/roads/geom';
 
 /**
  * Curved roads. A curve runs from the centre of cell A toward a bend point
@@ -159,7 +160,7 @@ let cacheW: World | null = null, cacheVer = -1, cacheN = -1, cache: CurveInfo | 
 
 /** Derived per-cell facts about the curves, rebuilt when the roads change. */
 export function curveInfo(w: World): CurveInfo {
-  if (cache && cacheW === w && cacheVer === w.ver.roads && cacheN === w.curves.length) return cache;
+  if (cache && cacheW === w && cacheVer === w.ver.roads && cacheN === w.curves.length + w.roundabouts.length * 1000) return cache;
   const owned = new Uint8Array(NN), cover = new Uint8Array(NN);
   const px = new Float32Array(NN), pz = new Float32Array(NN);
   const links = new Set<string>();
@@ -174,9 +175,26 @@ export function curveInfo(w: World): CurveInfo {
     for (const i of coverCells(c)) if (!w.road[i]) cover[i] = 1;
     for (let k = 1; k < c.cells.length; k++) links.add(lk(c.cells[k - 1], c.cells[k]));
   }
-  // Roads meeting a curve from the side: each joins at its nearest chain cell only.
+  for (const rb of w.roundabouts) for (const i of roundaboutCells(rb)) if (!w.road[i]) cover[i] = 1;
+  // Roads meeting a curve from the side: each joins at its nearest chain cell only. A road running
+  // alongside (within the shallowest meeting angle of the curve) does not join it: it just passes by.
+  const anyChain = chain;
+  const parallel = (j: number, d: { x: number; z: number }) => {
+    const x = j % N, y = (j / N) | 0;
+    let n = 0, along = 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= N || ny >= N) continue;
+      const k = ny * N + nx;
+      if (!w.road[k] || anyChain[k] || owned[k]) continue;
+      n++;
+      if (Math.abs(dx * d.x + dy * d.z) > Math.cos((MIN_MEET_DEG * Math.PI) / 180)) along++;
+    }
+    return n > 0 && along === n;
+  };
   for (const c of w.curves) {
     const chain = new Set(c.cells);
+    const path = curvePath(c).path;
     const best = new Map<number, { i: number; d: number }>();
     for (const i of c.own) {
       const x = i % N, y = (i / N) | 0;
@@ -190,9 +208,12 @@ export function curveInfo(w: World): CurveInfo {
         if (!b || d < b.d) best.set(j, { i, d });
       }
     }
-    best.forEach(({ i }, j) => links.add(lk(i, j)));
+    best.forEach(({ i }, j) => {
+      const q = nearestOnPath(path, { x: px[i], z: pz[i] });
+      if (!parallel(j, pathAt(path, q.t).d)) links.add(lk(i, j));
+    });
   }
-  cacheW = w; cacheVer = w.ver.roads; cacheN = w.curves.length; cache = { owned, cover, px, pz, links, chain };
+  cacheW = w; cacheVer = w.ver.roads; cacheN = w.curves.length + w.roundabouts.length * 1000; cache = { owned, cover, px, pz, links, chain };
   return cache;
 }
 
@@ -237,7 +258,7 @@ export function curveProblem(w: World, c: Pick<Curve, 'ax' | 'az' | 'cx' | 'cz' 
     if (id >= 0 && !KINDS[w.buildings.get(id)!.kind].zone) return '곡선 도로가 시설물과 겹쳐요.';
     if (w.ground[i] === Ground.Mountain && !w.road[i]) return '곡선 도로가 산에 걸려요.';
   }
-  return null;
+  return curveMeetProblem(w, curvePath(c).path, cells);
 }
 
 /** Curves stay only while every cell of their chain is still a road. */

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { CELL, ELEVATED_Y, Ground, Level, N, Road } from '../sim/defs';
 import { altNeighbours, rampExit } from '../sim/graph';
-import { buildCityNetwork, buildElevatedNetwork } from './roadnet';
+import { buildCityNetwork, buildElevatedNetwork, RING } from './roadnet';
+import { ringOf, type Roundabout } from '../sim/roundabout';
 import { left, offsetPoint, samplePath } from '../../../shared/roads/geom';
 import { buildRoadMeshes } from '../../../shared/roads/mesh';
 import { buildGeometry, type Geometry, type Network } from '../../../shared/roads/network';
@@ -166,6 +167,7 @@ export class RoadLayer {
       colours: { asphalt: hex(ASPHALT[Road.Street]), avenue: hex(ASPHALT[Road.Avenue]), pavement: hex(WALK), yellow: hex(YELLOW), white: hex(WHITE) },
       busAt: (x, z) => { const i = cellAt(x, z); return i >= 0 && bus.cells.has(i) && !water(x, z); },
       materials: { asphalt: this.material, pavement: this.material, paint: this.paintMat },
+      plain: (e) => e.tag === RING,
       lamp: (x, z, ang) => {
         if (lamps >= N * N || water(x, z)) return;
         m.makeTranslation(x, SW, z);
@@ -177,6 +179,7 @@ export class RoadLayer {
     }, geo);
     // Where a road crosses water: a deck under it, rails along its edges, piers below.
     bridges(b, w, net, geo);
+    for (const rb of w.roundabouts) island(b, rb);
     // Flyovers: the same road drawing lifted onto concrete decks with parapets and piers.
     const fly = buildElevatedNetwork(w);
     const flyGeo = buildGeometry(fly.net);
@@ -311,6 +314,34 @@ function bridges(b: Builder, w: World, net: Network, geo: Geometry) {
         wall(k, sd * (edge + 0.05), SW, 1.0, 0xd6d4ce, -sd);
       }
       if (P[k].t > nextPier) { nextPier = P[k].t + 14; b.box(P[k].p.x - 1, -6, P[k].p.z - 1, P[k].p.x + 1, -1.6, P[k].p.z + 1, 0x8c8a84); }
+    }
+  }
+}
+
+const GRASS = 0x7fae55, LEAF = 0x4f8a3c, TRUNK = 0x6b5440;
+/** A roundabout's island: a raised kerb ring round a grass mound, and a pine in the middle. */
+function island(b: Builder, rb: Roundabout) {
+  const g = ringOf(rb), seg = 40;
+  const at = (r: number, k: number, y: number) => [g.x + Math.cos((k / seg) * Math.PI * 2) * r, y, g.z + Math.sin((k / seg) * Math.PI * 2) * r];
+  const r0 = g.island, r1 = g.island - 1.5, KH = SW + 0.04, GH = SW + 0.25;
+  for (let k = 0; k < seg; k++) {
+    // Kerb face, kerb top, then the grass.
+    b.tri(at(r0, k, Y), at(r0, k + 1, Y), at(r0, k + 1, KH), WALK, [Math.cos(((k + 0.5) / seg) * Math.PI * 2), 0, Math.sin(((k + 0.5) / seg) * Math.PI * 2)], 0.85);
+    b.tri(at(r0, k, Y), at(r0, k + 1, KH), at(r0, k, KH), WALK, [Math.cos(((k + 0.5) / seg) * Math.PI * 2), 0, Math.sin(((k + 0.5) / seg) * Math.PI * 2)], 0.85);
+    b.tri(at(r0, k, KH), at(r0, k + 1, KH), at(r1, k + 1, KH), WALK, [0, 1, 0]);
+    b.tri(at(r0, k, KH), at(r1, k + 1, KH), at(r1, k, KH), WALK, [0, 1, 0]);
+    b.tri(at(r1, k, KH), at(r1, k + 1, KH), [g.x, GH + 0.6, g.z], GRASS, [0, 1, 0]);
+  }
+  // 소나무: trunk and three tiers of needles.
+  b.box(g.x - 0.35, GH, g.z - 0.35, g.x + 0.35, GH + 3, g.z + 0.35, TRUNK);
+  for (const [y0, r, h] of [[GH + 2, 3.2, 3], [GH + 3.8, 2.4, 2.6], [GH + 5.3, 1.5, 2.2]]) {
+    const n = 8;
+    for (let k = 0; k < n; k++) {
+      const a0 = (k / n) * Math.PI * 2, a1 = ((k + 1) / n) * Math.PI * 2;
+      const p0 = [g.x + Math.cos(a0) * r, y0, g.z + Math.sin(a0) * r], p1 = [g.x + Math.cos(a1) * r, y0, g.z + Math.sin(a1) * r];
+      const am = (a0 + a1) / 2;
+      b.tri(p0, p1, [g.x, y0 + h, g.z], LEAF, [Math.cos(am), 0.6, Math.sin(am)], 0.9 + 0.1 * Math.cos(am));
+      b.tri(p0, p1, [g.x, y0, g.z], LEAF, [0, -1, 0], 0.6);
     }
   }
 }

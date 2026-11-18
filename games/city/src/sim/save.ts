@@ -38,6 +38,7 @@ export function deserialize(json: string): World {
   for (const k of ['edu', 'safety', 'fire', 'health', 'transit'] as const) w[k] = o[k] ? unb64(o[k], (b) => new Uint8Array(b)) : new Uint8Array(w.ground.length);
   w.lines ??= [];
   w.curves ??= [];
+  w.roundabouts ??= [];
   w.map ??= 'river';
   if (o.real) w.real = { ...o.real, cells: unb64(o.real.cells, (b) => new Uint8Array(b)) };
   w.noAvenueParking ??= false;

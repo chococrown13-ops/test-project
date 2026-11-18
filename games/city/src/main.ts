@@ -3,11 +3,12 @@ import { CELL, Ground, KINDS, Level, LEVEL_NAME, N, Road, SERVICE, Zone } from '
 import { loadLocal, saveLocal } from './sim/save';
 import { updateParking } from './sim/parking';
 import { createSim, tick, type Sim } from './sim/sim';
-import { altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
+import { altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeRoundabout, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
 import { buildCityNetwork, buildElevatedNetwork } from './render/roadnet';
 import { findAccess, network } from './sim/network';
 import { hasOpenWater } from './sim/tools';
 import { BUS_TYPES, type BusType, createLine, removeLine, STOP_RADIUS, stopProblem, type LineKind } from './sim/transit';
+import { gridMeetProblem, ringOf, roundaboutCells, roundaboutProblem, roundaboutType, ROUNDABOUT_COST } from './sim/roundabout';
 import { bez, curveProblem, HALF_WIDTH, nearestCurve, snapControl } from './sim/curves';
 import { createRealWorld, createWorld, idx, startRowOf } from './sim/world';
 import { drawPreview, drawTiles, loadIndex, loadTile, savedDraw, storeDraw, type Draw } from './ui/korea';
@@ -291,18 +292,27 @@ function preview() {
   if (!hover || tool === 'select' || !def) { p.clear(); hideTip(); return; }
   const a = drag ? { x: drag.sx, y: drag.sy } : hover;
   const b = hover;
+  if (def.roundabout) {
+    const i = idx(b.x, b.y), why = roundaboutProblem(w, i), t = roundaboutType(w, i);
+    p.path([], 0, '');
+    p.show(w.road[i] ? roundaboutCells({ cell: i, t }) : [i], why ? '#ff5a5a' : '#c6f0ff', 0.3);
+    p.ringAt((b.x + 0.5) * CELL, (b.y + 0.5) * CELL, w.road[i] ? ringOf({ cell: i, t }).outer : 0);
+    showTip(b.px, b.py, why ?? `회전교차로${t === Road.Avenue ? ' (대로용)' : ''}, ${won(ROUNDABOUT_COST[t])} · 얕은 각도로 엇갈리는 길은 여기서만 만날 수 있어요`, !!why);
+    return;
+  }
   if (def.road !== undefined && (roadMode === 'curve' || roadMode === 'free')) { previewCurve(def.road, a, b); return; }
   p.path([], 0, '');
   if (def.road !== undefined) {
     const cells = (roadMode === 'diag' ? diagonalPath : roadPath)(a.x, a.y, b.x, b.y);
     const cost = roadCost(w, cells, def.road);
     const hill = cells.some((i) => w.ground[i] === Ground.Mountain);
-    const bad = hill || roadBlocked(w, cells) || cost > w.money;
+    const meet = gridMeetProblem(w, cells);
+    const bad = hill || roadBlocked(w, cells) || cost > w.money || !!meet;
     // Allowed, but a road touching no other road is cut off from the city: say so while dragging.
     const loose = !bad && !cells.some((i) => { const x = i % N, y = (i / N) | 0; return w.road[i] || [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => x + dx >= 0 && y + dy >= 0 && x + dx < N && y + dy < N && !!w.road[idx(x + dx, y + dy)]); });
     p.show(cells, bad ? '#ff5a5a' : loose ? '#ffb347' : def.road === Road.Avenue ? '#8fd0ff' : '#c6f0ff');
     const len = `${roadMode === 'diag' ? '대각선 ' : ''}${Math.round(cells.length * 10)}m, ${won(cost)}`;
-    showTip(b.px, b.py, hill ? '산은 터널로만 지날 수 있어요' : roadBlocked(w, cells) ? '시설과 겹쳐서 놓을 수 없어요' : cost > w.money ? `예산이 부족해요, ${won(cost)} 필요` : loose ? `기존 도로와 이어지지 않아요 · ${len}` : len, bad || loose);
+    showTip(b.px, b.py, meet ?? (hill ? '산은 터널로만 지날 수 있어요' : roadBlocked(w, cells) ? '시설과 겹쳐서 놓을 수 없어요' : cost > w.money ? `예산이 부족해요, ${won(cost)} 필요` : loose ? `기존 도로와 이어지지 않아요 · ${len}` : len), bad || loose);
     return;
   }
   if (def.level) {
@@ -386,6 +396,7 @@ function commit() {
   const w = sim.w;
   const a = { x: drag.sx, y: drag.sy }, b = { x: drag.cx, y: drag.cy };
   let err: string | null = null;
+  if (def.roundabout) { err = placeRoundabout(w, idx(b.x, b.y)); if (err) toast(err, 'warn'); return; }
   if (def.road !== undefined && roadMode === 'free') {
     // Release lays it: a curve whose bend sits halfway, so it's dead straight.
     const ia = idx(a.x, a.y), ib = idx(b.x, b.y);
@@ -670,7 +681,7 @@ function frame(t: number) {
 requestAnimationFrame(frame);
 
 // Debug/test hook.
-(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, setTool, setSpeed, tools: { placeRoad, placeCurve, curveOf, roadPath, paintZone, rectCells, placeFacility, createLine, placeAltRoad }, roadnet: () => buildCityNetwork(sim.w), flynet: () => buildElevatedNetwork(sim.w),
+(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, setTool, setSpeed, tools: { placeRoundabout, placeRoad, placeCurve, curveOf, roadPath, paintZone, rectCells, placeFacility, createLine, placeAltRoad }, roadnet: () => buildCityNetwork(sim.w), flynet: () => buildElevatedNetwork(sim.w),
   /** For automated play: a fresh 가상 지형 world, and the sim's own tick. */
   useWorld: (seed: number) => useWorld(createWorld(seed)),
   /** Why zoned buildings by curves do or don't turn to face them (diagnostics). */

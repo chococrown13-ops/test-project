@@ -1,5 +1,6 @@
 import { Ground, KINDS, N, Road, Zone } from './defs';
 import { curveInfo } from './curves';
+import { roundaboutAt } from './roundabout';
 import { NN, forEachNeighbour } from './graph';
 import { network } from './network';
 import { bh, bw, type Building, type World } from './world';
@@ -12,8 +13,8 @@ import { bh, bw, type Building, type World } from './world';
  * to the traffic, and a lot that can't park its people is worth less.
  */
 
-/** Kerb spaces on one straight road cell, two each side. */
-export const CURB_SPACES = 4;
+/** Kerb spaces on one straight road cell: two on one side, one on the other (driveways and hydrants take the rest). */
+export const CURB_SPACES = 3;
 /** Spaces in each parking facility. */
 export const LOT_SPACES: Partial<Record<string, number>> = { parking: 40, parktower: 160 };
 
@@ -37,6 +38,8 @@ export function curbCapacity(w: World, i: number): number {
   if (t === Road.Avenue && w.noAvenueParking) return 0;
   // No kerb parking anywhere along a curve: the cars would sit square to a bending road.
   if (curveInfo(w).chain[i]) return 0;
+  // Nor on a roundabout.
+  if (w.roundabouts.length && roundaboutAt(w, (i % N) * 10 + 5, ((i / N) | 0) * 10 + 5, 5)) return 0;
   const x = i % N, y = (i / N) | 0;
   const r = (dx: number, dy: number) => { const nx = x + dx, ny = y + dy; return nx >= 0 && ny >= 0 && nx < N && ny < N && !!w.road[ny * N + nx]; };
   const e = r(1, 0), wv = r(-1, 0), n = r(0, -1), s = r(0, 1);

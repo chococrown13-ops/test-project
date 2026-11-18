@@ -2,8 +2,9 @@ import { CELL, Ground, Level, N, Road } from '../sim/defs';
 import { curveInfo, curvePath, HALF_WIDTH, KERB_W } from '../sim/curves';
 import { altNeighbours, forEachNeighbour, NN } from '../sim/graph';
 import { deckHeightAt } from './roadheight';
+import { ringOf } from '../sim/roundabout';
 import type { World } from '../sim/world';
-import { nearestOnPath, pathAt, pathCrossings, pathLength, splitPath, type Path, type Seg, type V } from '../../../shared/roads/geom';
+import { nearestOnPath, pathAt, pathCrossings, pathLength, samplePath, splitPath, type Path, type Seg, type V } from '../../../shared/roads/geom';
 import { type Kind, Network, type RoadType } from '../../../shared/roads/network';
 
 /**
@@ -197,7 +198,96 @@ export function buildCityNetwork(w: World): Network {
     }
   }
   net.simplify();
+  if (w.roundabouts.length) { addRoundabouts(net, w); net.simplify(); }
   return net;
+}
+
+/** Edge tag of a roundabout's ring. */
+export const RING = 'ring';
+
+/**
+ * Each 회전교차로: every road reaching inside its ring is cut where it meets
+ * the ring's centreline and ends there at a junction; the ring itself runs
+ * round between those junctions as arcs. Roads meeting the ring too close
+ * together share one mouth.
+ */
+function addRoundabouts(net: Network, w: World) {
+  for (const rb of w.roundabouts) {
+    const g = ringOf(rb), C = { x: g.x, z: g.z }, R = g.rc;
+    const ringKind: Kind = rb.t === Road.Avenue ? 'avenue' : 'street';
+    const off = (p: V) => Math.hypot(p.x - C.x, p.z - C.z) - R;
+    const entries: { a: number; node: number }[] = [];
+    const entry = (p: V) => {
+      const a = Math.atan2(p.z - C.z, p.x - C.x);
+      const n = net.node({ x: C.x + Math.cos(a) * R, z: C.z + Math.sin(a) * R });
+      entries.push({ a, node: n.id });
+      return n.id;
+    };
+    for (const e of [...net.edges.values()]) {
+      const L = pathLength(e.path);
+      const s = samplePath(e.path, 0, L, 0.5, true);
+      if (!s.some((q) => off(q.p) < 0)) continue;
+      const cuts = [0];
+      for (let i = 1; i < s.length; i++) {
+        const d0 = off(s[i - 1].p), d1 = off(s[i].p);
+        if ((d0 < 0) !== (d1 < 0)) cuts.push(s[i - 1].t + (s[i].t - s[i - 1].t) * (d0 / (d0 - d1)));
+      }
+      cuts.push(L);
+      net.edges.delete(e.id);
+      net.version++;
+      for (let k = 1; k < cuts.length; k++) {
+        const t0 = cuts[k - 1], t1 = cuts[k];
+        if (t1 - t0 < 0.3 || off(pathAt(e.path, (t0 + t1) / 2).p) < 0) continue;
+        const piece = splitPath(splitPath(e.path, t0)[1], t1 - t0)[0];
+        const a = k === 1 ? e.a : entry(pathAt(e.path, t0).p);
+        const b = k === cuts.length - 1 ? e.b : entry(pathAt(e.path, t1).p);
+        net.addEdge(a, b, snapEnds(piece, net.nodes.get(a)!.p, net.nodes.get(b)!.p), e.kind, e.tag);
+      }
+    }
+    // Whatever was left inside (junctions, dead ends) goes.
+    for (const n of [...net.nodes.values()]) if (off(n.p) < -0.5 && !net.at(n.id).length) net.nodes.delete(n.id);
+    // Mouths closer than this along the ring merge into one.
+    entries.sort((p, q) => p.a - q.a);
+    const gap = (net.types[ringKind].half + net.types[ringKind].kerb) * 2 + 4;
+    const groups: { a: number; node: number }[][] = [];
+    for (const en of entries) {
+      const last = groups[groups.length - 1];
+      if (last && (en.a - last[last.length - 1].a) * R < gap) last.push(en); else groups.push([en]);
+    }
+    if (groups.length > 1) {
+      const first = groups[0], last = groups[groups.length - 1];
+      if ((first[0].a + Math.PI * 2 - last[last.length - 1].a) * R < gap) { groups.pop(); groups[0] = [...last.map((x) => ({ ...x, a: x.a - Math.PI * 2 })), ...first]; }
+    }
+    const mouths: { a: number; node: number }[] = [];
+    for (const gr of groups) {
+      if (gr.length === 1) { mouths.push(gr[0]); continue; }
+      const a = gr.reduce((s, x) => s + x.a, 0) / gr.length;
+      const m = net.node({ x: C.x + Math.cos(a) * R, z: C.z + Math.sin(a) * R });
+      for (const x of gr) {
+        for (const e of net.at(x.node)) {
+          if (e.a === x.node) e.a = m.id;
+          if (e.b === x.node) e.b = m.id;
+          e.path = snapEnds(e.path, net.nodes.get(e.a)!.p, net.nodes.get(e.b)!.p);
+        }
+        net.nodes.delete(x.node);
+      }
+      net.version++;
+      mouths.push({ a, node: m.id });
+    }
+    // An empty ring still goes round: two halves.
+    if (mouths.length < 2) {
+      const a = mouths.length ? mouths[0].a + Math.PI : 0;
+      const extra = [a, ...(mouths.length ? [] : [a + Math.PI])].map((x) => ({ a: x, node: net.node({ x: C.x + Math.cos(x) * R, z: C.z + Math.sin(x) * R }).id }));
+      mouths.push(...extra);
+    }
+    mouths.sort((p, q) => p.a - q.a);
+    for (let i = 0; i < mouths.length; i++) {
+      const p = mouths[i], q = mouths[(i + 1) % mouths.length];
+      let sweep = q.a - p.a;
+      while (sweep <= 0) sweep += Math.PI * 2;
+      net.addEdge(p.node, q.node, [{ kind: 'arc', c: C, r: R, a0: p.a, sweep }], ringKind, RING);
+    }
+  }
 }
 
 /**
