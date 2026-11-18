@@ -6,7 +6,7 @@ import { CELL, N } from '../sim/defs';
 import { MAX_CARS, type Car, type Traffic } from '../sim/traffic';
 import type { World } from '../sim/world';
 import { shared } from './materials';
-import { nodeCentre, nodeY } from './roadheight';
+import { nodeCentre, roadY } from './roadheight';
 
 /** `glow` lights a part at night: positive is a warm headlight, negative a red tail light. */
 function tinted(g: THREE.BufferGeometry, k: number, glow = 0) {
@@ -87,7 +87,7 @@ export class VehicleLayer {
       if (!k || !w.road[i]) continue;
       const x = i % N, y = (i / N) | 0;
       const horiz = (x > 0 && !!w.road[i - 1]) || (x < N - 1 && !!w.road[i + 1]);
-      const off = w.road[i] === 2 ? 3.55 : 2.75;
+      const off = w.road[i] === 2 ? 4.2 : 2.55;
       const mx = x * CELL + CELL / 2, mz = y * CELL + CELL / 2;
       // Alternate sides so a half-full street has cars on both kerbs.
       const slots = [[1, -2.4], [-1, 2.4], [-1, -2.4], [1, 2.4]];
@@ -110,7 +110,7 @@ export class VehicleLayer {
 
   update(w: World, tr: Traffic) {
     this.updateParked(w);
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), pitch = new THREE.Quaternion(), fwdZ = new THREE.Vector3(0, 0, 1), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
     const n = [0, 0, 0, 0];
     const a = { x: 0, z: 0, y: 0 }, b = { x: 0, z: 0, y: 0 };
     for (const car of tr.cars) {
@@ -120,7 +120,8 @@ export class VehicleLayer {
       const dx = b.x - a.x, dz = b.z - a.z;
       if (dx * dx + dz * dz < 1e-4) continue;
       const k = car.kind, i = n[k]++;
-      q.setFromAxisAngle(up, Math.atan2(-dz, dx));
+      // Heading, then the nose up or down the slope (ramps).
+      q.setFromAxisAngle(up, Math.atan2(-dz, dx)).multiply(pitch.setFromAxisAngle(fwdZ, Math.atan2(b.y - a.y, Math.hypot(dx, dz))));
       p.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
       m.compose(p, q, one);
       this.meshes[k].setMatrixAt(i, m);
@@ -147,13 +148,13 @@ function sample(w: World, car: Car, s: number, out: { x: number; z: number; y: n
   const len = Math.hypot(dx, dz) || 1;
   dx /= len; dz /= len;
   const node = f < 0.5 ? n0 : n1;
-  // Lane centres sit inside the asphalt: avenue lanes at 1.15 and 2.95 m (kerb at 4 m), street lanes at 1.6 m (kerb at 3 m).
+  // Lane centres: avenue lanes 2.5 m wide at 1.25 and 3.75 m (kerb at 5 m), the street lane at 1.75 m (kerb at 3.5 m).
   const avenue = roadTypeOf(w, node) === Road.Avenue;
   // Past parked cars everyone keeps further in: on an avenue they fill the outer lane.
   const parked = node < NN && w.parked[node] > 0;
-  const lane = car.kind === 3 ? (avenue ? (parked ? 2.3 : 3.4) : parked ? 1.0 : 2.5) : avenue ? (car.look > 0.5 && !parked ? 2.95 : 1.15) : parked ? 0.95 : 1.6;
+  const lane = car.kind === 3 ? (avenue ? (parked ? 3.0 : 4.3) : parked ? 1.1 : 2.9) : avenue ? (car.look > 0.5 && !parked ? 3.75 : 1.25) : parked ? 1.1 : 1.75;
   // Right of travel direction (dx, dz) with y up is (-dz, dx); diagonals use the unit vector.
   out.x = p0.x + (p1.x - p0.x) * f - dz * lane;
   out.z = p0.z + (p1.z - p0.z) * f + dx * lane;
-  out.y = nodeY(w, n0) + (nodeY(w, n1) - nodeY(w, n0)) * f;
+  out.y = roadY(w, n0, n1, f, out.x, out.z);
 }

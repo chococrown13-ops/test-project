@@ -4,11 +4,11 @@ import { loadLocal, saveLocal } from './sim/save';
 import { updateParking } from './sim/parking';
 import { createSim, tick, type Sim } from './sim/sim';
 import { altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
-import { buildCityNetwork } from './render/roadnet';
-import { findAccess } from './sim/network';
+import { buildCityNetwork, buildElevatedNetwork } from './render/roadnet';
+import { findAccess, network } from './sim/network';
 import { hasOpenWater } from './sim/tools';
 import { BUS_TYPES, type BusType, createLine, removeLine, STOP_RADIUS, stopProblem, type LineKind } from './sim/transit';
-import { bez, curveProblem, HALF_WIDTH, snapControl } from './sim/curves';
+import { bez, curveProblem, HALF_WIDTH, nearestCurve, snapControl } from './sim/curves';
 import { createRealWorld, createWorld, idx, startRowOf } from './sim/world';
 import { drawPreview, drawTiles, loadIndex, loadTile, savedDraw, storeDraw, type Draw } from './ui/korea';
 import { MAPS, randomMap, type MapKind } from './sim/maps';
@@ -39,11 +39,13 @@ let cat: string | null = null;
 /** The bus or subway line being drawn: stops picked so far. */
 let draft: { kind: LineKind; stops: number[]; bus?: BusType } | null = null;
 /** How road tools lay a drag: an L of straight runs, a 45° run first, or a curve bent after the drag. */
-type RoadMode = 'grid' | 'diag' | 'curve';
+type RoadMode = 'grid' | 'diag' | 'free' | 'curve';
 let roadMode: RoadMode = 'grid';
 const ROAD_MODES: { id: RoadMode; name: string; hint: string }[] = [
   { id: 'grid', name: '직각', hint: '가로세로' },
   { id: 'diag', name: '대각선', hint: '45도' },
+  // Any angle: laid as a curve with no bend, so it draws, routes and lines up buildings the same way.
+  { id: 'free', name: '자유 직선', hint: '아무 각도' },
   // Curves are lines and arcs now (see sim/curves.ts): parallel kerbs on every bend.
   { id: 'curve', name: '곡선', hint: '꺾는 점' },
 ];
@@ -289,7 +291,7 @@ function preview() {
   if (!hover || tool === 'select' || !def) { p.clear(); hideTip(); return; }
   const a = drag ? { x: drag.sx, y: drag.sy } : hover;
   const b = hover;
-  if (def.road !== undefined && roadMode === 'curve') { previewCurve(def.road, a, b); return; }
+  if (def.road !== undefined && (roadMode === 'curve' || roadMode === 'free')) { previewCurve(def.road, a, b); return; }
   p.path([], 0, '');
   if (def.road !== undefined) {
     const cells = (roadMode === 'diag' ? diagonalPath : roadPath)(a.x, a.y, b.x, b.y);
@@ -352,7 +354,8 @@ function preview() {
 function previewCurve(type: Road, a: { x: number; y: number }, b: { x: number; y: number; px: number; py: number; wx: number; wz: number }) {
   const w = sim.w, p = scene.preview;
   const ia = bend ? bend.a : idx(a.x, a.y), ib = bend ? bend.b : idx(b.x, b.y);
-  if (!bend && !drag) { p.show([ia], '#c6f0ff'); p.path([], 0, ''); showTip(b.px, b.py, '곡선: 시작점에서 끝점까지 끈 다음, 굽힐 곳을 눌러 주세요'); return; }
+  const free = roadMode === 'free';
+  if (!bend && !drag) { p.show([ia], '#c6f0ff'); p.path([], 0, ''); showTip(b.px, b.py, free ? '자유 직선: 시작점에서 끝점까지 끌어 주세요. 각도는 자유예요' : '곡선: 시작점에서 끝점까지 끈 다음, 굽힐 곳을 눌러 주세요'); return; }
   if (ia === ib) { p.show([ia], '#c6f0ff'); p.path([], 0, ''); return; }
   const h = bend ? snapControl(w, ia, ib, bend.hx, bend.hz) : snapControl(w, ia, ib, -1e6, -1e6);
   const ctl = bend ? h : { x: (((ia % N) + (ib % N)) / 2 + 0.5) * CELL, z: ((((ia / N) | 0) + ((ib / N) | 0)) / 2 + 0.5) * CELL };
@@ -363,7 +366,8 @@ function previewCurve(type: Road, a: { x: number; y: number }, b: { x: number; y
   p.show(cells, why ? '#ff5a5a' : type === Road.Avenue ? '#8fd0ff' : '#c6f0ff', 0.3);
   p.path(pts, HALF_WIDTH[type as 1 | 2] * 2, why ? '#ff8a8a' : '#ffffff', bend ? ctl : undefined);
   const snapNote = bend && h.snap === 'tangent' ? ' · 매끄럽게 이어짐' : bend && h.snap === 'straight' ? ' · 직선' : '';
-  showTip(b.px, b.py, why ?? (bend ? `곡선 ${length}m, ${won(cost)}${snapNote} · 눌러서 완성` : `${length}m · 손을 떼면 굽힐 수 있어요`), !!why);
+  const deg = Math.round((Math.atan2(-(((ib / N) | 0) - ((ia / N) | 0)), (ib % N) - (ia % N)) * 180) / Math.PI + 360) % 180;
+  showTip(b.px, b.py, why ?? (free ? `직선 ${length}m, ${deg}°, ${won(cost)}` : bend ? `곡선 ${length}m, ${won(cost)}${snapNote} · 눌러서 완성` : `${length}m · 손을 떼면 굽힐 수 있어요`), !!why);
 }
 
 function commitCurve() {
@@ -382,6 +386,16 @@ function commit() {
   const w = sim.w;
   const a = { x: drag.sx, y: drag.sy }, b = { x: drag.cx, y: drag.cy };
   let err: string | null = null;
+  if (def.road !== undefined && roadMode === 'free') {
+    // Release lays it: a curve whose bend sits halfway, so it's dead straight.
+    const ia = idx(a.x, a.y), ib = idx(b.x, b.y);
+    if (ia !== ib) {
+      const mx = ((a.x + b.x) / 2 + 0.5) * CELL, mz = ((a.y + b.y) / 2 + 0.5) * CELL;
+      err = placeCurve(w, ia, ib, mx, mz, def.road);
+      if (err) toast(err, 'warn');
+    }
+    return;
+  }
   if (def.road !== undefined && roadMode === 'curve') {
     // Release ends the drag: the bend comes next.
     if (a.x !== b.x || a.y !== b.y) bend = { a: idx(a.x, a.y), b: idx(b.x, b.y), hx: hover?.wx ?? 0, hz: hover?.wz ?? 0, active: false };
@@ -656,6 +670,8 @@ function frame(t: number) {
 requestAnimationFrame(frame);
 
 // Debug/test hook.
-(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, setTool, setSpeed, tools: { placeRoad, placeCurve, curveOf, roadPath, paintZone, rectCells, placeFacility, createLine }, roadnet: () => buildCityNetwork(sim.w),
+(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, setTool, setSpeed, tools: { placeRoad, placeCurve, curveOf, roadPath, paintZone, rectCells, placeFacility, createLine, placeAltRoad }, roadnet: () => buildCityNetwork(sim.w), flynet: () => buildElevatedNetwork(sim.w),
   /** For automated play: a fresh 가상 지형 world, and the sim's own tick. */
-  useWorld: (seed: number) => useWorld(createWorld(seed)), tick: (dt: number, speed: number) => tick(sim, dt, speed) };
+  useWorld: (seed: number) => useWorld(createWorld(seed)),
+  /** Why zoned buildings by curves do or don't turn to face them (diagnostics). */
+  facing: () => { const w = sim.w, out = { zoned: 0, near: 0, access: 0, sized: 0 }; w.buildings.forEach((b) => { if (!KINDS[b.kind].zone) return; out.zoned++; const S = b.size * CELL; const n = nearestCurve(w, b.x * CELL + S / 2, b.y * CELL + S / 2, S / 2 + 9); if (!n) return; out.near++; const a = network(w).access.get(b.id); if (a !== undefined && n.c.cells.includes(a)) out.access++; }); return out; }, tick: (dt: number, speed: number) => tick(sim, dt, speed) };

@@ -84,7 +84,7 @@ export const GOALS: Goal[] = [
   { text: '첫 아파트 단지를 세우세요. 땅값 높은 다세대 4채가 모이면 재건축돼요.', done: (w) => count(w, (b) => b.kind === 'r3') > 0 },
   { text: '인구 5,000명. 대로와 버스로 교통 체증을 줄이세요.', done: (w) => w.stats.pop >= 5000 },
   { text: '지하철 1호선을 개통하세요. 역 주변은 역세권이 돼요.', done: (w) => w.lines.some((l) => l.kind === 'metro') },
-  { text: '역세권을 키우세요. 역에서 250m 안에 1,000명이 살게 해 보세요. 역 주변을 주거와 상업으로 채우면 돼요.', done: (w) => stationAreaStats(w).pop >= 1000 },
+  { text: '역세권을 키우세요. 역에서 250m 안에 2,000명이 살고 일자리 800개가 있게 해 보세요. 역 주변을 주거와 상업으로 함께 채워요.', done: (w) => { const s = stationAreaStats(w); return s.pop >= 2000 && s.jobs >= 800; } },
   { text: '고가도로, 지하차도, 터널 중 하나로 막힌 길을 뚫어 보세요.', done: (w) => w.roadAlt.some((r) => r > 0) },
   { text: '명소를 하나 지어 보세요. 전통시장, 수변공원, 고궁, 전망타워가 있어요.', done: (w) => count(w, (b) => ['market', 'riverpark', 'palace', 'tower'].includes(b.kind)) > 0 },
   { text: '첫 오피스 타워를 올리세요. 상업 구역의 땅값이 관건이에요.', done: (w) => count(w, (b) => b.kind === 'c3') > 0 },

@@ -1,6 +1,7 @@
-import { CELL, Ground, N, Road } from '../sim/defs';
+import { CELL, Ground, Level, N, Road } from '../sim/defs';
 import { curveInfo, curvePath, HALF_WIDTH, KERB_W } from '../sim/curves';
-import { forEachNeighbour, NN } from '../sim/graph';
+import { altNeighbours, forEachNeighbour, NN } from '../sim/graph';
+import { deckHeightAt } from './roadheight';
 import type { World } from '../sim/world';
 import { nearestOnPath, pathAt, pathCrossings, pathLength, splitPath, type Path, type V } from '../../../shared/roads/geom';
 import { type Kind, Network, type RoadType } from '../../../shared/roads/network';
@@ -143,4 +144,53 @@ export function buildCityNetwork(w: World): Network {
   }
   net.simplify();
   return net;
+}
+
+/**
+ * The flyovers (second-layer roads at the Elevated level) as their own road
+ * graph, drawn by the same code as the ground roads, then lifted onto the
+ * deck: `heightAt` gives the deck height at any point, ramps climbing from
+ * the ground at their outer edge to the deck at their inner one.
+ */
+export function buildElevatedNetwork(w: World): { net: Network; heightAt: (x: number, z: number) => number; isRamp: (c: number) => boolean } {
+  const net = new Network(CITY_TYPES);
+  const elev = (c: number) => c >= 0 && c < N * N && w.roadAlt[c] !== 0 && w.altLevel[c] === Level.Elevated;
+  const nbs = (c: number) => altNeighbours(w, c).filter(elev);
+  const rampDir = (c: number) => { const n = nbs(c); if (n.length !== 1) return null; return { x: (n[0] % N) - (c % N), z: ((n[0] / N) | 0) - ((c / N) | 0) }; };
+  const isRamp = (c: number) => elev(c) && nbs(c).length <= 1;
+  // Where a cell's node sits: the centre, or for a ramp its outer edge (where it leaves the ground).
+  const nodePos = (c: number): V => {
+    const p = centre(c), d = rampDir(c);
+    return d ? { x: p.x - d.x * CELL / 2, z: p.z - d.z * CELL / 2 } : p;
+  };
+  const isNode = (c: number) => {
+    const n = nbs(c);
+    if (n.length !== 2) return true;
+    const dx1 = (n[0] % N) - (c % N), dy1 = ((n[0] / N) | 0) - ((c / N) | 0), dx2 = (n[1] % N) - (c % N), dy2 = ((n[1] / N) | 0) - ((c / N) | 0);
+    return dx1 !== -dx2 || dy1 !== -dy2 || w.roadAlt[n[0]] !== w.roadAlt[c] || w.roadAlt[n[1]] !== w.roadAlt[c];
+  };
+  const nodeOf = new Map<number, number>();
+  const node = (c: number) => { let id = nodeOf.get(c); if (id === undefined) { id = net.node(nodePos(c)).id; nodeOf.set(c, id); } return id; };
+  const key = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+  const seen = new Set<string>();
+  for (let c = 0; c < N * N; c++) {
+    if (!elev(c) || !isNode(c)) continue;
+    for (const first of nbs(c)) {
+      if (seen.has(key(c, first))) continue;
+      let prev = c, cur = first;
+      seen.add(key(prev, cur));
+      for (let g = 0; g < N * 2 && !isNode(cur); g++) {
+        const next = nbs(cur).find((n) => n !== prev);
+        if (next === undefined) break;
+        prev = cur; cur = next;
+        seen.add(key(prev, cur));
+      }
+      const a = node(c), b = node(cur);
+      if (a === b) continue;
+      net.addEdge(a, b, [{ kind: 'line', a: net.nodes.get(a)!.p, b: net.nodes.get(b)!.p }], KIND[Math.min(w.roadAlt[c], w.roadAlt[first]) as 1 | 2] ?? 'avenue');
+    }
+  }
+  net.simplify();
+  const heightAt = (x: number, z: number) => deckHeightAt(w, x, z);
+  return { net, heightAt, isRamp };
 }

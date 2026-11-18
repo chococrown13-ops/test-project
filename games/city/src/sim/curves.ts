@@ -30,8 +30,16 @@ export interface Curve {
 }
 
 /** Asphalt half width and pavement width, the same as a grid road's so the two meet flush. */
-export const HALF_WIDTH = { [Road.Street]: 3, [Road.Avenue]: 4 } as const;
-export const KERB_W = { [Road.Street]: 2, [Road.Avenue]: 1 } as const;
+/**
+ * Asphalt half width and pavement width. Streets fit their 10 m cell: 7 m
+ * of asphalt (two 3.5 m lanes) and 1.5 m pavements. Avenues are wider than a
+ * cell: 10 m of asphalt (four lanes) and the same 1.5 m pavements, spilling
+ * 1.5 m into the lots either side (buildings there stand back to make room).
+ */
+export const HALF_WIDTH = { [Road.Street]: 3.5, [Road.Avenue]: 5 } as const;
+export const KERB_W = { [Road.Street]: 1.5, [Road.Avenue]: 1.5 } as const;
+/** How far an avenue's pavement reaches past its own cell. */
+export const AVENUE_SPILL = HALF_WIDTH[Road.Avenue] + KERB_W[Road.Avenue] - 5;
 
 type Ends = Pick<Curve, 'ax' | 'az' | 'cx' | 'cz' | 'bx' | 'bz'>;
 const pathCache = new Map<string, { path: Path; len: number }>();
@@ -214,7 +222,7 @@ export function nearestCurve(w: World, x: number, z: number, max: number) {
 
 /** Why a curve can't run here (beyond what placeRoad checks), or null. */
 export function curveProblem(w: World, c: Pick<Curve, 'ax' | 'az' | 'cx' | 'cz' | 'bx' | 'bz' | 't'>, cells: number[]): string | null {
-  if (cells.length < 3) return '곡선 도로는 세 칸 이상 떨어진 두 점을 이어야 해요.';
+  if (cells.length < 3) return '세 칸 이상 떨어진 두 점을 이어 주세요.';
   const len = bezLength(c), chord = Math.hypot(c.bx - c.ax, c.bz - c.az);
   if (len > chord * 1.9) return '너무 심하게 휘었어요. 굽힘을 줄여 주세요.';
   // One curve turns at most 150°: a U-turn is two curves (or a block round).

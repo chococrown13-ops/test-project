@@ -30,7 +30,7 @@ export const BUS_TYPES: Record<BusType, {
   /** Longest loop (cells) the line may drive, or 0 for no limit. */
   maxLoop: number;
 }> = {
-  village: { name: '마을버스', color: '#f0a500', radius: 3, share: 0.3, speed: 2.6, cost: { line: 150, stop: 20 }, upkeep: 15, cellsPerBus: 22, maxLoop: 180 },
+  village: { name: '마을버스', color: '#f0a500', radius: 4, share: 0.45, speed: 2.6, cost: { line: 150, stop: 20 }, upkeep: 15, cellsPerBus: 22, maxLoop: 180 },
   branch: { name: '지선버스', color: '#5bb025', radius: 4, share: 0.35, speed: 3.2, cost: { line: 400, stop: 60 }, upkeep: 45, cellsPerBus: 28, maxLoop: 0 },
   trunk: { name: '간선버스', color: '#3d5bab', radius: 4, share: 0.4, speed: 3.8, cost: { line: 700, stop: 80 }, upkeep: 60, cellsPerBus: 34, maxLoop: 0 },
   express: { name: '광역버스', color: '#d6262b', radius: 5, share: 0.55, speed: 5, cost: { line: 1500, stop: 100 }, upkeep: 90, cellsPerBus: 40, maxLoop: 0 },
@@ -261,6 +261,7 @@ export function tryTransit(w: World, from: number, to: number, roll: number, out
   const at = (l: TransitLine, c: number) => cov.get(l.id)![c] === 1 || (outbound && l.kind === 'bus' && busTypeOf(l) === 'express' && c % N === 0);
   // Direct: the fastest kinds get first chance; each covering line gets its own.
   const cands = w.lines.filter((l) => cov.has(l.id) && at(l, from) && at(l, to)).sort((a, b) => share(b, outbound) - share(a, outbound));
+  const feeder = (l: TransitLine) => l.kind === 'bus' && busTypeOf(l) === 'village';
   for (const l of cands) {
     const p = share(l, outbound);
     if (roll < p) { l.ridersMonth += RIDERS_PER_TRIP; return d / speed(l) + 2.5; }
@@ -268,11 +269,14 @@ export function tryTransit(w: World, from: number, to: number, roll: number, out
   }
   // One change of line.
   const links = cover.links;
-  const starts = w.lines.filter((l) => cov.has(l.id) && at(l, from));
+  // 마을버스 first: its whole job is to carry the back streets to a bigger line.
+  const starts = w.lines.filter((l) => cov.has(l.id) && at(l, from)).sort((a, b) => +feeder(b) - +feeder(a));
   for (const a of starts) for (const bId of links.get(a.id) ?? []) {
     const b = w.lines.find((l) => l.id === bId)!;
     if (!at(b, to) || at(a, to)) continue;
-    const p = Math.min(share(a, false), share(b, outbound)) * (w.transferDiscount ? 0.75 : 0.25);
+    // A 마을버스 to the subway is the trip it exists for: no loss for the change when the discount holds.
+    const ease = w.transferDiscount ? (feeder(a) && b.kind === 'metro' ? 1 : 0.75) : 0.25;
+    const p = Math.min(share(a, false), share(b, outbound)) * ease;
     if (roll < p) {
       a.ridersMonth += RIDERS_PER_TRIP;
       b.ridersMonth += RIDERS_PER_TRIP;

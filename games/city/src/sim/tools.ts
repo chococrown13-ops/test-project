@@ -106,6 +106,14 @@ export function altCost(w: World, cells: number[], level: Level): number {
 export function altProblem(w: World, cells: number[], level: Level): string | null {
   const name = LEVEL_NAME[level];
   if (cells.length < 2) return `${name}는 두 칸 이상이어야 해요. 도로 끝에서 끝까지 끌어 주세요.`;
+  // A flyover climbs over two cells at each end (20 m to rise 8 m), so it needs four at least.
+  if (level === Level.Elevated && cells.length < 4) return '고가도로는 네 칸 이상이어야 해요. 진입로가 양쪽에 두 칸씩 필요해요.';
+  if (level === Level.Elevated) for (const k of [1, cells.length - 2]) {
+    const i = cells[k];
+    const x = i % N, y = (i / N) | 0;
+    if (w.road[i] && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => inside(x + dx, y + dy) && w.road[idx(x + dx, y + dy)] && !cells.includes(idx(x + dx, y + dy))))
+      return '진입로 자리에 다른 길이 지나가요. 고가도로를 조금 옮겨 주세요.';
+  }
   const ends = [cells[0], cells[cells.length - 1]];
   for (const i of cells) {
     if (w.roadAlt[i] && w.altLevel[i] !== level) return '다른 층의 도로와 겹쳐요.';
@@ -136,8 +144,9 @@ export function placeAltRoad(w: World, drag: number[], level: Level): string | n
       if (w.bld[i] >= 0) demolish(w, w.bld[i]);
       w.zone[i] = Zone.None;
     }
-    // A ramp takes the whole cell: the ground road there gives way.
-    if (end && w.road[i]) {
+    // A ramp takes the whole cell: the ground road there gives way. A flyover's ramps are two cells long.
+    const ramp = end || (level === Level.Elevated && (k === 1 || k === cells.length - 2));
+    if (ramp && w.road[i]) {
       w.road[i] = Road.None;
       const x = i % N, y = (i / N) | 0;
       for (const [dx, dy, bit] of DIAG) if (w.diag[i] & bit && inside(x + dx, y + dy)) w.diag[idx(x + dx, y + dy)] &= ~oppositeDiag(bit);

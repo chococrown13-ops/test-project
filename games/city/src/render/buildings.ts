@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { CELL, KINDS, N, variantOf } from '../sim/defs';
-import { HALF_WIDTH, KERB_W, nearestCurve } from '../sim/curves';
+import { CELL, KINDS, N, Road, variantOf } from '../sim/defs';
+import { AVENUE_SPILL, HALF_WIDTH, KERB_W, nearestCurve } from '../sim/curves';
 import { network } from '../sim/network';
 import { bh, bw, type Building, type World } from '../sim/world';
 import { buildingMaterial, shared } from './materials';
@@ -43,10 +43,24 @@ const SIGN = ['#e74c3c', '#f1c40f', '#3498db', '#2ecc71', '#e67e22', '#9b59b6', 
 const FACTORY = ['#b8b2a6', '#9aa3a8', '#c2b8a3', '#8f9a92', '#a9a59b'];
 const FROOF = ['#4d6f9a', '#5e8a6e', '#7d8a93', '#3f6a8f'];
 
+/**
+ * An avenue's pavement spills into the lots beside it: a building on such a
+ * lot stands back from it by that much (not when avenues run on both sides).
+ */
+function avenueShift(w: World, b: Building): { x: number; z: number } {
+  const W = bw(b), D = bh(b);
+  const av = (x: number, y: number) => x >= 0 && y >= 0 && x < N && y < N && w.road[y * N + x] === Road.Avenue;
+  let wW = 0, wE = 0, wN = 0, wS = 0;
+  for (let k = 0; k < D; k++) { if (av(b.x - 1, b.y + k)) wW = 1; if (av(b.x + W, b.y + k)) wE = 1; }
+  for (let k = 0; k < W; k++) { if (av(b.x + k, b.y - 1)) wN = 1; if (av(b.x + k, b.y + D)) wS = 1; }
+  return { x: (wW - wE) * AVENUE_SPILL, z: (wN - wS) * AVENUE_SPILL };
+}
+
 function rawParts(b: Building, w: World): Part[] {
   const r = seq(b.look + b.id * 0.0137);
   const S = b.size * CELL;
-  const cx = b.x * CELL + S / 2, cz = b.y * CELL + S / 2;
+  const sh = avenueShift(w, b);
+  const cx = b.x * CELL + S / 2 + sh.x, cz = b.y * CELL + S / 2 + sh.z;
   const out: Part[] = [];
   const box = (x: number, y: number, z: number, sx: number, sy: number, sz: number, color: string, style = STYLE.plain, sign?: string, rot = 0) =>
     out.push({ shape: 'box', x: cx + x, y, z: cz + z, sx, sy, sz, rot, color, style, sign });
@@ -303,7 +317,8 @@ function parts(b: Building, w: World): Part[] {
   const out = rawParts(b, w);
   if (!KINDS[b.kind].zone || !w.curves.length) return out;
   const S = b.size * CELL;
-  const cx = b.x * CELL + S / 2, cz = b.y * CELL + S / 2;
+  const sh = avenueShift(w, b);
+  const cx = b.x * CELL + S / 2 + sh.x, cz = b.y * CELL + S / 2 + sh.z;
   const near = nearestCurve(w, cx, cz, S / 2 + 9);
   if (!near) return out;
   const a = network(w).access.get(b.id);
@@ -336,8 +351,8 @@ function parts(b: Building, w: World): Part[] {
  * 다세대, a shop a row of shopfronts, two apartment slabs longer 동.
  */
 function stretched(b: Building, w: World): Part[] {
-  if (b.kind === 'r3') return complex(b);
-  if (b.kind === 'c3') return officeBlock(b);
+  if (b.kind === 'r3') return complex(b, w);
+  if (b.kind === 'c3') return officeBlock(b, w);
   const W = bw(b), D = bh(b), base = b.size;
   const out = rawParts({ ...b, x: b.x + (W - base) / 2, y: b.y + (D - base) / 2 }, w);
   const cx = (b.x + W / 2) * CELL, cz = (b.y + D / 2) * CELL;
@@ -356,10 +371,11 @@ function stretched(b: Building, w: World): Part[] {
  * side (two to a row on a long plot), or a grid of 탑상형 towers, one per
  * cell. A bigger block gets more 동, not fatter ones.
  */
-function complex(b: Building): Part[] {
+function complex(b: Building, w: World): Part[] {
   const r = seq(b.look + b.id * 0.0137);
   const Wm = bw(b) * CELL, Dm = bh(b) * CELL;
-  const cx = b.x * CELL + Wm / 2, cz = b.y * CELL + Dm / 2;
+  const sh = avenueShift(w, b);
+  const cx = b.x * CELL + Wm / 2 + sh.x, cz = b.y * CELL + Dm / 2 + sh.z;
   const H = b.floors * 3;
   const col = pick(APT, r()), brand = pick(BRAND, r());
   const out: Part[] = [];
@@ -402,10 +418,11 @@ function complex(b: Building): Part[] {
 }
 
 /** Office plots: a podium over the whole lot, with a tower for every two cells of frontage. */
-function officeBlock(b: Building): Part[] {
+function officeBlock(b: Building, w: World): Part[] {
   const r = seq(b.look + b.id * 0.0137);
   const Wm = bw(b) * CELL, Dm = bh(b) * CELL;
-  const cx = b.x * CELL + Wm / 2, cz = b.y * CELL + Dm / 2;
+  const sh = avenueShift(w, b);
+  const cx = b.x * CELL + Wm / 2 + sh.x, cz = b.y * CELL + Dm / 2 + sh.z;
   const H = b.floors * 3;
   const out: Part[] = [];
   const box = (x: number, y: number, z: number, sx: number, sy: number, sz: number, color: string, style = STYLE.plain, sign?: string) =>
