@@ -64,17 +64,18 @@ export function pathAt(p: Path, t: number): { p: V; d: V } {
 
 /**
  * Sample a path between distances t0 and t1: straight parts only at their
- * ends, arcs every `step` metres (and at least every 6°). Offsets are exact:
+ * ends (or every `step` metres with `lines`), arcs every `step` metres (and at least every 6°). Offsets are exact:
  * the point at offset `o` is p + left(d) * o.
  */
-export function samplePath(p: Path, t0 = 0, t1 = pathLength(p), step = 2): { t: number; p: V; d: V }[] {
+export function samplePath(p: Path, t0 = 0, t1 = pathLength(p), step = 2, lines = false): { t: number; p: V; d: V }[] {
   const out: { t: number; p: V; d: V }[] = [];
   let base = 0;
   for (const s of p) {
     const L = segLength(s);
     const a = Math.max(t0, base), b = Math.min(t1, base + L);
     if (b > a || (b === a && out.length === 0 && a === t0)) {
-      const n = s.kind === 'line' ? 1 : Math.max(1, Math.ceil(Math.max((b - a) / step, Math.abs(s.sweep) * ((b - a) / L) / (Math.PI / 30))));
+      // Straight parts need only their ends, unless the road climbs along them (lines = true).
+      const n = s.kind === 'line' ? (lines ? Math.max(1, Math.ceil((b - a) / step)) : 1) : Math.max(1, Math.ceil(Math.max((b - a) / step, Math.abs(s.sweep) * ((b - a) / L) / (Math.PI / 30))));
       for (let k = out.length && out[out.length - 1].t >= a - 1e-6 ? 1 : 0; k <= n; k++) {
         const t = a + ((b - a) * k) / n;
         const q = segAt(s, t - base);

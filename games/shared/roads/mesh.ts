@@ -65,12 +65,14 @@ export function buildRoadMeshes(net: Network, opts: RoadMeshOptions = {}, geo: G
   // Heights above the ground: asphalt sits a little proud of it (no z-fighting), kerbs higher, paint on the asphalt.
   const ASPH = opts.heights?.asphalt ?? 0.06, KERB_H = opts.heights?.kerb ?? 0.2, PAINT = opts.heights?.paint ?? ASPH + 0.03;
   const ZD = opts.zebra ?? 4;
+  // On a deck or a slope the height changes along straight runs too: sample them finely.
+  const hilly = !!opts.heightAt;
   const TYPES = net.types;
   const RED = col('#8f4a40'), BLUE = col('#3a6fd8');
 
   for (const r of geo.ribbons) {
     const e = net.edges.get(r.edge)!, T = TYPES[r.kind];
-    const s = samplePath(e.path, r.t0, r.t1, 2);
+    const s = samplePath(e.path, r.t0, r.t1, 2, hilly);
     for (let i = 1; i < s.length; i++) {
       const q0 = s[i - 1], q1 = s[i];
       const o = (q: typeof q0, d: number) => offsetPoint(q, d);
@@ -134,7 +136,7 @@ export function buildRoadMeshes(net: Network, opts: RoadMeshOptions = {}, geo: G
       const t0 = r.t0 + (ja ? ZD + 2 : 0), t1 = r.t1 - (jb ? ZD + 2 : 0);
       if (t1 - t0 < 1) continue;
       const line = (o0: number, o1: number, k: THREE.Color, a = t0, b = t1) => {
-        const s = samplePath(e.path, a, b, 2);
+        const s = samplePath(e.path, a, b, 2, hilly);
         for (let i = 1; i < s.length; i++) paint.quad(offsetPoint(s[i - 1], o0), offsetPoint(s[i], o0), offsetPoint(s[i], o1), offsetPoint(s[i - 1], o1), PAINT, k);
       };
       if (r.kind === 'avenue') {
@@ -143,7 +145,7 @@ export function buildRoadMeshes(net: Network, opts: RoadMeshOptions = {}, geo: G
         // 중앙버스전용차로: the inner lane each way red, with blue edge lines, where buses run.
         let bus = false;
         if (opts.busAt) {
-          const s = samplePath(e.path, t0, t1, 2);
+          const s = samplePath(e.path, t0, t1, 2, hilly);
           for (let i = 1; i < s.length; i++) {
             const m = s[i - 1].p, n = s[i].p;
             if (!opts.busAt((m.x + n.x) / 2, (m.z + n.z) / 2)) continue;

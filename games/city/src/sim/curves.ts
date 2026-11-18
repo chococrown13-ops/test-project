@@ -30,8 +30,16 @@ export interface Curve {
 }
 
 /** Asphalt half width and pavement width, the same as a grid road's so the two meet flush. */
-export const HALF_WIDTH = { [Road.Street]: 3, [Road.Avenue]: 4 } as const;
-export const KERB_W = { [Road.Street]: 2, [Road.Avenue]: 1 } as const;
+/**
+ * Asphalt half width and pavement width. Streets fit their 10 m cell: 7 m
+ * of asphalt (two 3.5 m lanes) and 1.5 m pavements. Avenues are wider than a
+ * cell: 10 m of asphalt (four lanes) and the same 1.5 m pavements, spilling
+ * 1.5 m into the lots either side (buildings there stand back to make room).
+ */
+export const HALF_WIDTH = { [Road.Street]: 3.5, [Road.Avenue]: 5 } as const;
+export const KERB_W = { [Road.Street]: 1.5, [Road.Avenue]: 1.5 } as const;
+/** How far an avenue's pavement reaches past its own cell. */
+export const AVENUE_SPILL = HALF_WIDTH[Road.Avenue] + KERB_W[Road.Avenue] - 5;
 
 type Ends = Pick<Curve, 'ax' | 'az' | 'cx' | 'cz' | 'bx' | 'bz'>;
 const pathCache = new Map<string, { path: Path; len: number }>();

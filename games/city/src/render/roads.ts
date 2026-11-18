@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CELL, ELEVATED_Y, Ground, Level, N, Road } from '../sim/defs';
-import { altNeighbours } from '../sim/graph';
-import { buildCityNetwork } from './roadnet';
+import { altNeighbours, rampExit } from '../sim/graph';
+import { buildCityNetwork, buildElevatedNetwork } from './roadnet';
 import { left, offsetPoint, samplePath } from '../../../shared/roads/geom';
 import { buildRoadMeshes } from '../../../shared/roads/mesh';
 import { buildGeometry, type Geometry, type Network } from '../../../shared/roads/network';
@@ -153,13 +153,16 @@ export class RoadLayer {
     const cellAt = (x: number, z: number) => { const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL); return cx < 0 || cz < 0 || cx >= N || cz >= N ? -1 : cz * N + cx; };
     const water = (x: number, z: number) => { const i = cellAt(x, z); return i >= 0 && w.ground[i] === Ground.Water; };
     // Every ground road (grid runs, diagonals, curves) as one road graph: one geometry, clean junctions.
+    // Ground cells a ramp rises from: the road runs on up the ramp there, no dead-end cap.
+    const rampFeet = new Set<number>();
+    for (let i = 0; i < N * N; i++) if (w.roadAlt[i]) { const e = rampExit(w, i); if (e >= 0) rampFeet.add(e); }
     const net = buildCityNetwork(w);
     const geo = buildGeometry(net);
     const roads = buildRoadMeshes(net, {
       heights: { asphalt: Y, kerb: SW, paint: Y + 0.02 },
       zebra: 2.2,
       // Roads leaving the map's west edge run on, no cap there.
-      capAt: (p) => p.x > 0,
+      capAt: (p) => p.x > 0 && !rampFeet.has(cellAt(p.x, p.z)),
       colours: { asphalt: hex(ASPHALT[Road.Street]), avenue: hex(ASPHALT[Road.Avenue]), pavement: hex(WALK), yellow: hex(YELLOW), white: hex(WHITE) },
       busAt: (x, z) => { const i = cellAt(x, z); return i >= 0 && bus.cells.has(i) && !water(x, z); },
       materials: { asphalt: this.material, pavement: this.material, paint: this.paintMat },
@@ -174,6 +177,19 @@ export class RoadLayer {
     }, geo);
     // Where a road crosses water: a deck under it, rails along its edges, piers below.
     bridges(b, w, net, geo);
+    // Flyovers: the same road drawing lifted onto concrete decks with parapets and piers.
+    const fly = buildElevatedNetwork(w);
+    const flyGeo = buildGeometry(fly.net);
+    const flyRoads = buildRoadMeshes(fly.net, {
+      heightAt: fly.heightAt,
+      heights: { asphalt: 0.12, kerb: 0.32, paint: 0.14 },
+      zebra: 2.2,
+      capAt: () => false,
+      colours: { asphalt: hex(ASPHALT[Road.Street]), avenue: hex(ASPHALT[Road.Avenue]), pavement: hex(CONCRETE), yellow: hex(YELLOW), white: hex(WHITE) },
+      materials: { asphalt: this.material, pavement: this.material, paint: this.paintMat },
+    }, flyGeo);
+    decks(b, w, fly.net, flyGeo, fly.heightAt);
+    roads.add(...flyRoads.children);
     // The second layer: flyover decks, and the mouths of underpasses and tunnels.
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (w.roadAlt[idx(x, y)]) altCell(b, w, x, y);
     this.poles.count = this.lamps.count = lamps;
@@ -195,36 +211,9 @@ function altCell(b: Builder, w: World, x: number, y: number) {
   const mx = x * CELL + CELL / 2, mz = y * CELL + CELL / 2;
   const nb = altNeighbours(w, i).map((n) => ({ dx: (n % N) - x, dy: ((n / N) | 0) - y }));
   const level = w.altLevel[i];
-  const DW = 9.5, H = ELEVATED_Y;
+  const DW = 9.5;
   const ramp = nb.length <= 1 ? nb[0] ?? { dx: 1, dy: 0 } : null;
-  if (level === Level.Elevated) {
-    const parapets = (ax: number, az: number, ya: number, bx: number, bz: number, yb: number, dx: number, dy: number) => {
-      for (const s of [1, -1]) {
-        const ox = -dy * (DW / 2 - 0.2) * s, oz = dx * (DW / 2 - 0.2) * s;
-        b.slab(ax + ox, az + oz, ya + 0.95, bx + ox, bz + oz, yb + 0.95, 0.35, 0.95, CONCRETE);
-      }
-    };
-    if (!ramp) {
-      for (const n of nb) {
-        b.slab(mx, mz, H, mx + n.dx * 5, mz + n.dy * 5, H, DW, 1.3, CONCRETE, ASPHALT[Road.Avenue]);
-        parapets(mx, mz, H, mx + n.dx * 5, mz + n.dy * 5, H, n.dx, n.dy);
-        b.strip(mx + n.dx * 1.2, mz + n.dy * 1.2, H + 0.03, mx + n.dx * 3.8, mz + n.dy * 3.8, H + 0.03, 0.16, WHITE);
-      }
-      b.slab(mx - DW / 2, mz, H, mx + DW / 2, mz, H, DW, 1.3, CONCRETE, ASPHALT[Road.Avenue]);
-      if ((x + y) % 2 === 0) {
-        const base = w.ground[i] === Ground.Water ? -4.5 : 0;
-        b.box(mx - 0.9, base, mz - 0.9, mx + 0.9, H - 1.3, mz + 0.9, PIER);
-        b.box(mx - DW / 2 + 0.6, H - 2.1, mz - 0.9, mx + DW / 2 - 0.6, H - 1.3, mz + 0.9, PIER);
-      }
-    } else {
-      // The ramp climbs from the ground road toward the deck.
-      const ax = mx - ramp.dx * 5, az = mz - ramp.dy * 5, bx = mx + ramp.dx * 5, bz = mz + ramp.dy * 5;
-      b.slab(ax, az, 0.14, bx, bz, H, DW, 0.9, CONCRETE, ASPHALT[Road.Avenue]);
-      parapets(ax, az, 0.14, bx, bz, H, ramp.dx, ramp.dy);
-      b.box(mx + ramp.dx * 2.5 - 0.7, 0, mz + ramp.dy * 2.5 - 0.7, mx + ramp.dx * 2.5 + 0.7, H * 0.7, mz + ramp.dy * 2.5 + 0.7, PIER);
-    }
-    return;
-  }
+  if (level === Level.Elevated) return; // drawn with the road graph (see decks)
   if (!ramp) return; // underground: nothing to see between the mouths
   const tunnel = level === Level.Tunnel;
   const ax = mx - ramp.dx * 5, az = mz - ramp.dy * 5, bx = mx + ramp.dx * 5, bz = mz + ramp.dy * 5;
@@ -239,6 +228,58 @@ function altCell(b: Builder, w: World, x: number, y: number) {
   b.slab(px - ox * half, pz - oz * half, frameH, px + ox * half, pz + oz * half, frameH, 1.4, frameH, tunnel ? 0x8f8b82 : CONCRETE);
   const mh = frameH - 1.4, mi = DW / 2 - 0.1;
   b.slab(px - ramp.dx * 0.1 - ox * mi, pz - ramp.dy * 0.1 - oz * mi, mh, px - ramp.dx * 0.1 + ox * mi, pz - ramp.dy * 0.1 + oz * mi, mh, 1.6, mh, MOUTH);
+}
+
+/**
+ * The concrete of a flyover: under each deck ribbon a slab 1.3 m deep with a
+ * parapet on both edges, a pier every 20 m (not on the ramps), and under
+ * each junction where flyovers meet a slab of its outline.
+ */
+function decks(b: Builder, w: World, net: Network, geo: Geometry, h: (x: number, z: number) => number) {
+  const T = 1.3;
+  for (const r of geo.ribbons) {
+    const e = net.edges.get(r.edge)!, K = net.types[r.kind];
+    const P = samplePath(e.path, r.t0, r.t1, 1.5, true);
+    const edge = K.half + K.kerb;
+    const at = (k: number, off: number, dy: number) => { const q = offsetPoint(P[k], off); return [q.x, h(q.x, q.z) + dy, q.z]; };
+    let nextPier = r.t0 + 4;
+    for (let k = 0; k < P.length - 1; k++) {
+      // Underside and outer faces of the slab.
+      const u = (o: number) => at(k, o, -T), u1 = (o: number) => at(k + 1, o, -T);
+      b.tri(u(-edge), u1(-edge), u1(edge), CONCRETE, [0, -1, 0], 0.7);
+      b.tri(u(-edge), u1(edge), u(edge), CONCRETE, [0, -1, 0], 0.7);
+      for (const sd of [1, -1]) {
+        const n = left(P[k].d), hint = [n.x * sd, 0, n.z * sd];
+        const a = at(k, sd * edge, 0.32), bb = at(k + 1, sd * edge, 0.32), c = at(k + 1, sd * edge, -T), d = at(k, sd * edge, -T);
+        b.tri(a, bb, c, CONCRETE, hint, 0.85); b.tri(a, c, d, CONCRETE, hint, 0.85);
+        // Parapet: 0.35 m thick, 0.95 m above the pavement.
+        const pa = at(k, sd * (edge - 0.35), 1.27), pb = at(k + 1, sd * (edge - 0.35), 1.27), pc = at(k + 1, sd * edge, 1.27), pd = at(k, sd * edge, 1.27);
+        b.tri(pa, pb, pc, CONCRETE, [0, 1, 0]); b.tri(pa, pc, pd, CONCRETE, [0, 1, 0]);
+        for (const [off, out] of [[edge, sd], [edge - 0.35, -sd]] as [number, number][]) {
+          const ta = at(k, sd * off, 1.27), tb = at(k + 1, sd * off, 1.27), tc = at(k + 1, sd * off, 0.32), td = at(k, sd * off, 0.32);
+          const hh = [n.x * out, 0, n.z * out];
+          b.tri(ta, tb, tc, CONCRETE, hh, 0.85); b.tri(ta, tc, td, CONCRETE, hh, 0.85);
+        }
+      }
+      // A pier and its cross-beam wherever the deck is up at full height.
+      const y = h(P[k].p.x, P[k].p.z);
+      if (P[k].t >= nextPier && y > ELEVATED_Y - 0.5) {
+        nextPier = P[k].t + 20;
+        const cx = Math.floor(P[k].p.x / CELL), cz = Math.floor(P[k].p.z / CELL);
+        const base = cx >= 0 && cz >= 0 && cx < N && cz < N && w.ground[cz * N + cx] === Ground.Water ? -4.5 : 0;
+        const { x, z } = P[k].p, n = left(P[k].d);
+        b.box(x - 0.9, base, z - 0.9, x + 0.9, y - T, z + 0.9, PIER);
+        const half = edge - 0.6;
+        b.slab(x - n.x * half, z - n.z * half, y - T, x + n.x * half, z + n.z * half, y - T, 1.8, 0.8, PIER);
+      }
+    }
+  }
+  for (const j of geo.junctions) {
+    const ring = j.ring;
+    if (ring.length < 3) continue;
+    const tris = THREE.ShapeUtils.triangulateShape(ring.map((p) => new THREE.Vector2(p.x, p.z)), []);
+    for (const [a, c, d] of tris) b.tri([ring[a].x, h(ring[a].x, ring[a].z) - T, ring[a].z], [ring[c].x, h(ring[c].x, ring[c].z) - T, ring[c].z], [ring[d].x, h(ring[d].x, ring[d].z) - T, ring[d].z], CONCRETE, [0, -1, 0], 0.7);
+  }
 }
 
 /** Bridge decks: under every stretch of road over water, a deck with rails and piers. */

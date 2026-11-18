@@ -108,7 +108,8 @@ export class TransitLayer {
     const c = centre(i);
     const g = new THREE.Group();
     // On the pavement: an avenue's is narrower and further out.
-    const off = w.road[i] === Road.Avenue ? 4.55 : 3.9;
+    // On the pavement, in the middle of it.
+    const off = w.road[i] === Road.Avenue ? 5.75 : 4.25;
     g.position.set(c.x + side[0] * off, 0.3, c.z + side[1] * off);
     g.rotation.y = Math.atan2(side[0], side[1]);
     const add = (geo: THREE.BufferGeometry, m: THREE.Material, px: number, py: number, pz: number) => { const mesh = new THREE.Mesh(geo, m); mesh.position.set(px, py, pz); mesh.castShadow = true; g.add(mesh); };
