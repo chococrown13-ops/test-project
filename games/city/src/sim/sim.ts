@@ -80,10 +80,13 @@ function warnings(w: World) {
   if (st.congestion > 0.7) notify(w, '교통 체증이 심해요. 대로를 깔거나 우회로를 만들어 보세요.', 'warn');
 }
 
+/** How fast game time runs at 1x against real time (everything: cars, buses, the clock and the calendar). */
+export const GAME_PACE = 0.7;
+
 /** Advance by real time `dt` at `speed` (0 = paused). */
 export function tick(s: Sim, dt: number, speed: number) {
   if (!speed) return;
-  const t = Math.min(0.1, dt) * speed;
+  const t = Math.min(0.1, dt) * speed * GAME_PACE;
   s.clock = (s.clock + (t / CLOCK_SECONDS) * 24) % 24;
   stepTraffic(s.w, s.tr, t, s.clock);
   s.acc += t;

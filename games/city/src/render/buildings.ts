@@ -12,7 +12,7 @@ import { buildingMaterial, shared } from './materials';
  * white apartment slabs with a brand stripe, shop buildings covered in signs.
  */
 
-type Shape = 'box' | 'prism' | 'cyl' | 'cone' | 'vault' | 'neon';
+type Shape = 'box' | 'prism' | 'cyl' | 'cone' | 'vault' | 'neon' | 'gable' | 'hanok' | 'hip' | 'tree';
 interface Part {
   shape: Shape;
   x: number; y: number; z: number; // base centre
@@ -23,7 +23,59 @@ interface Part {
   sign?: string;
 }
 
-const STYLE = { villa: 0, apt: 1, shops: 2, office: 3, factory: 4, plain: 5 };
+const STYLE = { villa: 0, apt: 1, shops: 2, office: 3, factory: 4, plain: 5, house: 6, hanok: 7, framed: 8, slab: 9, shophouse: 10, sign: 11 };
+
+/* The old-town palette (as in 「남길 것인가」). */
+const GIWA = ['#5d6773', '#66707b', '#58626d'];
+const PLASTER = '#f2ece0', TIMBER = '#5b4232', STONE = '#b8b1a5';
+const CEMENT = ['#d9d3c7', '#e4dccb', '#cfc6b5', '#e8e2d4'];
+const BLOCK = '#c9c2b4';
+const BRICKS = ['#a5523c', '#9a5643', '#b0644a', '#8e4c3a'];
+const TILES = ['#d8cfc0', '#cbbfae', '#e2dbd0', '#d3c9b8'];
+const SHOPWALL = ['#d9cdb5', '#cfc2a8', '#e6e1d6', '#c4a98a', '#ddd6c8'];
+const SIGNS = ['#d9473b', '#2f6db3', '#e2a92b', '#3d9a62', '#c2457e', '#1f2f4a', '#f08a24'];
+const TANK = ['#e07b39', '#3f78b5', '#e9e4d8', '#e07b39'];
+const ROOFGREEN = '#5f9a6e';
+const GLASSES = ['#7d9bb5', '#6f8ea6', '#8aa5b8', '#5f7f99'];
+
+/** A part placer in the lot's own frame: front (-z) toward the road, offsets in metres from the lot centre. */
+type Put = (s: Shape, dx: number, dy: number, dz: number, w: number, h: number, d: number, color: string, style?: number, dr?: number, sign?: string) => void;
+
+/** A water tank and a few 장독 on a flat roof at height h. */
+function roofLife(P: Put, h: number, r: () => number, x = 0, z = 0) {
+  P('cyl', x + 1.8, h, z + 1.6, 1.5, 1.6, 1.5, pick(TANK, r()));
+  if (r() < 0.6) for (let k = 0; k < 3; k++) P('cyl', x - 2 + k * 0.9, h, z - 1.2 + (k % 2) * 0.7, 0.7, 0.8, 0.7, '#5a3b2a');
+}
+
+/** 적벽돌 빌라: set back behind a brick 담장 and iron 대문, the outside stair up the side, an 옥탑방 and tank on the green roof. */
+function brickVilla(P: Put, H: number, r: () => number, brick: string) {
+  P('box', -0.5, 0, 0.9, 7.8, H, 7.2, brick, STYLE.framed);
+  P('box', 4.1, 0, 1.2, 1, H - 2.6, 3, brick);
+  P('box', 4.1, H - 2.6, 1.2, 1.1, 0.2, 3.2, '#cfc8ba');
+  P('box', -1, 0, -4.7, 7.8, 1.5, 0.4, brick);
+  P('box', -1, 1.5, -4.7, 8, 0.14, 0.6, '#cfc8ba');
+  P('box', 3.9, 0, -4.7, 1.8, 1.9, 0.18, pick(['#3d5a4a', '#2f3a40', '#4a5f7a'], r()));
+  P('box', -2.5, 0, -3.6, 3.6, 0.45, 1, '#6f9450');
+  if (r() < 0.5) P('tree', -3.4, 0.45, -3.6, 1.6, 2.4, 1.6, '#5e8f45');
+  P('box', -0.5, H, 0.9, 8, 0.28, 7.4, ROOFGREEN);
+  P('box', 1.4, H, 2.2, 3.2, 2.5, 2.8, r() < 0.5 ? '#e6e1d6' : brick, STYLE.house);
+  P('box', 1.4, H + 2.5, 2.2, 3.5, 0.22, 3.1, '#3f6f9f');
+  roofLife(P, H, r, -2.4, -0.6);
+}
+
+/** 상가주택: shopfronts below, flats above, a signboard on every floor, a 돌출간판, a green roof. */
+function shopHouse(P: Put, floors: number, r: () => number, ground: string) {
+  const f = Math.max(2, floors), h = f * 3;
+  P('box', 0, 0, 0.3, 8.6, h, 8.2, r() < 0.2 ? pick(BRICKS, r()) : pick(SHOPWALL, r()), STYLE.shophouse);
+  for (let k = 0; k < f; k++) {
+    const sw = k === 0 ? 8.2 : 3.6 + r() * 3.6, sx = k === 0 ? 0 : (r() - 0.5) * (8.2 - sw);
+    P('box', sx, k * 3 + 2.05, -3.95, sw, 0.85, 0.3, k === 0 ? ground : pick(SIGNS, r()), STYLE.sign);
+    P('box', sx, k * 3 + 2.3, -4.12, sw * 0.6, 0.35, 0.08, '#f6f1e4');
+  }
+  P('box', 3.9, 3.4, -4.6, 0.3, Math.min(h - 3.6, 4), 1.2, pick(SIGNS, r()), STYLE.sign);
+  P('box', 0, h, 0.3, 8.6, 0.25, 8.2, ROOFGREEN);
+  roofLife(P, h, r, -1, 0.5);
+}
 
 const pick = <T,>(a: T[], r: number) => a[Math.floor(r * a.length) % a.length];
 /** A small deterministic sequence per building. */
@@ -34,14 +86,9 @@ function seq(seed: number) {
 
 /** Signboard colour per 상가 trade, in VARIANTS order. */
 const C1_SIGN = ['#2bb24c', '#f2c12e', '#3d6b4f', '#2f6fd6', '#e2559b', '#1f4e9a', '#e8743b'];
-const BRICK = ['#a8553f', '#b4674a', '#c9a27e', '#e6ddcc', '#d6c7ad', '#94493a', '#cdb79a'];
-const TILE = ['#ebe8e1', '#dcd5c6', '#c9b89d', '#c3cacd', '#e3d7c3', '#d4c6b0'];
 const APT = ['#f1efe9', '#ebe6db', '#e2e6e8', '#eeeae2'];
 const BRAND = ['#2f6db5', '#1c8c6e', '#c0392b', '#7b5aa6', '#d98a1c', '#2c3e50', '#0e7c86'];
-const SHOP = ['#d9d2c5', '#c8bfae', '#e6e1d6', '#b7aa94', '#cfd3d6', '#e3e0da'];
 const SIGN = ['#e74c3c', '#f1c40f', '#3498db', '#2ecc71', '#e67e22', '#9b59b6', '#ff6fa1', '#1abc9c'];
-const FACTORY = ['#b8b2a6', '#9aa3a8', '#c2b8a3', '#8f9a92', '#a9a59b'];
-const FROOF = ['#4d6f9a', '#5e8a6e', '#7d8a93', '#3f6a8f'];
 
 /**
  * An avenue's pavement spills into the lots beside it: a building on such a
@@ -70,24 +117,62 @@ function rawParts(b: Building, w: World): Part[] {
   // Long buildings run along their access road.
   const a = network(w).access.get(b.id);
   const along = a === undefined ? 0 : Math.abs((a % N) * CELL + 5 - cx) > Math.abs(Math.floor(a / N) * CELL + 5 - cz) ? Math.PI / 2 : 0;
-  const rooftop = (top: number, wdt: number) => {
-    if (r() < 0.75) box((r() - 0.5) * (wdt - 3), top, (r() - 0.5) * (wdt - 3), 2.6, 2.4, 2.2, '#e9e4d8');
-    if (r() < 0.6) shape('cyl', (r() - 0.5) * (wdt - 2), top, (r() - 0.5) * (wdt - 2), 1.4, 1.3, 1.4, pick(['#4f7fb5', '#5d9c74', '#d8d4cc'], r()));
-  };
+  // The front of the lot (local -z) faces its road; south when it has none.
+  let rot = Math.PI;
+  if (a !== undefined) {
+    const dx = (a % N) * CELL + CELL / 2 - cx, dz = Math.floor(a / N) * CELL + CELL / 2 - cz;
+    rot = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? -Math.PI / 2 : Math.PI / 2) : dz > 0 ? Math.PI : 0;
+  }
+  const c0 = Math.cos(rot), s0 = Math.sin(rot);
+  const P: Put = (s, dx, dy, dz, w, h, d, color, style = STYLE.plain, dr = 0, sign) =>
+    out.push({ shape: s, x: cx + dx * c0 + dz * s0, y: dy, z: cz - dx * s0 + dz * c0, sx: w, sy: h, sz: d, rot: rot + dr, color, style, sign });
   switch (b.kind) {
     case 'r1': {
-      const wdt = 7 + r() * 1.6, dep = 7 + r() * 1.6;
-      box((r() - 0.5) * 1.2, 0, (r() - 0.5) * 1.2, wdt, H, dep, pick(BRICK, r()), STYLE.villa);
-      rooftop(H, Math.min(wdt, dep));
+      // Low-rise houses of every era: mostly 적벽돌 빌라, with 불란서 주택, 슬래브 양옥 and the odd 도시형 한옥.
+      const v = r();
+      if (v < 0.55) brickVilla(P, H, r, pick(BRICKS, r()));
+      else if (v < 0.72) {
+        // 불란서 주택: two storeys under a steep coloured roof.
+        P('box', 0, 0, 0.6, 7.4, 5.6, 7, pick(['#efe6d2', '#e8dcc6', '#f1ece2'], r()), STYLE.house);
+        P('gable', 0, 5.6, 0.6, 8.2, 3, 7.8, pick(['#b5503b', '#3f6f9f', '#4d7a52', '#7a4a3a'], r()));
+        P('box', 0, 0, -4.7, 9.4, 1.4, 0.35, pick(BRICKS, r()));
+      } else if (v < 0.88) {
+        // 슬래브 양옥: a flat concrete roof with a parapet, tank and 장독대, a green iron gate.
+        const h = r() < 0.5 ? 5.8 : 3;
+        P('box', 0, 0, 0.6, 7.8, h, 7.2, r() < 0.3 ? pick(BRICKS, r()) : pick(CEMENT, r()), STYLE.house);
+        P('box', 0, h, 0.6, 8, 0.45, 7.4, '#bdb6a8');
+        roofLife(P, h, r, 0, 0.6);
+        P('box', -1, 0, -4.7, 7.4, 1.5, 0.35, BLOCK);
+        P('box', 3.5, 0, -4.7, 2, 1.9, 0.22, '#3d7a5a');
+      } else {
+        // 도시형 한옥: 안채 at the back, a wing by the 마당, 담장 and 대문 on the street.
+        const roof = pick(GIWA, r());
+        P('box', 0, 0, 2, 8.8, 0.45, 4, STONE);
+        P('box', 0, 0.45, 2, 7.6, 2.5, 2.8, PLASTER, STYLE.hanok);
+        P('hanok', 0, 2.95, 2, 9.6, 2, 4.6, roof);
+        const sx = r() < 0.5 ? -1 : 1;
+        P('box', sx * 3, 0, -1.6, 2.8, 0.4, 3.4, STONE);
+        P('box', sx * 3, 0.4, -1.6, 2, 2.2, 3, PLASTER, STYLE.hanok);
+        P('hanok', sx * 3, 2.6, -1.6, 4.2, 1.5, 3, roof, Math.PI / 2);
+        P('box', -sx * 1, 0, -4.7, 7.6, 1.5, 0.35, '#d6cab1');
+        P('box', -sx * 1, 1.5, -4.7, 7.9, 0.25, 0.7, roof);
+        P('box', -sx * 3.9, 0, -4.7, 0.5, 2.2, 0.5, TIMBER);
+      }
       break;
     }
     case 'r2': {
-      const wdt = 8.2 + r() * 1, dep = 8 + r() * 1;
-      const col = pick(TILE, r());
-      box(0, 0, 0, wdt - 1.6, 3, dep - 1.6, '#5f6062');
-      for (const [px, pz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) box(px * (wdt / 2 - 0.4), 0, pz * (dep / 2 - 0.4), 0.6, 3, 0.6, col);
-      box(0, 3, 0, wdt, H - 3, dep, col, STYLE.villa);
-      rooftop(H, Math.min(wdt, dep));
+      // 다세대: pale tile over 필로티 parking, or the older 적벽돌.
+      if (r() < 0.7) {
+        const tile = pick(TILES, r());
+        for (const [px, pz] of [[-3.8, -3.4], [3.8, -3.4], [-3.8, 3.8], [3.8, 3.8]]) P('box', px, 0, pz, 0.6, 3, 0.6, '#bdb6a8');
+        P('box', 0, 3, 0.2, 8.6, H - 3, 7.8, tile, STYLE.framed);
+        P('box', 0, 0, 0, 8, 0.06, 8.6, '#9d978d');
+        P('box', -3, 0, -4.6, 3.4, 0.5, 0.6, '#6f9450');
+        P('box', 0, H, 0.2, 8.8, 0.3, 8, ROOFGREEN);
+        P('box', 1.8, H, 1.6, 3.2, 2.5, 2.8, '#e6e1d6', STYLE.house);
+        P('box', 1.8, H + 2.5, 1.6, 3.5, 0.22, 3.1, '#3f6f9f');
+        roofLife(P, H, r, -2, -1);
+      } else brickVilla(P, H, r, pick(BRICKS, r()));
       break;
     }
     case 'r3': {
@@ -96,7 +181,7 @@ function rawParts(b: Building, w: World): Part[] {
         // Two 판상형 slabs, the classic 아파트 단지 silhouette.
         for (const off of [-4.6, 4.6]) {
           const h = H - (off > 0 ? Math.floor(r() * 3) * 3 : 0);
-          box(Math.sin(along) * off, 0, Math.cos(along) * off, 16.5, h, 4.6, col, STYLE.apt, brand, along);
+          box(Math.sin(along) * off, 0, Math.cos(along) * off, 16.5, h, 4.6, col, STYLE.slab, brand, along);
           box(Math.sin(along) * off, h, Math.cos(along) * off, 4, 2.2, 3.2, col, STYLE.plain, undefined, along);
         }
       } else {
@@ -111,46 +196,53 @@ function rawParts(b: Building, w: World): Part[] {
       break;
     }
     case 'c1': {
-      // The trade decides the signboard: 편의점, 치킨집, 카페, PC방, 노래방, 부동산, 분식집.
+      // 상가주택: shops below, flats above, a signboard on every floor and a 돌출간판.
+      // The trade decides the ground-floor sign: 편의점, 치킨집, 카페, PC방, 노래방, 부동산, 분식집.
       const v = variantOf('c1', b.look);
-      const wdt = 8.2 + r() * 1.2, dep = 8.2 + r() * 1.2;
-      box(0, 0, 0, wdt, H, dep, pick(SHOP, r()), STYLE.shops, C1_SIGN[v]);
-      if (v === 0) box(0, 3.05, dep / 2 + 0.05, wdt * 0.9, 0.5, 0.2, C1_SIGN[v]); // the lit fascia of a 편의점
-      if (v === 2) shape('prism', 0, 2.6, dep / 2 + 0.6, wdt * 0.8, 0.6, 1.2, '#2f5a43'); // café awning
-      rooftop(H, Math.min(wdt, dep));
+      shopHouse(P, b.floors, r, C1_SIGN[v]);
+      if (v === 2) P('prism', 0, 2.5, -4.5, 7, 0.6, 1.2, '#2f5a43'); // café awning
       break;
     }
     case 'c2': {
       const v = variantOf('c2', b.look);
-      const wdt = 8.6 + r() * 0.8, dep = 8.6 + r() * 0.8;
-      box(0, 0, 0, wdt, H, dep, pick(SHOP, r()), STYLE.shops, v === 1 ? '#f2c12e' : v === 2 ? '#2fa35a' : pick(SIGN, r()));
-      box(0, H, 0, wdt - 1, 0.8, dep - 1, '#9c9a94');
+      shopHouse(P, b.floors, r, v === 1 ? '#f2c12e' : v === 2 ? '#2fa35a' : pick(SIGNS, r()));
       if (v === 3) {
         // A church upstairs: the red neon cross that lights up Korean skylines at night.
-        out.push({ shape: 'neon', x: cx + wdt / 4, y: H + 0.8, z: cz, sx: 0.32, sy: 3.4, sz: 0.32, rot: 0, color: '#ff3b30', style: 0 });
-        out.push({ shape: 'neon', x: cx + wdt / 4, y: H + 3.0, z: cz, sx: 1.7, sy: 0.32, sz: 0.32, rot: 0, color: '#ff3b30', style: 0 });
-      } else rooftop(H + 0.8, wdt - 1);
+        out.push({ shape: 'neon', x: cx, y: H + 0.3, z: cz, sx: 0.32, sy: 3.4, sz: 0.32, rot: 0, color: '#ff3b30', style: 0 });
+        out.push({ shape: 'neon', x: cx, y: H + 2.5, z: cz, sx: 1.7, sy: 0.32, sz: 0.32, rot: 0, color: '#ff3b30', style: 0 });
+      }
       break;
     }
     case 'c3': {
-      box(0, 0, 0, 18.4, 9, 18.4, '#b9b4ab', STYLE.shops, pick(SIGN, r()));
+      if (b.look < 0.5) {
+        // 주상복합: a podium of shops, then a cross-shaped glass tower.
+        P('box', 0, 0, 0, 18.4, 9, 18.4, '#d8d5cc', STYLE.shophouse);
+        P('box', 0, 6.6, -9.35, 14, 1.2, 0.3, pick(SIGNS, r()), STYLE.sign);
+        const glass = pick(GLASSES, r());
+        P('box', 0, 9, 0, 15, H - 9, 9, glass, STYLE.office);
+        P('box', 0, 9, 0, 9, H - 15, 15, glass, STYLE.office);
+        P('box', 0, H - 6, 0, 7, 4, 7, '#cfd3d6');
+        break;
+      }
+      P('box', 0, 0, 0, 18.4, 9, 18.4, '#b9b4ab', STYLE.shops, 0, pick(SIGN, r()));
       const tw = 11 + r() * 3, td = 10 + r() * 3;
       const glass = pick(['#7c90a6', '#8aa1a8', '#6d7f94', '#9aa7b4'], r());
-      box(0, 9, 0, tw, H - 9, td, glass, STYLE.office);
+      P('box', 0, 9, 0, tw, H - 9, td, glass, STYLE.office);
       let top = H;
-      if (r() < 0.5) { box(0, H, 0, tw * 0.7, 6, td * 0.7, glass, STYLE.office); top += 6; }
-      box(0, top, 0, 3, 2.5, 3, '#c9cbcc');
+      if (r() < 0.5) { P('box', 0, H, 0, tw * 0.7, 6, td * 0.7, glass, STYLE.office); top += 6; }
+      P('box', 0, top, 0, 3, 2.5, 3, '#c9cbcc');
       break;
     }
     case 'i1':
     case 'i2': {
+      // Blue sawtooth roofs, the colour of every Korean works yard.
       const big = b.kind === 'i2';
-      const wdt = big ? 9 : 8, dep = big ? 9 : 7.5, h = 4 + b.floors * 1.8;
-      box(0, 0, 0, wdt, h, dep, pick(FACTORY, r()), STYLE.factory);
-      const roof = pick(FROOF, r()), teeth = 3;
-      for (let k = 0; k < teeth; k++) shape('prism', 0, h, -dep / 2 + dep / teeth * (k + 0.5), wdt, 1.8, dep / teeth, roof);
-      if (big) shape('cyl', wdt / 2 - 1.2, h, dep / 2 - 1.2, 1.1, 9, 1.1, '#c9c2b8');
-      else if (r() < 0.5) shape('cyl', -wdt / 2 + 1.4, 0, dep / 2 - 1.4, 2.4, 3.5, 2.4, '#d1d6d9');
+      const h = 4 + b.floors * 1.6;
+      P('box', 0, 0, 0, 9, h, 8.6, pick(['#cfc8b8', '#c9c2b4', '#d6d0c2'], r()), STYLE.factory);
+      const roof = pick(['#4a78a8', '#4a78a8', '#5d86b2', '#3f6f9f'], r());
+      for (let k = 0; k < 2; k++) P('gable', 0, h, -2.15 + k * 4.3, 9.2, 1.6, 4.4, roof);
+      if (big) P('cyl', 3.4, 0, 3.4, 1.2, h + 9, 1.2, '#b25b44');
+      else if (r() < 0.5) P('cyl', -3.2, 0, -4.8, 2.2, 3.2, 2.2, '#d1d6d9');
       break;
     }
     case 'i3': {
@@ -397,7 +489,7 @@ function complex(b: Building, w: World): Part[] {
       for (let k = 0; k < segs; k++) {
         const u = -long / 2 + 1.75 + len / 2 + k * (len + gap);
         const h = H - Math.floor(r() * 3) * 3;
-        put(u, v, len, 4.6, h, STYLE.apt, brand);
+        put(u, v, len, 4.6, h, STYLE.slab, brand);
         putAt(u, v, h, Math.min(4, len * 0.3), 2.2, 3.2, col);
       }
     }
@@ -441,6 +533,55 @@ function officeBlock(b: Building, w: World): Part[] {
   return out;
 }
 
+/** Pitched roof, ridge along x, one unit high on a 1x1 footprint. */
+function gableGeometry() {
+  const g = new THREE.BufferGeometry();
+  const v = [
+    -0.5, 0, 0.5, 0.5, 0, 0.5, 0.5, 1, 0, -0.5, 0, 0.5, 0.5, 1, 0, -0.5, 1, 0,
+    0.5, 0, -0.5, -0.5, 0, -0.5, -0.5, 1, 0, 0.5, 0, -0.5, -0.5, 1, 0, 0.5, 1, 0,
+    0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 1, 0,
+    -0.5, 0, -0.5, -0.5, 0, 0.5, -0.5, 1, 0,
+  ];
+  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * 한옥 roof (팔작지붕, simplified): ridge along x, footprint 1x1, height 1.
+ * The slopes sag, the ridge rises toward its ends and the eaves sweep up at the corners.
+ */
+function hanokRoof(): THREE.BufferGeometry {
+  const RL = 0.34;
+  const lift = (u: number) => 0.22 * Math.pow(Math.min(1, Math.abs(u) * 2), 3);
+  const ridge = (x: number) => new THREE.Vector3(x, 1 + 0.07 * (Math.abs(x) / RL) ** 2, 0);
+  const slope = (a: THREE.Vector3, b: THREE.Vector3, t: number) => { const p = a.clone().lerp(b, t); p.y = a.y + (b.y - a.y) * Math.pow(t, 1.5); return p; };
+  const tris: THREE.Vector3[] = [];
+  const quad = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3) => tris.push(a, b, c, a, c, d);
+  const NS = 4, NT = 2, NE = 2;
+  for (const sz of [-1, 1]) for (let i = 0; i < NS; i++) for (let j = 0; j < NT; j++) {
+    const P = (ii: number, jj: number) => { const u = -0.5 + ii / NS; return slope(new THREE.Vector3(u, lift(u), sz * 0.5), ridge(u * RL / 0.5), jj / NT); };
+    quad(P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1));
+  }
+  for (const sx of [-1, 1]) for (let i = 0; i < NE; i++) for (let j = 0; j < NT; j++) {
+    const P = (ii: number, jj: number) => { const w = -0.5 + ii / NE; return slope(new THREE.Vector3(sx * 0.5, lift(w), w), ridge(sx * RL), jj / NT); };
+    quad(P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1));
+  }
+  const v: number[] = [];
+  const n = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  for (let k = 0; k < tris.length; k += 3) {
+    let [a, b, c] = [tris[k], tris[k + 1], tris[k + 2]];
+    n.crossVectors(e1.subVectors(b, a), e2.subVectors(c, a));
+    if (n.lengthSq() < 1e-12) continue;
+    if (n.y < 0) [b, c] = [c, b];
+    v.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
 const PRISM = (() => {
   // Sawtooth: vertical face at +z, roof slope down to -z.
   const g = new THREE.BufferGeometry();
@@ -463,6 +604,10 @@ const GEOS: Record<Shape, THREE.BufferGeometry> = {
   // Half a cylinder lying along x, flat side down: an arcade roof one unit high.
   vault: new THREE.CylinderGeometry(0.5, 0.5, 1, 14, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).scale(1, 2, 1),
   neon: new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0),
+  gable: gableGeometry(),
+  hanok: hanokRoof(),
+  hip: new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1).rotateY(Math.PI / 4).translate(0, 0.5, 0),
+  tree: new THREE.IcosahedronGeometry(0.5, 0).translate(0, 0.5, 0),
 };
 
 interface Slot {
@@ -497,6 +642,10 @@ export class BuildingLayer {
       cone: new THREE.MeshStandardMaterial({ roughness: 0.9, side: THREE.DoubleSide }),
       vault: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.7, side: THREE.DoubleSide }),
       neon: this.neonMat,
+      gable: plain,
+      hanok: new THREE.MeshStandardMaterial({ roughness: 0.8, side: THREE.DoubleSide }),
+      hip: plain,
+      tree: plain,
     };
     (Object.keys(GEOS) as Shape[]).forEach((s) => this.alloc(s, s === 'box' ? 4096 : 512));
     // Problem badges: a round pictogram on a card-stock ring, coral for what needs fixing, slate for empty houses.
@@ -541,7 +690,7 @@ export class BuildingLayer {
     if (!force && ver === this.ver && !this.animating) return;
     this.ver = ver;
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), c = new THREE.Color(), up = new THREE.Vector3(0, 1, 0);
-    const need: Record<Shape, number> = { box: 0, prism: 0, cyl: 0, cone: 0, vault: 0, neon: 0 };
+    const need = Object.fromEntries(Object.keys(GEOS).map((k) => [k, 0])) as Record<Shape, number>;
     const all: { b: Building; parts: Part[] }[] = [];
     const live = new Set<number>();
     w.buildings.forEach((b) => {

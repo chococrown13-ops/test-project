@@ -17,7 +17,9 @@ export const shared = {
  * line up at 3 m everywhere.
  *
  * Per instance:
- *  aStyle  0 villa · 1 apartment · 2 shops · 3 office glass · 4 factory · 5 plain
+ *  aStyle  0 villa · 1 apartment · 2 shops · 3 office glass · 4 factory · 5 plain ·
+ *          6 house · 7 한옥 timber · 8 villa with white-framed windows · 9 판상형 slab (blank ends) ·
+ *          10 상가주택 (glass shopfront, windows above) · 11 signboard (lit at night)
  *  aSign   signboard colour for shops
  *  aInfo   x: seed · y: powered (1/0) · z: abandoned (1/0)
  */
@@ -36,13 +38,17 @@ export function buildingMaterial(): THREE.MeshStandardMaterial {
         varying float vStyle;
         varying vec3 vSign;
         varying vec3 vInfo;
-        varying float vTop;`)
+        varying float vTop;
+        varying float vLY;
+        varying float vH;
+        varying vec3 vLN;`)
       .replace('#include <project_vertex>', `#include <project_vertex>
         mat4 cwM = modelMatrix * instanceMatrix;
         vWP = (cwM * vec4(transformed, 1.0)).xyz;
         vWN = normalize(mat3(cwM) * objectNormal);
         vStyle = aStyle; vSign = aSign; vInfo = aInfo;
-        vTop = (cwM * vec4(0.0, 1.0, 0.0, 1.0)).y;`);
+        vTop = (cwM * vec4(0.0, 1.0, 0.0, 1.0)).y;
+        vLY = position.y; vH = length(instanceMatrix[1].xyz); vLN = objectNormal;`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
         uniform float uNight;
@@ -53,6 +59,9 @@ export function buildingMaterial(): THREE.MeshStandardMaterial {
         varying vec3 vSign;
         varying vec3 vInfo;
         varying float vTop;
+        varying float vLY;
+        varying float vH;
+        varying vec3 vLN;
         float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         float lit = 0.0;
         float winTint = 0.0;`)
@@ -81,6 +90,42 @@ export function buildingMaterial(): THREE.MeshStandardMaterial {
           else if (st < 2.5) win = step(0.25, fv) * step(fv, 0.85) * step(0.08, cu) * step(cu, 0.92);
           else if (st < 3.5) win = step(0.1, fv) * step(cu, 0.94);
           else if (st < 4.5) win = step(0.6, fv) * step(fv, 0.85) * step(0.3, cu) * step(cu, 0.7) * step(fy, 1.0);
+          else if (st > 5.5) {
+            // Styles from the old town: measured from this part's own foot.
+            float yl = vLY * vH, fl = fract(yl / 3.0);
+            if (st < 6.5) {
+              // House: small windows.
+              float c = fract(u / 3.4);
+              win = step(0.38, fl) * step(fl, 0.72) * step(0.3, c) * step(c, 0.7);
+            } else if (st < 7.5) {
+              // 한옥: timber posts and beam, papered lattice doors between.
+              float c = fract(u / 2.6);
+              if (vLY > 0.84 || c < 0.07) diffuseColor.rgb = vec3(0.36, 0.26, 0.2);
+              else if (vLY > 0.18 && vLY < 0.78 && c > 0.18 && c < 0.82) {
+                float lat = max(step(fract(u * 2.2), 0.12), step(fract(yl * 2.2), 0.12));
+                diffuseColor.rgb = mix(vec3(0.93, 0.88, 0.76), vec3(0.4, 0.3, 0.22), lat);
+                win = 0.0;
+              }
+            } else if (st < 8.5) {
+              // Brick or tile villa: white-framed windows.
+              float c = fract(u / 3.2);
+              float frame = step(0.3, fl) * step(fl, 0.8) * step(0.22, c) * step(c, 0.78);
+              diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.92, 0.88), frame);
+              win = step(0.34, fl) * step(fl, 0.76) * step(0.26, c) * step(c, 0.74);
+            } else if (st < 9.5) {
+              // 판상형 slab: balconies on the long faces, blank gable ends.
+              if (abs(vLN.x) < 0.5) {
+                float c = fract(u / 2.8);
+                if (fl < 0.28 && yl > 3.0) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.95), 0.6);
+                win = step(0.32, fl) * step(fl, 0.8) * step(0.1, c) * step(c, 0.9) * step(3.0, yl);
+              }
+            } else if (st < 10.5) {
+              // 상가주택: a glass front on the ground floor, ordinary windows above.
+              float c = fract(u / 3.6);
+              win = yl < 3.0 ? step(0.12, fl) * step(fl, 0.66) * step(0.06, c) * step(c, 0.94)
+                             : step(0.3, fl) * step(fl, 0.72) * step(0.15, c) * step(c, 0.85);
+            }
+          }
           // Ground floor: shopfronts, or the open parking (필로티) under 다세대 buildings.
           if (vWP.y < 3.0 && st < 4.5) win = st < 0.5 ? 0.0 : 1.0;
           // Apartment balconies: a pale rail band under each window row.
@@ -88,22 +133,23 @@ export function buildingMaterial(): THREE.MeshStandardMaterial {
           // Shops: a signboard band on each of the first floors, in a loud colour.
           if (abs(st - 2.0) < 0.5 && fy < 3.0 && fv > 0.85) { diffuseColor.rgb = vSign; win = 0.0; }
           // Apartment brand stripe near the roof.
-          if (abs(st - 1.0) < 0.5 && vWP.y > vTop - 2.4 && vWP.y < vTop - 1.2) { diffuseColor.rgb = vSign; win = 0.0; }
+          if ((abs(st - 1.0) < 0.5 || abs(st - 9.0) < 0.5) && vWP.y > vTop - 2.4 && vWP.y < vTop - 1.2) { diffuseColor.rgb = vSign; win = 0.0; }
           vec3 glass = st > 2.5 && st < 3.5 ? vec3(0.32, 0.45, 0.58) : vec3(0.18, 0.22, 0.28);
           diffuseColor.rgb = mix(diffuseColor.rgb, glass, win * (1.0 - abandoned * 0.5));
           float on = step(0.42, h21(vec2(floorIx * 7.0 + vInfo.x * 91.0, colIx)));
           lit = win * on * vInfo.y * (1.0 - abandoned);
           if (abs(st - 2.0) < 0.5 && fy < 3.0 && fv > 0.85) lit = vInfo.y * 0.8;
+          if (st > 10.5) lit = vInfo.y * (1.0 - abandoned);
           // A thin slab line at every floor gives the facade its rhythm.
-          if (st < 4.5 && fv < 0.035 && vWP.y > 2.9) diffuseColor.rgb *= 0.86;
+          if ((st < 4.5 || (st > 5.5 && st < 10.5 && st != 7.0)) && fv < 0.035 && vWP.y > 2.9) diffuseColor.rgb *= 0.86;
           // Contact shade: walls darken toward the pavement, a cheap ambient occlusion.
           diffuseColor.rgb *= mix(0.6, 1.0, smoothstep(0.0, 3.2, vWP.y));
           winTint = h21(vec2(floorIx * 3.1 + vInfo.x * 17.0, colIx * 1.7));
         }
         diffuseColor.rgb *= 1.0 - abandoned * 0.35;`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-        totalEmissiveRadiance += lit * uNight * (abs(floor(vStyle + 0.5) - 2.0) < 0.5 && vWP.y < 9.0 && fract(vWP.y / 3.0) > 0.85 ? vSign * 1.6 : (winTint < 0.7 ? vec3(1.0, 0.78, 0.45) : winTint < 0.9 ? vec3(0.95, 0.92, 0.82) : vec3(0.55, 0.7, 1.0)) * 0.95);`);
+        totalEmissiveRadiance += lit * uNight * (floor(vStyle + 0.5) > 10.5 ? diffuseColor.rgb * 1.4 : abs(floor(vStyle + 0.5) - 2.0) < 0.5 && vWP.y < 9.0 && fract(vWP.y / 3.0) > 0.85 ? vSign * 1.6 : (winTint < 0.7 ? vec3(1.0, 0.78, 0.45) : winTint < 0.9 ? vec3(0.95, 0.92, 0.82) : vec3(0.55, 0.7, 1.0)) * 0.95);`);
   };
-  m.customProgramCacheKey = () => 'city-building';
+  m.customProgramCacheKey = () => 'city-building-2';
   return m;
 }

@@ -7,6 +7,7 @@ import { MAX_CARS, type Car, type Traffic } from '../sim/traffic';
 import type { World } from '../sim/world';
 import { shared } from './materials';
 import { nodeCentre, roadY } from './roadheight';
+import { onRing } from './ringpath';
 
 /** `glow` lights a part at night: positive is a warm headlight, negative a red tail light. */
 function tinted(g: THREE.BufferGeometry, k: number, glow = 0) {
@@ -156,5 +157,7 @@ function sample(w: World, car: Car, s: number, out: { x: number; z: number; y: n
   // Right of travel direction (dx, dz) with y up is (-dz, dx); diagonals use the unit vector.
   out.x = p0.x + (p1.x - p0.x) * f - dz * lane;
   out.z = p0.z + (p1.z - p0.z) * f + dx * lane;
+  const ring = onRing(w, path, s, avenue ? lane : 1.75);
+  if (ring) { out.x = ring.x; out.z = ring.z; }
   out.y = roadY(w, n0, n1, f, out.x, out.z);
 }

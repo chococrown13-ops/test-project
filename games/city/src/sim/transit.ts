@@ -3,6 +3,7 @@ import { cellOf, forEachNeighbour } from './graph';
 import { invalidateNetwork } from './network';
 import { addBuilding, demolish } from './tools';
 import { idx, notify, type World } from './world';
+import { roundaboutAt } from './roundabout';
 
 /**
  * Public transport. A bus line is a loop of stops on road cells; buses follow
@@ -70,7 +71,7 @@ export const METRO_COLORS = ['#263c96', '#3cb44a', '#ef7c1c', '#00a5de', '#996ca
 
 export function stopProblem(w: World, kind: LineKind, i: number, draft: number[]): string | null {
   if (draft.includes(i)) return '이미 고른 정류장이에요.';
-  if (kind === 'bus') return w.road[i] ? null : '버스 정류장은 도로 위에 놓아요.';
+  if (kind === 'bus') return !w.road[i] ? '버스 정류장은 도로 위에 놓아요.' : roundaboutAt(w, (i % N) * CELL + CELL / 2, ((i / N) | 0) * CELL + CELL / 2) ? '회전교차로 안에는 정류장을 둘 수 없어요. 앞뒤 도로에 놓아 주세요.' : null;
   if (w.ground[i] === Ground.Water) return '역은 땅 위에 지어야 해요.';
   if (w.road[i]) return '역은 도로가 아닌 빈 땅이나 구역에 지어요.';
   const id = w.bld[i];

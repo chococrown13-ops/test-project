@@ -5,6 +5,7 @@ import { BUS_TYPES, type BusType, busCount, busRoute, busTypeOf, type LineKind, 
 import type { World } from '../sim/world';
 import { shared } from './materials';
 import { nodeCentre, roadY } from './roadheight';
+import { onRing } from './ringpath';
 import { roadTypeOf } from '../sim/graph';
 
 const BUS_SPEED = 2.4; // cells per second at 1x
@@ -193,7 +194,9 @@ function along(w: World, path: Int32Array, s: number, loop: boolean) {
   // Inner lane of an avenue (its 중앙버스전용차로), or the one lane each way of a street.
   const node = path[f < 0.5 ? i : i + 1];
   const lane = roadTypeOf(w, node) === Road.Avenue ? 1.25 : node < w.parked.length && w.parked[node] ? 1.2 : 1.7;
-  const x = a.x + (b.x - a.x) * f - dz * lane, z = a.z + (b.z - a.z) * f + dx * lane;
+  let x = a.x + (b.x - a.x) * f - dz * lane, z = a.z + (b.z - a.z) * f + dx * lane;
+  const ring = onRing(w, path, s, 1.75);
+  if (ring) { x = ring.x; z = ring.z; }
   return { x, z, y: roadY(w, path[i], path[i + 1], f, x, z) };
 }
 

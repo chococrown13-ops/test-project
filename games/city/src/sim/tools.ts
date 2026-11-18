@@ -2,6 +2,7 @@ import { BRIDGE_MULT, Ground, KINDS, Level, LEVEL_COST, LEVEL_NAME, N, Road, ROA
 import { DIAG, isRamp, oppositeDiag } from './graph';
 import { bezLength, coverCells, curveCells, curveInfo, curveProblem, pruneCurves, type Curve } from './curves';
 import { findAccess, invalidateNetwork } from './network';
+import { gridMeetProblem, placeRoundabout as layRoundabout, pruneRoundabouts } from './roundabout';
 import { idx, inside, notify, rand, type Building, type World, bw, bh } from './world';
 
 /** Cells along an L-shaped route: the longer leg first, as most road tools do. */
@@ -50,8 +51,10 @@ export function roadBlocked(w: World, cells: number[]): boolean {
   return cells.some((i) => { const id = w.bld[i]; return id >= 0 && !KINDS[w.buildings.get(id)!.kind].zone; });
 }
 
-export function placeRoad(w: World, cells: number[], type: Road): string | null {
+/** Lay a run of road cells. `grid`: drawn straight or diagonal on the grid (curves check their own meetings). */
+export function placeRoad(w: World, cells: number[], type: Road, grid = true): string | null {
   if (cells.length === 0) return null;
+  if (grid) { const why = gridMeetProblem(w, cells); if (why) return why; }
   if (cells.some((i) => w.ground[i] === Ground.Mountain)) return '산에는 터널로만 길을 낼 수 있어요.';
   if (cells.some((i) => w.roadAlt[i] && isRamp(w, i))) return '고가도로나 지하도로의 진입로와 겹쳐요.';
   if (roadBlocked(w, cells)) return '시설물이 있는 곳에는 도로를 놓을 수 없어요.';
@@ -226,7 +229,7 @@ export function placeProblem(w: World, kind: BuildingKind, x: number, y: number)
   for (const i of cells) {
     if (w.ground[i] === Ground.Water) return '물 위에는 지을 수 없어요.';
     if (kind === 'tower' ? w.ground[i] !== Ground.Mountain : w.ground[i] === Ground.Mountain) return kind === 'tower' ? '전망타워는 산 위에 지어야 해요.' : '산에는 지을 수 없어요.';
-    if (w.road[i] || altBlocksGround(w, i)) return '도로 위에는 지을 수 없어요.';
+    if (w.road[i] || altBlocksGround(w, i) || curveInfo(w).cover[i]) return '도로 위에는 지을 수 없어요.';
     const id = w.bld[i];
     if (id >= 0 && !KINDS[w.buildings.get(id)!.kind].zone) return '다른 시설이 있어요.';
   }
@@ -306,7 +309,7 @@ export function bulldoze(w: World, cells: number[]): number {
         roads++;
       }
     }
-    if (roads) { pruneCurves(w); w.ver.roads++; invalidateNetwork(); }
+    if (roads) { pruneCurves(w); pruneRoundabouts(w); w.ver.roads++; invalidateNetwork(); }
     n += roads;
   }
   return n;
@@ -329,7 +332,7 @@ export function placeCurve(w: World, a: number, b: number, cx: number, cz: numbe
   const why = curveProblem(w, c, cells);
   if (why) return why;
   const had = cells.map((i) => w.road[i]);
-  const err = placeRoad(w, cells, type);
+  const err = placeRoad(w, cells, type, false);
   if (err) return err;
   const own = cells.filter((_, k) => !had[k] && k > 0 && k < cells.length - 1);
   for (const i of coverCells(c)) {
@@ -370,4 +373,9 @@ export function hasOpenWater(w: World): boolean {
     if (footprint(x, y, s).every((i) => w.ground[i] === Ground.Land) && nearWater(w, x, y, s, 2)) waterHas = true;
   }
   return waterHas;
+}
+
+/** A 회전교차로 on a road cell. */
+export function placeRoundabout(w: World, cell: number): string | null {
+  return layRoundabout(w, cell, demolish);
 }

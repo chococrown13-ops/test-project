@@ -1,6 +1,6 @@
 /* Headless check of parking: kerb spaces, lots, unmet demand and its effects. */
 import { N, Road, Zone } from '../src/sim/defs';
-import { curbCapacity, parkedSqueeze, updateParking } from '../src/sim/parking';
+import { CURB_SPACES, curbCapacity, parkedSqueeze, updateParking } from '../src/sim/parking';
 import { createSim, tick } from '../src/sim/sim';
 import { paintZone, placeFacility, placeRoad, rectCells, roadPath } from '../src/sim/tools';
 import { createWorld, idx, riverY } from '../src/sim/world';
@@ -16,7 +16,7 @@ placeRoad(w, roadPath(22, row, 90, row), Road.Avenue);
 for (let x = 30; x <= 90; x += 8) placeRoad(w, roadPath(x, row - 24, x, row + 12), Road.Street);
 for (let y = row - 24; y <= row + 12; y += 8) if (y !== row) placeRoad(w, roadPath(30, y, 90, y), Road.Street);
 check('junction has no kerb parking', curbCapacity(w, idx(30, row)) === 0);
-check('straight street has kerb spaces', curbCapacity(w, idx(30, row - 4)) === 4);
+check('straight street has kerb spaces', curbCapacity(w, idx(30, row - 4)) === CURB_SPACES);
 paintZone(w, rectCells(23, row - 24, 62, row - 1), Zone.R);
 paintZone(w, rectCells(23, row + 1, 62, row + 12), Zone.R);
 paintZone(w, rectCells(63, row - 3, 78, row + 3), Zone.C);
@@ -39,7 +39,7 @@ console.log(`  pop ${Math.round(st.pop)} demand ${st.parkDemand} kerb ${st.parkC
 check('buildings want to park', st.parkDemand > 50);
 const parkedCells = w.parked.reduce((a, v) => a + (v ? 1 : 0), 0);
 check('cars parked on kerbs', parkedCells > 0, `${parkedCells} cells`);
-const full = w.parked.findIndex((v) => v === 4);
+const full = w.parked.findIndex((v) => v === CURB_SPACES);
 check('a full kerb squeezes the road', full < 0 || Math.abs(parkedSqueeze(w, full) - 0.67) < 0.01);
 // Ban avenue parking: fewer kerb spaces.
 const before = st.parkCurb;

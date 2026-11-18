@@ -24,7 +24,8 @@ export const TYPES = {
 export type Kind = keyof typeof TYPES;
 
 export interface Node { id: number; p: V }
-export interface Edge { id: number; a: number; b: number; path: Path; kind: Kind }
+/** `tag` marks edges a game treats specially (say, a roundabout's ring); splits and joins keep it. */
+export interface Edge { id: number; a: number; b: number; path: Path; kind: Kind; tag?: string }
 
 export class Network {
   /** Widths and lanes per road kind (each game has its own scale). */
@@ -57,8 +58,8 @@ export class Network {
   }
 
   /** Add an edge as given (no snapping or splitting): for callers that already know the graph. */
-  addEdge(a: number, b: number, path: Path, kind: Kind): Edge {
-    const e: Edge = { id: this.eid++, a, b, path, kind };
+  addEdge(a: number, b: number, path: Path, kind: Kind, tag?: string): Edge {
+    const e: Edge = { id: this.eid++, a, b, path, kind, tag };
     this.edges.set(e.id, e);
     this.version++;
     return e;
@@ -87,8 +88,8 @@ export class Network {
     const [p1, p2] = splitPath(e.path, t);
     const m = this.node(pathAt(e.path, t).p);
     this.edges.delete(e.id);
-    this.edges.set(this.eid, { id: this.eid++, a: e.a, b: m.id, path: p1, kind: e.kind });
-    this.edges.set(this.eid, { id: this.eid++, a: m.id, b: e.b, path: p2, kind: e.kind });
+    this.edges.set(this.eid, { id: this.eid++, a: e.a, b: m.id, path: p1, kind: e.kind, tag: e.tag });
+    this.edges.set(this.eid, { id: this.eid++, a: m.id, b: e.b, path: p2, kind: e.kind, tag: e.tag });
     this.version++;
     return m;
   }
@@ -157,7 +158,7 @@ export class Network {
       changed = false;
       for (const n of [...this.nodes.values()]) {
         const es = this.at(n.id);
-        if (es.length !== 2 || es[0] === es[1] || es[0].kind !== es[1].kind) continue;
+        if (es.length !== 2 || es[0] === es[1] || es[0].kind !== es[1].kind || es[0].tag !== es[1].tag) continue;
         const [e1, e2] = es;
         const o1 = e1.a === n.id ? e1.b : e1.a, o2 = e2.a === n.id ? e2.b : e2.a;
         if (o1 === o2 || o1 === n.id || o2 === n.id) continue;
@@ -165,7 +166,7 @@ export class Network {
         const path = [...reversePath(this.pathFrom(e1, n.id)), ...this.pathFrom(e2, n.id)];
         this.edges.delete(e1.id); this.edges.delete(e2.id);
         this.nodes.delete(n.id);
-        this.edges.set(this.eid, { id: this.eid++, a: o1, b: o2, path, kind: e1.kind });
+        this.edges.set(this.eid, { id: this.eid++, a: o1, b: o2, path, kind: e1.kind, tag: e1.tag });
         this.version++;
         changed = true;
       }

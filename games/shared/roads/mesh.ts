@@ -52,6 +52,8 @@ export interface RoadMeshOptions {
   materials?: { asphalt?: THREE.Material; pavement?: THREE.Material; paint?: THREE.Material };
   /** Whether a dead end at this point gets a rounded cap (default yes). */
   capAt?: (p: V) => boolean;
+  /** Edges drawn without centre line, stop line or crossing (a roundabout's one-way ring). */
+  plain?: (e: { tag?: string }) => boolean;
   /** Called for a street lamp every so often along each road: position on the pavement and the angle it faces. */
   lamp?: (x: number, z: number, angle: number) => void;
 }
@@ -132,13 +134,20 @@ export function buildRoadMeshes(net: Network, opts: RoadMeshOptions = {}, geo: G
     for (const r of geo.ribbons) {
       const e = net.edges.get(r.edge)!, T = TYPES[r.kind];
       // Leave room at a real junction for the zebra and stop line.
-      const ja = deg(e.a) >= 3, jb = deg(e.b) >= 3;
+      const plain = !!opts.plain?.(e);
+      // Approaches to a plain (ring) junction keep their crossing a little further out, as at a real roundabout.
+      const ja = !plain && deg(e.a) >= 3, jb = !plain && deg(e.b) >= 3;
       const t0 = r.t0 + (ja ? ZD + 2 : 0), t1 = r.t1 - (jb ? ZD + 2 : 0);
       if (t1 - t0 < 1) continue;
       const line = (o0: number, o1: number, k: THREE.Color, a = t0, b = t1) => {
         const s = samplePath(e.path, a, b, 2, hilly);
         for (let i = 1; i < s.length; i++) paint.quad(offsetPoint(s[i - 1], o0), offsetPoint(s[i], o0), offsetPoint(s[i], o1), offsetPoint(s[i - 1], o1), PAINT, k);
       };
+      if (plain) {
+        // One-way ring: on an avenue-sized ring, a dashed line between its two lanes.
+        if (r.kind === 'avenue') for (let a = t0 + 2; a < t1 - 1; a += 8) line(-0.075, 0.075, W, a, Math.min(a + 3, t1));
+        continue;
+      }
       if (r.kind === 'avenue') {
         line(0.15, 0.3, Y); line(-0.3, -0.15, Y);
         const lw = T.half / Math.max(1, T.lanes);

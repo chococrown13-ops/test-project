@@ -1,4 +1,5 @@
 import type { Curve } from './curves';
+import type { Roundabout } from './roundabout';
 import { hillField, startRow, waterMask, type MapKind } from './maps';
 import { Ground, N, Road, START_MONEY, type BuildingKind } from './defs';
 import type { TransitLine } from './transit';
@@ -58,6 +59,8 @@ export interface World {
   diag: Uint8Array;
   /** Curved roads drawn over their chains of road cells (see curves.ts). */
   curves: Curve[];
+  /** 회전교차로 (see roundabout.ts). */
+  roundabouts: Roundabout[];
   zone: Uint8Array;
   /** Cars parked along the kerb of each ground road cell (see parking.ts). */
   parked: Uint8Array;
@@ -156,6 +159,7 @@ export function createWorld(seed = 20261028, name = '새솔시', map: MapKind = 
     altLevel: new Uint8Array(size),
     diag: new Uint8Array(size),
     curves: [],
+    roundabouts: [],
     parked: new Uint8Array(size),
     parkPress: new Uint8Array(size),
     noAvenueParking: false,
