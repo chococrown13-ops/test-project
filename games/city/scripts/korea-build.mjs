@@ -1,6 +1,6 @@
 /*
- * Builds the real-Korea starting maps: for every 시/군, a few 1.28 km squares
- * (128 x 128 cells of 10 m) of real land, water and hills.
+ * Builds the real-Korea starting maps: for every 시/군, a few 2.56 km squares
+ * (256 x 256 cells of 10 m) of real land, water and hills.
  *
  * Sources (all open data, fetched at build time, not at play time):
  *   - 시군구 boundaries: southkorea/southkorea-maps (KOSTAT 2018), GeoJSON
@@ -27,7 +27,7 @@ const { fromUrl } = await import(req.resolve('geotiff'));
 const { PNG } = req('pngjs');
 
 const OUT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../src/data/korea');
-const N = 128, CELL = 10, SPAN = N * CELL;
+const N = 256, CELL = 10, SPAN = N * CELL;
 
 const PROVINCES = {
   11: '서울특별시', 21: '부산광역시', 22: '대구광역시', 23: '인천광역시', 24: '광주광역시', 25: '대전광역시', 26: '울산광역시',

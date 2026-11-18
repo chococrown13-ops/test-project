@@ -48,7 +48,7 @@ export const CATEGORIES: Category[] = [
     { id: 'dezone', name: '구역 해제', price: '무료', zone: Zone.None },
   ] },
   { id: 'power', name: '전기', key: 'C', tools: [fac('coal'), fac('solar')] },
-  { id: 'water', name: '상하수도', key: 'V', tools: [fac('water'), fac('sewage')] },
+  { id: 'water', name: '상하수도', key: 'V', tools: [fac('water'), fac('well'), fac('sewage')] },
   { id: 'service', name: '공공', key: 'B', tools: [fac('school'), fac('police'), fac('fire'), fac('clinic')] },
   { id: 'transit', name: '대중교통', key: 'N', tools: [
     { id: 'busVillage', name: BUS_TYPES.village.name, price: `정류장당 ${won(BUS_TYPES.village.cost.stop)}`, line: 'bus', bus: 'village', swatch: BUS_TYPES.village.color },

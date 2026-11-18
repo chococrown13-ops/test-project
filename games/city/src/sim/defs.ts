@@ -3,7 +3,7 @@
  * Money is in 만원 (10,000 won). One cell is 10 m.
  */
 
-export const N = 128;
+export const N = 256;
 export const CELL = 10;
 
 // Plain objects rather than enums so every file compiles on its own (Vite/esbuild).
@@ -27,7 +27,7 @@ export type BuildingKind =
   | 'r1' | 'r2' | 'r3'
   | 'c1' | 'c2' | 'c3'
   | 'i1' | 'i2' | 'i3'
-  | 'coal' | 'solar' | 'water' | 'sewage' | 'park' | 'school' | 'police' | 'fire' | 'clinic' | 'metro'
+  | 'coal' | 'solar' | 'water' | 'well' | 'sewage' | 'park' | 'school' | 'police' | 'fire' | 'clinic' | 'metro'
   | 'market' | 'riverpark' | 'palace' | 'tower'
   | 'parking' | 'parktower';
 
@@ -59,6 +59,7 @@ export const KINDS: Record<BuildingKind, KindDef> = {
   coal: { name: '화력 발전소', size: 3, power: -600, water: 20, cost: 9000, upkeep: 300, floors: [3, 3], desc: '전력 600 · 주변 땅값 하락' },
   solar: { name: '태양광 발전소', size: 2, power: -140, water: 0, cost: 3500, upkeep: 90, floors: [1, 1], desc: '전력 140 · 깨끗함' },
   water: { name: '정수장', size: 3, power: 25, water: -700, cost: 6000, upkeep: 260, floors: [2, 2], desc: '수도 700 · 강, 바다, 호수 같은 물가에 지어야 함' },
+  well: { name: '지하수 관정', size: 2, power: 12, water: -260, cost: 2600, upkeep: 120, floors: [1, 1], desc: '수도 260 · 지하수를 퍼 올려요. 물가가 없는 땅의 수원' },
   sewage: { name: '하수처리장', size: 2, power: 15, water: 0, cost: 4000, upkeep: 180, floors: [2, 2], desc: '하수 처리 600 · 주변 땅값 하락' },
   park: { name: '공원', size: 1, power: 0, water: 1, cost: 300, upkeep: 12, floors: [0, 0], desc: '주변 땅값 상승' },
   school: { name: '초등학교', size: 2, power: 8, water: 6, cost: 4500, upkeep: 220, floors: [3, 4], desc: '반경 내 교육 · 땅값 상승' },

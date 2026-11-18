@@ -1,4 +1,4 @@
-/* Headless check of every map kind: water, flat start road, reachable land, a place for a 정수장. */
+/* Headless check of every map kind: water, flat start road, reachable land, a place for a 정수장 (or a 지하수 관정). */
 import { Ground, N } from '../src/sim/defs';
 import { MAPS, startRow } from '../src/sim/maps';
 import { placeProblem } from '../src/sim/tools';
@@ -33,7 +33,7 @@ for (const m of MAPS) {
     check(`${m.id}/${seed} most land reachable`, reach > land * 0.5, `${reach}/${land}`);
     // Somewhere reachable to put a water plant.
     let spot = false;
-    for (let i = 0; i < N * N && !spot; i++) if (seen[i] && !placeProblem(w, 'water', i % N, (i / N) | 0)) spot = true;
+    for (let i = 0; i < N * N && !spot; i++) if (seen[i] && (!placeProblem(w, 'water', i % N, (i / N) | 0) || !placeProblem(w, 'well', i % N, (i / N) | 0))) spot = true;
     check(`${m.id}/${seed} room for a water plant`, spot);
     rows.push(`${seed}: water ${water} land ${land} hill ${hill} reach ${reach}`);
   }

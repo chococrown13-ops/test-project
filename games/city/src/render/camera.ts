@@ -33,7 +33,7 @@ export class CityCamera {
   }
 
   zoom(factor: number) {
-    this.goal.dist = Math.min(1100, Math.max(35, this.goal.dist * factor));
+    this.goal.dist = Math.min(SIZE * 0.86, Math.max(35, this.goal.dist * factor));
   }
 
   rotate(dyaw: number, dpitch: number) {

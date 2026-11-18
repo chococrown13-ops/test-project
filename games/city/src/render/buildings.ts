@@ -274,6 +274,21 @@ function rawParts(b: Building, w: World): Part[] {
       }
       break;
     }
+    case 'well': {
+      // 지하수 관정: a pump house, a raised steel tank, and the capped well heads with their pipes.
+      box(-4, 0, -3, 7, 3.4, 6, '#e3ded2', STYLE.factory);
+      shape('gable', -4, 3.4, -3, 7.4, 1.4, 6.4, '#3f6f9f');
+      for (const [px, pz] of [[-5, 5.5], [5, 6.5], [6.5, -6.5]]) {
+        box(px, 0, pz, 2.2, 0.3, 2.2, '#b9b4ab');
+        shape('cyl', px, 0.3, pz, 0.8, 1.3, 0.8, '#2f77b5');
+      }
+      box(1, 0.5, 6, 8, 0.25, 0.25, '#8d9399');
+      box(5.5, 0.5, -1, 0.25, 0.25, 11, '#8d9399');
+      for (const [px, pz] of [[3, -6.5], [8, -6.5], [3, -1.5], [8, -1.5]]) box(px, 0, pz, 0.4, 6, 0.4, '#8d9399');
+      shape('cyl', 5.5, 6, -4, 6, 3.6, 6, '#dfe6ea');
+      shape('cyl', 5.5, 9.6, -4, 6.2, 0.3, 6.2, '#2f77b5');
+      break;
+    }
     case 'sewage': {
       for (const pz of [-5, 4]) {
         box(-3, 0, pz, 11, 1.6, 7, '#b6b2a8');

@@ -1,5 +1,5 @@
 /* Headless check of curved roads: chain of cells, routing, zoning, bulldozing, saving. */
-import { CELL, Road, Zone } from '../src/sim/defs';
+import { CELL, N, Road, Zone } from '../src/sim/defs';
 import { coverCells, curveInfo, snapControl } from '../src/sim/curves';
 import { forEachNeighbour } from '../src/sim/graph';
 import { network } from '../src/sim/network';
@@ -41,7 +41,7 @@ check('hairpin refused', !!placeCurve(w, idx(60, row), idx(64, row), 62 * CELL, 
 // A street running alongside the curve joins it at one cell only; a car can still turn onto the curve there.
 {
   const mid = c.own[Math.floor(c.own.length / 2)];
-  const mx = mid % 128, my = (mid / 128) | 0;
+  const mx = mid % N, my = (mid / N) | 0;
   // A short street ending one cell east of the curve's middle, running further east.
   let sx = mx + 1;
   while (c.cells.includes(idx(sx, my)) || w.road[idx(sx, my)]) sx++;

@@ -73,7 +73,7 @@ export const GOALS: Goal[] = [
   { text: '서쪽 고속도로 끝에서 이어지는 도로를 깔아 보세요. 도구는 아래 도로에 있어요.', done: (w) => roads(w) > 40 },
   { text: '도로 옆에 주거 구역을 칠하세요. 도로에서 3칸까지 칠할 수 있어요.', done: (w) => zoned(w, Zone.R) },
   { text: '발전소를 짓고 도로로 연결하세요. 전기는 도로를 따라 흘러요.', done: (w) => w.stats.powerSupply > 0 },
-  { text: (w) => (hasOpenWater(w) ? '물가에 정수장을 지어 수돗물을 공급하세요. 도로에 붙여야 작동해요.' : '정수장을 지어 수돗물을 공급하세요. 이 땅은 지하수를 써서 어디든 지을 수 있어요. 도로에 붙여야 작동해요.'), done: (w) => w.stats.waterSupply > 0 },
+  { text: (w) => (hasOpenWater(w) ? '물가에 정수장을 지어 수돗물을 공급하세요. 도로에 붙여야 작동해요.' : '이 땅에는 물가가 없어요. 지하수 관정을 지어 수돗물을 공급하세요. 도로에 붙여야 작동해요.'), done: (w) => w.stats.waterSupply > 0 },
   { text: '상업과 산업 구역을 만들어 일자리를 주세요.', done: (w) => zoned(w, Zone.C) && zoned(w, Zone.I) },
   { text: '인구 300명을 모아 보세요. 위쪽 수요 막대를 참고하세요.', done: (w) => w.stats.pop >= 300 },
   { text: '하수처리장을 지어 하수를 처리하세요. 주거지와 떨어뜨리면 좋아요.', done: (w) => w.stats.sewageCap > 0 },

@@ -234,7 +234,8 @@ export function placeProblem(w: World, kind: BuildingKind, x: number, y: number)
     if (id >= 0 && !KINDS[w.buildings.get(id)!.kind].zone) return '다른 시설이 있어요.';
   }
   // A map with no flat land by the water draws from wells: the plant can go anywhere then.
-  if (kind === 'water' && hasOpenWater(w) && !nearWater(w, x, y, d.size, 2)) return '정수장은 물가(2칸 이내)에 지어야 해요.';
+  if (kind === 'water' && !hasOpenWater(w)) return '이 땅에는 끌어 쓸 물가가 없어요. 지하수 관정을 지어 주세요.';
+  if (kind === 'water' && !nearWater(w, x, y, d.size, 2)) return '정수장은 물가(2칸 이내)에 지어야 해요.';
   if (kind === 'riverpark' && !nearWater(w, x, y, d.size, 1)) return '수변공원은 물에 붙여 지어야 해요.';
   if ((d.cost ?? 0) > w.money) return `예산이 부족해요. (${(d.cost ?? 0).toLocaleString('ko-KR')}만 원 필요)`;
   return null;
@@ -362,8 +363,8 @@ export function curveCost(w: World, a: number, b: number, cx: number, cz: number
 
 let waterW: World | null = null, waterHas = false;
 /**
- * Whether a 정수장 must sit by the water: only when the map has flat land beside water to put one on.
- * Elsewhere (no water, or water only among hills) it draws from wells and can go anywhere.
+ * Whether the map has flat land beside water, where a 정수장 can draw from it.
+ * Without it (no water, or water only among hills) the city lives on 지하수 관정.
  */
 export function hasOpenWater(w: World): boolean {
   if (waterW === w) return waterHas;

@@ -1,7 +1,8 @@
+import { N as SIZE } from '../sim/defs';
 import type { World } from '../sim/world';
 
 /**
- * Real-Korea starting maps: a draw of three 1.28 km squares from different
+ * Real-Korea starting maps: a draw of three 2.56 km squares from different
  * 시/군, with one province or metropolitan city left out if the player wants,
  * and one redraw. The draw is remembered until a city is founded from it, so
  * reloading the page doesn't give a free redraw.
@@ -49,7 +50,7 @@ export async function loadTile(info: TileInfo): Promise<NonNullable<World['real'
 /* ------------------------------------------------------------- the draw */
 
 export interface Draw { exclude: string; picks: string[]; rerolled: boolean }
-const KEY = 'city.koreaDraw';
+const KEY = 'city.koreaDraw.v2'; // v2: 2.56 km tiles on the 256 x 256 map
 
 export function savedDraw(): Draw | null {
   try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch { return null; }
@@ -83,7 +84,7 @@ export function drawTiles(idx: Index, exclude: string, avoid: string[] = []): st
 /** A small top-down picture of a tile: water, woods, open land and hills. */
 export async function drawPreview(canvas: HTMLCanvasElement, info: TileInfo) {
   const { cells, row } = await loadTile(info);
-  const N = 128;
+  const N = SIZE;
   canvas.width = canvas.height = N;
   const g = canvas.getContext('2d')!;
   const img = g.createImageData(N, N);
