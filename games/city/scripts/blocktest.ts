@@ -26,7 +26,10 @@ for (let y = row - 6; y <= row + 2; y++) for (let x = 23; x <= 59; x++) {
 }
 invalidateNetwork();
 w.demand = { R: 100, C: 100, I: 100 };
-for (let t = 0; t < 400; t++) {
+// This test is about the shapes, not the pace: every tier open, every building old enough.
+w.milestones.push(-22, -23);
+w.day = 2000;
+for (let t = 0; t < 1200; t++) {
   w.land.fill(90);
   w.buildings.forEach((b) => { b.powered = b.watered = true; b.happy = 90; });
   grow(w);

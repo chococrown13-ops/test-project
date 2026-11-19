@@ -9,13 +9,36 @@ const LEVEL_KIND: Record<number, BuildingKind[]> = {
   [Zone.C]: ['c1', 'c2', 'c3'],
   [Zone.I]: ['i1', 'i2', 'i3'],
 };
+/**
+ * Tiers open for the whole city as it grows, and slowly: 2단계 (빌라·저층 아파트,
+ * 근린 상가, 2차 산업) once the city reaches TIER_POP[2] people, 3단계 (고층 아파트·
+ * 주상복합, 오피스, 3차 산업) at TIER_POP[3]. Even then a building has to stand a
+ * while (MATURE days) before it rebuilds, and only a few do so at a time.
+ */
+export const TIER_POP: Record<2 | 3, number> = { 2: 2500, 3: 10000 };
+export const MATURE: Record<1 | 2, number> = { 1: 180, 2: 360 };
+const UPGRADE_CHANCE: Record<1 | 2, number> = { 1: 0.05, 2: 0.03 };
+const TIER_FLAG = (lv: 2 | 3) => -20 - lv;
+export const tierOpen = (w: World, lv: number) => lv <= 1 || w.milestones.includes(TIER_FLAG(lv as 2 | 3));
+const TIER_NEWS: Record<2 | 3, string> = {
+  2: '2단계가 열렸어요! 이제 빌라·저층 아파트, 근린 상가 빌딩, 2차 산업(제조 공장)이 들어설 수 있어요.',
+  3: '3단계가 열렸어요! 이제 고층 아파트·주상복합, 오피스 타워, 3차 산업(지식산업센터·물류·데이터센터)이 들어설 수 있어요.',
+};
+function openTiers(w: World) {
+  for (const lv of [2, 3] as const) {
+    if (tierOpen(w, lv) || w.stats.pop < TIER_POP[lv]) continue;
+    w.milestones.push(TIER_FLAG(lv));
+    notify(w, `인구 ${TIER_POP[lv].toLocaleString('ko-KR')}명! ${TIER_NEWS[lv]}`, 'good');
+  }
+}
+
 const zkey = (z: number) => (z === Zone.R ? 'R' : z === Zone.C ? 'C' : 'I') as 'R' | 'C' | 'I';
 
 /* ------------------------------------------------------------ land value */
 
 /** Pollution sources: radius in cells and strength. */
 const EMIT: Partial<Record<BuildingKind, [number, number]>> = {
-  i1: [4, 18], i2: [5, 28], i3: [3, 8], coal: [9, 55], sewage: [5, 30],
+  i1: [3, 5], i2: [5, 28], i3: [3, 8], coal: [9, 55], sewage: [5, 30],
 };
 
 export function updateLand(w: World) {
@@ -127,6 +150,7 @@ export function grow(w: World) {
     for (let i = 0; i < N * N; i++) if (w.zone[i]) zoned.push(i);
     zonedVer = w.ver.zones;
   }
+  openTiers(w);
   if (!zoned.length) return;
   const net = network(w);
   const tries = Math.min(zoned.length, 30 + (zoned.length >> 4));
@@ -148,7 +172,9 @@ export function grow(w: World) {
     const b = w.buildings.get(id)!;
     const d = KINDS[b.kind];
     if (!d.zone || b.abandoned || (d.level ?? 3) >= 3) continue;
-    if (!b.powered || !b.watered || b.happy < 52 || dem < 5 || rand(w) > 0.12) continue;
+    const lv = (d.level ?? 1) as 1 | 2;
+    if (!tierOpen(w, lv + 1) || w.day - b.builtDay < MATURE[lv]) continue;
+    if (!b.powered || !b.watered || b.happy < 52 || dem < 5 || rand(w) > UPGRADE_CHANCE[lv]) continue;
     // Homes care most about land value; factories hardly at all.
     const need = (z === Zone.R ? [30, 46] : z === Zone.C ? [26, 40] : [0, 15])[(d.level ?? 1) - 1];
     if (w.land[i] < need) continue;
@@ -234,7 +260,7 @@ function tryMerge(w: World, b: Building, z: number) {
       const nb = addBuilding(w, top, x0, y0, sx, sy);
       nb.occ = occ;
       nb.powered = true; nb.watered = true;
-      if (top === 'r3' && !w.milestones.includes(-3)) { w.milestones.push(-3); notify(w, '첫 아파트 단지가 들어섰어요!', 'good'); }
+      if (top === 'r3' && !w.milestones.includes(-3)) { w.milestones.push(-3); notify(w, '첫 고층 아파트가 들어섰어요!', 'good'); }
       if (top === 'c3' && !w.milestones.includes(-4)) { w.milestones.push(-4); notify(w, '첫 오피스 타워가 올라갔어요!', 'good'); }
       return;
     }

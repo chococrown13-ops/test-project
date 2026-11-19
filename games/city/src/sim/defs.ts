@@ -47,15 +47,15 @@ export interface KindDef {
 }
 
 export const KINDS: Record<BuildingKind, KindDef> = {
-  r1: { name: '빌라', zone: Zone.R, level: 1, size: 1, residents: 12, power: 2, water: 2, floors: [3, 4] },
-  r2: { name: '다세대 주택', zone: Zone.R, level: 2, size: 1, residents: 32, power: 5, water: 5, floors: [5, 6] },
-  r3: { name: '아파트 단지', zone: Zone.R, level: 3, size: 2, residents: 420, power: 45, water: 50, floors: [15, 25] },
-  c1: { name: '골목 상가', zone: Zone.C, level: 1, size: 1, jobs: 8, power: 3, water: 2, floors: [2, 3] },
-  c2: { name: '근린생활 빌딩', zone: Zone.C, level: 2, size: 1, jobs: 30, power: 10, water: 5, floors: [6, 8] },
+  r1: { name: '단독주택·작은 빌라', zone: Zone.R, level: 1, size: 1, residents: 12, power: 2, water: 2, floors: [2, 3] },
+  r2: { name: '빌라·저층 아파트', zone: Zone.R, level: 2, size: 1, residents: 32, power: 5, water: 5, floors: [4, 6] },
+  r3: { name: '고층 아파트·주상복합', zone: Zone.R, level: 3, size: 2, residents: 420, power: 45, water: 50, floors: [15, 30] },
+  c1: { name: '골목 상가', zone: Zone.C, level: 1, size: 1, jobs: 8, power: 3, water: 2, floors: [1, 3] },
+  c2: { name: '근린 상가 빌딩', zone: Zone.C, level: 2, size: 1, jobs: 30, power: 10, water: 5, floors: [5, 8] },
   c3: { name: '오피스 타워', zone: Zone.C, level: 3, size: 2, jobs: 320, power: 70, water: 35, floors: [18, 34] },
-  i1: { name: '소규모 공장', zone: Zone.I, level: 1, size: 1, jobs: 18, power: 10, water: 6, floors: [1, 2] },
-  i2: { name: '제조 공장', zone: Zone.I, level: 2, size: 1, jobs: 40, power: 22, water: 12, floors: [2, 3] },
-  i3: { name: '첨단 산업단지', zone: Zone.I, level: 3, size: 2, jobs: 180, power: 60, water: 30, floors: [3, 5] },
+  i1: { name: '1차 산업 (농장)', zone: Zone.I, level: 1, size: 1, jobs: 14, power: 3, water: 8, floors: [1, 1] },
+  i2: { name: '2차 산업 (공장)', zone: Zone.I, level: 2, size: 1, jobs: 40, power: 22, water: 12, floors: [2, 3] },
+  i3: { name: '3차 산업 (지식·물류)', zone: Zone.I, level: 3, size: 2, jobs: 180, power: 60, water: 30, floors: [4, 10] },
   coal: { name: '화력 발전소', size: 3, power: -600, water: 20, cost: 9000, upkeep: 300, floors: [3, 3], desc: '전력 600 · 주변 땅값 하락' },
   solar: { name: '태양광 발전소', size: 2, power: -140, water: 0, cost: 3500, upkeep: 90, floors: [1, 1], desc: '전력 140 · 깨끗함' },
   water: { name: '정수장', size: 3, power: 25, water: -700, cost: 6000, upkeep: 260, floors: [2, 2], desc: '수도 700 · 강, 바다, 호수 같은 물가에 지어야 함' },
@@ -112,11 +112,15 @@ export const ZONE_NAME = ['', '주거', '상업', '산업'] as const;
 
 /** What a zoned building actually is, by its look: Korean streets mix many small trades. */
 export const VARIANTS: Partial<Record<BuildingKind, string[]>> = {
-  r1: ['빌라', '빌라', '단독주택'],
-  r2: ['다세대 주택', '원룸 건물', '다가구 주택'],
+  // The variant decides the model too (render/buildings.ts), so the name always matches the look.
+  r1: ['단독주택', '양옥집', '한옥', '작은 빌라', '작은 빌라'],
+  r2: ['빌라', '다세대 주택', '저층 아파트', '저층 아파트'],
+  r3: ['아파트 단지', '아파트 단지', '주상복합'],
   c1: ['편의점', '치킨집', '카페', 'PC방', '노래방', '부동산', '분식집'],
   c2: ['근린생활 빌딩', '학원 빌딩', '병원 빌딩', '교회가 있는 빌딩'],
-  i1: ['소규모 공장', '물류 창고'],
+  i1: ['비닐하우스', '논밭', '축사', '과수원'],
+  i2: ['제조 공장', '부품 공장', '식품 공장'],
+  i3: ['지식산업센터', '물류센터', '데이터센터'],
 };
 export const variantOf = (kind: BuildingKind, look: number) => { const v = VARIANTS[kind]; return v ? Math.floor(look * v.length) % v.length : 0; };
 export const displayName = (kind: BuildingKind, look: number) => VARIANTS[kind]?.[variantOf(kind, look)] ?? KINDS[kind].name;

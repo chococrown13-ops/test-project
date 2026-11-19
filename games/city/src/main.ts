@@ -3,7 +3,7 @@ import { CELL, Ground, KINDS, Level, LEVEL_NAME, N, Road, SERVICE, Zone } from '
 import { loadLocal, saveLocal } from './sim/save';
 import { updateParking } from './sim/parking';
 import { createSim, tick, type Sim } from './sim/sim';
-import { altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeRoundabout, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
+import { addBuilding, altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeRoundabout, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
 import { buildCityNetwork, buildElevatedNetwork } from './render/roadnet';
 import { findAccess, network } from './sim/network';
 import { hasOpenWater } from './sim/tools';
@@ -681,7 +681,7 @@ function frame(t: number) {
 requestAnimationFrame(frame);
 
 // Debug/test hook.
-(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, setTool, setSpeed, tools: { placeRoundabout, placeRoad, placeCurve, curveOf, roadPath, paintZone, rectCells, placeFacility, createLine, placeAltRoad }, roadnet: () => buildCityNetwork(sim.w), flynet: () => buildElevatedNetwork(sim.w),
+(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, setTool, setSpeed, tools: { addBuilding, placeRoundabout, placeRoad, placeCurve, curveOf, roadPath, paintZone, rectCells, placeFacility, createLine, placeAltRoad }, roadnet: () => buildCityNetwork(sim.w), flynet: () => buildElevatedNetwork(sim.w),
   /** For automated play: a fresh 가상 지형 world, and the sim's own tick. */
   useWorld: (seed: number) => useWorld(createWorld(seed)),
   /** Why zoned buildings by curves do or don't turn to face them (diagnostics). */

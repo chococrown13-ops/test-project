@@ -63,6 +63,17 @@ function brickVilla(P: Put, H: number, r: () => number, brick: string) {
   roofLife(P, H, r, -2.4, -0.6);
 }
 
+/** 저층 아파트: a five-storey block with balconies front and back, the builder's band near the top, parking in front. */
+function lowApartment(P: Put, H: number, r: () => number) {
+  P('box', 0, 0, 0.9, 9, H, 6.6, pick(APT, r()), STYLE.slab, 0, pick(BRAND, r()));
+  P('box', 0, H, 0.9, 9.2, 0.4, 6.8, '#d8d3c8');
+  P('box', 2.4, H, 2, 2.8, 2.4, 2.6, '#e9e5dc', STYLE.house);
+  P('cyl', -2.6, H, 2, 1.5, 1.6, 1.5, pick(TANK, r()));
+  P('box', 0, 0, -3.9, 9, 0.06, 2, '#9d978d');
+  P('box', -3.6, 0, -4.7, 1.6, 0.5, 0.5, '#6f9450');
+  if (r() < 0.6) P('tree', -3.6, 0.5, -4.6, 1.4, 2.2, 1.4, '#5e8f45');
+}
+
 /** 상가주택: shopfronts below, flats above, a signboard on every floor, a 돌출간판, a green roof. */
 function shopHouse(P: Put, floors: number, r: () => number, ground: string) {
   const f = Math.max(2, floors), h = f * 3;
@@ -127,15 +138,14 @@ function rawParts(b: Building, w: World): Part[] {
     out.push({ shape: s, x: cx + dx * c0 + dz * s0, y: dy, z: cz - dx * s0 + dz * c0, sx: w, sy: h, sz: d, rot: rot + dr, color, style, sign });
   switch (b.kind) {
     case 'r1': {
-      // Low-rise houses of every era: mostly 적벽돌 빌라, with 불란서 주택, 슬래브 양옥 and the odd 도시형 한옥.
-      const v = r();
-      if (v < 0.55) brickVilla(P, H, r, pick(BRICKS, r()));
-      else if (v < 0.72) {
+      // 1단계 homes: 단독주택 (불란서 주택), 양옥집 (슬래브), 도시형 한옥, or a small 빌라. The variant picks the model.
+      const v = variantOf('r1', b.look);
+      if (v === 0) {
         // 불란서 주택: two storeys under a steep coloured roof.
         P('box', 0, 0, 0.6, 7.4, 5.6, 7, pick(['#efe6d2', '#e8dcc6', '#f1ece2'], r()), STYLE.house);
         P('gable', 0, 5.6, 0.6, 8.2, 3, 7.8, pick(['#b5503b', '#3f6f9f', '#4d7a52', '#7a4a3a'], r()));
         P('box', 0, 0, -4.7, 9.4, 1.4, 0.35, pick(BRICKS, r()));
-      } else if (v < 0.88) {
+      } else if (v === 1) {
         // 슬래브 양옥: a flat concrete roof with a parapet, tank and 장독대, a green iron gate.
         const h = r() < 0.5 ? 5.8 : 3;
         P('box', 0, 0, 0.6, 7.8, h, 7.2, r() < 0.3 ? pick(BRICKS, r()) : pick(CEMENT, r()), STYLE.house);
@@ -143,7 +153,7 @@ function rawParts(b: Building, w: World): Part[] {
         roofLife(P, h, r, 0, 0.6);
         P('box', -1, 0, -4.7, 7.4, 1.5, 0.35, BLOCK);
         P('box', 3.5, 0, -4.7, 2, 1.9, 0.22, '#3d7a5a');
-      } else {
+      } else if (v === 2) {
         // 도시형 한옥: 안채 at the back, a wing by the 마당, 담장 and 대문 on the street.
         const roof = pick(GIWA, r());
         P('box', 0, 0, 2, 8.8, 0.45, 4, STONE);
@@ -156,12 +166,14 @@ function rawParts(b: Building, w: World): Part[] {
         P('box', -sx * 1, 0, -4.6, 7.6, 1.5, 0.35, '#d6cab1');
         P('box', -sx * 1, 1.5, -4.6, 7.7, 0.25, 0.7, roof);
         P('box', -sx * 3.9, 0, -4.6, 0.5, 2.2, 0.5, TIMBER);
-      }
+      } else brickVilla(P, Math.max(2, b.floors) * 3, r, pick(BRICKS, r())); // 작은 빌라: two or three floors
       break;
     }
     case 'r2': {
-      // 다세대: pale tile over 필로티 parking, or the older 적벽돌.
-      if (r() < 0.7) {
+      // 2단계: 빌라 (적벽돌), 다세대 (pale tile over 필로티 parking), or a 저층 아파트 block.
+      const v = variantOf('r2', b.look);
+      if (v === 0) brickVilla(P, H, r, pick(BRICKS, r()));
+      else if (v === 1) {
         const tile = pick(TILES, r());
         for (const [px, pz] of [[-3.8, -3.4], [3.8, -3.4], [-3.8, 3.8], [3.8, 3.8]]) P('box', px, 0, pz, 0.6, 3, 0.6, '#bdb6a8');
         P('box', 0, 3, 0.2, 8.6, H - 3, 7.8, tile, STYLE.framed);
@@ -171,10 +183,11 @@ function rawParts(b: Building, w: World): Part[] {
         P('box', 1.8, H, 1.6, 3.2, 2.5, 2.8, '#e6e1d6', STYLE.house);
         P('box', 1.8, H + 2.5, 1.6, 3.5, 0.22, 3.1, '#3f6f9f');
         roofLife(P, H, r, -2, -1);
-      } else brickVilla(P, H, r, pick(BRICKS, r()));
+      } else lowApartment(P, H, r);
       break;
     }
     case 'r3': {
+      if (variantOf('r3', b.look) === 2) { mixedUse(b, out); break; }
       const col = pick(APT, r()), brand = pick(BRAND, r());
       if (b.look < 0.55) {
         // Two 판상형 slabs, the classic 아파트 단지 silhouette.
@@ -213,16 +226,6 @@ function rawParts(b: Building, w: World): Part[] {
       break;
     }
     case 'c3': {
-      if (b.look < 0.5) {
-        // 주상복합: a podium of shops, then a cross-shaped glass tower.
-        P('box', 0, 0, 0, 18.4, 9, 18.4, '#d8d5cc', STYLE.shophouse);
-        P('box', 0, 6.6, -9.35, 14, 1.2, 0.3, pick(SIGNS, r()), STYLE.sign);
-        const glass = pick(GLASSES, r());
-        P('box', 0, 9, 0, 15, H - 9, 9, glass, STYLE.office);
-        P('box', 0, 9, 0, 9, H - 15, 15, glass, STYLE.office);
-        P('box', 0, H - 6, 0, 7, 4, 7, '#cfd3d6');
-        break;
-      }
       P('box', 0, 0, 0, 18.4, 9, 18.4, '#b9b4ab', STYLE.shops, 0, pick(SIGN, r()));
       const tw = 11 + r() * 3, td = 10 + r() * 3;
       const glass = pick(['#7c90a6', '#8aa1a8', '#6d7f94', '#9aa7b4'], r());
@@ -232,22 +235,69 @@ function rawParts(b: Building, w: World): Part[] {
       P('box', 0, top, 0, 3, 2.5, 3, '#c9cbcc');
       break;
     }
-    case 'i1':
+    case 'i1': {
+      // 1차 산업: 비닐하우스, 논밭, 축사, 과수원 on the edge of town.
+      const v = variantOf('i1', b.look);
+      if (v === 0) {
+        P('box', 0, 0, 0, 9.4, 0.08, 9.4, '#8a7a5c');
+        for (const dx of [-3, 0, 3]) P('vault', dx, 0.08, 0.3, 8.4, 2.4, 2.6, '#eef4f0', STYLE.plain, Math.PI / 2);
+        P('box', 3.6, 0.08, -4.3, 1.6, 1.4, 0.8, '#3f6f9f');
+      } else if (v === 1) {
+        P('box', 0, 0, 0, 9.4, 0.1, 9.4, '#7a6a4a');
+        const crop = r() < 0.5 ? '#7fae4f' : '#d8b75a';
+        for (let k = 0; k < 5; k++) P('box', -1, 0.1, -3.8 + k * 1.7, 6.6, 0.3, 1, crop);
+        P('box', 3.4, 0.1, 2.8, 2.4, 2.2, 2.2, '#cfc8b8', STYLE.house);
+        P('gable', 3.4, 2.3, 2.8, 2.8, 0.9, 2.6, '#3f6f9f');
+      } else if (v === 2) {
+        P('box', 0, 0, 0.8, 8.6, 2.6, 5.6, '#e3ddcf', STYLE.factory);
+        P('gable', 0, 2.6, 0.8, 9, 1.5, 6.2, pick(['#b5503b', '#3f6f9f'], r()));
+        P('cyl', 3.4, 0, -3.3, 1.8, 6, 1.8, '#cfd3d6');
+        P('cyl', 3.4, 6, -3.3, 1.9, 0.6, 1.9, '#9aa0a6');
+        P('box', -1.5, 0, -4.4, 6, 1.1, 0.15, '#8a6a4a');
+      } else {
+        P('box', 0, 0, 0, 9.4, 0.06, 9.4, '#7d9b4f');
+        const fruit = pick(['#5e8f45', '#6f9a3f', '#7aa04a'], r());
+        for (const dx of [-3, 0, 3]) for (const dz of [-3, 0, 3]) {
+          P('box', dx, 0.06, dz, 0.25, 1.2, 0.25, '#6b5440');
+          P('tree', dx, 0.9, dz, 2.2, 2.2, 2.2, fruit);
+        }
+      }
+      break;
+    }
     case 'i2': {
-      // Blue sawtooth roofs, the colour of every Korean works yard.
-      const big = b.kind === 'i2';
+      // 2차 산업: blue sawtooth roofs, the colour of every Korean works yard.
+      const v = variantOf('i2', b.look);
       const h = 4 + b.floors * 1.6;
-      P('box', 0, 0, 0, 9, h, 8.6, pick(['#cfc8b8', '#c9c2b4', '#d6d0c2'], r()), STYLE.factory);
+      P('box', 0, 0, 0, 9, h, 8.6, v === 2 ? '#e8e6e0' : pick(['#cfc8b8', '#c9c2b4', '#d6d0c2'], r()), STYLE.factory);
       const roof = pick(['#4a78a8', '#4a78a8', '#5d86b2', '#3f6f9f'], r());
       for (let k = 0; k < 2; k++) P('gable', 0, h, -2.15 + k * 4.3, 9.2, 1.6, 4.4, roof);
-      if (big) P('cyl', 3.4, 0, 3.4, 1.2, h + 9, 1.2, '#b25b44');
-      else if (r() < 0.5) P('cyl', -3.2, 0, 3.4, 2.2, 3.2, 2.2, '#d1d6d9');
+      if (v === 0) P('cyl', 3.4, 0, 3.4, 1.2, h + 9, 1.2, '#b25b44');
+      else if (v === 1) P('cyl', -3.2, 0, 3.4, 2.2, 3.2, 2.2, '#d1d6d9');
+      else for (const dx of [-3, -0.6]) P('cyl', dx, 0, 3.6, 2, h + 3, 2, '#dfe3e6');
       break;
     }
     case 'i3': {
-      box(0, 0, -2, 17, 10, 11, '#e6eaee', STYLE.office);
-      box(-4, 0, 6, 8, 16 + r() * 6, 6, '#a9bccb', STYLE.office);
-      box(5, 0, 6.5, 6, 4, 5, '#d3d8dc', STYLE.factory);
+      // 3차 산업: 지식산업센터, 물류센터, 데이터센터.
+      const v = variantOf('i3', b.look);
+      if (v === 0) {
+        P('box', 0, 0, 2, 18, 6, 15, '#d8d5cc', STYLE.factory);
+        P('box', 0, 6, 3, 16, Math.max(12, H) - 6, 11, pick(['#9fb2c2', '#a7b4bd', '#8ea7b9'], r()), STYLE.office);
+        P('box', 0, Math.max(12, H), 3, 6, 2.4, 5, '#c9cbcc');
+        P('prism', -6.5, 0, -7.2, 4, 2.2, 3.4, '#9d978d');
+      } else if (v === 1) {
+        P('box', 0, 0, 1, 18.4, 13, 15.6, '#e8e6e0', STYLE.plain);
+        P('box', 0, 10.6, -6.85, 18.4, 1.4, 0.3, pick(['#2f6db3', '#d9473b', '#2e9e4f'], r()), STYLE.sign);
+        for (let k = -3; k <= 3; k++) P('box', k * 2.5, 0, -6.95, 1.8, 3.2, 0.2, '#4a4f55');
+        for (const dx of [-5, 0, 5]) P('box', dx, 0, -9, 2.3, 3.4, 1.6, '#f2f2f0');
+      } else {
+        P('box', 0, 0, 1.5, 17, 10, 14, '#c9ccd0', STYLE.plain);
+        for (const dx of [-5.5, -1.8, 1.8, 5.5]) for (const dz of [-2.5, 2, 6.5]) {
+          P('box', dx, 10, dz, 2.6, 1.2, 2.6, '#9aa0a6');
+          P('cyl', dx, 11.2, dz, 1.8, 0.2, 1.8, '#5d6670');
+        }
+        P('box', -4, 0, -7.2, 7, 4, 3, pick(GLASSES, r()), STYLE.office);
+        P('box', 0, 0, -9.6, 18.8, 1.8, 0.1, '#8d9399');
+      }
       break;
     }
     case 'coal': {
@@ -500,6 +550,7 @@ function stretched(b: Building, w: World): Part[] {
  * cell. A bigger block gets more 동, not fatter ones.
  */
 function complex(b: Building): Part[] {
+  if (variantOf('r3', b.look) === 2) { const out: Part[] = []; mixedUse(b, out); return out; }
   const r = seq(b.look + b.id * 0.0137);
   const Wm = bw(b) * CELL, Dm = bh(b) * CELL;
   const cx = b.x * CELL + Wm / 2, cz = b.y * CELL + Dm / 2;
@@ -542,6 +593,34 @@ function complex(b: Building): Part[] {
   box(-Wm / 2 + 1.6, 0, -Dm / 2 + 1.6, 2.2, 2.6, 2.2, '#d9d2c3');
   if (bw(b) * bh(b) >= 6) box(Wm / 2 - 3, 0, Dm / 2 - 3, 3.6, 0.3, 3.6, '#d9a25b');
   return out;
+}
+
+/**
+ * 주상복합: a podium of shops over the whole plot, signboards along it, and
+ * cross-shaped residential towers on top (one for every 18 m or so of frontage).
+ */
+function mixedUse(b: Building, out: Part[]) {
+  const r = seq(b.look + b.id * 0.0137);
+  const Wm = bw(b) * CELL, Dm = bh(b) * CELL;
+  const cx = b.x * CELL + Wm / 2, cz = b.y * CELL + Dm / 2;
+  const H = b.floors * 3, base = 9;
+  const box = (x: number, y: number, z: number, sx: number, sy: number, sz: number, color: string, style = STYLE.plain, sign?: string) =>
+    out.push({ shape: 'box', x: cx + x, y, z: cz + z, sx, sy, sz, rot: 0, color, style, sign });
+  box(0, 0, 0, Wm - 1.6, base, Dm - 1.6, '#d8d5cc', STYLE.shophouse);
+  // A lit signboard band round the podium.
+  box(0, 6.6, -(Dm - 1.6) / 2 - 0.15, (Wm - 1.6) * 0.8, 1.1, 0.3, pick(SIGNS, r()), STYLE.sign);
+  box(0, 6.6, (Dm - 1.6) / 2 + 0.15, (Wm - 1.6) * 0.8, 1.1, 0.3, pick(SIGNS, r()), STYLE.sign);
+  const alongX = Wm >= Dm, long = alongX ? Wm : Dm;
+  const n = Math.max(1, Math.round(long / 18));
+  const col = pick(['#eef0f0', '#e7ebee', '#f1ece2'], r()), brand = pick(BRAND, r());
+  for (let k = 0; k < n; k++) {
+    const u = -long / 2 + (long / n) * (k + 0.5);
+    const [x, z] = alongX ? [u, 0] : [0, u];
+    const h = H - (k % 2) * 9;
+    box(x, base, z, 13, h - base, 7, col, STYLE.apt, brand);
+    box(x, base, z, 7, h - base - 3, 13, col, STYLE.apt, brand);
+    box(x, h, z, 5, 3, 5, '#cfd3d6');
+  }
 }
 
 /** Office plots: a podium over the whole lot, with a tower for every two cells of frontage. */
