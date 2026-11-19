@@ -63,6 +63,17 @@ function brickVilla(P: Put, H: number, r: () => number, brick: string) {
   roofLife(P, H, r, -2.4, -0.6);
 }
 
+/** 저층 아파트: a five-storey block with balconies front and back, the builder's band near the top, parking in front. */
+function lowApartment(P: Put, H: number, r: () => number) {
+  P('box', 0, 0, 0.9, 9, H, 6.6, pick(APT, r()), STYLE.slab, 0, pick(BRAND, r()));
+  P('box', 0, H, 0.9, 9.2, 0.4, 6.8, '#d8d3c8');
+  P('box', 2.4, H, 2, 2.8, 2.4, 2.6, '#e9e5dc', STYLE.house);
+  P('cyl', -2.6, H, 2, 1.5, 1.6, 1.5, pick(TANK, r()));
+  P('box', 0, 0, -3.9, 9, 0.06, 2, '#9d978d');
+  P('box', -3.6, 0, -4.7, 1.6, 0.5, 0.5, '#6f9450');
+  if (r() < 0.6) P('tree', -3.6, 0.5, -4.6, 1.4, 2.2, 1.4, '#5e8f45');
+}
+
 /** 상가주택: shopfronts below, flats above, a signboard on every floor, a 돌출간판, a green roof. */
 function shopHouse(P: Put, floors: number, r: () => number, ground: string) {
   const f = Math.max(2, floors), h = f * 3;
@@ -127,15 +138,14 @@ function rawParts(b: Building, w: World): Part[] {
     out.push({ shape: s, x: cx + dx * c0 + dz * s0, y: dy, z: cz - dx * s0 + dz * c0, sx: w, sy: h, sz: d, rot: rot + dr, color, style, sign });
   switch (b.kind) {
     case 'r1': {
-      // Low-rise houses of every era: mostly 적벽돌 빌라, with 불란서 주택, 슬래브 양옥 and the odd 도시형 한옥.
-      const v = r();
-      if (v < 0.55) brickVilla(P, H, r, pick(BRICKS, r()));
-      else if (v < 0.72) {
+      // 1단계 homes: 단독주택 (불란서 주택), 양옥집 (슬래브), 도시형 한옥, or a small 빌라. The variant picks the model.
+      const v = variantOf('r1', b.look);
+      if (v === 0) {
         // 불란서 주택: two storeys under a steep coloured roof.
         P('box', 0, 0, 0.6, 7.4, 5.6, 7, pick(['#efe6d2', '#e8dcc6', '#f1ece2'], r()), STYLE.house);
         P('gable', 0, 5.6, 0.6, 8.2, 3, 7.8, pick(['#b5503b', '#3f6f9f', '#4d7a52', '#7a4a3a'], r()));
         P('box', 0, 0, -4.7, 9.4, 1.4, 0.35, pick(BRICKS, r()));
-      } else if (v < 0.88) {
+      } else if (v === 1) {
         // 슬래브 양옥: a flat concrete roof with a parapet, tank and 장독대, a green iron gate.
         const h = r() < 0.5 ? 5.8 : 3;
         P('box', 0, 0, 0.6, 7.8, h, 7.2, r() < 0.3 ? pick(BRICKS, r()) : pick(CEMENT, r()), STYLE.house);
@@ -143,7 +153,7 @@ function rawParts(b: Building, w: World): Part[] {
         roofLife(P, h, r, 0, 0.6);
         P('box', -1, 0, -4.7, 7.4, 1.5, 0.35, BLOCK);
         P('box', 3.5, 0, -4.7, 2, 1.9, 0.22, '#3d7a5a');
-      } else {
+      } else if (v === 2) {
         // 도시형 한옥: 안채 at the back, a wing by the 마당, 담장 and 대문 on the street.
         const roof = pick(GIWA, r());
         P('box', 0, 0, 2, 8.8, 0.45, 4, STONE);
@@ -156,12 +166,14 @@ function rawParts(b: Building, w: World): Part[] {
         P('box', -sx * 1, 0, -4.6, 7.6, 1.5, 0.35, '#d6cab1');
         P('box', -sx * 1, 1.5, -4.6, 7.7, 0.25, 0.7, roof);
         P('box', -sx * 3.9, 0, -4.6, 0.5, 2.2, 0.5, TIMBER);
-      }
+      } else brickVilla(P, Math.max(2, b.floors) * 3, r, pick(BRICKS, r())); // 작은 빌라: two or three floors
       break;
     }
     case 'r2': {
-      // 다세대: pale tile over 필로티 parking, or the older 적벽돌.
-      if (r() < 0.7) {
+      // 2단계: 빌라 (적벽돌), 다세대 (pale tile over 필로티 parking), or a 저층 아파트 block.
+      const v = variantOf('r2', b.look);
+      if (v === 0) brickVilla(P, H, r, pick(BRICKS, r()));
+      else if (v === 1) {
         const tile = pick(TILES, r());
         for (const [px, pz] of [[-3.8, -3.4], [3.8, -3.4], [-3.8, 3.8], [3.8, 3.8]]) P('box', px, 0, pz, 0.6, 3, 0.6, '#bdb6a8');
         P('box', 0, 3, 0.2, 8.6, H - 3, 7.8, tile, STYLE.framed);
@@ -171,29 +183,13 @@ function rawParts(b: Building, w: World): Part[] {
         P('box', 1.8, H, 1.6, 3.2, 2.5, 2.8, '#e6e1d6', STYLE.house);
         P('box', 1.8, H + 2.5, 1.6, 3.5, 0.22, 3.1, '#3f6f9f');
         roofLife(P, H, r, -2, -1);
-      } else brickVilla(P, H, r, pick(BRICKS, r()));
+      } else lowApartment(P, H, r);
       break;
     }
-    case 'r3': {
-      const col = pick(APT, r()), brand = pick(BRAND, r());
-      if (b.look < 0.55) {
-        // Two 판상형 slabs, the classic 아파트 단지 silhouette.
-        for (const off of [-4.6, 4.6]) {
-          const h = H - (off > 0 ? Math.floor(r() * 3) * 3 : 0);
-          box(Math.sin(along) * off, 0, Math.cos(along) * off, 16.5, h, 4.6, col, STYLE.slab, brand, along);
-          box(Math.sin(along) * off, h, Math.cos(along) * off, 4, 2.2, 3.2, col, STYLE.plain, undefined, along);
-        }
-      } else {
-        // 탑상형 towers in a pair.
-        for (const off of [-4.5, 4.5]) {
-          const h = H - (off > 0 ? 6 : 0);
-          box(Math.cos(along) * off, 0, Math.sin(along) * off, 8, h, 8, col, STYLE.apt, brand, along);
-          box(Math.cos(along) * off, h, Math.sin(along) * off, 5, 2.4, 5, brand);
-        }
-      }
-      box(Math.cos(along) * 8.2, 0, Math.sin(along) * 8.2, 2.2, 2.6, 2.2, '#d9d2c3'); // 경비실
+    case 'r3':
+      // An 아파트 단지 (or 주상복합) laid out for its plot, with its own parking and park.
+      out.push(...complex(b));
       break;
-    }
     case 'c1': {
       // 상가주택: shops below, flats above, a signboard on every floor and a 돌출간판.
       // The trade decides the ground-floor sign: 편의점, 치킨집, 카페, PC방, 노래방, 부동산, 분식집.
@@ -213,16 +209,7 @@ function rawParts(b: Building, w: World): Part[] {
       break;
     }
     case 'c3': {
-      if (b.look < 0.5) {
-        // 주상복합: a podium of shops, then a cross-shaped glass tower.
-        P('box', 0, 0, 0, 18.4, 9, 18.4, '#d8d5cc', STYLE.shophouse);
-        P('box', 0, 6.6, -9.35, 14, 1.2, 0.3, pick(SIGNS, r()), STYLE.sign);
-        const glass = pick(GLASSES, r());
-        P('box', 0, 9, 0, 15, H - 9, 9, glass, STYLE.office);
-        P('box', 0, 9, 0, 9, H - 15, 15, glass, STYLE.office);
-        P('box', 0, H - 6, 0, 7, 4, 7, '#cfd3d6');
-        break;
-      }
+      if (variantOf('c3', b.look) === 2) { bigMart(b, w, out); break; }
       P('box', 0, 0, 0, 18.4, 9, 18.4, '#b9b4ab', STYLE.shops, 0, pick(SIGN, r()));
       const tw = 11 + r() * 3, td = 10 + r() * 3;
       const glass = pick(['#7c90a6', '#8aa1a8', '#6d7f94', '#9aa7b4'], r());
@@ -232,22 +219,177 @@ function rawParts(b: Building, w: World): Part[] {
       P('box', 0, top, 0, 3, 2.5, 3, '#c9cbcc');
       break;
     }
-    case 'i1':
+    case 'i1': {
+      // 1차 산업: 비닐하우스, 논밭, 축사, 과수원 on the edge of town.
+      const v = variantOf('i1', b.look);
+      if (v === 0) {
+        P('box', 0, 0, 0, 9.4, 0.08, 9.4, '#8a7a5c');
+        for (const dx of [-3, 0, 3]) P('vault', dx, 0.08, 0.3, 8.4, 2.4, 2.6, '#eef4f0', STYLE.plain, Math.PI / 2);
+        P('box', 3.6, 0.08, -4.3, 1.6, 1.4, 0.8, '#3f6f9f');
+      } else if (v === 1) {
+        P('box', 0, 0, 0, 9.4, 0.1, 9.4, '#7a6a4a');
+        const crop = r() < 0.5 ? '#7fae4f' : '#d8b75a';
+        for (let k = 0; k < 5; k++) P('box', -1, 0.1, -3.8 + k * 1.7, 6.6, 0.3, 1, crop);
+        P('box', 3.4, 0.1, 2.8, 2.4, 2.2, 2.2, '#cfc8b8', STYLE.house);
+        P('gable', 3.4, 2.3, 2.8, 2.8, 0.9, 2.6, '#3f6f9f');
+      } else if (v === 2) {
+        P('box', 0, 0, 0.8, 8.6, 2.6, 5.6, '#e3ddcf', STYLE.factory);
+        P('gable', 0, 2.6, 0.8, 9, 1.5, 6.2, pick(['#b5503b', '#3f6f9f'], r()));
+        P('cyl', 3.4, 0, -3.3, 1.8, 6, 1.8, '#cfd3d6');
+        P('cyl', 3.4, 6, -3.3, 1.9, 0.6, 1.9, '#9aa0a6');
+        P('box', -1.5, 0, -4.4, 6, 1.1, 0.15, '#8a6a4a');
+      } else {
+        P('box', 0, 0, 0, 9.4, 0.06, 9.4, '#7d9b4f');
+        const fruit = pick(['#5e8f45', '#6f9a3f', '#7aa04a'], r());
+        for (const dx of [-3, 0, 3]) for (const dz of [-3, 0, 3]) {
+          P('box', dx, 0.06, dz, 0.25, 1.2, 0.25, '#6b5440');
+          P('tree', dx, 0.9, dz, 2.2, 2.2, 2.2, fruit);
+        }
+      }
+      break;
+    }
     case 'i2': {
-      // Blue sawtooth roofs, the colour of every Korean works yard.
-      const big = b.kind === 'i2';
+      // 2차 산업: blue sawtooth roofs, the colour of every Korean works yard.
+      const v = variantOf('i2', b.look);
       const h = 4 + b.floors * 1.6;
-      P('box', 0, 0, 0, 9, h, 8.6, pick(['#cfc8b8', '#c9c2b4', '#d6d0c2'], r()), STYLE.factory);
+      P('box', 0, 0, 0, 9, h, 8.6, v === 2 ? '#e8e6e0' : pick(['#cfc8b8', '#c9c2b4', '#d6d0c2'], r()), STYLE.factory);
       const roof = pick(['#4a78a8', '#4a78a8', '#5d86b2', '#3f6f9f'], r());
       for (let k = 0; k < 2; k++) P('gable', 0, h, -2.15 + k * 4.3, 9.2, 1.6, 4.4, roof);
-      if (big) P('cyl', 3.4, 0, 3.4, 1.2, h + 9, 1.2, '#b25b44');
-      else if (r() < 0.5) P('cyl', -3.2, 0, 3.4, 2.2, 3.2, 2.2, '#d1d6d9');
+      if (v === 0) P('cyl', 3.4, 0, 3.4, 1.2, h + 9, 1.2, '#b25b44');
+      else if (v === 1) P('cyl', -3.2, 0, 3.4, 2.2, 3.2, 2.2, '#d1d6d9');
+      else for (const dx of [-3, -0.6]) P('cyl', dx, 0, 3.6, 2, h + 3, 2, '#dfe3e6');
       break;
     }
     case 'i3': {
-      box(0, 0, -2, 17, 10, 11, '#e6eaee', STYLE.office);
-      box(-4, 0, 6, 8, 16 + r() * 6, 6, '#a9bccb', STYLE.office);
-      box(5, 0, 6.5, 6, 4, 5, '#d3d8dc', STYLE.factory);
+      // 3차 산업: 지식산업센터, 물류센터, 데이터센터.
+      const v = variantOf('i3', b.look);
+      if (v === 0) {
+        P('box', 0, 0, 2, 18, 6, 15, '#d8d5cc', STYLE.factory);
+        P('box', 0, 6, 3, 16, Math.max(12, H) - 6, 11, pick(['#9fb2c2', '#a7b4bd', '#8ea7b9'], r()), STYLE.office);
+        P('box', 0, Math.max(12, H), 3, 6, 2.4, 5, '#c9cbcc');
+        P('prism', -6.5, 0, -7.2, 4, 2.2, 3.4, '#9d978d');
+      } else if (v === 1) {
+        P('box', 0, 0, 1, 18.4, 13, 15.6, '#e8e6e0', STYLE.plain);
+        P('box', 0, 10.6, -6.85, 18.4, 1.4, 0.3, pick(['#2f6db3', '#d9473b', '#2e9e4f'], r()), STYLE.sign);
+        for (let k = -3; k <= 3; k++) P('box', k * 2.5, 0, -6.95, 1.8, 3.2, 0.2, '#4a4f55');
+        for (const dx of [-5, 0, 5]) P('box', dx, 0, -9, 2.3, 3.4, 1.6, '#f2f2f0');
+      } else {
+        P('box', 0, 0, 1.5, 17, 10, 14, '#c9ccd0', STYLE.plain);
+        for (const dx of [-5.5, -1.8, 1.8, 5.5]) for (const dz of [-2.5, 2, 6.5]) {
+          P('box', dx, 10, dz, 2.6, 1.2, 2.6, '#9aa0a6');
+          P('cyl', dx, 11.2, dz, 1.8, 0.2, 1.8, '#5d6670');
+        }
+        P('box', -4, 0, -7.2, 7, 4, 3, pick(GLASSES, r()), STYLE.office);
+        P('box', 0, 0, -9.6, 18.8, 1.8, 0.1, '#8d9399');
+      }
+      break;
+    }
+    case 'office': {
+      // 행정복지센터: a plain civic block, its name in blue, and three flagpoles out front.
+      P('box', 0, 0, 0.8, 8.4, 9, 7.4, '#ece6da', STYLE.apt, 0, '#2f6db3');
+      P('box', 0, 3, -3.2, 4.4, 0.25, 1.6, '#cfc8ba');
+      P('box', 0, 3.6, -3.05, 4.2, 0.9, 0.2, '#2f6db3', STYLE.sign);
+      for (const fx of [-3.4, -2.6, -1.8]) {
+        P('cyl', fx, 0, -4.3, 0.12, 6.5, 0.12, '#e8e8e8');
+        P('box', fx + 0.45, 5.6, -4.3, 0.9, 0.6, 0.04, fx === -2.6 ? '#f2f2f0' : fx === -3.4 ? '#2f6db3' : '#e8e2d4');
+      }
+      break;
+    }
+    case 'post': {
+      // 우체국: red signboard, glass front, and a red 우체통 on the pavement edge.
+      P('box', 0, 0, 0.6, 8.4, 6, 7.6, '#e8e2d4', STYLE.shophouse);
+      P('box', 0, 4.4, -3.25, 7, 1, 0.3, '#d9473b', STYLE.sign);
+      P('box', 3.4, 0, -4.4, 0.6, 1.2, 0.5, '#d9473b');
+      P('box', 3.4, 1.2, -4.4, 0.7, 0.15, 0.6, '#b8362b');
+      P('box', -2.5, 0, -4.2, 2.4, 1.6, 1.4, '#e6e1d6');
+      break;
+    }
+    case 'library': {
+      // 공공도서관: a long low hall with a glass reading room, a sloping roof, and a reading garden.
+      P('box', 0, 0, 2.5, 17, 7, 11, '#d9cdb5', STYLE.house);
+      P('box', -3, 0, -3.4, 9, 6, 1.2, '#8aa5b8', STYLE.office);
+      P('gable', 0, 7, 2.5, 17.6, 2, 11.6, '#6b7f8f');
+      P('box', 4, 5.2, -3.15, 5, 0.9, 0.3, '#3d9a62', STYLE.sign);
+      P('box', 4, 0, -7, 8, 0.08, 4.4, '#7fae55');
+      for (const tx of [1.5, 6.5]) { P('box', tx, 0, -7, 0.25, 1.4, 0.25, '#6b5440'); P('tree', tx, 1.1, -7, 2.6, 2.6, 2.6, '#5e8f45'); }
+      P('box', 4, 0, -8.6, 2, 0.45, 0.5, '#8a6a4a');
+      break;
+    }
+    case 'terminal': {
+      // 고속버스터미널: the hall at the back, a long canopy over the bays, coaches lined up under it.
+      P('box', 0, 0, 9, 26, 9, 9, '#e3ded2', STYLE.shophouse);
+      P('box', 0, 6.6, 4.35, 18, 1.6, 0.35, '#2f6db3', STYLE.sign);
+      P('box', 0, 0, -1, 28, 0.15, 17, '#5a5d61');
+      for (let k = -4; k <= 4; k++) P('box', k * 3, 0.15, -2, 0.12, 0.02, 9, '#eeeeea');
+      P('box', 0, 5.2, -1, 28, 0.4, 10, '#d8d5cc');
+      // Pillars stand on the bay lines (every 6 m), between the coaches, never in a bay.
+      for (const px of [-12, -6, 0, 6, 12]) for (const pz of [-5, 3]) P('box', px, 0, pz, 0.4, 5.2, 0.4, '#9d9a92');
+      for (let k = -4; k <= 3; k++) {
+        if (r() < 0.25) continue;
+        const coach = pick(['#f2f2f0', '#2f6db3', '#f2f2f0', '#1f4e9a'], r());
+        P('box', k * 3 + 1.5, 0.15, -2, 2.3, 3.3, 11, coach, STYLE.plain);
+        P('box', k * 3 + 1.5, 1.6, -2, 2.34, 1, 10.6, '#2c3e50');
+      }
+      break;
+    }
+    case 'ktx': {
+      // KTX역: a glass station hall, a long platform canopy, and a white train with its blue stripe on the line behind.
+      P('box', 0, 0, -6, 22, 11, 9, '#8aa5b8', STYLE.office);
+      P('box', 0, 11, -6, 24, 0.8, 11, '#eef0f2');
+      P('box', 0, 8.6, -10.6, 12, 1.6, 0.3, '#1f4e9a', STYLE.sign);
+      P('box', 0, 0, 5.5, 30, 1.2, 12, '#b9b4ab');
+      for (const tz of [3, 8]) for (const rx of [-0.7, 0.7]) P('box', 0, 1.2, tz + rx, 30, 0.2, 0.12, '#6b6f75');
+      P('box', 0, 1.2, 5.5, 28, 0.25, 2.2, '#cfc9bd');
+      P('box', 0, 5.8, 5.5, 28, 0.3, 5, '#eef0f2');
+      for (const px of [-12, -4, 4, 12]) P('box', px, 1.2, 5.5, 0.4, 4.6, 0.4, '#9d9a92');
+      P('box', -1, 1.4, 8, 24, 3.6, 3, '#f2f2f0');
+      P('box', -1, 2.2, 8, 24.05, 0.5, 3.05, '#2f6db3');
+      P('box', -1, 3, 8, 24.05, 0.6, 3.05, '#2c3e50');
+      P('prism', 12.5, 1.4, 8, 3, 3.2, 3, '#f2f2f0', STYLE.plain, -Math.PI / 2);
+      break;
+    }
+    case 'bike': {
+      // 공공자전거 대여소: a docking rail, bikes in their green frames, and the kiosk.
+      P('box', 0, 0, -1, 8, 0.12, 3, '#9d978d');
+      P('box', 0, 0.12, 0, 7.2, 0.6, 0.2, '#6f7378');
+      for (let k = -3; k <= 3; k++) {
+        if (r() < 0.25) continue;
+        P('box', k, 0.3, -0.9, 0.12, 0.7, 1.7, '#3d9a62');
+        P('box', k, 0.12, -0.2, 0.08, 0.6, 0.6, '#2c2f33');
+        P('box', k, 0.12, -1.6, 0.08, 0.6, 0.6, '#2c2f33');
+      }
+      P('box', 3.6, 0, -2.4, 0.8, 1.6, 0.5, '#3d9a62');
+      break;
+    }
+    case 'trailhead': {
+      // 등산로 입구: a timber gate with the trail's name, a 막걸리·파전집 under a tiled roof with a 평상, and the path into the hills.
+      P('box', -3.5, 0, -3.6, 0.35, 3.2, 0.35, TIMBER);
+      P('box', -0.9, 0, -3.6, 0.35, 3.2, 0.35, TIMBER);
+      P('box', -2.2, 2.7, -3.6, 3.3, 0.6, 0.3, '#8a6a4a', STYLE.sign);
+      P('box', -2.2, 0, 1, 2.2, 0.06, 9.6, '#b59b72');
+      P('box', 2.6, 0, 1.4, 4.4, 0.4, 5, STONE);
+      P('box', 2.6, 0.4, 1.4, 3.6, 2.4, 4, PLASTER, STYLE.hanok);
+      P('hanok', 2.6, 2.8, 1.4, 5.2, 1.5, 5.6, pick(GIWA, r()), STYLE.plain, Math.PI / 2);
+      P('box', 2.6, 2, -0.65, 2.4, 0.6, 0.2, '#c0392b', STYLE.sign);
+      P('box', 2.4, 0, -2.6, 2.4, 0.5, 1.6, '#8a6a4a');
+      break;
+    }
+    case 'jjim': {
+      if (variantOf('jjim', b.look) === 0) {
+        // 찜질방: a big 4-storey block with its lit sign, and the steam chimney.
+        P('box', 0, 0, 1, 17, 12, 15, '#e8d9c4', STYLE.shophouse);
+        P('box', 0, 8.4, -6.65, 12, 2.4, 0.35, '#e8743b', STYLE.sign);
+        P('box', 0, 12, 1, 17.2, 0.3, 15.2, ROOFGREEN);
+        P('hip', -4, 12.3, 3, 6, 2.6, 6, '#d9473b');
+        P('cyl', 6, 12.3, 5, 1.4, 6, 1.4, '#c8b8a2');
+      } else {
+        // 목욕탕: a blue-tiled block and its tall chimney.
+        P('box', 0, 0, 1, 15, 6, 13, '#cfe0e8', STYLE.house);
+        P('box', 0, 6, 1, 15.2, 0.4, 13.2, ROOFGREEN);
+        P('box', 0, 4.2, -5.65, 7, 1.4, 0.3, '#2f6db3', STYLE.sign);
+        P('cyl', 5.5, 0, 5, 1.8, 18, 1.8, '#c8b8a2');
+        P('cyl', 5.5, 15.2, 5, 1.95, 1.4, 1.95, '#c0392b');
+      }
       break;
     }
     case 'coal': {
@@ -480,7 +622,7 @@ function lotParts(b: Building, w: World): Part[] {
  */
 function stretched(b: Building, w: World): Part[] {
   if (b.kind === 'r3') return complex(b);
-  if (b.kind === 'c3') return officeBlock(b);
+  if (b.kind === 'c3') { if (variantOf('c3', b.look) === 2) { const out: Part[] = []; bigMart(b, w, out); return out; } return officeBlock(b); }
   const W = bw(b), D = bh(b), base = b.size;
   const out = rawParts({ ...b, x: b.x + (W - base) / 2, y: b.y + (D - base) / 2 }, w);
   const cx = (b.x + W / 2) * CELL, cz = (b.y + D / 2) * CELL;
@@ -500,48 +642,174 @@ function stretched(b: Building, w: World): Part[] {
  * cell. A bigger block gets more 동, not fatter ones.
  */
 function complex(b: Building): Part[] {
+  if (variantOf('r3', b.look) === 2) { const out: Part[] = []; mixedUse(b, out); return out; }
   const r = seq(b.look + b.id * 0.0137);
   const Wm = bw(b) * CELL, Dm = bh(b) * CELL;
   const cx = b.x * CELL + Wm / 2, cz = b.y * CELL + Dm / 2;
   const H = b.floors * 3;
   const col = pick(APT, r()), brand = pick(BRAND, r());
   const out: Part[] = [];
-  const box = (x: number, y: number, z: number, sx: number, sy: number, sz: number, color: string, style = STYLE.plain, sign?: string) =>
-    out.push({ shape: 'box', x: cx + x, y, z: cz + z, sx, sy, sz, rot: 0, color, style, sign });
   const alongX = Wm > Dm || (Wm === Dm && b.look < 0.3);
   const long = alongX ? Wm : Dm, short = alongX ? Dm : Wm;
-  const put = (u: number, v: number, lu: number, lv: number, h: number, style: number, sign?: string, color = col) =>
-    alongX ? box(u, 0, v, lu, h, lv, color, style, sign) : box(v, 0, u, lv, h, lu, color, style, sign);
-  const putAt = (u: number, v: number, y: number, lu: number, h: number, lv: number, color: string) =>
-    alongX ? box(u, y, v, lu, h, lv, color) : box(v, y, u, lv, h, lu, color);
+  // Everything in the plot's own frame: u along its long side, v across.
+  const Q = (s: Shape, u: number, v: number, y: number, lu: number, h: number, lv: number, color: string, style = STYLE.plain, sign?: string) =>
+    out.push(alongX ? { shape: s, x: cx + u, y, z: cz + v, sx: lu, sy: h, sz: lv, rot: 0, color, style, sign } : { shape: s, x: cx + v, y, z: cz + u, sx: lv, sy: h, sz: lu, rot: 0, color, style, sign });
+  const CARS = ['#f2f2f0', '#f2f2f0', '#1b1c1e', '#a9adb2', '#6f7378', '#2a3d66', '#8c1d1d'];
+  const LEAF = ['#5e8f45', '#6c9f4f', '#7aab55'];
+  // 주차장: a strip of asphalt, cars nose-in across it.
+  const parking = (u0: number, u1: number, v: number, w: number) => {
+    Q('box', (u0 + u1) / 2, v, 0.05, u1 - u0, 0.05, w, '#5a5d61');
+    for (let u = u0 + 1.4; u < u1 - 1.2; u += 2.6) {
+      Q('box', u - 1.3, v, 0.1, 0.1, 0.02, w * 0.8, '#eeeeea');
+      if (r() < 0.25) continue;
+      const k = pick(CARS, r());
+      Q('box', u, v, 0.1, 1.7, 0.8, Math.min(4.1, w - 0.6), k);
+      Q('box', u, v, 0.9, 1.5, 0.55, Math.min(2, w - 2), '#2c2f33');
+    }
+  };
+  // 단지 공원: lawn and trees, and a 놀이터 (sand, a slide) or a 정자.
+  const park = (u0: number, u1: number, v: number, w: number, play: boolean) => {
+    Q('box', (u0 + u1) / 2, v, 0.05, u1 - u0, 0.08, w, '#7fae55');
+    for (let u = u0 + 1.6; u < u1 - 1; u += 4.2) {
+      Q('box', u, v + w / 2 - 1, 0.1, 0.25, 1.4, 0.25, '#6b5440');
+      Q('tree', u, v + w / 2 - 1, 1.1, 2.6, 2.8, 2.6, pick(LEAF, r()));
+    }
+    const mu = (u0 + u1) / 2;
+    if (play) {
+      Q('box', mu, v - 0.4, 0.1, 4, 0.15, Math.min(3.4, w - 1.2), '#e2c48a');
+      Q('prism', mu - 0.8, v - 0.4, 0.25, 0.9, 1.6, 2.2, pick(['#e74c3c', '#f1c40f', '#3498db'], r()));
+      Q('box', mu + 1, v - 0.4, 0.25, 0.9, 1.6, 0.9, '#2e9e4f');
+    } else {
+      Q('box', mu, v - 0.3, 0.1, 2.6, 0.4, 2.6, '#8a6a4a');
+      Q('hip', mu, v - 0.3, 2.4, 3.4, 1.2, 3.4, '#4a4f55');
+      for (const [a, c] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) Q('box', mu + a * 1.1, v - 0.3 + c * 1.1, 0.5, 0.18, 1.9, 0.18, '#7a3b2e');
+    }
+  };
+  // The 단지 itself: paved, a hedge round it, the gate (문주) and 경비실 at a corner.
+  Q('box', 0, 0, 0, long - 0.6, 0.04, short - 0.6, '#cbc5b8');
+  for (const sv of [-1, 1]) Q('box', 2.2, sv * (short / 2 - 0.5), 0, long - 5.4, 0.8, 0.5, '#5f8f45');
+  for (const su of [-1, 1]) Q('box', su * (long / 2 - 0.5), 2.2, 0, 0.5, 0.8, short - 5.4, '#5f8f45');
+  const gu = -long / 2 + 1.3, gv = -short / 2 + 1.3;
+  Q('box', gu + 2.6, gv, 0, 0.7, 3.6, 0.7, '#cfc8ba');
+  Q('box', gu, gv + 2.6, 0, 0.7, 3.6, 0.7, '#cfc8ba');
+  Q('box', gu + 1.6, gv + 1.6, 1.2, 1.9, 2.4, 1.9, '#d9d2c3', STYLE.house);
+  Q('box', gu + 2.6, gv, 3.6, 1.2, 0.8, 0.9, brand, STYLE.sign);
   if (b.look < 0.55) {
-    // 판상형: rows of slabs, about 9 m apart.
+    // 판상형: rows of slabs about 10 m apart; between them, by turns, a car park and a strip of park.
     const rows = Math.max(2, Math.floor((short - 2) / 9));
     const segs = long >= 28 ? 2 : 1;
     const gap = 3, len = (long - 3.5 - (segs - 1) * gap) / segs;
+    const pitch = short / rows, gw = pitch - 4.6 - 0.8;
     for (let i = 0; i < rows; i++) {
-      const v = -short / 2 + (short / rows) * (i + 0.5);
+      const v = -short / 2 + pitch * (i + 0.5);
       for (let k = 0; k < segs; k++) {
         const u = -long / 2 + 1.75 + len / 2 + k * (len + gap);
         const h = H - Math.floor(r() * 3) * 3;
-        put(u, v, len, 4.6, h, STYLE.slab, brand);
-        putAt(u, v, h, Math.min(4, len * 0.3), 2.2, 3.2, col);
+        Q('box', u, v, 0, len, h, 4.6, col, STYLE.slab, brand);
+        Q('box', u, v, h, Math.min(4, len * 0.3), 2.2, 3.2, col);
       }
+      if (i === rows - 1) break;
+      const gv2 = v + pitch / 2;
+      if (rows === 2) {
+        // Only one gap: cars on most of it, the 놀이터 at the end.
+        parking(-long / 2 + 1, long * 0.18, gv2, gw);
+        park(long * 0.18, long / 2 - 1, gv2, gw, true);
+      } else if (i % 2 === 0) parking(-long / 2 + 1, long / 2 - 1, gv2, gw);
+      else park(-long / 2 + 1, long / 2 - 1, gv2, gw, i % 4 === 1);
     }
   } else {
-    // 탑상형: a tower per cell, heights stepping.
+    // 탑상형: towers on every other spot, park and parking in between.
     const nu = Math.max(2, Math.round(long / 10)), nv = Math.max(2, Math.round(short / 10));
+    const su = long / nu, sv = short / nv;
+    let n = 0;
     for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
-      const u = -long / 2 + (long / nu) * (i + 0.5), v = -short / 2 + (short / nv) * (j + 0.5);
-      const h = H - Math.floor(r() * 3) * 6;
-      put(u, v, 7.2, 7.2, h, STYLE.apt, brand);
-      putAt(u, v, h, 4.6, 2.4, 4.6, brand);
+      const u = -long / 2 + su * (i + 0.5), v = -short / 2 + sv * (j + 0.5);
+      if ((i + j) % 2 === 0) {
+        const h = H - Math.floor(r() * 3) * 6;
+        Q('box', u, v, 0, 8, h, 8, col, STYLE.apt, brand);
+        Q('box', u, v, h, 5, 2.4, 5, brand);
+      } else if (n++ % 2 === 0) parking(u - su / 2 + 0.8, u + su / 2 - 0.8, v, sv - 2);
+      else park(u - su / 2 + 0.8, u + su / 2 - 0.8, v, sv - 2, n % 4 === 1);
     }
   }
-  // 경비실 at a corner, and a little 놀이터.
-  box(-Wm / 2 + 1.6, 0, -Dm / 2 + 1.6, 2.2, 2.6, 2.2, '#d9d2c3');
-  if (bw(b) * bh(b) >= 6) box(Wm / 2 - 3, 0, Dm / 2 - 3, 3.6, 0.3, 3.6, '#d9a25b');
   return out;
+}
+
+/**
+ * 주상복합: a podium of shops over the whole plot, signboards along it, and
+ * cross-shaped residential towers on top (one for every 18 m or so of frontage).
+ */
+function mixedUse(b: Building, out: Part[]) {
+  const r = seq(b.look + b.id * 0.0137);
+  const Wm = bw(b) * CELL, Dm = bh(b) * CELL;
+  const cx = b.x * CELL + Wm / 2, cz = b.y * CELL + Dm / 2;
+  const H = b.floors * 3, base = 9;
+  const box = (x: number, y: number, z: number, sx: number, sy: number, sz: number, color: string, style = STYLE.plain, sign?: string) =>
+    out.push({ shape: 'box', x: cx + x, y, z: cz + z, sx, sy, sz, rot: 0, color, style, sign });
+  box(0, 0, 0, Wm - 1.6, base, Dm - 1.6, '#d8d5cc', STYLE.shophouse);
+  // A lit signboard band round the podium.
+  box(0, 6.6, -(Dm - 1.6) / 2 - 0.15, (Wm - 1.6) * 0.8, 1.1, 0.3, pick(SIGNS, r()), STYLE.sign);
+  box(0, 6.6, (Dm - 1.6) / 2 + 0.15, (Wm - 1.6) * 0.8, 1.1, 0.3, pick(SIGNS, r()), STYLE.sign);
+  const alongX = Wm >= Dm, long = alongX ? Wm : Dm;
+  const n = Math.max(1, Math.round(long / 18));
+  const col = pick(['#eef0f0', '#e7ebee', '#f1ece2'], r()), brand = pick(BRAND, r());
+  for (let k = 0; k < n; k++) {
+    const u = -long / 2 + (long / n) * (k + 0.5);
+    const [x, z] = alongX ? [u, 0] : [0, u];
+    const h = H - (k % 2) * 9;
+    box(x, base, z, 13, h - base, 7, col, STYLE.apt, brand);
+    box(x, base, z, 7, h - base - 3, 13, col, STYLE.apt, brand);
+    box(x, h, z, 5, 3, 5, '#cfd3d6');
+  }
+}
+
+/**
+ * 대형마트: a big windowless box with its name lit up along the front, a glass
+ * entrance and cart shelter on the street side, and the car park on the roof,
+ * reached by a ramp up the side.
+ */
+function bigMart(b: Building, w: World, out: Part[]) {
+  const r = seq(b.look + b.id * 0.0137);
+  const Wm = bw(b) * CELL, Dm = bh(b) * CELL;
+  const cx = b.x * CELL + Wm / 2, cz = b.y * CELL + Dm / 2;
+  // Which side faces the road: the store's front (local -z) turns to it.
+  const a = network(w).access.get(b.id);
+  let rot = Math.PI;
+  if (a !== undefined) {
+    const dx = (a % N) * CELL + CELL / 2 - cx, dz = Math.floor(a / N) * CELL + CELL / 2 - cz;
+    rot = Math.abs(dx) / Wm > Math.abs(dz) / Dm ? (dx > 0 ? -Math.PI / 2 : Math.PI / 2) : dz > 0 ? Math.PI : 0;
+  }
+  const side = Math.abs(Math.sin(rot)) > 0.5;
+  const FW = side ? Dm : Wm, FD = side ? Wm : Dm; // frontage width and depth in the store's frame
+  const c0 = Math.cos(rot), s0 = Math.sin(rot);
+  const P: Put = (s, dx, dy, dz, ww, h, d, color, style = STYLE.plain, dr = 0, sign) =>
+    out.push({ shape: s, x: cx + dx * c0 + dz * s0, y: dy, z: cz - dx * s0 + dz * c0, sx: ww, sy: h, sz: d, rot: rot + dr, color, style, sign });
+  const H = 12, bwid = FW - 5.5, bdep = FD - 3, bx = -2.2, bz = 0.8;
+  const brand = pick(['#f2c12e', '#d9473b', '#2f6db3', '#e8743b'], r());
+  P('box', bx, 0, bz, bwid, H, bdep, '#ebe8e1', STYLE.factory);
+  // The name along the top of the front, and a band of colour under it.
+  P('box', bx, H - 3.6, bz - bdep / 2 - 0.2, bwid * 0.55, 2.6, 0.35, brand, STYLE.sign);
+  P('box', bx, H - 0.9, bz - bdep / 2 - 0.12, bwid, 0.6, 0.2, brand);
+  // Glass entrance and canopy.
+  P('box', bx, 0, bz - bdep / 2 - 0.1, 9, 3.6, 0.3, '#7d9bb5', STYLE.office);
+  P('box', bx, 3.6, bz - bdep / 2 - 1.4, 10, 0.3, 2.8, '#d8d5cc');
+  // Cart shelter by the door.
+  P('box', bx + bwid / 2 - 3, 0, bz - bdep / 2 - 1.2, 3.6, 2.2, 1.6, '#c9ced4');
+  // Roof car park: asphalt, bays, cars, a parapet, the lift tower.
+  P('box', bx, H, bz, bwid, 0.1, bdep, '#5a5d61');
+  for (const sz of [-1, 1]) P('box', bx, H, bz + sz * (bdep / 2 - 0.2), bwid, 1, 0.3, '#d8d5cc');
+  for (const sx2 of [-1, 1]) P('box', bx + sx2 * (bwid / 2 - 0.2), H, bz, 0.3, 1, bdep, '#d8d5cc');
+  const CARS = ['#f2f2f0', '#1b1c1e', '#a9adb2', '#6f7378', '#2a3d66', '#8c1d1d'];
+  for (const lane of [-1, 1]) for (let x = bx - bwid / 2 + 2; x < bx + bwid / 2 - 2; x += 2.6) {
+    if (r() < 0.35) continue;
+    P('box', x, H + 0.1, bz + lane * (bdep / 4), 1.7, 0.8, 4, pick(CARS, r()));
+    P('box', x, H + 0.9, bz + lane * (bdep / 4), 1.5, 0.5, 2, '#2c2f33');
+  }
+  P('box', bx + bwid / 2 - 2.5, H, bz + bdep / 2 - 2.5, 3.5, 3.4, 3.5, '#d8d5cc');
+  // The ramp up the side (local +x): a sloped deck from the back corner to the roof.
+  const rx = FW / 2 - 2.2;
+  P('prism', rx, 0, bz, 4.2, H, bdep, '#9d9a92', STYLE.plain, 0);
+  P('box', rx, H, bz + bdep / 2 - 0.5, 4.2, 0.9, 0.3, '#d8d5cc');
 }
 
 /** Office plots: a podium over the whole lot, with a tower for every two cells of frontage. */

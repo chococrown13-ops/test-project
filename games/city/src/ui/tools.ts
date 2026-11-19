@@ -1,10 +1,11 @@
 import { KINDS, Level, LEVEL_COST, Road, ROAD_COST, Zone, type BuildingKind } from '../sim/defs';
 import { BUS_TYPES, type BusType, TRANSIT_COST } from '../sim/transit';
 import { ROUNDABOUT_COST } from '../sim/roundabout';
+import { TREE_COST } from '../sim/tools';
 
 export type ToolId =
   | 'select' | 'street' | 'avenue' | 'elevated' | 'underpass' | 'tunnel' | 'zoneR' | 'zoneC' | 'zoneI' | 'dezone' | 'bulldoze' | 'bus' | 'metro'
-  | 'busVillage' | 'busTrunk' | 'busExpress' | 'roundabout'
+  | 'busVillage' | 'busTrunk' | 'busExpress' | 'roundabout' | 'trees'
   | `build:${BuildingKind}`;
 
 export interface ToolDef {
@@ -23,6 +24,8 @@ export interface ToolDef {
   bus?: BusType;
   /** Places a 회전교차로 on a road. */
   roundabout?: boolean;
+  /** Plants (or takes out) 가로수 along roads. */
+  trees?: boolean;
 }
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}만`;
@@ -36,6 +39,7 @@ export const CATEGORIES: Category[] = [
     { id: 'street', name: '일반 도로', price: `칸당 ${won(ROAD_COST[Road.Street])}`, road: Road.Street },
     { id: 'avenue', name: '4차선 대로', price: `칸당 ${won(ROAD_COST[Road.Avenue])}`, road: Road.Avenue },
     { id: 'roundabout', name: '회전교차로', price: won(ROUNDABOUT_COST[Road.Street]), roundabout: true },
+    { id: 'trees', name: '가로수', price: `칸당 ${won(TREE_COST)}`, trees: true, swatch: '#5e8f45' },
     { id: 'elevated', name: '고가도로', price: `칸당 ${won(ROAD_COST[Road.Avenue] * LEVEL_COST[Level.Elevated])}`, level: Level.Elevated },
     { id: 'underpass', name: '지하차도', price: `칸당 ${won(ROAD_COST[Road.Avenue] * LEVEL_COST[Level.Underpass])}`, level: Level.Underpass },
     { id: 'tunnel', name: '터널', price: `칸당 ${won(ROAD_COST[Road.Avenue] * LEVEL_COST[Level.Tunnel])}`, level: Level.Tunnel },
@@ -49,16 +53,17 @@ export const CATEGORIES: Category[] = [
   ] },
   { id: 'power', name: '전기', key: 'C', tools: [fac('coal'), fac('solar')] },
   { id: 'water', name: '상하수도', key: 'V', tools: [fac('water'), fac('well'), fac('sewage')] },
-  { id: 'service', name: '공공', key: 'B', tools: [fac('school'), fac('police'), fac('fire'), fac('clinic')] },
+  { id: 'service', name: '공공', key: 'B', tools: [fac('school'), fac('police'), fac('fire'), fac('clinic'), fac('office'), fac('post'), fac('library')] },
   { id: 'transit', name: '대중교통', key: 'N', tools: [
     { id: 'busVillage', name: BUS_TYPES.village.name, price: `정류장당 ${won(BUS_TYPES.village.cost.stop)}`, line: 'bus', bus: 'village', swatch: BUS_TYPES.village.color },
     { id: 'bus', name: BUS_TYPES.branch.name, price: `정류장당 ${won(BUS_TYPES.branch.cost.stop)}`, line: 'bus', bus: 'branch', swatch: BUS_TYPES.branch.color },
     { id: 'busTrunk', name: BUS_TYPES.trunk.name, price: `정류장당 ${won(BUS_TYPES.trunk.cost.stop)}`, line: 'bus', bus: 'trunk', swatch: BUS_TYPES.trunk.color },
     { id: 'busExpress', name: BUS_TYPES.express.name, price: `정류장당 ${won(BUS_TYPES.express.cost.stop)}`, line: 'bus', bus: 'express', swatch: BUS_TYPES.express.color },
     { id: 'metro', name: '지하철 노선', price: `역당 ${won(TRANSIT_COST.station)}`, line: 'metro' },
+    fac('bike'), fac('terminal'), fac('ktx'),
   ] },
   { id: 'park', name: '공원', key: 'M', tools: [fac('park'), fac('riverpark')] },
-  { id: 'landmark', name: '명소', key: 'L', tools: [fac('market'), fac('palace'), fac('tower')] },
+  { id: 'landmark', name: '명소', key: 'L', tools: [fac('market'), fac('palace'), fac('tower'), fac('trailhead'), fac('jjim')] },
   { id: 'bulldoze', name: '철거', key: 'Delete', tools: [{ id: 'bulldoze', name: '철거', price: '' }] },
 ];
 

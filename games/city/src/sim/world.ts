@@ -1,5 +1,6 @@
 import type { Curve } from './curves';
 import type { Roundabout } from './roundabout';
+import type { Festival } from './attractions';
 import { hillField, startRow, waterMask, type MapKind } from './maps';
 import { Ground, N, Road, START_MONEY, type BuildingKind } from './defs';
 import type { TransitLine } from './transit';
@@ -30,7 +31,8 @@ export interface Building {
 
 export interface MonthReport {
   month: number;
-  income: { R: number; C: number; I: number; T: number };
+  /** V: visitors' spending (관광). */
+  income: { R: number; C: number; I: number; T: number; V?: number };
   expense: { roads: number; facilities: number; services: number; transit: number };
   pop: number;
   jobs: number;
@@ -66,6 +68,17 @@ export interface World {
   parked: Uint8Array;
   /** Share of a building's cars with nowhere to park, 0-100, on its cells and its front road. */
   parkPress: Uint8Array;
+  /** 1 on road cells lined with 가로수 (street trees). */
+  trees: Uint8Array;
+  /** Which neighbourhood services reach each cell (bits of attractions.CIVIC); recomputed, not saved. */
+  civic: Uint8Array;
+  /** The festival on in town, if any. */
+  festival: Festival | null;
+  /** Trips by 공공자전거 and out of town by 고속버스/KTX: this month so far, and last month. */
+  bikeMonth: number;
+  bikeLast: number;
+  intercityMonth: number;
+  intercityLast: number;
   /** Policy: no stopping or parking on avenues. */
   noAvenueParking: boolean;
   bld: Int32Array;
@@ -141,7 +154,7 @@ export function rand(w: World): number {
 export { riverY } from './maps';
 
 export function emptyMonth(month: number): MonthReport {
-  return { month, income: { R: 0, C: 0, I: 0, T: 0 }, expense: { roads: 0, facilities: 0, services: 0, transit: 0 }, pop: 0, jobs: 0 };
+  return { month, income: { R: 0, C: 0, I: 0, T: 0, V: 0 }, expense: { roads: 0, facilities: 0, services: 0, transit: 0 }, pop: 0, jobs: 0 };
 }
 
 export function createWorld(seed = 20261028, name = '새솔시', map: MapKind = 'river'): World {
@@ -162,6 +175,10 @@ export function createWorld(seed = 20261028, name = '새솔시', map: MapKind = 
     roundabouts: [],
     parked: new Uint8Array(size),
     parkPress: new Uint8Array(size),
+    trees: new Uint8Array(size),
+    civic: new Uint8Array(size),
+    festival: null,
+    bikeMonth: 0, bikeLast: 0, intercityMonth: 0, intercityLast: 0,
     noAvenueParking: false,
     zone: new Uint8Array(size),
     bld: new Int32Array(size).fill(-1),

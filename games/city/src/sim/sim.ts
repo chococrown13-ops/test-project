@@ -1,3 +1,5 @@
+import { calendarMonthOf } from './calendar';
+import { closeMobilityMonth, updateFestivals } from './attractions';
 import { closeMonth, accrueDay } from './economy';
 import { grow, updateBuildings, updateDemand, updateLand } from './growth';
 import { updateUtilities } from './network';
@@ -41,6 +43,7 @@ export const MILESTONES: [number, string, number][] = [
 export function stepDay(s: Sim) {
   const w = s.w;
   w.day += 1;
+  updateFestivals(w);
   pruneLines(w);
   updateUtilities(w);
   if (w.day % 4 === 0) updateLand(w);
@@ -50,7 +53,7 @@ export function stepDay(s: Sim) {
   grow(w);
   accrueDay(w);
   closeDay(w, s.tr);
-  if (w.day % 30 === 0) { closeMonth(w); closeTransitMonth(w); }
+  if (w.day % 30 === 0) { closeMonth(w); closeTransitMonth(w); closeMobilityMonth(w); }
   for (const [n, text, grant] of MILESTONES) {
     if (w.stats.pop < n || w.milestones.includes(n)) continue;
     w.milestones.push(n);
@@ -62,7 +65,7 @@ export function stepDay(s: Sim) {
 }
 
 /** The calendar month (1-12) of a game day; the game starts in March. */
-export const calendarMonth = (day: number) => ((Math.floor(day / 30) + 2) % 12) + 1;
+export const calendarMonth = calendarMonthOf;
 
 function seasonNotice(w: World) {
   const text = ({ 4: '벚꽃이 활짝 피었어요. 강변이 분홍빛이에요.', 7: '장마철이에요. 여름이 시작됐어요.', 10: '단풍이 들기 시작했어요.', 12: '첫눈이 내렸어요.' } as Record<number, string>)[calendarMonth(w.day)];

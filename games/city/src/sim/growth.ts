@@ -2,6 +2,7 @@ import { Ground, KINDS, LANDMARK, N, SERVICE, Zone, type BuildingKind } from './
 import { findAccess, network, occRatio, reachesOutside } from './network';
 import { addBuilding, demolish, footprint } from './tools';
 import { transitLandBonus } from './transit';
+import { civicHappiness, hubDemand, updateCivic } from './attractions';
 import { bh, bw, idx, inside, lotsOf, notify, rand, type Building, type World } from './world';
 
 const LEVEL_KIND: Record<number, BuildingKind[]> = {
@@ -9,13 +10,36 @@ const LEVEL_KIND: Record<number, BuildingKind[]> = {
   [Zone.C]: ['c1', 'c2', 'c3'],
   [Zone.I]: ['i1', 'i2', 'i3'],
 };
+/**
+ * Tiers open for the whole city as it grows, and slowly: 2단계 (빌라·저층 아파트,
+ * 근린 상가, 2차 산업) once the city reaches TIER_POP[2] people, 3단계 (고층 아파트·
+ * 주상복합, 오피스, 3차 산업) at TIER_POP[3]. Even then a building has to stand a
+ * while (MATURE days) before it rebuilds, and only a few do so at a time.
+ */
+export const TIER_POP: Record<2 | 3, number> = { 2: 2500, 3: 10000 };
+export const MATURE: Record<1 | 2, number> = { 1: 180, 2: 360 };
+const UPGRADE_CHANCE: Record<1 | 2, number> = { 1: 0.05, 2: 0.03 };
+const TIER_FLAG = (lv: 2 | 3) => -20 - lv;
+export const tierOpen = (w: World, lv: number) => lv <= 1 || w.milestones.includes(TIER_FLAG(lv as 2 | 3));
+const TIER_NEWS: Record<2 | 3, string> = {
+  2: '2단계가 열렸어요! 이제 빌라·저층 아파트, 근린 상가 빌딩, 2차 산업(제조 공장)이 들어설 수 있어요.',
+  3: '3단계가 열렸어요! 이제 고층 아파트·주상복합, 오피스 타워, 3차 산업(지식산업센터·물류·데이터센터)이 들어설 수 있어요.',
+};
+function openTiers(w: World) {
+  for (const lv of [2, 3] as const) {
+    if (tierOpen(w, lv) || w.stats.pop < TIER_POP[lv]) continue;
+    w.milestones.push(TIER_FLAG(lv));
+    notify(w, `인구 ${TIER_POP[lv].toLocaleString('ko-KR')}명! ${TIER_NEWS[lv]}`, 'good');
+  }
+}
+
 const zkey = (z: number) => (z === Zone.R ? 'R' : z === Zone.C ? 'C' : 'I') as 'R' | 'C' | 'I';
 
 /* ------------------------------------------------------------ land value */
 
 /** Pollution sources: radius in cells and strength. */
 const EMIT: Partial<Record<BuildingKind, [number, number]>> = {
-  i1: [4, 18], i2: [5, 28], i3: [3, 8], coal: [9, 55], sewage: [5, 30],
+  i1: [3, 5], i2: [5, 28], i3: [3, 8], coal: [9, 55], sewage: [5, 30],
 };
 
 export function updateLand(w: World) {
@@ -31,6 +55,10 @@ export function updateLand(w: World) {
         if (d <= r) fn(idx(x, y), 1 - d / (r + 1));
       }
   };
+  // 가로수: a little shade and green raise the street's value, and the leaves catch some of the dust.
+  const treed: number[] = [];
+  for (let i = 0; i < size; i++) if (w.trees[i] && w.road[i]) treed.push(i);
+  for (const i of treed) stamp((i % N) + 0.5, ((i / N) | 0) + 0.5, 2, (j, f) => { bonus[j] += 3 * f; });
   w.buildings.forEach((b) => {
     const cx = b.x + bw(b) / 2, cy = b.y + bh(b) / 2;
     const e = EMIT[b.kind];
@@ -43,10 +71,12 @@ export function updateLand(w: World) {
     if (b.kind.startsWith('c') && !b.abandoned) stamp(cx, cy, 4, (i, f) => { bonus[i] += 4 * f * (KINDS[b.kind].level ?? 1); });
   });
   transitLandBonus(w, bonus);
+  updateCivic(w);
   // River view: the closer to the water, the pricier (한강뷰).
   const waterDist = distanceTo((i) => w.ground[i] === Ground.Water, 6);
   // A view of the hills is worth something too, if less than the river.
   const hillDist = distanceTo((i) => w.ground[i] === Ground.Mountain, 5);
+  for (const i of treed) stamp((i % N) + 0.5, ((i / N) | 0) + 0.5, 1.5, (j, f) => { w.pollution[j] *= 1 - 0.3 * f; });
   for (let i = 0; i < size; i++) {
     if (w.ground[i] !== Ground.Land) { w.land[i] = 0; continue; }
     const view = (waterDist[i] <= 5 ? (6 - waterDist[i]) * 3 : 0) + (hillDist[i] <= 4 ? (5 - hillDist[i]) * 2 : 0);
@@ -105,7 +135,7 @@ export function updateDemand(w: World) {
   // People come for jobs; shops follow people; industry follows workers.
   const early = Math.max(0, 40 - pop / 50);
   const R = early + ((jobsCap * 1.05 - workers) / Math.max(40, workers)) * 70 + 12 + taxAdj(w.tax.R) + (s.happy - 60) * 0.6;
-  const C = ((pop * 0.22 - capC) / Math.max(25, pop * 0.22)) * 85 + taxAdj(w.tax.C) + Math.min(20, early);
+  const C = ((pop * 0.22 - capC) / Math.max(25, pop * 0.22)) * 85 + taxAdj(w.tax.C) + Math.min(20, early) + hubDemand(w);
   const I = ((workers * 0.55 - capI) / Math.max(25, workers * 0.55)) * 85 + taxAdj(w.tax.I) + Math.min(25, early);
   const ease = (o: number, n: number) => o + (clamp(n, -100, 100) - o) * 0.25;
   w.demand.R = ease(w.demand.R, R);
@@ -127,6 +157,7 @@ export function grow(w: World) {
     for (let i = 0; i < N * N; i++) if (w.zone[i]) zoned.push(i);
     zonedVer = w.ver.zones;
   }
+  openTiers(w);
   if (!zoned.length) return;
   const net = network(w);
   const tries = Math.min(zoned.length, 30 + (zoned.length >> 4));
@@ -148,7 +179,9 @@ export function grow(w: World) {
     const b = w.buildings.get(id)!;
     const d = KINDS[b.kind];
     if (!d.zone || b.abandoned || (d.level ?? 3) >= 3) continue;
-    if (!b.powered || !b.watered || b.happy < 52 || dem < 5 || rand(w) > 0.12) continue;
+    const lv = (d.level ?? 1) as 1 | 2;
+    if (!tierOpen(w, lv + 1) || w.day - b.builtDay < MATURE[lv]) continue;
+    if (!b.powered || !b.watered || b.happy < 52 || dem < 5 || rand(w) > UPGRADE_CHANCE[lv]) continue;
     // Homes care most about land value; factories hardly at all.
     const need = (z === Zone.R ? [30, 46] : z === Zone.C ? [26, 40] : [0, 15])[(d.level ?? 1) - 1];
     if (w.land[i] < need) continue;
@@ -234,7 +267,7 @@ function tryMerge(w: World, b: Building, z: number) {
       const nb = addBuilding(w, top, x0, y0, sx, sy);
       nb.occ = occ;
       nb.powered = true; nb.watered = true;
-      if (top === 'r3' && !w.milestones.includes(-3)) { w.milestones.push(-3); notify(w, '첫 아파트 단지가 들어섰어요!', 'good'); }
+      if (top === 'r3' && !w.milestones.includes(-3)) { w.milestones.push(-3); notify(w, '첫 고층 아파트가 들어섰어요!', 'good'); }
       if (top === 'c3' && !w.milestones.includes(-4)) { w.milestones.push(-4); notify(w, '첫 오피스 타워가 올라갔어요!', 'good'); }
       return;
     }
@@ -270,6 +303,7 @@ export function updateBuildings(w: World) {
       h += w.transit[i] === 2 ? 4 : w.transit[i] ? 2 : 0;
       h -= Math.max(0, s.commute - 35) * 0.6;
     }
+    h += civicHappiness(w, i, d.zone === Zone.R);
     // Circling the block every evening for a space wears people down.
     h -= w.parkPress[i] * 0.08;
     if (!reachesOutside(w, b)) h -= 30;

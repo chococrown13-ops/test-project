@@ -1,3 +1,4 @@
+import { MATURE, TIER_POP, tierOpen } from '../sim/growth';
 import { displayName, Ground, KINDS, LEVEL_NAME, N, Road, SERVICE, ZONE_NAME, Zone } from '../sim/defs';
 import { monthExpense, monthIncome } from '../sim/economy';
 import { curveInfo } from '../sim/curves';
@@ -81,12 +82,13 @@ export const GOALS: Goal[] = [
   { text: '경찰서, 소방서, 보건소를 하나씩 지으세요.', done: (w) => ['police', 'fire', 'clinic'].every((k) => count(w, (b) => b.kind === k) > 0) },
   { text: '인구 1,500명을 달성하세요. 공원도 땅값을 올려 줘요.', done: (w) => w.stats.pop >= 1500 },
   { text: '버스 노선을 만들어 차 없이 출근하게 해 주세요.', done: (w) => w.lines.some((l) => l.kind === 'bus') },
-  { text: '첫 아파트 단지를 세우세요. 땅값 높은 다세대 4채가 모이면 재건축돼요.', done: (w) => count(w, (b) => b.kind === 'r3') > 0 },
+  { text: '인구 2,500명이 되면 2단계가 열려요. 땅값을 올려 첫 빌라·저층 아파트를 올려 보세요.', done: (w) => count(w, (b) => b.kind === 'r2') > 0 },
   { text: '인구 5,000명. 대로와 버스로 교통 체증을 줄이세요.', done: (w) => w.stats.pop >= 5000 },
   { text: '지하철 1호선을 개통하세요. 역 주변은 역세권이 돼요.', done: (w) => w.lines.some((l) => l.kind === 'metro') },
   { text: '역세권을 키우세요. 역에서 250m 안에 2,000명이 살고 일자리 800개가 있게 해 보세요. 역 주변을 주거와 상업으로 함께 채워요.', done: (w) => { const s = stationAreaStats(w); return s.pop >= 2000 && s.jobs >= 800; } },
   { text: '고가도로, 지하차도, 터널 중 하나로 막힌 길을 뚫어 보세요.', done: (w) => w.roadAlt.some((r) => r > 0) },
   { text: '명소를 하나 지어 보세요. 전통시장, 수변공원, 고궁, 전망타워가 있어요.', done: (w) => count(w, (b) => ['market', 'riverpark', 'palace', 'tower'].includes(b.kind)) > 0 },
+  { text: '인구 10,000명이 되면 3단계가 열려요. 땅값 높은 2단계 건물들이 모이면 첫 고층 아파트나 주상복합으로 재건축돼요.', done: (w) => count(w, (b) => b.kind === 'r3') > 0 },
   { text: '첫 오피스 타워를 올리세요. 상업 구역의 땅값이 관건이에요.', done: (w) => count(w, (b) => b.kind === 'c3') > 0 },
   { text: '인구 20,000명. 진짜 도시가 됐어요!', done: (w) => w.stats.pop >= 20000 },
 ];
@@ -179,6 +181,10 @@ function nextHint(w: World, b: Building): string {
   const d = KINDS[b.kind];
   if (!b.powered || !b.watered) return '전기와 수도가 들어와야 성장해요.';
   if (b.happy < 52) return '만족도를 올리면 더 높은 건물로 바뀌어요.';
+  const next = (d.level ?? 1) + 1;
+  if (!tierOpen(w, next)) return `${next}단계는 인구 ${TIER_POP[next as 2 | 3].toLocaleString('ko-KR')}명이 되면 열려요.`;
+  const age = w.day - b.builtDay, mature = MATURE[(d.level ?? 1) as 1 | 2];
+  if (age < mature) return `지은 지 ${mature}일이 지나야 다음 단계로 바뀔 수 있어요. (${age}일째)`;
   const need = (d.zone === Zone.R ? [30, 46] : d.zone === Zone.C ? [26, 40] : [0, 15])[(d.level ?? 1) - 1];
   const land = w.land[idx(b.x, b.y)];
   if (land < need) return `땅값이 ${need} 이상이면 성장해요. 지금은 ${Math.round(land)}이에요. 공원, 학교, 지하철역, 강 조망이 땅값을 올려요.`;
@@ -193,7 +199,7 @@ export function budgetHtml(w: World): string {
   const inc = monthIncome(last), exp = monthExpense(last);
   let h = head('예산');
   h += `<p class="hint">${w.reports.length ? '지난달' : '이번 달(진행 중)'} 기준, 단위는 만 원이에요.</p>`;
-  h += '<h4>수입</h4>' + kv('주거세', won(last.income.R)) + kv('상업세', won(last.income.C)) + kv('산업세', won(last.income.I)) + kv('대중교통 요금', won(last.income.T ?? 0));
+  h += '<h4>수입</h4>' + kv('주거세', won(last.income.R)) + kv('상업세', won(last.income.C)) + kv('산업세', won(last.income.I)) + kv('대중교통 요금', won(last.income.T ?? 0)) + kv('관광', won(last.income.V ?? 0));
   h += '<h4>지출</h4>' + kv('도로 유지', won(last.expense.roads)) + kv('전기, 상하수도 시설', won(last.expense.facilities)) + kv('공공 서비스', won(last.expense.services)) + kv('대중교통 운영', won(last.expense.transit ?? 0));
   const net = inc - exp;
   h += `<div class="kv total"><span class="k">월 수지</span>${state(net >= 0 ? 'ok' : 'no', `${net >= 0 ? '+' : '−'}${won(Math.abs(net))}`)}</div>`;
@@ -231,6 +237,9 @@ export function statsHtml(w: World, overlay: Overlay): string {
   h += '<h4>교통</h4>';
   h += kv('평균 통근', `${Math.round(s.commute)}분`) + kv('도로 혼잡도', state(toneOf(100 - s.congestion * 100), `${Math.round(s.congestion * 100)}%`));
   h += kv('대중교통 승객', `지난달 ${num(w.lines.reduce((a, l) => a + l.riders, 0))}명`);
+  if (w.bikeLast) h += kv('공공자전거 이용', `지난달 ${num(w.bikeLast)}회`);
+  if (w.intercityLast) h += kv('고속버스·KTX로 외출', `지난달 ${num(w.intercityLast)}회`);
+  if (w.festival) h += kv(w.festival.name, `진행 중 · 관광객 ${num(w.festival.visitors)}명`);
   const sa = stationAreaStats(w);
   if (sa.stations) h += kv('역세권 인구', `${num(sa.pop)}명 (${Math.round(sa.share * 100)}%)`) + kv('역세권 일자리', `${num(sa.jobs)}개`);
   h += '<h4>주차</h4>';

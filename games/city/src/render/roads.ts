@@ -10,6 +10,8 @@ import { buildGeometry, type Geometry, type Network } from '../../../shared/road
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 import { idx, type World } from '../sim/world';
 import { shared } from './materials';
+import { seasonOf } from './ground';
+import { isCherry } from '../sim/attractions';
 
 const SIZE = N * CELL;
 const Y = 0.12; // asphalt
@@ -114,6 +116,10 @@ export class RoadLayer {
   private poles: THREE.InstancedMesh;
   private lamps: THREE.InstancedMesh;
   private lampMat: THREE.MeshStandardMaterial;
+  /** 가로수: where each stands (rebuilt with the roads) and its meshes (recoloured with the seasons). */
+  private treeSpots: { x: number; z: number; cherry: boolean; s: number }[] = [];
+  private treeMeshes: THREE.InstancedMesh[] = [];
+  private treeSeason = '';
 
   constructor(overlayTex: THREE.Texture) {
     this.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
@@ -143,11 +149,44 @@ export class RoadLayer {
   setTrafficOverlay(on: boolean) { this.uOv.value = on ? 1 : 0; }
 
   /** `bus` names the ground cells bus lines run on; avenues there get a 중앙버스전용차로. */
-  update(w: World, bus: { key: string; cells: Set<number> }) {
+  /** The 가로수 as instanced trunks and crowns, coloured for the season (bare in winter). */
+  private drawTrees(month: number) {
+    const season = seasonOf(month);
+    this.treeSeason = season;
+    for (const m of this.treeMeshes) { this.group.remove(m); m.dispose(); }
+    this.treeMeshes = [];
+    const spots = this.treeSpots;
+    if (!spots.length) return;
+    const GINKGO: Record<string, string> = { spring: '#9cc65a', blossom: '#9cc65a', summer: '#5f9a3f', autumn: '#f2c12e', winter: '' };
+    const CHERRY: Record<string, string> = { spring: '#86b85a', blossom: '#f6c9d6', summer: '#4f8a3c', autumn: '#d9822b', winter: '' };
+    const mat = new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true });
+    const make = (geo: THREE.BufferGeometry, list: typeof spots, colour: (s: typeof spots[0]) => string) => {
+      if (!list.length) return;
+      const mesh = new THREE.InstancedMesh(geo, mat, list.length);
+      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(), c = new THREE.Color();
+      list.forEach((t, i) => {
+        p.set(t.x, SW, t.z); sc.set(t.s, t.s, t.s);
+        mesh.setMatrixAt(i, m.compose(p, q, sc));
+        mesh.setColorAt(i, c.set(colour(t)));
+      });
+      mesh.castShadow = true;
+      mesh.frustumCulled = false;
+      this.treeMeshes.push(mesh);
+      this.group.add(mesh);
+    };
+    make(new THREE.CylinderGeometry(0.11, 0.16, 2.8, 5).translate(0, 1.4, 0), spots, () => '#6b5440');
+    if (season === 'winter') return;
+    // 은행나무: a narrow upright crown; 벚나무: a broad round one.
+    make(new THREE.ConeGeometry(1.25, 4.4, 7).translate(0, 4.2, 0), spots.filter((t) => !t.cherry), () => GINKGO[season]);
+    make(new THREE.IcosahedronGeometry(1.8, 0).scale(1, 0.75, 1).translate(0, 3.6, 0), spots.filter((t) => t.cherry), () => CHERRY[season]);
+  }
+
+  update(w: World, bus: { key: string; cells: Set<number> }, month = 5) {
     this.lampMat.emissiveIntensity = shared.uNight.value * 2.2;
     const ver = `${w.ver.roads}:${bus.key}`;
-    if (this.ver === ver) return;
+    if (this.ver === ver) { if (seasonOf(month) !== this.treeSeason) this.drawTrees(month); return; }
     this.ver = ver;
+    this.treeSpots = [];
     const b = new Builder();
     const m = new THREE.Matrix4();
     let lamps = 0;
@@ -168,6 +207,13 @@ export class RoadLayer {
       busAt: (x, z) => { const i = cellAt(x, z); return i >= 0 && bus.cells.has(i) && !water(x, z); },
       materials: { asphalt: this.material, pavement: this.material, paint: this.paintMat },
       plain: (e) => e.tag === RING,
+      tree: (x, z, ccx, ccz) => {
+        const i = cellAt(ccx, ccz);
+        if (i < 0 || !w.trees[i] || water(x, z)) return;
+        // One kind of tree along a stretch of street: 은행나무 mostly, 벚나무 in places (the 벚꽃축제 counts those).
+        const k = Math.sin(x * 3.1 + z * 7.7) * 9187.13;
+        this.treeSpots.push({ x, z, cherry: isCherry(i), s: 0.85 + (k - Math.floor(k)) * 0.3 });
+      },
       lamp: (x, z, ang) => {
         if (lamps >= N * N || water(x, z)) return;
         m.makeTranslation(x, SW, z);
@@ -196,6 +242,7 @@ export class RoadLayer {
     // The second layer: flyover decks, and the mouths of underpasses and tunnels.
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (w.roadAlt[idx(x, y)]) altCell(b, w, x, y);
     this.poles.count = this.lamps.count = lamps;
+    this.drawTrees(month);
     this.poles.instanceMatrix.needsUpdate = this.lamps.instanceMatrix.needsUpdate = true;
     if (this.mesh) { this.group.remove(this.mesh); this.mesh.geometry.dispose(); }
     if (this.net) { this.group.remove(this.net); this.net.traverse((o) => (o as THREE.Mesh).geometry?.dispose()); }

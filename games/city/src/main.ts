@@ -3,7 +3,7 @@ import { CELL, Ground, KINDS, Level, LEVEL_NAME, N, Road, SERVICE, Zone } from '
 import { loadLocal, saveLocal } from './sim/save';
 import { updateParking } from './sim/parking';
 import { createSim, tick, type Sim } from './sim/sim';
-import { altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeRoundabout, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
+import { plantTrees, TREE_COST, treeCells, addBuilding, altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeRoundabout, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
 import { buildCityNetwork, buildElevatedNetwork } from './render/roadnet';
 import { findAccess, network } from './sim/network';
 import { hasOpenWater } from './sim/tools';
@@ -110,7 +110,7 @@ function setTool(t: ToolId) {
   scene.setZoneable(!!def && def.zone !== undefined && def.zone !== Zone.None);
   // 정수장 by the water (unless the map uses wells), 수변공원 on the bank, 전망타워 on a hill: show where.
   const k = def?.kind;
-  scene.setSites(k === 'riverpark' || k === 'tower' || (k === 'water' && hasOpenWater(sim.w)) ? k : null);
+  scene.setSites(k === 'riverpark' || k === 'tower' || k === 'trailhead' || k === 'terminal' || (k === 'water' && hasOpenWater(sim.w)) ? k : null);
   if (t !== 'select') closeInfo();
   renderCats();
 }
@@ -292,6 +292,16 @@ function preview() {
   if (!hover || tool === 'select' || !def) { p.clear(); hideTip(); return; }
   const a = drag ? { x: drag.sx, y: drag.sy } : hover;
   const b = hover;
+  if (def.trees) {
+    const ok = treeCells(w, rectCells(a.x, a.y, b.x, b.y));
+    const todo = ok.filter((i) => !w.trees[i]);
+    p.path([], 0, '');
+    if (!ok.length) { p.show(rectCells(a.x, a.y, b.x, b.y), '#ff5a5a'); showTip(b.px, b.py, '가로수: 도로 위를 끌어 심어요. 심어진 곳을 다시 끌면 뽑아요', !drag); return; }
+    const cost = todo.length * TREE_COST;
+    p.show(ok, todo.length ? (cost > w.money ? '#ff5a5a' : '#7cf0a6') : '#ffb347');
+    showTip(b.px, b.py, todo.length ? (cost > w.money ? `예산이 부족해요, ${won(cost)} 필요` : `가로수 ${todo.length}칸, ${won(cost)} · 땅값이 조금 오르고 먼지가 줄어요`) : `가로수 뽑기 ${ok.length}칸`, cost > w.money);
+    return;
+  }
   if (def.roundabout) {
     const i = idx(b.x, b.y), why = roundaboutProblem(w, i), t = roundaboutType(w, i);
     p.path([], 0, '');
@@ -397,6 +407,12 @@ function commit() {
   const a = { x: drag.sx, y: drag.sy }, b = { x: drag.cx, y: drag.cy };
   let err: string | null = null;
   if (def.roundabout) { err = placeRoundabout(w, idx(b.x, b.y)); if (err) toast(err, 'warn'); return; }
+  if (def.trees) {
+    const r = plantTrees(w, rectCells(a.x, a.y, b.x, b.y));
+    if (typeof r === 'string') toast(r, 'warn');
+    else toast(r.planted ? `가로수 ${r.planted}칸을 심었어요.` : `가로수 ${r.removed}칸을 뽑았어요.`, 'good');
+    return;
+  }
   if (def.road !== undefined && roadMode === 'free') {
     // Release lays it: a curve whose bend sits halfway, so it's dead straight.
     const ia = idx(a.x, a.y), ib = idx(b.x, b.y);
@@ -681,7 +697,7 @@ function frame(t: number) {
 requestAnimationFrame(frame);
 
 // Debug/test hook.
-(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, setTool, setSpeed, tools: { placeRoundabout, placeRoad, placeCurve, curveOf, roadPath, paintZone, rectCells, placeFacility, createLine, placeAltRoad }, roadnet: () => buildCityNetwork(sim.w), flynet: () => buildElevatedNetwork(sim.w),
+(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, setTool, setSpeed, tools: { plantTrees, addBuilding, placeRoundabout, placeRoad, placeCurve, curveOf, roadPath, paintZone, rectCells, placeFacility, createLine, placeAltRoad }, roadnet: () => buildCityNetwork(sim.w), flynet: () => buildElevatedNetwork(sim.w),
   /** For automated play: a fresh 가상 지형 world, and the sim's own tick. */
   useWorld: (seed: number) => useWorld(createWorld(seed)),
   /** Why zoned buildings by curves do or don't turn to face them (diagnostics). */

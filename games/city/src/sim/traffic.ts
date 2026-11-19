@@ -1,3 +1,4 @@
+import { noCarTrip } from './attractions';
 import { CELL, KINDS, N, ROAD_CAPACITY, ROAD_SPEED, Zone } from './defs';
 import { network } from './network';
 import { cellOf, forEachNeighbour, NN, roadTypeOf } from './graph';
@@ -79,6 +80,9 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
         if (edge >= 0) { [a, b] = morning ? [ha, edge] : [edge, ha]; leaving = true; }
       }
       if (a === undefined || b === undefined || a === b || net.comp[a] !== net.comp[b]) continue;
+      // 고속버스, KTX or a 공공자전거: no car at all.
+      const nc = noCarTrip(w, a, b, leaving, rand(w));
+      if (nc !== null) { tr.tripTime += nc; tr.trips++; continue; }
       // Near a bus stop or a station at both ends, some people leave the car at home.
       const ride = tryTransit(w, a, b, rand(w), leaving);
       if (ride !== null) { tr.tripTime += ride; tr.trips++; continue; }

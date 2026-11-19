@@ -54,6 +54,11 @@ export interface RoadMeshOptions {
   capAt?: (p: V) => boolean;
   /** Edges drawn without centre line, stop line or crossing (a roundabout's one-way ring). */
   plain?: (e: { tag?: string }) => boolean;
+  /**
+   * Called for a street-tree spot every 9 m along both pavements (between the lamps): the
+   * spot on the pavement, and the centreline point it belongs to (to look up whether trees grow there).
+   */
+  tree?: (x: number, z: number, cx: number, cz: number) => void;
   /** Called for a street lamp every so often along each road: position on the pavement and the angle it faces. */
   lamp?: (x: number, z: number, angle: number) => void;
 }
@@ -80,6 +85,13 @@ export function buildRoadMeshes(net: Network, opts: RoadMeshOptions = {}, geo: G
       const o = (q: typeof q0, d: number) => offsetPoint(q, d);
       asphalt.quad(o(q0, T.half), o(q1, T.half), o(q1, -T.half), o(q0, -T.half), ASPH, A[r.kind]);
       for (const sg of [1, -1]) pave.quad(o(q0, sg * T.half), o(q1, sg * T.half), o(q1, sg * (T.half + T.kerb)), o(q0, sg * (T.half + T.kerb)), KERB_H, P);
+    }
+    if (opts.tree && r.t1 - r.t0 > 7) {
+      // Clear of the crossings at each end and of the lamps (which stand at t0 + 6 + 20k).
+      for (let t = r.t0 + 3.5; t < r.t1 - 3; t += 9) {
+        const q = pathAt(e.path, t);
+        for (const side of [1, -1]) { const p = offsetPoint(q, side * (T.half + T.kerb / 2)); opts.tree(p.x, p.z, q.p.x, q.p.z); }
+      }
     }
     if (opts.lamp && r.t1 - r.t0 > 8) {
       // A lamp every 20 m, alternating sides, on the middle of the pavement.
