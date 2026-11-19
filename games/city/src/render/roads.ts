@@ -11,6 +11,7 @@ const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 import { idx, type World } from '../sim/world';
 import { shared } from './materials';
 import { seasonOf } from './ground';
+import { isCherry } from '../sim/attractions';
 
 const SIZE = N * CELL;
 const Y = 0.12; // asphalt
@@ -209,11 +210,9 @@ export class RoadLayer {
       tree: (x, z, ccx, ccz) => {
         const i = cellAt(ccx, ccz);
         if (i < 0 || !w.trees[i] || water(x, z)) return;
-        // One kind of tree along a stretch of street: 은행나무 mostly, 벚나무 in places.
-        const gx = Math.floor((i % N) / 8), gy = Math.floor(i / N / 8);
-        const h = Math.sin(gx * 12.9898 + gy * 78.233) * 43758.5453;
+        // One kind of tree along a stretch of street: 은행나무 mostly, 벚나무 in places (the 벚꽃축제 counts those).
         const k = Math.sin(x * 3.1 + z * 7.7) * 9187.13;
-        this.treeSpots.push({ x, z, cherry: h - Math.floor(h) < 0.3, s: 0.85 + (k - Math.floor(k)) * 0.3 });
+        this.treeSpots.push({ x, z, cherry: isCherry(i), s: 0.85 + (k - Math.floor(k)) * 0.3 });
       },
       lamp: (x, z, ang) => {
         if (lamps >= N * N || water(x, z)) return;

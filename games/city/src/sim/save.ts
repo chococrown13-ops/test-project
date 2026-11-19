@@ -22,6 +22,7 @@ function unb64<T extends ArrayBufferView>(s: string, make: (buf: ArrayBuffer) =>
 export function serialize(w: World): string {
   const o: Record<string, unknown> = { ...w, buildings: [...w.buildings.values()] };
   for (const k of ARRAYS) o[k] = b64(w[k]);
+  delete o.civic;
   if (w.real) o.real = { ...w.real, cells: b64(w.real.cells) };
   return JSON.stringify(o);
 }
@@ -41,6 +42,9 @@ export function deserialize(json: string): World {
   w.lines ??= [];
   w.curves ??= [];
   w.roundabouts ??= [];
+  w.civic = new Uint8Array(w.ground.length);
+  w.festival ??= null;
+  w.bikeMonth ??= 0; w.bikeLast ??= 0; w.intercityMonth ??= 0; w.intercityLast ??= 0;
   w.map ??= 'river';
   if (o.real) w.real = { ...o.real, cells: unb64(o.real.cells, (b) => new Uint8Array(b)) };
   w.noAvenueParking ??= false;

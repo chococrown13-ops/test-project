@@ -1,3 +1,4 @@
+import { attractionProblem } from './attractions';
 import { BRIDGE_MULT, Ground, KINDS, Level, LEVEL_COST, LEVEL_NAME, N, Road, ROAD_COST, UNIQUE, Zone, ZONE_DEPTH, type BuildingKind } from './defs';
 import { DIAG, isRamp, oppositeDiag } from './graph';
 import { bezLength, coverCells, curveCells, curveInfo, curveProblem, pruneCurves, type Curve } from './curves';
@@ -233,6 +234,8 @@ export function placeProblem(w: World, kind: BuildingKind, x: number, y: number)
     const id = w.bld[i];
     if (id >= 0 && !KINDS[w.buildings.get(id)!.kind].zone) return '다른 시설이 있어요.';
   }
+  const special = attractionProblem(w, kind, x, y, d.size);
+  if (special) return special;
   // A map with no flat land by the water draws from wells: the plant can go anywhere then.
   if (kind === 'water' && !hasOpenWater(w)) return '이 땅에는 끌어 쓸 물가가 없어요. 지하수 관정을 지어 주세요.';
   if (kind === 'water' && !nearWater(w, x, y, d.size, 2)) return '정수장은 물가(2칸 이내)에 지어야 해요.';

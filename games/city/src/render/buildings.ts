@@ -284,6 +284,113 @@ function rawParts(b: Building, w: World): Part[] {
       }
       break;
     }
+    case 'office': {
+      // 행정복지센터: a plain civic block, its name in blue, and three flagpoles out front.
+      P('box', 0, 0, 0.8, 8.4, 9, 7.4, '#ece6da', STYLE.apt, 0, '#2f6db3');
+      P('box', 0, 3, -3.2, 4.4, 0.25, 1.6, '#cfc8ba');
+      P('box', 0, 3.6, -3.05, 4.2, 0.9, 0.2, '#2f6db3', STYLE.sign);
+      for (const fx of [-3.4, -2.6, -1.8]) {
+        P('cyl', fx, 0, -4.3, 0.12, 6.5, 0.12, '#e8e8e8');
+        P('box', fx + 0.45, 5.6, -4.3, 0.9, 0.6, 0.04, fx === -2.6 ? '#f2f2f0' : fx === -3.4 ? '#2f6db3' : '#e8e2d4');
+      }
+      break;
+    }
+    case 'post': {
+      // 우체국: red signboard, glass front, and a red 우체통 on the pavement edge.
+      P('box', 0, 0, 0.6, 8.4, 6, 7.6, '#e8e2d4', STYLE.shophouse);
+      P('box', 0, 4.4, -3.25, 7, 1, 0.3, '#d9473b', STYLE.sign);
+      P('box', 3.4, 0, -4.4, 0.6, 1.2, 0.5, '#d9473b');
+      P('box', 3.4, 1.2, -4.4, 0.7, 0.15, 0.6, '#b8362b');
+      P('box', -2.5, 0, -4.2, 2.4, 1.6, 1.4, '#e6e1d6');
+      break;
+    }
+    case 'library': {
+      // 공공도서관: a long low hall with a glass reading room, a sloping roof, and a reading garden.
+      P('box', 0, 0, 2.5, 17, 7, 11, '#d9cdb5', STYLE.house);
+      P('box', -3, 0, -3.4, 9, 6, 1.2, '#8aa5b8', STYLE.office);
+      P('gable', 0, 7, 2.5, 17.6, 2, 11.6, '#6b7f8f');
+      P('box', 4, 5.2, -3.15, 5, 0.9, 0.3, '#3d9a62', STYLE.sign);
+      P('box', 4, 0, -7, 8, 0.08, 4.4, '#7fae55');
+      for (const tx of [1.5, 6.5]) { P('box', tx, 0, -7, 0.25, 1.4, 0.25, '#6b5440'); P('tree', tx, 1.1, -7, 2.6, 2.6, 2.6, '#5e8f45'); }
+      P('box', 4, 0, -8.6, 2, 0.45, 0.5, '#8a6a4a');
+      break;
+    }
+    case 'terminal': {
+      // 고속버스터미널: the hall at the back, a long canopy over the bays, coaches lined up under it.
+      P('box', 0, 0, 9, 26, 9, 9, '#e3ded2', STYLE.shophouse);
+      P('box', 0, 6.6, 4.35, 18, 1.6, 0.35, '#2f6db3', STYLE.sign);
+      P('box', 0, 0, -1, 28, 0.15, 17, '#5a5d61');
+      for (let k = -4; k <= 4; k++) P('box', k * 3, 0.15, -2, 0.12, 0.02, 9, '#eeeeea');
+      P('box', 0, 5.2, -1, 28, 0.4, 10, '#d8d5cc');
+      for (const px of [-12, -4, 4, 12]) for (const pz of [-5, 3]) P('box', px, 0, pz, 0.5, 5.2, 0.5, '#9d9a92');
+      for (let k = -4; k <= 3; k++) {
+        if (r() < 0.25) continue;
+        const coach = pick(['#f2f2f0', '#2f6db3', '#f2f2f0', '#1f4e9a'], r());
+        P('box', k * 3 + 1.5, 0.15, -2, 2.5, 3.3, 11, coach, STYLE.plain);
+        P('box', k * 3 + 1.5, 1.6, -2, 2.55, 1, 10.6, '#2c3e50');
+      }
+      break;
+    }
+    case 'ktx': {
+      // KTX역: a glass station hall, a long platform canopy, and a white train with its blue stripe on the line behind.
+      P('box', 0, 0, -6, 22, 11, 9, '#8aa5b8', STYLE.office);
+      P('box', 0, 11, -6, 24, 0.8, 11, '#eef0f2');
+      P('box', 0, 8.6, -10.6, 12, 1.6, 0.3, '#1f4e9a', STYLE.sign);
+      P('box', 0, 0, 5.5, 30, 1.2, 12, '#b9b4ab');
+      for (const tz of [3, 8]) for (const rx of [-0.7, 0.7]) P('box', 0, 1.2, tz + rx, 30, 0.2, 0.12, '#6b6f75');
+      P('box', 0, 1.2, 5.5, 28, 0.25, 2.2, '#cfc9bd');
+      P('box', 0, 5.8, 5.5, 28, 0.3, 5, '#eef0f2');
+      for (const px of [-12, -4, 4, 12]) P('box', px, 1.2, 5.5, 0.4, 4.6, 0.4, '#9d9a92');
+      P('box', -1, 1.4, 8, 24, 3.6, 3, '#f2f2f0');
+      P('box', -1, 2.2, 8, 24.05, 0.5, 3.05, '#2f6db3');
+      P('box', -1, 3, 8, 24.05, 0.6, 3.05, '#2c3e50');
+      P('prism', 12.5, 1.4, 8, 3, 3.2, 3, '#f2f2f0', STYLE.plain, -Math.PI / 2);
+      break;
+    }
+    case 'bike': {
+      // 공공자전거 대여소: a docking rail, bikes in their green frames, and the kiosk.
+      P('box', 0, 0, -1, 8, 0.12, 3, '#9d978d');
+      P('box', 0, 0.12, 0, 7.2, 0.6, 0.2, '#6f7378');
+      for (let k = -3; k <= 3; k++) {
+        if (r() < 0.25) continue;
+        P('box', k, 0.3, -0.9, 0.12, 0.7, 1.7, '#3d9a62');
+        P('box', k, 0.12, -0.2, 0.08, 0.6, 0.6, '#2c2f33');
+        P('box', k, 0.12, -1.6, 0.08, 0.6, 0.6, '#2c2f33');
+      }
+      P('box', 3.6, 0, -2.4, 0.8, 1.6, 0.5, '#3d9a62');
+      break;
+    }
+    case 'trailhead': {
+      // 등산로 입구: a timber gate with the trail's name, a 막걸리·파전집 under a tiled roof with a 평상, and the path into the hills.
+      P('box', -3.5, 0, -3.6, 0.35, 3.2, 0.35, TIMBER);
+      P('box', -0.9, 0, -3.6, 0.35, 3.2, 0.35, TIMBER);
+      P('box', -2.2, 2.7, -3.6, 3.3, 0.6, 0.3, '#8a6a4a', STYLE.sign);
+      P('box', -2.2, 0, 1, 2.2, 0.06, 9.6, '#b59b72');
+      P('box', 2.6, 0, 1.4, 4.4, 0.4, 5, STONE);
+      P('box', 2.6, 0.4, 1.4, 3.6, 2.4, 4, PLASTER, STYLE.hanok);
+      P('hanok', 2.6, 2.8, 1.4, 5.2, 1.5, 5.6, pick(GIWA, r()), STYLE.plain, Math.PI / 2);
+      P('box', 2.6, 2, -0.65, 2.4, 0.6, 0.2, '#c0392b', STYLE.sign);
+      P('box', 2.4, 0, -2.6, 2.4, 0.5, 1.6, '#8a6a4a');
+      break;
+    }
+    case 'jjim': {
+      if (variantOf('jjim', b.look) === 0) {
+        // 찜질방: a big 4-storey block with its lit sign, and the steam chimney.
+        P('box', 0, 0, 1, 17, 12, 15, '#e8d9c4', STYLE.shophouse);
+        P('box', 0, 8.4, -6.65, 12, 2.4, 0.35, '#e8743b', STYLE.sign);
+        P('box', 0, 12, 1, 17.2, 0.3, 15.2, ROOFGREEN);
+        P('hip', -4, 12.3, 3, 6, 2.6, 6, '#d9473b');
+        P('cyl', 6, 12.3, 5, 1.4, 6, 1.4, '#c8b8a2');
+      } else {
+        // 목욕탕: a blue-tiled block and its tall chimney.
+        P('box', 0, 0, 1, 15, 6, 13, '#cfe0e8', STYLE.house);
+        P('box', 0, 6, 1, 15.2, 0.4, 13.2, ROOFGREEN);
+        P('box', 0, 4.2, -5.65, 7, 1.4, 0.3, '#2f6db3', STYLE.sign);
+        P('cyl', 5.5, 0, 5, 1.8, 18, 1.8, '#c8b8a2');
+        P('cyl', 5.5, 15.2, 5, 1.95, 1.4, 1.95, '#c0392b');
+      }
+      break;
+    }
     case 'coal': {
       box(-3, 0, 2, 16, 15, 12, '#a7a199', STYLE.factory);
       box(-3, 15, 2, 16, 1, 12, '#7d7a74');

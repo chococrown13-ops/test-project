@@ -110,7 +110,7 @@ function setTool(t: ToolId) {
   scene.setZoneable(!!def && def.zone !== undefined && def.zone !== Zone.None);
   // 정수장 by the water (unless the map uses wells), 수변공원 on the bank, 전망타워 on a hill: show where.
   const k = def?.kind;
-  scene.setSites(k === 'riverpark' || k === 'tower' || (k === 'water' && hasOpenWater(sim.w)) ? k : null);
+  scene.setSites(k === 'riverpark' || k === 'tower' || k === 'trailhead' || k === 'terminal' || (k === 'water' && hasOpenWater(sim.w)) ? k : null);
   if (t !== 'select') closeInfo();
   renderCats();
 }

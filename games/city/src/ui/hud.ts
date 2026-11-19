@@ -199,7 +199,7 @@ export function budgetHtml(w: World): string {
   const inc = monthIncome(last), exp = monthExpense(last);
   let h = head('예산');
   h += `<p class="hint">${w.reports.length ? '지난달' : '이번 달(진행 중)'} 기준, 단위는 만 원이에요.</p>`;
-  h += '<h4>수입</h4>' + kv('주거세', won(last.income.R)) + kv('상업세', won(last.income.C)) + kv('산업세', won(last.income.I)) + kv('대중교통 요금', won(last.income.T ?? 0));
+  h += '<h4>수입</h4>' + kv('주거세', won(last.income.R)) + kv('상업세', won(last.income.C)) + kv('산업세', won(last.income.I)) + kv('대중교통 요금', won(last.income.T ?? 0)) + kv('관광', won(last.income.V ?? 0));
   h += '<h4>지출</h4>' + kv('도로 유지', won(last.expense.roads)) + kv('전기, 상하수도 시설', won(last.expense.facilities)) + kv('공공 서비스', won(last.expense.services)) + kv('대중교통 운영', won(last.expense.transit ?? 0));
   const net = inc - exp;
   h += `<div class="kv total"><span class="k">월 수지</span>${state(net >= 0 ? 'ok' : 'no', `${net >= 0 ? '+' : '−'}${won(Math.abs(net))}`)}</div>`;
@@ -237,6 +237,9 @@ export function statsHtml(w: World, overlay: Overlay): string {
   h += '<h4>교통</h4>';
   h += kv('평균 통근', `${Math.round(s.commute)}분`) + kv('도로 혼잡도', state(toneOf(100 - s.congestion * 100), `${Math.round(s.congestion * 100)}%`));
   h += kv('대중교통 승객', `지난달 ${num(w.lines.reduce((a, l) => a + l.riders, 0))}명`);
+  if (w.bikeLast) h += kv('공공자전거 이용', `지난달 ${num(w.bikeLast)}회`);
+  if (w.intercityLast) h += kv('고속버스·KTX로 외출', `지난달 ${num(w.intercityLast)}회`);
+  if (w.festival) h += kv(w.festival.name, `진행 중 · 관광객 ${num(w.festival.visitors)}명`);
   const sa = stationAreaStats(w);
   if (sa.stations) h += kv('역세권 인구', `${num(sa.pop)}명 (${Math.round(sa.share * 100)}%)`) + kv('역세권 일자리', `${num(sa.jobs)}개`);
   h += '<h4>주차</h4>';

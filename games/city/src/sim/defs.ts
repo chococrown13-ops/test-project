@@ -29,7 +29,8 @@ export type BuildingKind =
   | 'i1' | 'i2' | 'i3'
   | 'coal' | 'solar' | 'water' | 'well' | 'sewage' | 'park' | 'school' | 'police' | 'fire' | 'clinic' | 'metro'
   | 'market' | 'riverpark' | 'palace' | 'tower'
-  | 'parking' | 'parktower';
+  | 'parking' | 'parktower'
+  | 'office' | 'post' | 'library' | 'terminal' | 'ktx' | 'bike' | 'trailhead' | 'jjim';
 
 export interface KindDef {
   name: string;
@@ -73,6 +74,14 @@ export const KINDS: Record<BuildingKind, KindDef> = {
   palace: { name: '고궁', size: 3, power: 4, water: 4, cost: 20000, upkeep: 200, floors: [1, 1], desc: '도시에 하나뿐인 명소. 넓은 범위의 땅값이 올라요' },
   parking: { name: '공영주차장', size: 1, power: 0, water: 0, cost: 600, upkeep: 20, floors: [0, 0], desc: '차 40대 · 반경 5칸 건물의 주차난을 덜어요' },
   parktower: { name: '주차타워', size: 1, power: 4, water: 0, cost: 2800, upkeep: 70, floors: [5, 5], desc: '차 160대 · 좁은 땅에 많이 세워요' },
+  office: { name: '행정복지센터', size: 1, power: 3, water: 2, cost: 1800, upkeep: 90, floors: [3, 3], desc: '반경 12칸 주민 만족도 상승 · 동네 민원 창구' },
+  post: { name: '우체국', size: 1, power: 3, water: 1, cost: 1500, upkeep: 70, floors: [2, 2], desc: '반경 14칸 상가와 공장의 만족도 상승 · 택배와 우편' },
+  library: { name: '공공도서관', size: 2, power: 5, water: 3, cost: 3500, upkeep: 130, floors: [3, 3], desc: '반경 8칸 교육 · 주변 땅값과 만족도 상승' },
+  terminal: { name: '고속버스터미널', size: 3, power: 10, water: 6, cost: 12000, upkeep: 200, floors: [2, 2], desc: '대로에 붙여 지어요. 도시 밖으로 가는 사람 일부가 고속버스를 타고, 주변이 상권이 돼요' },
+  ktx: { name: 'KTX역', size: 3, power: 20, water: 8, cost: 30000, upkeep: 350, floors: [2, 2], desc: '도시에 하나. 밖으로 가는 사람이 기차를 타고, 넓은 범위가 역세권 상권이 돼요' },
+  bike: { name: '공공자전거 대여소', size: 1, power: 0, water: 0, cost: 300, upkeep: 15, floors: [0, 0], desc: '대여소 반경 5칸끼리 가까운 거리는 자전거로 다녀요' },
+  trailhead: { name: '등산로 입구', size: 1, power: 1, water: 1, cost: 800, upkeep: 20, floors: [1, 1], desc: '산 바로 앞에만 지어요. 둘레길과 막걸리·파전집 · 관광 수입, 주변 만족도 상승' },
+  jjim: { name: '찜질방·목욕탕', size: 2, power: 12, water: 15, cost: 4000, upkeep: 0, floors: [3, 3], desc: '관광 수입 · 주변 만족도 상승' },
   tower: { name: '전망타워', size: 1, power: 0, water: 0, cost: 15000, upkeep: 160, floors: [1, 1], desc: '산 위에만 지어요. 도시 어디서나 보이는 명소예요' },
 };
 
@@ -90,9 +99,16 @@ export const LANDMARK: Partial<Record<BuildingKind, { radius: number; value: num
   riverpark: { radius: 7, value: 16 },
   palace: { radius: 12, value: 20 },
   tower: { radius: 16, value: 8 },
+  office: { radius: 4, value: 4 },
+  post: { radius: 4, value: 3 },
+  library: { radius: 6, value: 7 },
+  terminal: { radius: 10, value: 14 },
+  ktx: { radius: 16, value: 22 },
+  trailhead: { radius: 6, value: 5 },
+  jjim: { radius: 6, value: 6 },
 };
 /** Landmarks a city can only have one of. */
-export const UNIQUE: BuildingKind[] = ['palace', 'tower'];
+export const UNIQUE: BuildingKind[] = ['palace', 'tower', 'ktx'];
 
 export const SEWAGE_CAPACITY = 600;
 
@@ -119,6 +135,7 @@ export const VARIANTS: Partial<Record<BuildingKind, string[]>> = {
   c1: ['편의점', '치킨집', '카페', 'PC방', '노래방', '부동산', '분식집'],
   c2: ['근린생활 빌딩', '학원 빌딩', '병원 빌딩', '교회가 있는 빌딩'],
   c3: ['오피스 타워', '오피스 타워', '대형마트'],
+  jjim: ['찜질방', '목욕탕'],
   i1: ['비닐하우스', '논밭', '축사', '과수원'],
   i2: ['제조 공장', '부품 공장', '식품 공장'],
   i3: ['지식산업센터', '물류센터', '데이터센터'],

@@ -1,5 +1,6 @@
 import { KINDS, N, ROAD_UPKEEP, Zone } from './defs';
 import { fareIncome, lineUpkeep } from './transit';
+import { accrueTourism } from './attractions';
 import { emptyMonth, notify, type MonthReport, type World } from './world';
 
 /** Monthly tax per resident / worker at a 10% rate, in 만원. */
@@ -22,6 +23,7 @@ export function accrueDay(w: World) {
     }
   });
   for (const l of w.lines) m.expense.transit += lineUpkeep(w, l) / 30;
+  accrueTourism(w);
   let roads = 0;
   for (let i = 0; i < N * N; i++) {
     if (w.road[i]) roads += ROAD_UPKEEP[w.road[i] as 1 | 2];
@@ -47,5 +49,5 @@ export function closeMonth(w: World) {
 }
 
 // Saves from before transit have no T or transit fields.
-export const monthIncome = (r: MonthReport) => r.income.R + r.income.C + r.income.I + (r.income.T ?? 0);
+export const monthIncome = (r: MonthReport) => r.income.R + r.income.C + r.income.I + (r.income.T ?? 0) + (r.income.V ?? 0);
 export const monthExpense = (r: MonthReport) => r.expense.roads + r.expense.facilities + r.expense.services + (r.expense.transit ?? 0);
