@@ -186,27 +186,10 @@ function rawParts(b: Building, w: World): Part[] {
       } else lowApartment(P, H, r);
       break;
     }
-    case 'r3': {
-      if (variantOf('r3', b.look) === 2) { mixedUse(b, out); break; }
-      const col = pick(APT, r()), brand = pick(BRAND, r());
-      if (b.look < 0.55) {
-        // Two 판상형 slabs, the classic 아파트 단지 silhouette.
-        for (const off of [-4.6, 4.6]) {
-          const h = H - (off > 0 ? Math.floor(r() * 3) * 3 : 0);
-          box(Math.sin(along) * off, 0, Math.cos(along) * off, 16.5, h, 4.6, col, STYLE.slab, brand, along);
-          box(Math.sin(along) * off, h, Math.cos(along) * off, 4, 2.2, 3.2, col, STYLE.plain, undefined, along);
-        }
-      } else {
-        // 탑상형 towers in a pair.
-        for (const off of [-4.5, 4.5]) {
-          const h = H - (off > 0 ? 6 : 0);
-          box(Math.cos(along) * off, 0, Math.sin(along) * off, 8, h, 8, col, STYLE.apt, brand, along);
-          box(Math.cos(along) * off, h, Math.sin(along) * off, 5, 2.4, 5, brand);
-        }
-      }
-      box(Math.cos(along) * 8.2, 0, Math.sin(along) * 8.2, 2.2, 2.6, 2.2, '#d9d2c3'); // 경비실
+    case 'r3':
+      // An 아파트 단지 (or 주상복합) laid out for its plot, with its own parking and park.
+      out.push(...complex(b));
       break;
-    }
     case 'c1': {
       // 상가주택: shops below, flats above, a signboard on every floor and a 돌출간판.
       // The trade decides the ground-floor sign: 편의점, 치킨집, 카페, PC방, 노래방, 부동산, 분식집.
@@ -226,6 +209,7 @@ function rawParts(b: Building, w: World): Part[] {
       break;
     }
     case 'c3': {
+      if (variantOf('c3', b.look) === 2) { bigMart(b, w, out); break; }
       P('box', 0, 0, 0, 18.4, 9, 18.4, '#b9b4ab', STYLE.shops, 0, pick(SIGN, r()));
       const tw = 11 + r() * 3, td = 10 + r() * 3;
       const glass = pick(['#7c90a6', '#8aa1a8', '#6d7f94', '#9aa7b4'], r());
@@ -530,7 +514,7 @@ function lotParts(b: Building, w: World): Part[] {
  */
 function stretched(b: Building, w: World): Part[] {
   if (b.kind === 'r3') return complex(b);
-  if (b.kind === 'c3') return officeBlock(b);
+  if (b.kind === 'c3') { if (variantOf('c3', b.look) === 2) { const out: Part[] = []; bigMart(b, w, out); return out; } return officeBlock(b); }
   const W = bw(b), D = bh(b), base = b.size;
   const out = rawParts({ ...b, x: b.x + (W - base) / 2, y: b.y + (D - base) / 2 }, w);
   const cx = (b.x + W / 2) * CELL, cz = (b.y + D / 2) * CELL;
@@ -557,41 +541,89 @@ function complex(b: Building): Part[] {
   const H = b.floors * 3;
   const col = pick(APT, r()), brand = pick(BRAND, r());
   const out: Part[] = [];
-  const box = (x: number, y: number, z: number, sx: number, sy: number, sz: number, color: string, style = STYLE.plain, sign?: string) =>
-    out.push({ shape: 'box', x: cx + x, y, z: cz + z, sx, sy, sz, rot: 0, color, style, sign });
   const alongX = Wm > Dm || (Wm === Dm && b.look < 0.3);
   const long = alongX ? Wm : Dm, short = alongX ? Dm : Wm;
-  const put = (u: number, v: number, lu: number, lv: number, h: number, style: number, sign?: string, color = col) =>
-    alongX ? box(u, 0, v, lu, h, lv, color, style, sign) : box(v, 0, u, lv, h, lu, color, style, sign);
-  const putAt = (u: number, v: number, y: number, lu: number, h: number, lv: number, color: string) =>
-    alongX ? box(u, y, v, lu, h, lv, color) : box(v, y, u, lv, h, lu, color);
+  // Everything in the plot's own frame: u along its long side, v across.
+  const Q = (s: Shape, u: number, v: number, y: number, lu: number, h: number, lv: number, color: string, style = STYLE.plain, sign?: string) =>
+    out.push(alongX ? { shape: s, x: cx + u, y, z: cz + v, sx: lu, sy: h, sz: lv, rot: 0, color, style, sign } : { shape: s, x: cx + v, y, z: cz + u, sx: lv, sy: h, sz: lu, rot: 0, color, style, sign });
+  const CARS = ['#f2f2f0', '#f2f2f0', '#1b1c1e', '#a9adb2', '#6f7378', '#2a3d66', '#8c1d1d'];
+  const LEAF = ['#5e8f45', '#6c9f4f', '#7aab55'];
+  // 주차장: a strip of asphalt, cars nose-in across it.
+  const parking = (u0: number, u1: number, v: number, w: number) => {
+    Q('box', (u0 + u1) / 2, v, 0.05, u1 - u0, 0.05, w, '#5a5d61');
+    for (let u = u0 + 1.4; u < u1 - 1.2; u += 2.6) {
+      Q('box', u - 1.3, v, 0.1, 0.1, 0.02, w * 0.8, '#eeeeea');
+      if (r() < 0.25) continue;
+      const k = pick(CARS, r());
+      Q('box', u, v, 0.1, 1.7, 0.8, Math.min(4.1, w - 0.6), k);
+      Q('box', u, v, 0.9, 1.5, 0.55, Math.min(2, w - 2), '#2c2f33');
+    }
+  };
+  // 단지 공원: lawn and trees, and a 놀이터 (sand, a slide) or a 정자.
+  const park = (u0: number, u1: number, v: number, w: number, play: boolean) => {
+    Q('box', (u0 + u1) / 2, v, 0.05, u1 - u0, 0.08, w, '#7fae55');
+    for (let u = u0 + 1.6; u < u1 - 1; u += 4.2) {
+      Q('box', u, v + w / 2 - 1, 0.1, 0.25, 1.4, 0.25, '#6b5440');
+      Q('tree', u, v + w / 2 - 1, 1.1, 2.6, 2.8, 2.6, pick(LEAF, r()));
+    }
+    const mu = (u0 + u1) / 2;
+    if (play) {
+      Q('box', mu, v - 0.4, 0.1, 4, 0.15, Math.min(3.4, w - 1.2), '#e2c48a');
+      Q('prism', mu - 0.8, v - 0.4, 0.25, 0.9, 1.6, 2.2, pick(['#e74c3c', '#f1c40f', '#3498db'], r()));
+      Q('box', mu + 1, v - 0.4, 0.25, 0.9, 1.6, 0.9, '#2e9e4f');
+    } else {
+      Q('box', mu, v - 0.3, 0.1, 2.6, 0.4, 2.6, '#8a6a4a');
+      Q('hip', mu, v - 0.3, 2.4, 3.4, 1.2, 3.4, '#4a4f55');
+      for (const [a, c] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) Q('box', mu + a * 1.1, v - 0.3 + c * 1.1, 0.5, 0.18, 1.9, 0.18, '#7a3b2e');
+    }
+  };
+  // The 단지 itself: paved, a hedge round it, the gate (문주) and 경비실 at a corner.
+  Q('box', 0, 0, 0, long - 0.6, 0.04, short - 0.6, '#cbc5b8');
+  for (const sv of [-1, 1]) Q('box', 2.2, sv * (short / 2 - 0.5), 0, long - 5.4, 0.8, 0.5, '#5f8f45');
+  for (const su of [-1, 1]) Q('box', su * (long / 2 - 0.5), 2.2, 0, 0.5, 0.8, short - 5.4, '#5f8f45');
+  const gu = -long / 2 + 1.3, gv = -short / 2 + 1.3;
+  Q('box', gu + 2.6, gv, 0, 0.7, 3.6, 0.7, '#cfc8ba');
+  Q('box', gu, gv + 2.6, 0, 0.7, 3.6, 0.7, '#cfc8ba');
+  Q('box', gu + 1.6, gv + 1.6, 1.2, 1.9, 2.4, 1.9, '#d9d2c3', STYLE.house);
+  Q('box', gu + 2.6, gv, 3.6, 1.2, 0.8, 0.9, brand, STYLE.sign);
   if (b.look < 0.55) {
-    // 판상형: rows of slabs, about 9 m apart.
+    // 판상형: rows of slabs about 10 m apart; between them, by turns, a car park and a strip of park.
     const rows = Math.max(2, Math.floor((short - 2) / 9));
     const segs = long >= 28 ? 2 : 1;
     const gap = 3, len = (long - 3.5 - (segs - 1) * gap) / segs;
+    const pitch = short / rows, gw = pitch - 4.6 - 0.8;
     for (let i = 0; i < rows; i++) {
-      const v = -short / 2 + (short / rows) * (i + 0.5);
+      const v = -short / 2 + pitch * (i + 0.5);
       for (let k = 0; k < segs; k++) {
         const u = -long / 2 + 1.75 + len / 2 + k * (len + gap);
         const h = H - Math.floor(r() * 3) * 3;
-        put(u, v, len, 4.6, h, STYLE.slab, brand);
-        putAt(u, v, h, Math.min(4, len * 0.3), 2.2, 3.2, col);
+        Q('box', u, v, 0, len, h, 4.6, col, STYLE.slab, brand);
+        Q('box', u, v, h, Math.min(4, len * 0.3), 2.2, 3.2, col);
       }
+      if (i === rows - 1) break;
+      const gv2 = v + pitch / 2;
+      if (rows === 2) {
+        // Only one gap: cars on most of it, the 놀이터 at the end.
+        parking(-long / 2 + 1, long * 0.18, gv2, gw);
+        park(long * 0.18, long / 2 - 1, gv2, gw, true);
+      } else if (i % 2 === 0) parking(-long / 2 + 1, long / 2 - 1, gv2, gw);
+      else park(-long / 2 + 1, long / 2 - 1, gv2, gw, i % 4 === 1);
     }
   } else {
-    // 탑상형: a tower per cell, heights stepping.
+    // 탑상형: towers on every other spot, park and parking in between.
     const nu = Math.max(2, Math.round(long / 10)), nv = Math.max(2, Math.round(short / 10));
+    const su = long / nu, sv = short / nv;
+    let n = 0;
     for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
-      const u = -long / 2 + (long / nu) * (i + 0.5), v = -short / 2 + (short / nv) * (j + 0.5);
-      const h = H - Math.floor(r() * 3) * 6;
-      put(u, v, 7.2, 7.2, h, STYLE.apt, brand);
-      putAt(u, v, h, 4.6, 2.4, 4.6, brand);
+      const u = -long / 2 + su * (i + 0.5), v = -short / 2 + sv * (j + 0.5);
+      if ((i + j) % 2 === 0) {
+        const h = H - Math.floor(r() * 3) * 6;
+        Q('box', u, v, 0, 8, h, 8, col, STYLE.apt, brand);
+        Q('box', u, v, h, 5, 2.4, 5, brand);
+      } else if (n++ % 2 === 0) parking(u - su / 2 + 0.8, u + su / 2 - 0.8, v, sv - 2);
+      else park(u - su / 2 + 0.8, u + su / 2 - 0.8, v, sv - 2, n % 4 === 1);
     }
   }
-  // 경비실 at a corner, and a little 놀이터.
-  box(-Wm / 2 + 1.6, 0, -Dm / 2 + 1.6, 2.2, 2.6, 2.2, '#d9d2c3');
-  if (bw(b) * bh(b) >= 6) box(Wm / 2 - 3, 0, Dm / 2 - 3, 3.6, 0.3, 3.6, '#d9a25b');
   return out;
 }
 
@@ -621,6 +653,55 @@ function mixedUse(b: Building, out: Part[]) {
     box(x, base, z, 7, h - base - 3, 13, col, STYLE.apt, brand);
     box(x, h, z, 5, 3, 5, '#cfd3d6');
   }
+}
+
+/**
+ * 대형마트: a big windowless box with its name lit up along the front, a glass
+ * entrance and cart shelter on the street side, and the car park on the roof,
+ * reached by a ramp up the side.
+ */
+function bigMart(b: Building, w: World, out: Part[]) {
+  const r = seq(b.look + b.id * 0.0137);
+  const Wm = bw(b) * CELL, Dm = bh(b) * CELL;
+  const cx = b.x * CELL + Wm / 2, cz = b.y * CELL + Dm / 2;
+  // Which side faces the road: the store's front (local -z) turns to it.
+  const a = network(w).access.get(b.id);
+  let rot = Math.PI;
+  if (a !== undefined) {
+    const dx = (a % N) * CELL + CELL / 2 - cx, dz = Math.floor(a / N) * CELL + CELL / 2 - cz;
+    rot = Math.abs(dx) / Wm > Math.abs(dz) / Dm ? (dx > 0 ? -Math.PI / 2 : Math.PI / 2) : dz > 0 ? Math.PI : 0;
+  }
+  const side = Math.abs(Math.sin(rot)) > 0.5;
+  const FW = side ? Dm : Wm, FD = side ? Wm : Dm; // frontage width and depth in the store's frame
+  const c0 = Math.cos(rot), s0 = Math.sin(rot);
+  const P: Put = (s, dx, dy, dz, ww, h, d, color, style = STYLE.plain, dr = 0, sign) =>
+    out.push({ shape: s, x: cx + dx * c0 + dz * s0, y: dy, z: cz - dx * s0 + dz * c0, sx: ww, sy: h, sz: d, rot: rot + dr, color, style, sign });
+  const H = 12, bwid = FW - 5.5, bdep = FD - 3, bx = -2.2, bz = 0.8;
+  const brand = pick(['#f2c12e', '#d9473b', '#2f6db3', '#e8743b'], r());
+  P('box', bx, 0, bz, bwid, H, bdep, '#ebe8e1', STYLE.factory);
+  // The name along the top of the front, and a band of colour under it.
+  P('box', bx, H - 3.6, bz - bdep / 2 - 0.2, bwid * 0.55, 2.6, 0.35, brand, STYLE.sign);
+  P('box', bx, H - 0.9, bz - bdep / 2 - 0.12, bwid, 0.6, 0.2, brand);
+  // Glass entrance and canopy.
+  P('box', bx, 0, bz - bdep / 2 - 0.1, 9, 3.6, 0.3, '#7d9bb5', STYLE.office);
+  P('box', bx, 3.6, bz - bdep / 2 - 1.4, 10, 0.3, 2.8, '#d8d5cc');
+  // Cart shelter by the door.
+  P('box', bx + bwid / 2 - 3, 0, bz - bdep / 2 - 1.2, 3.6, 2.2, 1.6, '#c9ced4');
+  // Roof car park: asphalt, bays, cars, a parapet, the lift tower.
+  P('box', bx, H, bz, bwid, 0.1, bdep, '#5a5d61');
+  for (const sz of [-1, 1]) P('box', bx, H, bz + sz * (bdep / 2 - 0.2), bwid, 1, 0.3, '#d8d5cc');
+  for (const sx2 of [-1, 1]) P('box', bx + sx2 * (bwid / 2 - 0.2), H, bz, 0.3, 1, bdep, '#d8d5cc');
+  const CARS = ['#f2f2f0', '#1b1c1e', '#a9adb2', '#6f7378', '#2a3d66', '#8c1d1d'];
+  for (const lane of [-1, 1]) for (let x = bx - bwid / 2 + 2; x < bx + bwid / 2 - 2; x += 2.6) {
+    if (r() < 0.35) continue;
+    P('box', x, H + 0.1, bz + lane * (bdep / 4), 1.7, 0.8, 4, pick(CARS, r()));
+    P('box', x, H + 0.9, bz + lane * (bdep / 4), 1.5, 0.5, 2, '#2c2f33');
+  }
+  P('box', bx + bwid / 2 - 2.5, H, bz + bdep / 2 - 2.5, 3.5, 3.4, 3.5, '#d8d5cc');
+  // The ramp up the side (local +x): a sloped deck from the back corner to the roof.
+  const rx = FW / 2 - 2.2;
+  P('prism', rx, 0, bz, 4.2, H, bdep, '#9d9a92', STYLE.plain, 0);
+  P('box', rx, H, bz + bdep / 2 - 0.5, 4.2, 0.9, 0.3, '#d8d5cc');
 }
 
 /** Office plots: a podium over the whole lot, with a tower for every two cells of frontage. */

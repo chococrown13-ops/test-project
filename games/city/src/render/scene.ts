@@ -215,10 +215,10 @@ export class CityScene {
       this.busCells = new Set();
       for (const l of w.lines) if (l.kind === 'bus') for (const n of busRoute(w, l.stops, l.id) ?? []) if (n < NN) this.busCells.add(n);
     }
-    this.roads.update(w, { key: bk, cells: this.busCells });
-    this.ground.shape(w);
     // Seasons: foliage colour and snow follow the calendar.
     const month = calendarMonth(w.day);
+    this.roads.update(w, { key: bk, cells: this.busCells }, month);
+    this.ground.shape(w);
     this.ground.month = month;
     const snow = ({ 12: 0.45, 1: 0.9, 2: 0.6 } as Record<number, number>)[month] ?? 0;
     shared.uSnow.value += (snow - shared.uSnow.value) * Math.min(1, dt * 0.8);

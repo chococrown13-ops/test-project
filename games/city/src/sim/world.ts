@@ -66,6 +66,8 @@ export interface World {
   parked: Uint8Array;
   /** Share of a building's cars with nowhere to park, 0-100, on its cells and its front road. */
   parkPress: Uint8Array;
+  /** 1 on road cells lined with 가로수 (street trees). */
+  trees: Uint8Array;
   /** Policy: no stopping or parking on avenues. */
   noAvenueParking: boolean;
   bld: Int32Array;
@@ -162,6 +164,7 @@ export function createWorld(seed = 20261028, name = '새솔시', map: MapKind = 
     roundabouts: [],
     parked: new Uint8Array(size),
     parkPress: new Uint8Array(size),
+    trees: new Uint8Array(size),
     noAvenueParking: false,
     zone: new Uint8Array(size),
     bld: new Int32Array(size).fill(-1),

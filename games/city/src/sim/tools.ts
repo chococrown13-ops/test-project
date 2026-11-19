@@ -300,6 +300,7 @@ export function bulldoze(w: World, cells: number[]): number {
       for (const i of cells) {
         if (!w.road[i] || edgeLink(i)) continue;
         w.road[i] = Road.None;
+        w.trees[i] = 0;
         // Drop the diagonal links on both ends.
         const x = i % N, y = (i / N) | 0;
         for (const [dx, dy, bit] of DIAG) {
@@ -379,4 +380,33 @@ export function hasOpenWater(w: World): boolean {
 /** A 회전교차로 on a road cell. */
 export function placeRoundabout(w: World, cell: number): string | null {
   return layRoundabout(w, cell, demolish);
+}
+
+/** 가로수, per road cell. */
+export const TREE_COST = 5;
+
+/** Road cells in the box that can take 가로수: ground roads on land (not bridges, not ramps). */
+export function treeCells(w: World, cells: number[]): number[] {
+  return cells.filter((i) => w.road[i] && w.ground[i] === Ground.Land && !(w.roadAlt[i] && isRamp(w, i)));
+}
+
+/**
+ * Plant 가로수 along the roads in the box; if they're all planted already, take them out.
+ * Returns what happened, or an error.
+ */
+export function plantTrees(w: World, cells: number[]): { planted: number; removed: number } | string {
+  const ok = treeCells(w, cells);
+  if (!ok.length) return '가로수는 도로를 따라 심어요. 도로 위를 끌어 주세요.';
+  const todo = ok.filter((i) => !w.trees[i]);
+  if (!todo.length) {
+    for (const i of ok) w.trees[i] = 0;
+    w.ver.roads++;
+    return { planted: 0, removed: ok.length };
+  }
+  const cost = todo.length * TREE_COST;
+  if (cost > w.money) return `예산이 부족해요. (${cost.toLocaleString('ko-KR')}만 원 필요)`;
+  w.money -= cost;
+  for (const i of todo) w.trees[i] = 1;
+  w.ver.roads++;
+  return { planted: todo.length, removed: 0 };
 }

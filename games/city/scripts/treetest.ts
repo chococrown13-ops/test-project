@@ -1,0 +1,32 @@
+/* Headless check of 가로수: planting, taking out, land value, saving, bulldozing. */
+import { N, Road } from '../src/sim/defs';
+import { updateLand } from '../src/sim/growth';
+import { deserialize, serialize } from '../src/sim/save';
+import { bulldoze, placeRoad, plantTrees, rectCells, roadPath, TREE_COST } from '../src/sim/tools';
+import { createWorld, idx, startRowOf } from '../src/sim/world';
+
+let fails = 0;
+const check = (name: string, ok: boolean, extra = '') => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name} ${extra}`); if (!ok) fails++; };
+const w = createWorld(7, 't', 'plain');
+w.money = 10000;
+const row = startRowOf(w) - 10;
+placeRoad(w, roadPath(30, row, 60, row), Road.Street);
+updateLand(w);
+const before = w.land[idx(45, row + 1)];
+const m0 = w.money;
+const r = plantTrees(w, rectCells(30, row - 1, 60, row + 1));
+check('plants on the road cells only', typeof r === 'object' && r.planted === 31, JSON.stringify(r));
+check('costs per cell', m0 - w.money === 31 * TREE_COST, `${m0 - w.money}`);
+check('nothing planted off the road', !w.trees[idx(45, row + 1)]);
+updateLand(w);
+check('land beside the trees is worth more', w.land[idx(45, row + 1)] > before, `${before.toFixed(1)} -> ${w.land[idx(45, row + 1)].toFixed(1)}`);
+check('off the road is refused', typeof plantTrees(w, rectCells(30, row + 5, 40, row + 6)) === 'string');
+const w2 = deserialize(serialize(w));
+check('saved', w2.trees[idx(45, row)] === 1);
+const again = plantTrees(w, rectCells(40, row, 44, row));
+check('dragging over planted trees takes them out', typeof again === 'object' && again.removed === 5 && !w.trees[idx(42, row)], JSON.stringify(again));
+bulldoze(w, [idx(50, row)]);
+check('bulldozing the road takes its trees', !w.trees[idx(50, row)] && !w.road[idx(50, row)]);
+void N;
+console.log(fails ? `${fails} FAILED` : 'all passed');
+if (fails) process.exit(1);

@@ -54,6 +54,10 @@ export function updateLand(w: World) {
         if (d <= r) fn(idx(x, y), 1 - d / (r + 1));
       }
   };
+  // 가로수: a little shade and green raise the street's value, and the leaves catch some of the dust.
+  const treed: number[] = [];
+  for (let i = 0; i < size; i++) if (w.trees[i] && w.road[i]) treed.push(i);
+  for (const i of treed) stamp((i % N) + 0.5, ((i / N) | 0) + 0.5, 2, (j, f) => { bonus[j] += 3 * f; });
   w.buildings.forEach((b) => {
     const cx = b.x + bw(b) / 2, cy = b.y + bh(b) / 2;
     const e = EMIT[b.kind];
@@ -70,6 +74,7 @@ export function updateLand(w: World) {
   const waterDist = distanceTo((i) => w.ground[i] === Ground.Water, 6);
   // A view of the hills is worth something too, if less than the river.
   const hillDist = distanceTo((i) => w.ground[i] === Ground.Mountain, 5);
+  for (const i of treed) stamp((i % N) + 0.5, ((i / N) | 0) + 0.5, 1.5, (j, f) => { w.pollution[j] *= 1 - 0.3 * f; });
   for (let i = 0; i < size; i++) {
     if (w.ground[i] !== Ground.Land) { w.land[i] = 0; continue; }
     const view = (waterDist[i] <= 5 ? (6 - waterDist[i]) * 3 : 0) + (hillDist[i] <= 4 ? (5 - hillDist[i]) * 2 : 0);
