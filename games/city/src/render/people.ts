@@ -1,0 +1,132 @@
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { KINDS, N, Zone } from '../sim/defs';
+import { HALF_WIDTH, KERB_W } from '../sim/curves';
+import { forEachNeighbour, NN } from '../sim/graph';
+import type { World } from '../sim/world';
+import { nodeCentre } from './roadheight';
+
+/**
+ * People on the pavements: walking a few blocks along the streets near
+ * where they live and shop, more by day and around shops and stations,
+ * fewer at night. Purely for looks (the simulation's trips are the cars and
+ * the transit riders); drawn only when the camera is close enough to see them.
+ */
+
+const MAX = 900;
+/** Metres a second at 1x (a stroll, sped up like the cars). */
+const WALK = 3.2;
+const SW = 0.32;
+
+interface Walker { path: number[]; i: number; t: number; side: number; speed: number; look: number }
+
+const SHIRTS = ['#d9473b', '#2f6db3', '#f2f2f0', '#1b1c1e', '#e2a92b', '#3d9a62', '#8e9599', '#c2457e', '#5b4232', '#7cc6fe'];
+
+export class PeopleLayer {
+  readonly group = new THREE.Group();
+  private mesh: THREE.InstancedMesh;
+  private walkers: Walker[] = [];
+  /** Road cells people set out from, weighted by what's beside them; rebuilt when the city changes. */
+  private starts: number[] = [];
+  private startsKey = '';
+
+  constructor() {
+    const box = (sx: number, sy: number, sz: number, y: number, k: number) => {
+      const g = new THREE.BoxGeometry(sx, sy, sz).translate(0, y + sy / 2, 0).toNonIndexed();
+      g.setAttribute('aTone', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count).fill(k), 1));
+      return g;
+    };
+    // Legs (tone 0), body (tone 1, the instance colour), head (tone 2).
+    const geo = mergeGeometries([box(0.38, 0.8, 0.26, 0, 0), box(0.46, 0.7, 0.3, 0.8, 1), box(0.26, 0.28, 0.26, 1.5, 2)]);
+    const mat = new THREE.MeshStandardMaterial({ roughness: 0.8 });
+    mat.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTone;\nvarying float vTone;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvTone = aTone;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vTone;')
+        .replace('#include <color_fragment>', '#include <color_fragment>\nif (vTone < 0.5) diffuseColor.rgb = vec3(0.16, 0.18, 0.24);\nelse if (vTone > 1.5) diffuseColor.rgb = vec3(0.86, 0.7, 0.58);');
+    };
+    mat.customProgramCacheKey = () => 'city-people';
+    this.mesh = new THREE.InstancedMesh(geo, mat, MAX);
+    this.mesh.count = 0;
+    this.mesh.frustumCulled = false;
+    this.mesh.setColorAt(0, new THREE.Color());
+    this.group.add(this.mesh);
+  }
+
+  private findStarts(w: World) {
+    const key = `${w.ver.buildings}:${w.ver.roads}`;
+    if (key === this.startsKey) return;
+    this.startsKey = key;
+    const starts: number[] = [];
+    w.buildings.forEach((b) => {
+      const d = KINDS[b.kind];
+      if (b.abandoned) return;
+      // Shops and stations draw a crowd; homes send people out; the rest a few.
+      const weight = d.zone === Zone.C ? 4 : d.zone === Zone.R ? 2 : b.kind === 'metro' || b.kind === 'terminal' || b.kind === 'ktx' || b.kind === 'market' ? 6 : d.zone === Zone.I ? 0 : 1;
+      if (!weight) return;
+      for (let y = b.y - 1; y <= b.y + (b.sy ?? b.size); y++) for (let x = b.x - 1; x <= b.x + (b.sx ?? b.size); x++) {
+        if (x < 0 || y < 0 || x >= N || y >= N) continue;
+        const i = y * N + x;
+        if (w.road[i] && !w.roadAlt[i] && w.ground[i] === 0) for (let k = 0; k < weight; k++) starts.push(i);
+      }
+    });
+    this.starts = starts;
+  }
+
+  /** A short wander along the streets from a start cell. */
+  private spawn(w: World): Walker | null {
+    if (!this.starts.length) return null;
+    let cur = this.starts[(Math.random() * this.starts.length) | 0];
+    const path = [cur];
+    const len = 4 + ((Math.random() * 10) | 0);
+    let prev = -1;
+    for (let k = 0; k < len; k++) {
+      const next: number[] = [];
+      forEachNeighbour(w, cur, (n) => { if (n < NN && n !== prev && w.ground[n] === 0 && !w.roadAlt[n]) next.push(n); });
+      if (!next.length) break;
+      // Mostly straight on.
+      const dx = prev >= 0 ? (cur % N) - (prev % N) : 0, dy = prev >= 0 ? ((cur / N) | 0) - ((prev / N) | 0) : 0;
+      const ahead = next.find((n) => (n % N) - (cur % N) === dx && ((n / N) | 0) - ((cur / N) | 0) === dy);
+      const n = ahead !== undefined && Math.random() < 0.75 ? ahead : next[(Math.random() * next.length) | 0];
+      prev = cur; cur = n; path.push(n);
+    }
+    if (path.length < 2) return null;
+    return { path, i: 0, t: Math.random(), side: Math.random() < 0.5 ? 1 : -1, speed: WALK * (0.8 + Math.random() * 0.4), look: Math.random() };
+  }
+
+  update(w: World, dt: number, pace: number, night: number, camDist: number) {
+    this.mesh.visible = camDist < 450;
+    if (!this.mesh.visible) return;
+    this.findStarts(w);
+    // How many are out: the population, thinned at night.
+    const want = Math.min(MAX, Math.round((w.stats.pop / 6 + this.starts.length * 0.08) * (1 - night * 0.75)));
+    while (this.walkers.length < want) { const p = this.spawn(w); if (!p) break; this.walkers.push(p); }
+    if (this.walkers.length > want) this.walkers.length = want;
+    // Drawn a little larger than life (like the cars), so they read from the usual camera height.
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), one = new THREE.Vector3(1.4, 1.4, 1.4), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
+    let n = 0;
+    for (let k = 0; k < this.walkers.length; k++) {
+      const wk = this.walkers[k];
+      const a = nodeCentre(wk.path[wk.i], w), b = nodeCentre(wk.path[wk.i + 1], w);
+      const L = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+      wk.t += (dt * pace * wk.speed) / L;
+      if (wk.t >= 1) {
+        wk.t -= 1; wk.i++;
+        if (wk.i >= wk.path.length - 1) { const fresh = this.spawn(w); if (fresh) this.walkers[k] = fresh; else wk.i = 0; continue; }
+      }
+      const dx = (b.x - a.x) / L, dz = (b.z - a.z) / L;
+      const cell = wk.path[wk.i];
+      const t = (w.road[cell] || 1) as 1 | 2;
+      const off = wk.side * (HALF_WIDTH[t] + KERB_W[t] * 0.5) + (wk.look - 0.5) * 0.5;
+      p.set(a.x + (b.x - a.x) * wk.t - dz * off, SW, a.z + (b.z - a.z) * wk.t + dx * off);
+      // A little bob as they step.
+      p.y += Math.abs(Math.sin((wk.t * L) / 0.7)) * 0.05;
+      q.setFromAxisAngle(up, Math.atan2(-dz, dx) + Math.PI / 2);
+      this.mesh.setMatrixAt(n, m.compose(p, q, one));
+      this.mesh.setColorAt(n, c.set(SHIRTS[Math.floor(wk.look * 997) % SHIRTS.length]));
+      n++;
+    }
+    this.mesh.count = n;
+    this.mesh.instanceMatrix.needsUpdate = true;
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+  }
+}

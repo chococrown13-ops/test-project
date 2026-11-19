@@ -1,3 +1,4 @@
+import { pocketKind, pockets } from '../sim/pockets';
 import * as THREE from 'three';
 import { CELL, KINDS, N, Road, variantOf } from '../sim/defs';
 import { AVENUE_SPILL, HALF_WIDTH, KERB_W, nearestCurve } from '../sim/curves';
@@ -884,6 +885,54 @@ function hanokRoof(): THREE.BufferGeometry {
   return g;
 }
 
+/** Stands in for the pockets in the instance loop (never in the world). */
+const POCKET = { id: -1, kind: 'park', x: 0, y: 0, size: 1, floors: 0, look: 0, occ: 0, powered: true, watered: true, sewered: true, happy: 60, outage: 0, abandoned: false, builtDay: 0 } as Building;
+
+/** The parts of one backland cell: a green strip, a 소공원, a 놀이터, a 주말 텃밭 or a 공터. */
+function pocketParts(i: number): Part[] {
+  const out: Part[] = [];
+  const cx = (i % N) * CELL + CELL / 2, cz = ((i / N) | 0) * CELL + CELL / 2;
+  const h = (k: number) => { const s = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return s - Math.floor(s); };
+  const box = (x: number, y: number, z: number, sx: number, sy: number, sz: number, color: string) => out.push({ shape: 'box', x: cx + x, y, z: cz + z, sx, sy, sz, rot: 0, color, style: STYLE.plain });
+  const shape = (s: Shape, x: number, y: number, z: number, sx: number, sy: number, sz: number, color: string, rot = 0) => out.push({ shape: s, x: cx + x, y, z: cz + z, sx, sy, sz, rot, color, style: STYLE.plain });
+  const tree = (x: number, z: number, s: number) => { box(x, 0, z, 0.25, 1.4 * s, 0.25, '#6b5440'); shape('tree', x, 1.1 * s, z, 2.8 * s, 3 * s, 2.8 * s, pick(['#5e8f45', '#6c9f4f', '#7aab55'], h(9))); };
+  switch (pocketKind(i)) {
+    case 'green':
+      box(0, 0, 0, 9.6, 0.06, 9.6, '#7fae55');
+      tree(-2.5, -2, 1 + h(1) * 0.3); tree(2.6, 2.2, 0.9 + h(2) * 0.3);
+      if (h(3) < 0.5) tree(2.4, -2.6, 0.8);
+      break;
+    case 'park':
+      box(0, 0, 0, 9.6, 0.06, 9.6, '#86b55e');
+      box(0, 0.06, 0, 1.4, 0.03, 9.6, '#d8c9a8');
+      for (const z of [-2, 2]) { box(-1.6, 0, z, 0.6, 0.45, 1.8, '#8a6a4a'); }
+      tree(-3, -3, 1); tree(3, 3, 1.1);
+      if (h(4) < 0.5) { shape('hip', 2.8, 2.4, -2.6, 3, 1, 3, '#4a4f55'); for (const [a, c] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) box(2.8 + a, 0, -2.6 + c, 0.16, 2.4, 0.16, '#7a3b2e'); }
+      break;
+    case 'play':
+      box(0, 0, 0, 9.6, 0.06, 9.6, '#c9b48a');
+      box(-1.4, 0.06, -0.6, 4, 0.1, 4, '#e2c48a');
+      shape('prism', -1.6, 0.16, -0.8, 1, 1.7, 2.4, pick(['#e74c3c', '#f1c40f', '#3498db'], h(5)));
+      box(-0.2, 0.16, -0.8, 1, 1.7, 1, '#2e9e4f');
+      for (const x of [2.4, 3.6]) box(x, 0, 2.6, 0.12, 2, 0.12, '#8d9399');
+      box(3, 2, 2.6, 1.5, 0.12, 0.12, '#8d9399');
+      tree(-3.4, 3.4, 0.9);
+      break;
+    case 'garden':
+      box(0, 0, 0, 9.6, 0.06, 9.6, '#8a7a5c');
+      for (let k = 0; k < 4; k++) box(-1, 0.06, -3.3 + k * 2.2, 6.4, 0.3, 1.2, h(6 + k) < 0.5 ? '#6f9a3f' : '#8fb34f');
+      box(3.6, 0, 3.2, 1.4, 1.2, 1.2, '#3f6f9f');
+      shape('cyl', 3.6, 0, -3.4, 0.8, 0.9, 0.8, '#5a3b2a');
+      break;
+    case 'empty':
+      box(0, 0, 0, 9.6, 0.04, 9.6, '#b59f7a');
+      for (let k = 0; k < 3; k++) shape('tree', (h(10 + k) - 0.5) * 7, 0, (h(20 + k) - 0.5) * 7, 1.6, 0.8, 1.6, '#8a9a5a');
+      if (h(7) < 0.5) box(2.5, 0, -2.5, 2.2, 0.3, 1.2, '#8d8a84');
+      break;
+  }
+  return out;
+}
+
 const PRISM = (() => {
   // Sawtooth: vertical face at +z, roof slope down to -z.
   const g = new THREE.BufferGeometry();
@@ -931,6 +980,8 @@ export class BuildingLayer {
   private icons: THREE.Sprite[] = [];
   private iconTex: Record<string, THREE.SpriteMaterial> = {};
   private ver = '';
+  private pocketKey = '';
+  private pocketParts: Part[] = [];
   private animating = false;
   private neonMat!: THREE.MeshStandardMaterial;
   /** Terrain height under a point, so a hilltop tower stands on the hill. */
@@ -987,7 +1038,7 @@ export class BuildingLayer {
 
   /** Rebuild instance buffers when buildings change, and every frame while some are still rising. */
   update(w: World, now: number, force = false) {
-    const ver = `${w.ver.buildings}:${w.ver.roads}`;
+    const ver = `${w.ver.buildings}:${w.ver.roads}:${w.ver.zones}`;
     this.neonMat.emissiveIntensity = 0.25 + shared.uNight.value * 3;
     if (!force && ver === this.ver && !this.animating) return;
     this.ver = ver;
@@ -1004,7 +1055,14 @@ export class BuildingLayer {
       for (const pt of e.parts) need[pt.shape]++;
       all.push({ b, parts: e.parts });
     });
+    live.add(POCKET.id);
     for (const id of this.born.keys()) if (!live.has(id)) { this.born.delete(id); this.cache.delete(id); }
+    // 동네 쉼터 on the lots behind the houses: drawn like a building that is always fully grown.
+    const pk = `${w.ver.roads}:${w.ver.zones}:${w.ver.buildings}`;
+    if (pk !== this.pocketKey) { this.pocketKey = pk; this.pocketParts = pockets(w).flatMap((i) => pocketParts(i)); }
+    for (const pt of this.pocketParts) need[pt.shape]++;
+    all.push({ b: POCKET, parts: this.pocketParts });
+    this.born.set(POCKET.id, -99);
     this.first = false;
     (Object.keys(need) as Shape[]).forEach((k) => { if (need[k] > this.slots[k].cap) this.alloc(k, Math.ceil(need[k] * 1.5)); this.slots[k].n = 0; });
     this.animating = false;

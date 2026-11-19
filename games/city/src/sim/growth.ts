@@ -3,6 +3,7 @@ import { findAccess, network, occRatio, reachesOutside } from './network';
 import { addBuilding, demolish, footprint } from './tools';
 import { transitLandBonus } from './transit';
 import { civicHappiness, hubDemand, updateCivic } from './attractions';
+import { clearBackland, fronts, onRoad, pockets } from './pockets';
 import { bh, bw, idx, inside, lotsOf, notify, rand, type Building, type World } from './world';
 
 const LEVEL_KIND: Record<number, BuildingKind[]> = {
@@ -72,6 +73,8 @@ export function updateLand(w: World) {
   });
   transitLandBonus(w, bonus);
   updateCivic(w);
+  // 동네 쉼터: the open space behind the houses is worth a little to the block.
+  for (const i of pockets(w)) stamp((i % N) + 0.5, ((i / N) | 0) + 0.5, 2, (j, f) => { bonus[j] += 3 * f; });
   // River view: the closer to the water, the pricier (한강뷰).
   const waterDist = distanceTo((i) => w.ground[i] === Ground.Water, 6);
   // A view of the hills is worth something too, if less than the river.
@@ -171,6 +174,8 @@ export function grow(w: World) {
     if (id < 0) {
       if (dem <= 0 || rand(w) > dem / 100 * 0.6) continue;
       const kind = LEVEL_KIND[z][0];
+      // Only on a lot with street frontage; the ones behind stay open (pockets.ts).
+      if (!onRoad(w, i)) continue;
       const a = findAccess(w, { x, y, size: 1 });
       if (a < 0 || !net.outside.has(net.comp[a])) continue;
       addBuilding(w, kind, x, y);
@@ -221,7 +226,7 @@ function tryPair(w: World, b: Building, z: number): boolean {
     if (o && (bw(o) !== 1 || bh(o) !== 1 || o.abandoned || (KINDS[o.kind].level ?? 3) > 2 || KINDS[o.kind].zone !== z)) continue;
     const x0 = Math.min(b.x, nx), y0 = Math.min(b.y, ny);
     const sx = alongX ? 2 : 1, sy = alongX ? 1 : 2;
-    if (findAccess(w, { x: x0, y: y0, size: 1, sx, sy }) < 0) continue;
+    if (findAccess(w, { x: x0, y: y0, size: 1, sx, sy }) < 0 || !fronts(w, { x: x0, y: y0, sx, sy })) continue;
     const occ = b.occ + (o?.occ ?? 0);
     demolish(w, b.id);
     if (o) demolish(w, o.id);
@@ -259,7 +264,7 @@ function tryMerge(w: World, b: Building, z: number) {
         return true;
       });
       if (!ok || built < Math.ceil((sx * sy) / 2)) continue;
-      if (findAccess(w, { x: x0, y: y0, size: 2, sx, sy }) < 0) continue;
+      if (findAccess(w, { x: x0, y: y0, size: 2, sx, sy }) < 0 || !fronts(w, { x: x0, y: y0, sx, sy })) continue;
       let occ = 0;
       const ids = new Set<number>();
       for (const i of cells) if (w.bld[i] >= 0) ids.add(w.bld[i]);
@@ -283,6 +288,8 @@ export function updateBuildings(w: World) {
   const jobCap = s.jobs || 1;
   const fill = Math.min(1, (s.workers * 1.1 + 40) / jobCap);
   const toRemove: number[] = [];
+  const buried = clearBackland(w, rand(w));
+  if (buried) demolish(w, buried.id);
   w.buildings.forEach((b) => {
     const d = KINDS[b.kind];
     if (!d.zone) return;

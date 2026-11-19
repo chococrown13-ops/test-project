@@ -2,7 +2,7 @@ import './style.css';
 import { CELL, Ground, KINDS, Level, LEVEL_NAME, N, Road, SERVICE, Zone } from './sim/defs';
 import { loadLocal, saveLocal } from './sim/save';
 import { updateParking } from './sim/parking';
-import { createSim, tick, type Sim } from './sim/sim';
+import { createSim, GAME_PACE, tick, type Sim } from './sim/sim';
 import { plantTrees, TREE_COST, treeCells, addBuilding, altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeRoundabout, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
 import { buildCityNetwork, buildElevatedNetwork } from './render/roadnet';
 import { findAccess, network } from './sim/network';
@@ -162,6 +162,7 @@ function selectCategory(id: string) {
 
 function setSpeed(s: number) {
   speed = s;
+  scene.pace = s * GAME_PACE;
   document.querySelectorAll<HTMLButtonElement>('.speed button').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.speed) === s)));
 }
 let lastSpeed = 1;
