@@ -322,12 +322,13 @@ function rawParts(b: Building, w: World): Part[] {
       P('box', 0, 0, -1, 28, 0.15, 17, '#5a5d61');
       for (let k = -4; k <= 4; k++) P('box', k * 3, 0.15, -2, 0.12, 0.02, 9, '#eeeeea');
       P('box', 0, 5.2, -1, 28, 0.4, 10, '#d8d5cc');
-      for (const px of [-12, -4, 4, 12]) for (const pz of [-5, 3]) P('box', px, 0, pz, 0.5, 5.2, 0.5, '#9d9a92');
+      // Pillars stand on the bay lines (every 6 m), between the coaches, never in a bay.
+      for (const px of [-12, -6, 0, 6, 12]) for (const pz of [-5, 3]) P('box', px, 0, pz, 0.4, 5.2, 0.4, '#9d9a92');
       for (let k = -4; k <= 3; k++) {
         if (r() < 0.25) continue;
         const coach = pick(['#f2f2f0', '#2f6db3', '#f2f2f0', '#1f4e9a'], r());
-        P('box', k * 3 + 1.5, 0.15, -2, 2.5, 3.3, 11, coach, STYLE.plain);
-        P('box', k * 3 + 1.5, 1.6, -2, 2.55, 1, 10.6, '#2c3e50');
+        P('box', k * 3 + 1.5, 0.15, -2, 2.3, 3.3, 11, coach, STYLE.plain);
+        P('box', k * 3 + 1.5, 1.6, -2, 2.34, 1, 10.6, '#2c3e50');
       }
       break;
     }
