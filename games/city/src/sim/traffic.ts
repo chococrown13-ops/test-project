@@ -90,7 +90,8 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
       if (!path || path.length < 2) continue;
       const kindRoll = rand(w);
       // Shop trips are often 배달 오토바이 bringing chicken and 짜장면.
-      const kind = goShop && kindRoll < 0.3 ? 3 : kindRoll < 0.08 ? 2 : kindRoll < 0.15 ? 1 : 0;
+      // Cars, 1톤 trucks and 배달 오토바이. Buses run only on the lines the player opens (render/transit.ts).
+      const kind = goShop && kindRoll < 0.3 ? 3 : kindRoll < 0.08 ? 2 : 0;
       tr.cars.push({ path, i: 0, t: 0, kind, look: rand(w), age: 0 });
     }
   }

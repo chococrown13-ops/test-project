@@ -1,3 +1,4 @@
+import { isPocket, pocketKind, POCKET_NAME } from '../sim/pockets';
 import { MATURE, TIER_POP, tierOpen } from '../sim/growth';
 import { displayName, Ground, KINDS, LEVEL_NAME, N, Road, SERVICE, ZONE_NAME, Zone } from '../sim/defs';
 import { monthExpense, monthIncome } from '../sim/economy';
@@ -174,6 +175,7 @@ export function infoHtml(w: World, x: number, y: number): string {
   }
   if (w.ground[i] === Ground.Water) return `${head('물')}<p class="hint">도로를 놓으면 다리가 돼요. 비용은 4배예요. 물 밑으로는 터널을 뚫을 수 있어요.</p>`;
   if (w.ground[i] === Ground.Mountain) return `${head('산')}<p class="hint">산에는 집을 짓거나 길을 낼 수 없어요. 터널로 뚫고 지나가거나, 꼭대기에 전망타워를 세울 수 있어요. 산이 보이는 동네는 땅값이 조금 올라요.</p>`;
+  if (isPocket(w, i)) return `${head(`동네 쉼터 · ${POCKET_NAME[pocketKind(i)]}`)}${kv('구역', ZONE_NAME[w.zone[i]])}${kv('땅값', `${Math.round(w.land[i])}`)}<p class="hint">도로에 닿지 않는 안쪽 땅이라 건물 대신 블록 사람들이 함께 쓰는 쉼터로 남아요. 주변 땅값이 조금 올라요. 블록이 아파트 단지로 재건축되면 단지 안으로 들어가요.</p>`;
   return `${head('빈 땅')}${w.zone[i] ? kv('구역', ZONE_NAME[w.zone[i]]) : ''}${kv('땅값', `${Math.round(w.land[i])}`)}${kv('오염', `${Math.round(w.pollution[i])}`)}`;
 }
 
