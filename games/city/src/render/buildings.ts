@@ -2,6 +2,7 @@ import { pocketKind, pockets } from '../sim/pockets';
 import * as THREE from 'three';
 import { CELL, KINDS, N, Road, variantOf } from '../sim/defs';
 import { AVENUE_SPILL, HALF_WIDTH, KERB_W, nearestCurve } from '../sim/curves';
+import { DIAG } from '../sim/graph';
 import { network } from '../sim/network';
 import { bh, bw, type Building, type World } from '../sim/world';
 import { buildingMaterial, shared } from './materials';
@@ -562,7 +563,73 @@ function rawParts(b: Building, w: World): Part[] {
  * footprint still fits its lot, and nudged back off the pavement.
  */
 export function parts(b: Building, w: World): Part[] {
-  return squeeze(b, w, lotParts(b, w));
+  return clearDiagonals(b, w, squeeze(b, w, lotParts(b, w)));
+}
+
+/** The diagonal grid-road links running past a building's lot (cell centre to cell centre), with their road type. */
+function diagonalsNear(b: Building, w: World): { ax: number; az: number; bx: number; bz: number; t: 1 | 2 }[] {
+  const W = bw(b), D = bh(b), out: { ax: number; az: number; bx: number; bz: number; t: 1 | 2 }[] = [];
+  const inLot = (x: number, y: number) => x >= b.x && x < b.x + W && y >= b.y && y < b.y + D;
+  for (let y = b.y - 1; y <= b.y + D; y++) for (let x = b.x - 1; x <= b.x + W; x++) {
+    if (x < 0 || y < 0 || x >= N || y >= N) continue;
+    const i = y * N + x, bits = w.diag[i];
+    if (!bits || !w.road[i]) continue;
+    for (const [dx, dy, bit] of DIAG) {
+      // Each link once (from its east end), and only links of grid roads (curves keep their lots clear themselves).
+      if (!(bits & bit) || dx < 0) continue;
+      const x2 = x + dx, y2 = y + dy;
+      if (inLot(x, y) || inLot(x2, y2)) continue;
+      const j = y2 * N + x2;
+      if (w.curves.some((c) => c.cells.includes(i) && c.cells.includes(j))) continue;
+      out.push({ ax: (x + 0.5) * CELL, az: (y + 0.5) * CELL, bx: (x2 + 0.5) * CELL, bz: (y2 + 0.5) * CELL, t: (w.road[i] === Road.Avenue ? 2 : 1) });
+    }
+  }
+  return out;
+}
+
+/** How far a rectangle stands from a segment (0 when they touch). */
+function rectSegDist(x0: number, z0: number, x1: number, z1: number, s: { ax: number; az: number; bx: number; bz: number }): number {
+  let best = Infinity;
+  for (let k = 0; k <= 24; k++) {
+    const t = k / 24, px = s.ax + (s.bx - s.ax) * t, pz = s.az + (s.bz - s.az) * t;
+    const dx = Math.max(x0 - px, 0, px - x1), dz = Math.max(z0 - pz, 0, pz - z1);
+    best = Math.min(best, Math.hypot(dx, dz));
+  }
+  return best;
+}
+
+/**
+ * Beside a diagonal road the lot loses a triangle to the road and its pavement, which pass across
+ * its corner. The building shrinks into the corner of the lot away from the road, just enough to
+ * stay off the asphalt and pavement.
+ */
+function clearDiagonals(b: Building, w: World, out: Part[]): Part[] {
+  const segs = diagonalsNear(b, w);
+  if (!segs.length || !out.length) return out;
+  // The ground the building covers now (its parts' outlines, turned or not).
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (const p of out) {
+    const c = Math.abs(Math.cos(p.rot)), sn = Math.abs(Math.sin(p.rot));
+    const hx = (p.sx * c + p.sz * sn) / 2, hz = (p.sx * sn + p.sz * c) / 2;
+    x0 = Math.min(x0, p.x - hx); x1 = Math.max(x1, p.x + hx); z0 = Math.min(z0, p.z - hz); z1 = Math.max(z1, p.z + hz);
+  }
+  const clear = (k: number, axp: number, azp: number) => segs.every((sg) => rectSegDist(axp + (x0 - axp) * k, azp + (z0 - azp) * k, axp + (x1 - axp) * k, azp + (z1 - azp) * k, sg) >= HALF_WIDTH[sg.t] + KERB_W[sg.t] + 0.4);
+  if (clear(1, x0, z0)) return out;
+  // Try each corner of the lot as the anchor; keep the one that leaves the biggest building.
+  let bestK = 0.35, bx = x0, bz = z0;
+  for (const [axp, azp] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) {
+    let k = 1;
+    while (k > 0.35 && !clear(k, axp, azp)) k -= 0.03;
+    if (k > bestK) { bestK = k; bx = axp; bz = azp; }
+  }
+  for (const p of out) {
+    p.x = bx + (p.x - bx) * bestK;
+    p.z = bz + (p.z - bz) * bestK;
+    p.sx *= bestK; p.sz *= bestK;
+    // A little lower too, so a shrunk building keeps its proportions.
+    p.y *= 0.5 + bestK / 2; p.sy *= 0.5 + bestK / 2;
+  }
+  return out;
 }
 
 /**

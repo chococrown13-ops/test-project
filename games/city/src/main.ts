@@ -1,4 +1,9 @@
 import './style.css';
+import { Bgm } from './audio/bgm';
+import { shared } from './render/materials';
+
+/** Background music (made in code, starts on the first tap). */
+const bgm = new Bgm();
 import { CELL, Ground, KINDS, Level, LEVEL_NAME, N, Road, SERVICE, Zone } from './sim/defs';
 import { loadLocal, saveLocal } from './sim/save';
 import { updateParking } from './sim/parking';
@@ -207,7 +212,7 @@ function renderPanel(force = false) {
   const stamp = panel === 'budget' ? `${w.reports.length}:${w.tax.R}${w.tax.C}${w.tax.I}` : panel === 'stats' ? `${w.day}:${scene.overlay}` : panel === 'lines' ? `${w.ver.transit}:${w.reports.length}:${confirmLine}` : panel;
   if (!force && stamp === panelStamp) return;
   panelStamp = stamp;
-  $('panel').innerHTML = panel === 'budget' ? budgetHtml(w) : panel === 'stats' ? statsHtml(w, scene.overlay) : panel === 'menu' ? menuHtml(w, scene.quality, scene.style) : panel === 'lines' ? linesHtml(w, confirmLine) : HELP;
+  $('panel').innerHTML = panel === 'budget' ? budgetHtml(w) : panel === 'stats' ? statsHtml(w, scene.overlay) : panel === 'menu' ? menuHtml(w, scene.quality, scene.style, { on: bgm.on, volume: bgm.volume }) : panel === 'lines' ? linesHtml(w, confirmLine) : HELP;
 }
 function openInfo(x: number, y: number) {
   infoCell = { x, y };
@@ -244,6 +249,13 @@ for (const id of ['info', 'panel']) {
       const order = ['lowpoly', 'toon', 'pixel'] as const;
       scene.setStyle(order[(order.indexOf(scene.style) + 1) % order.length]);
       try { localStorage.setItem(SKEY, scene.style); } catch { /* storage blocked */ }
+      renderPanel(true);
+      return;
+    }
+    if (t.dataset.act === 'music') { setMusic(!bgm.on); renderPanel(true); return; }
+    if (t.dataset.act === 'vol-' || t.dataset.act === 'vol+') {
+      bgm.setVolume(Math.round((bgm.volume + (t.dataset.act === 'vol+' ? 0.1 : -0.1)) * 10) / 10);
+      try { localStorage.setItem('city.volume', String(bgm.volume)); } catch { /* storage blocked */ }
       renderPanel(true);
       return;
     }
@@ -742,6 +754,23 @@ $('goalFold').addEventListener('click', () => {
 
 renderCats();
 let last = performance.now();
+/* ------------------------------------------------------------ music */
+
+let musicWanted = true;
+try { musicWanted = localStorage.getItem('city.music') !== 'off'; const v = localStorage.getItem('city.volume'); if (v) bgm.setVolume(Number(v)); } catch { /* storage blocked */ }
+function setMusic(on: boolean) {
+  musicWanted = on;
+  if (on) bgm.start(); else bgm.stop();
+  try { localStorage.setItem('city.music', on ? 'on' : 'off'); } catch { /* storage blocked */ }
+  $('musicBtn').setAttribute('aria-pressed', String(on));
+  $('musicBtn').setAttribute('aria-label', on ? '배경음악 끄기' : '배경음악 켜기');
+}
+$('musicBtn').addEventListener('click', (e) => { e.stopPropagation(); setMusic(!bgm.on); });
+// Browsers allow sound only after the first tap or key: start then, if wanted.
+const firstGesture = () => { if (musicWanted && !bgm.on) setMusic(true); window.removeEventListener('pointerdown', firstGesture); window.removeEventListener('keydown', firstGesture); };
+window.addEventListener('pointerdown', firstGesture);
+window.addEventListener('keydown', firstGesture);
+
 let hudTimer = 0;
 let saveDay = 0;
 function frame(t: number) {
@@ -750,6 +779,7 @@ function frame(t: number) {
   if (running) tick(sim, dt, speed);
   else scene.view.rotate(dt * 0.05, 0);
   scene.frame(dt, t / 1000);
+  bgm.setNight(shared.uNight.value);
   hudTimer -= dt;
   if (hudTimer <= 0) {
     hudTimer = 0.25;
@@ -768,7 +798,7 @@ function frame(t: number) {
 requestAnimationFrame(frame);
 
 // Debug/test hook.
-(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, setTool, setSpeed, tools: { plantTrees, addBuilding, placeRoundabout, placeRoad, placeCurve, curveOf, roadPath, paintZone, rectCells, placeFacility, createLine, placeAltRoad }, roadnet: () => buildCityNetwork(sim.w), flynet: () => buildElevatedNetwork(sim.w),
+(window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, bgm, setTool, setSpeed, tools: { plantTrees, addBuilding, placeRoundabout, placeRoad, placeCurve, curveOf, roadPath, paintZone, rectCells, placeFacility, createLine, placeAltRoad }, roadnet: () => buildCityNetwork(sim.w), flynet: () => buildElevatedNetwork(sim.w),
   /** For automated play: a fresh 가상 지형 world, and the sim's own tick. */
   useWorld: (seed: number) => useWorld(createWorld(seed)),
   /** Why zoned buildings by curves do or don't turn to face them (diagnostics). */
