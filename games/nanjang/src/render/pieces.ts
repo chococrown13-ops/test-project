@@ -15,8 +15,10 @@ export const TIER_COLOR = ['#888', '#9aa3ab', '#4f9d69', '#3f7cc4', '#9b59b6', '
  *  - carved: 나무 장기알. Faceted, wood-toned figures on octagonal wooden tokens.
  *  - porcelain: 도자기 인형. Smooth glazed figures with a clear-coat shine.
  */
-export type PieceStyle = 'doll' | 'carved' | 'porcelain';
-export const STYLE_NAME: Record<PieceStyle, string> = { doll: '인형', carved: '나무 장기알', porcelain: '도자기' };
+export type PieceStyle = 'doll' | 'carved' | 'porcelain' | 'pixel' | 'voxel';
+export const STYLE_NAME: Record<PieceStyle, string> = { doll: '인형', carved: '나무 장기알', porcelain: '도자기', pixel: '도트', voxel: '복셀' };
+/** Styles whose figures use the big-headed doll proportions. */
+const chibi = () => style === 'doll' || style === 'pixel' || style === 'voxel';
 let style: PieceStyle = 'doll';
 export function setPieceStyle(s: PieceStyle) { style = s; }
 export const pieceStyle = () => style;
@@ -39,7 +41,8 @@ function mat(color: string, opts: { emissive?: string; rough?: number } = {}): T
   const k = `${style}|${color}|${opts.emissive ?? ''}|${opts.rough ?? 0.75}`;
   let m = mats.get(k);
   if (m) return m;
-  if (style === 'doll') m = new THREE.MeshToonMaterial({ color, gradientMap: ramp(), emissive: opts.emissive ?? '#000000' });
+  if (style === 'voxel') m = new THREE.MeshStandardMaterial({ color, roughness: 0.8, emissive: opts.emissive ?? '#000000' });
+  else if (style === 'doll' || style === 'pixel') m = new THREE.MeshToonMaterial({ color, gradientMap: ramp(), emissive: opts.emissive ?? '#000000' });
   else if (style === 'porcelain') m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.12, emissive: opts.emissive ?? '#000000' });
   else m = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).lerp(WOOD, 0.22), flatShading: true, roughness: 0.88, emissive: opts.emissive ?? '#000000' });
   mats.set(k, m);
@@ -95,7 +98,15 @@ function outline(fig: THREE.Group) {
   for (const [m, hull] of add) m.add(hull);
 }
 
-export function buildPiece(def: UnitDef, star: number, enemy = false, withFaces = true): PieceObj {
+/** 도트 style: a hook (set by thumbs.ts) that draws a piece as a little pixel sprite texture. */
+let spriteFor: ((def: UnitDef, faces: boolean) => THREE.Texture) | null = null;
+export function setSpriteMaker(fn: (def: UnitDef, faces: boolean) => THREE.Texture) { spriteFor = fn; }
+
+/**
+ * `raw` builds the figure from primitives even in the 도트 and 복셀 styles (the sprite maker and the
+ * voxeliser start from it).
+ */
+export function buildPiece(def: UnitDef, star: number, enemy = false, withFaces = true, raw = false): PieceObj {
   faces = withFaces;
   const root = new THREE.Group();
   const L = def.look;
@@ -118,7 +129,7 @@ export function buildPiece(def: UnitDef, star: number, enemy = false, withFaces 
   const body = L.body, head = L.head;
   const serpent = L.acc === 'serpent';
   // Where things hang: accessories drawn for a head at y 0.62 (r 0.17) and a body 0.48 tall, refitted to this style's proportions.
-  const doll = style === 'doll';
+  const doll = chibi();
   const headY = doll ? 0.6 : 0.62, headK = doll ? 1.45 : 1, bodyK = doll ? 0.8 : 1;
   const headG = new THREE.Group(), bodyG = new THREE.Group();
   headG.position.y = headY - 0.62 * headK; headG.scale.setScalar(headK);
@@ -248,6 +259,18 @@ export function buildPiece(def: UnitDef, star: number, enemy = false, withFaces 
   }
   fig.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
   if (style === 'doll') outline(fig);
+  if (!raw && style === 'voxel') voxelise(fig, `${def.id}|${faces}`);
+  if (!raw && style === 'pixel' && spriteFor) {
+    // A camera-facing pixel sprite instead of the figure (mirrored for the other side, so they face each other).
+    fig.clear();
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteFor(def, faces), transparent: true, alphaTest: 0.5 }));
+    sp.scale.set(enemy ? -1.15 : 1.15, 1.15, 1);
+    sp.position.y = 0.5;
+    fig.add(sp);
+    // A soft round shadow, since sprites cast none.
+    const blob = new THREE.Mesh(new THREE.CircleGeometry(0.3, 20), new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.22, depthWrite: false }));
+    blob.rotation.x = -Math.PI / 2; blob.position.y = 0.012; fig.add(blob);
+  }
 
   // A bubble for shields, little stars for a stun: shown when needed.
   const shield = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 1), new THREE.MeshBasicMaterial({ color: '#cfe8ff', transparent: true, opacity: 0.28, depthWrite: false }));
@@ -418,4 +441,105 @@ function shapeBody(fig: THREE.Group, L: Look) {
       break;
     }
   }
+}
+
+/* ---------------------------------------------------------------- 복셀 */
+
+/** A solid we can test points against: its inverse transform (figure space -> its own) and an inside test. */
+interface Solid { inv: THREE.Matrix4; inside: (p: THREE.Vector3) => boolean; color: THREE.Color; vol: number }
+
+function solidOf(m: THREE.Mesh, toFig: THREE.Matrix4): Solid | null {
+  const g = m.geometry as THREE.BufferGeometry & { parameters: Record<string, number> };
+  const P = g.parameters ?? {};
+  const color = ((m.material as THREE.MeshStandardMaterial).color ?? new THREE.Color('#888')).clone();
+  const inv = toFig.clone().invert();
+  const sc = new THREE.Vector3(); toFig.decompose(new THREE.Vector3(), new THREE.Quaternion(), sc);
+  const k = sc.x * sc.y * sc.z;
+  switch (g.type) {
+    case 'SphereGeometry': {
+      const r = P.radius, half = (P.thetaLength ?? Math.PI) < Math.PI * 0.9;
+      return { inv, color, vol: r ** 3 * k, inside: (p) => p.lengthSq() <= r * r && (!half || p.y >= -0.005) };
+    }
+    case 'IcosahedronGeometry': case 'DodecahedronGeometry': case 'OctahedronGeometry': {
+      const r = P.radius * (g.type === 'OctahedronGeometry' ? 0.7 : 0.9);
+      return { inv, color, vol: r ** 3 * k, inside: (p) => p.lengthSq() <= r * r };
+    }
+    case 'CylinderGeometry': case 'ConeGeometry': {
+      const rt = g.type === 'ConeGeometry' ? 0 : P.radiusTop, rb = g.type === 'ConeGeometry' ? P.radius : P.radiusBottom, h = Math.max(P.height, 0.03);
+      return { inv, color, vol: Math.max(rt, rb) ** 2 * h * k, inside: (p) => Math.abs(p.y) <= h / 2 && Math.hypot(p.x, p.z) <= rb + (rt - rb) * ((p.y + h / 2) / h) + 0.004 };
+    }
+    case 'CapsuleGeometry': {
+      const r = P.radius, L = P.height ?? P.length ?? 0;
+      return { inv, color, vol: r * r * (L + r) * k, inside: (p) => Math.hypot(p.x, Math.max(0, Math.abs(p.y) - L / 2), p.z) <= r };
+    }
+    case 'BoxGeometry': {
+      const w = Math.max(P.width, 0.03) / 2, h = Math.max(P.height, 0.03) / 2, d = Math.max(P.depth, 0.03) / 2;
+      return { inv, color, vol: w * h * d * 8 * k, inside: (p) => Math.abs(p.x) <= w && Math.abs(p.y) <= h && Math.abs(p.z) <= d };
+    }
+    case 'TorusGeometry': {
+      const R = P.radius, t = Math.max(P.tube, 0.025);
+      return { inv, color, vol: R * t * t * 6 * k, inside: (p) => (Math.hypot(p.x, p.y) - R) ** 2 + p.z * p.z <= t * t };
+    }
+    case 'CircleGeometry': {
+      const r = P.radius;
+      return { inv, color, vol: r * r * 0.03 * k, inside: (p) => Math.abs(p.z) <= 0.03 && p.x * p.x + p.y * p.y <= r * r };
+    }
+    default: return null;
+  }
+}
+
+const voxelCache = new Map<string, { pos: Float32Array; col: Float32Array; n: number; step: number }>();
+
+/** Replace a figure's primitives with little cubes, the way a voxel editor would draw it. */
+function voxelise(fig: THREE.Group, key: string) {
+  const step = 0.042;
+  let data = voxelCache.get(key);
+  if (!data) {
+    fig.updateMatrixWorld(true);
+    const figInv = fig.matrixWorld.clone().invert();
+    const solids: Solid[] = [];
+    const box = new THREE.Box3();
+    fig.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || m.userData.hull) return;
+      const toFig = figInv.clone().multiply(m.matrixWorld);
+      const sd = solidOf(m, toFig);
+      if (!sd) return;
+      solids.push(sd);
+      m.geometry.computeBoundingBox();
+      box.union(m.geometry.boundingBox!.clone().applyMatrix4(toFig));
+    });
+    // Small things (eyes, horns) win over the big shapes they sit on.
+    solids.sort((a, b) => a.vol - b.vol);
+    const pos: number[] = [], col: number[] = [];
+    const nx = Math.ceil((box.max.x - box.min.x) / step) + 1, ny = Math.ceil((box.max.y - box.min.y) / step) + 1, nz = Math.ceil((box.max.z - box.min.z) / step) + 1;
+    const grid = new Int32Array(nx * ny * nz).fill(-1);
+    const p = new THREE.Vector3(), q = new THREE.Vector3();
+    for (let iy = 0; iy < ny; iy++) for (let iz = 0; iz < nz; iz++) for (let ix = 0; ix < nx; ix++) {
+      p.set(box.min.x + ix * step, box.min.y + iy * step, box.min.z + iz * step);
+      for (let k = 0; k < solids.length; k++) { q.copy(p).applyMatrix4(solids[k].inv); if (solids[k].inside(q)) { grid[(iy * nz + iz) * nx + ix] = k; break; } }
+    }
+    // Only the cubes you can see: those with an empty neighbour.
+    const at = (x: number, y: number, z: number) => (x < 0 || y < 0 || z < 0 || x >= nx || y >= ny || z >= nz ? -1 : grid[(y * nz + z) * nx + x]);
+    for (let iy = 0; iy < ny; iy++) for (let iz = 0; iz < nz; iz++) for (let ix = 0; ix < nx; ix++) {
+      const k = at(ix, iy, iz);
+      if (k < 0) continue;
+      if (at(ix + 1, iy, iz) >= 0 && at(ix - 1, iy, iz) >= 0 && at(ix, iy + 1, iz) >= 0 && at(ix, iy - 1, iz) >= 0 && at(ix, iy, iz + 1) >= 0 && at(ix, iy, iz - 1) >= 0) continue;
+      pos.push(box.min.x + ix * step, box.min.y + iy * step, box.min.z + iz * step);
+      // A touch of variation per cube, like hand-placed voxels.
+      const c = solids[k].color, j = 1 + (((ix * 7 + iy * 13 + iz * 5) % 5) - 2) * 0.018;
+      col.push(c.r * j, c.g * j, c.b * j);
+    }
+    data = { pos: new Float32Array(pos), col: new Float32Array(col), n: pos.length / 3, step };
+    voxelCache.set(key, data);
+  }
+  fig.clear();
+  const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(data.step, data.step, data.step), new THREE.MeshStandardMaterial({ roughness: 0.85 }), data.n);
+  const m4 = new THREE.Matrix4(), c = new THREE.Color();
+  for (let i = 0; i < data.n; i++) {
+    inst.setMatrixAt(i, m4.makeTranslation(data.pos[i * 3], data.pos[i * 3 + 1], data.pos[i * 3 + 2]));
+    inst.setColorAt(i, c.setRGB(data.col[i * 3], data.col[i * 3 + 1], data.col[i * 3 + 2]));
+  }
+  inst.castShadow = true;
+  fig.add(inst);
 }

@@ -460,7 +460,7 @@ document.addEventListener('click', (e) => {
   setPieceStyle(b.dataset.style as PieceStyle);
   try { localStorage.setItem('nanjang.style', b.dataset.style!); } catch { /* storage blocked */ }
   renderStylePick();
-  if (mode === 'prep') { table.clearPieces(); renderAll(); }
+  if (mode === 'prep' && $('start').hidden) { table.clearPieces(); renderAll(); }
   if (!$('book').hidden) renderBook();
 });
 
