@@ -138,6 +138,13 @@ $('dock').addEventListener('click', (e) => {
     if (el.dataset.draft === 'undo') draft.stops.pop();
     if (el.dataset.draft === 'cancel') { cat = null; setTool('select'); return; }
     if (el.dataset.draft === 'done') finishDraft();
+    if (el.dataset.draft.startsWith('up:')) {
+      // Same stops, bigger bus: switch to that bus's tool (which keeps the stops drawn so far).
+      const bus = el.dataset.draft.slice(3) as BusType;
+      const id = (Object.keys(TOOLS) as ToolId[]).find((k) => TOOLS[k].line === 'bus' && TOOLS[k].bus === bus);
+      if (id) { setTool(id); toast(`${BUS_TYPES[bus].name}로 업그레이드했어요. 정류장은 그대로예요. 노선 완성을 누르면 개통해요.`, 'good'); }
+      return;
+    }
     renderDraft();
   }
 });

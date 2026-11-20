@@ -293,17 +293,27 @@ export function draftHtml(w: World, kind: LineKind, stops: number[], bus: BusTyp
   };
   const what = kind === 'bus' ? BUS_HINT[bus] : '지하철역을 빈 땅이나 구역에';
   // While stops go in, say how long the loop is and what (if anything) stops it being built, before 노선 완성 is pressed.
-  let problem: string | null = null, length = '';
+  let problem: string | null = null, length = '', upgrade = '';
   if (kind === 'bus' && stops.length >= 2) {
     problem = busProblem(w, bus, stops);
     const r = busRoute(w, stops);
     if (r) length = `, 한 바퀴 ${(r.length * CELL / 1000).toFixed(1)}km`;
+    // Past a 마을버스's reach: offer to make the same stops a bigger bus instead of starting over.
+    if (r && BUS_TYPES[bus].maxLoop && r.length > BUS_TYPES[bus].maxLoop) {
+      const km = (r.length * CELL / 1000).toFixed(1);
+      problem = null;
+      const opt = (b: BusType) => {
+        const c = lineCost('bus', stops, b);
+        return `<button class="btn small" data-draft="up:${b}"${busProblem(w, b, stops) ? ' disabled' : ''}>${BUS_TYPES[b].name}로 업그레이드 <small>${won(c)} 원</small></button>`;
+      };
+      upgrade = `<span class="draft-msg warn" role="status">한 바퀴 ${km}km라 ${BUS_TYPES[bus].name}(${BUS_TYPES[bus].maxLoop * CELL / 1000}km 이내)로는 달릴 수 없어요. 정류장은 그대로 두고 지선버스나 간선버스로 업그레이드할까요?</span>${opt('branch')}${opt('trunk')}`;
+    }
   }
   const msg = stops.length ? `정류장 ${stops.length}곳${length}${cost ? `, ${won(cost)} 원` : ''}` : `${what} 차례로 찍으세요.`;
   const T = kind === 'bus' ? BUS_TYPES[bus] : null;
   const about = T ? `<span class="draft-about"><b>${T.name}</b> 좋은 점: ${T.good} 아쉬운 점: ${T.bad}</span>` : '';
   const warn = problem ? `<span class="draft-msg warn" role="status">${problem}</span>` : '';
-  return `${about}<span class="draft-msg">${msg}</span>${warn}<button class="btn small" data-draft="undo"${stops.length ? '' : ' disabled'}>되돌리기</button><button class="btn small" data-draft="cancel">취소</button><button class="btn primary small" data-draft="done"${stops.length >= 2 && cost <= w.money && !problem ? '' : ' disabled'}>노선 완성</button>`;
+  return `${about}<span class="draft-msg">${msg}</span>${warn}${upgrade}<button class="btn small" data-draft="undo"${stops.length ? '' : ' disabled'}>되돌리기</button><button class="btn small" data-draft="cancel">취소</button><button class="btn primary small" data-draft="done"${stops.length >= 2 && cost <= w.money && !problem && !upgrade ? '' : ' disabled'}>노선 완성</button>`;
 }
 
 const STYLE_NAME = { lowpoly: '로우폴리', toon: '툰', pixel: '픽셀' } as const;
