@@ -446,7 +446,7 @@ function begin(game: Game) {
 
 /* ------------------------------------------------------------- style */
 
-let chosenStyle: PieceStyle = 'doll';
+let chosenStyle: PieceStyle = 'pixel';
 try { const v = localStorage.getItem('nanjang.style') as PieceStyle | null; if (v && v in STYLE_NAME) chosenStyle = v; } catch { /* storage blocked */ }
 setPieceStyle(chosenStyle);
 function renderStylePick() {

@@ -16,7 +16,7 @@ export const TIER_COLOR = ['#888', '#9aa3ab', '#4f9d69', '#3f7cc4', '#9b59b6', '
  *  - porcelain: 도자기 인형. Smooth glazed figures with a clear-coat shine.
  */
 export type PieceStyle = 'doll' | 'carved' | 'porcelain' | 'pixel' | 'voxel';
-export const STYLE_NAME: Record<PieceStyle, string> = { doll: '인형', carved: '나무 장기알', porcelain: '도자기', pixel: '도트', voxel: '복셀' };
+export const STYLE_NAME: Record<PieceStyle, string> = { pixel: '도트', doll: '인형', voxel: '복셀', porcelain: '도자기', carved: '나무 장기알' };
 /** Styles whose figures use the big-headed doll proportions. */
 const chibi = () => style === 'doll' || style === 'pixel' || style === 'voxel';
 let style: PieceStyle = 'doll';
@@ -24,6 +24,15 @@ export function setPieceStyle(s: PieceStyle) { style = s; }
 export const pieceStyle = () => style;
 /** Whether figures get eyes (한식 대전's dishes don't). */
 let faces = true;
+
+/**
+ * 도트 style: eyes are painted pixel by pixel rather than drawn as tiny spheres (which come out
+ * lopsided at 40 pixels). While capturing, the face code notes where each pair of eyes goes instead.
+ */
+export interface EyeMark { x: number; y: number; z: number; spread: number; cute: boolean; one?: boolean }
+let eyeLog: EyeMark[] | null = null;
+export function beginEyeCapture() { eyeLog = []; }
+export function endEyeCapture(): EyeMark[] { const l = eyeLog ?? []; eyeLog = null; return l; }
 
 let toonRamp: THREE.DataTexture | null = null;
 function ramp() {
@@ -184,7 +193,16 @@ export function buildPiece(def: UnitDef, star: number, enemy = false, withFaces 
       add(h1, h2, mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.5, 5), '#6b4b2a', 0.28, 0.35, 0.05));
       break;
     }
-    case 'eye': add(mesh(new THREE.SphereGeometry(0.07, 8, 6), '#fffbe8', 0, 0.66, 0.13), mesh(new THREE.SphereGeometry(0.035, 6, 4), '#1b1b1f', 0, 0.66, 0.19), mesh(new THREE.ConeGeometry(0.04, 0.14, 5), '#f2e3b3', 0, 0.84, 0)); break;
+    case 'eye': {
+      // One big eye (외눈도깨비).
+      if (eyeLog) {
+        const k = doll ? 1.45 : 1;
+        eyeLog.push({ x: 0, y: headY + (0.66 - 0.62) * k, z: (0.2) * k, spread: 0, cute: false, one: true });
+        add(mesh(new THREE.ConeGeometry(0.04, 0.14, 5), '#f2e3b3', 0, 0.84, 0));
+      } else add(mesh(new THREE.SphereGeometry(0.07, 8, 6), '#fffbe8', 0, 0.66, 0.13), mesh(new THREE.SphereGeometry(0.035, 6, 4), '#1b1b1f', 0, 0.66, 0.19), mesh(new THREE.ConeGeometry(0.04, 0.14, 5), '#f2e3b3', 0, 0.84, 0));
+      break;
+    }
+    case 'bumps': for (const sd of [-1, 1]) add(mesh(new THREE.SphereGeometry(0.075, seg(8), seg(6)), head, sd * 0.09, 0.76, 0.03)); break;
     case 'ears': {
       const e1 = mesh(new THREE.ConeGeometry(0.06, 0.16, 4), head, -0.1, 0.8, 0), e2 = mesh(new THREE.ConeGeometry(0.06, 0.16, 4), head, 0.1, 0.8, 0);
       add(e1, e2);
@@ -264,8 +282,11 @@ export function buildPiece(def: UnitDef, star: number, enemy = false, withFaces 
     // A camera-facing pixel sprite instead of the figure (mirrored for the other side, so they face each other).
     fig.clear();
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteFor(def, faces), transparent: true, alphaTest: 0.5 }));
-    sp.scale.set(enemy ? -1.15 : 1.15, 1.15, 1);
-    sp.position.y = 0.5;
+    // Dishes are wide: draw them smaller so they stay inside their square.
+    const dish = !!L.shape && L.shape !== 'figure' && !['snowman', 'cloud', 'twister', 'bird'].includes(L.shape);
+    const k = dish ? 0.74 : 1.08;
+    sp.scale.set(enemy ? -k : k, k, 1);
+    sp.position.y = k * 0.45;
     fig.add(sp);
     // A soft round shadow, since sprites cast none.
     const blob = new THREE.Mesh(new THREE.CircleGeometry(0.3, 20), new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.22, depthWrite: false }));
@@ -292,6 +313,7 @@ export function buildPiece(def: UnitDef, star: number, enemy = false, withFaces 
 /** Cartoon eyes (white with a dark pupil), for food and other non-figure pieces. */
 function eyes(fig: THREE.Group, y: number, z: number, spread = 0.07, r = 0.035) {
   if (!faces) return;
+  if (eyeLog) { eyeLog.push({ x: 0, y, z: z + r, spread, cute: false }); return; }
   for (const sd of [-1, 1]) {
     fig.add(mesh(new THREE.SphereGeometry(r, 8, 6), '#ffffff', sd * spread, y, z));
     fig.add(mesh(new THREE.SphereGeometry(r * 0.55, 6, 4), '#1b1b1f', sd * spread, y, z + r * 0.6));
@@ -305,6 +327,7 @@ function plate(fig: THREE.Group, r: number, color: string) {
 
 /** A face on a figure's head: eyes (big and shiny for the doll style) and, for dolls, rosy cheeks. */
 function faceOn(fig: THREE.Group, x: number, y: number, z: number, spread: number, r: number, cute = false) {
+  if (eyeLog) { eyeLog.push({ x, y, z, spread, cute }); return; }
   for (const sd of [-1, 1]) {
     const e = mesh(new THREE.SphereGeometry(r, 10, 8), '#1b1b1f', x + sd * spread, y, z);
     e.scale.set(cute ? 0.85 : 1, cute ? 1.15 : 1, 0.6); e.userData.noOutline = true; fig.add(e);
@@ -391,14 +414,21 @@ function shapeBody(fig: THREE.Group, L: Look) {
       break;
     }
     case 'cabbage': {
-      add(mesh(new THREE.IcosahedronGeometry(0.24, 0), head, 0, 0.22, 0));
-      for (let k = 0; k < 5; k++) { const lf = mesh(new THREE.SphereGeometry(0.17, 7, 5), body, Math.cos(k * 1.25) * 0.14, 0.2 + (k % 2) * 0.08, Math.sin(k * 1.25) * 0.14); lf.scale.set(1, 1.3, 0.5); lf.lookAt(0, 0.2, 0); add(lf); }
+      // 김치 on a plate: leaves folded in a mound, white at the stem and red with seasoning.
+      plate(fig, 0.36, '#f4f1ea');
+      for (let k = 0; k < 7; k++) {
+        const a = (k / 7) * Math.PI * 2;
+        const lf = mesh(new THREE.SphereGeometry(0.14, seg(8), seg(6)), k % 2 ? head : body, Math.cos(a) * 0.13, 0.12 + (k % 3) * 0.03, Math.sin(a) * 0.13);
+        lf.scale.set(1.4, 0.55, 0.75); lf.rotation.y = -a; add(lf);
+      }
+      add(mesh(new THREE.SphereGeometry(0.15, seg(10), seg(8)), body, 0, 0.22, 0)).children.at(-1)!.scale.set(1.2, 0.8, 1.2);
+      for (let k = 0; k < 5; k++) add(mesh(new THREE.BoxGeometry(0.03, 0.02, 0.03), '#7a1a12', Math.cos(k * 2.3) * 0.1, 0.32, Math.sin(k * 2.3) * 0.1));
       eyes(fig, 0.3, 0.26, 0.08);
       break;
     }
     case 'skewer': {
       add(mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.95, 4), '#c9a46a', 0, 0.48, 0));
-      for (let k = 0; k < 3; k++) { const p = mesh(new THREE.BoxGeometry(0.3, 0.16, 0.08), body, (k % 2 ? 0.05 : -0.05), 0.2 + k * 0.2, 0); p.rotation.z = k % 2 ? 0.2 : -0.2; add(p); }
+      for (let k = 0; k < 3; k++) { const p = mesh(new THREE.BoxGeometry(0.42, 0.2, 0.08), body, (k % 2 ? 0.06 : -0.06), 0.2 + k * 0.22, 0); p.rotation.z = k % 2 ? 0.2 : -0.2; add(p); }
       eyes(fig, 0.62, 0.06, 0.06);
       break;
     }
@@ -436,6 +466,8 @@ function shapeBody(fig: THREE.Group, L: Look) {
       break;
     }
     case 'twister': {
+      // A solid funnel inside the rings, so it reads as one whirl.
+      add(mesh(new THREE.CylinderGeometry(0.24, 0.05, 0.62, seg(10)), head, 0, 0.36, 0));
       for (let k = 0; k < 5; k++) { const t = mesh(new THREE.TorusGeometry(0.06 + k * 0.05, 0.035, 5, 14), k % 2 ? body : head, Math.sin(k) * 0.03, 0.08 + k * 0.13, 0); t.rotation.x = Math.PI / 2; add(t); }
       eyes(fig, 0.5, 0.18, 0.07);
       break;
