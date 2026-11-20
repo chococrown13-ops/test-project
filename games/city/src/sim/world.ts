@@ -118,12 +118,15 @@ export interface World {
     congestion: number;
     parkDemand: number;
     parkUnmet: number;
+    /** The building cell whose cars most lack a space (-1 none). */
+    parkWorst?: number;
     parkCurb: number;
   };
   reports: MonthReport[];
   /** Running totals for the current month. */
   month: MonthReport;
-  notices: { day: number; text: string; tone: 'info' | 'warn' | 'good' }[];
+  /** `at`: a cell the notice is about, so the toast can offer to show it (and which map to show it on). */
+  notices: { day: number; text: string; tone: 'info' | 'warn' | 'good'; at?: number; overlay?: string }[];
   /** Bumped whenever something the renderer draws changes. */
   ver: { roads: number; zones: number; buildings: number; transit: number };
   /** Milestones already announced. */
@@ -243,8 +246,8 @@ export function createRealWorld(seed: number, name: string, real: NonNullable<Wo
 /** Row of the expressway link the city starts from. */
 export const startRowOf = (w: World) => (w.real ? w.real.row : startRow(w.seed, w.map));
 
-export function notify(w: World, text: string, tone: 'info' | 'warn' | 'good' = 'info') {
-  w.notices.unshift({ day: w.day, text, tone });
+export function notify(w: World, text: string, tone: 'info' | 'warn' | 'good' = 'info', at?: number, overlay?: string) {
+  w.notices.unshift(at === undefined ? { day: w.day, text, tone } : { day: w.day, text, tone, at, overlay });
   if (w.notices.length > 40) w.notices.length = 40;
 }
 

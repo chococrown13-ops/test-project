@@ -30,11 +30,13 @@ export const BUS_TYPES: Record<BusType, {
   cost: { line: number; stop: number }; upkeep: number; cellsPerBus: number;
   /** Longest loop (cells) the line may drive, or 0 for no limit. */
   maxLoop: number;
+  /** What it is good at and where it falls short, in the player's words (the line panel shows it). */
+  good: string; bad: string;
 }> = {
-  village: { name: '마을버스', color: '#f0a500', radius: 4, share: 0.45, speed: 2.6, cost: { line: 150, stop: 20 }, upkeep: 15, cellsPerBus: 22, maxLoop: 180 },
-  branch: { name: '지선버스', color: '#5bb025', radius: 4, share: 0.35, speed: 3.2, cost: { line: 400, stop: 60 }, upkeep: 45, cellsPerBus: 28, maxLoop: 0 },
-  trunk: { name: '간선버스', color: '#3d5bab', radius: 4, share: 0.4, speed: 3.8, cost: { line: 700, stop: 80 }, upkeep: 60, cellsPerBus: 34, maxLoop: 0 },
-  express: { name: '광역버스', color: '#d6262b', radius: 5, share: 0.55, speed: 5, cost: { line: 1500, stop: 100 }, upkeep: 90, cellsPerBus: 40, maxLoop: 0 },
+  village: { name: '마을버스', color: '#f0a500', radius: 4, share: 0.45, speed: 2.6, cost: { line: 150, stop: 20 }, upkeep: 15, cellsPerBus: 22, maxLoop: 300, good: '가장 싸고, 골목 사람을 지하철역까지 잘 실어 날라요. 역으로 갈아타면 승객이 가장 많이 늘어요.', bad: '가장 느리고, 한 바퀴 3km 안의 짧은 노선만 돼요.' },
+  branch: { name: '지선버스', color: '#5bb025', radius: 4, share: 0.35, speed: 3.2, cost: { line: 400, stop: 60 }, upkeep: 45, cellsPerBus: 28, maxLoop: 0, good: '길이 제한이 없어 동네와 동네, 터널 너머까지 이어요. 값과 속도가 중간이에요.', bad: '타는 사람 비율이 가장 낮아요.' },
+  trunk: { name: '간선버스', color: '#3d5bab', radius: 4, share: 0.4, speed: 3.8, cost: { line: 700, stop: 80 }, upkeep: 60, cellsPerBus: 34, maxLoop: 0, good: '빠르고 많이 태워요. 대로를 따라 도시를 가로지르는 줄기 노선이에요.', bad: '짓고 굴리는 데 지선의 1.5배쯤 들어요.' },
+  express: { name: '광역버스', color: '#d6262b', radius: 5, share: 0.55, speed: 5, cost: { line: 1500, stop: 100 }, upkeep: 90, cellsPerBus: 40, maxLoop: 0, good: '가장 빠르고 정류장 범위가 넓어요. 도시 밖으로 출퇴근하는 사람을 실어 날라요.', bad: '가장 비싸고, 정류장 하나는 서쪽 고속도로 입구 가까이 있어야 해요.' },
 };
 export const busTypeOf = (l: Pick<TransitLine, 'kind' | 'bus'>): BusType => l.bus ?? 'branch';
 
@@ -71,6 +73,7 @@ export const METRO_COLORS = ['#263c96', '#3cb44a', '#ef7c1c', '#00a5de', '#996ca
 
 export function stopProblem(w: World, kind: LineKind, i: number, draft: number[]): string | null {
   if (draft.includes(i)) return '이미 고른 정류장이에요.';
+  if (kind === 'bus' && !w.road[i] && w.roadAlt[i]) return '터널, 지하차도, 고가도로 위에는 정류장을 둘 수 없어요. 앞뒤 도로에 놓으면 버스는 그 길로 지나가요.';
   if (kind === 'bus') return !w.road[i] ? '버스 정류장은 도로 위에 놓아요.' : roundaboutAt(w, (i % N) * CELL + CELL / 2, ((i / N) | 0) * CELL + CELL / 2) ? '회전교차로 안에는 정류장을 둘 수 없어요. 앞뒤 도로에 놓아 주세요.' : null;
   if (w.ground[i] === Ground.Water) return '역은 땅 위에 지어야 해요.';
   if (w.road[i]) return '역은 도로가 아닌 빈 땅이나 구역에 지어요.';
@@ -93,7 +96,7 @@ export function busProblem(w: World, bus: BusType, stops: number[]): string | nu
   const route = busRoute(w, stops);
   if (!route) return '정류장끼리 도로로 이어져 있지 않아요.';
   const T = BUS_TYPES[bus];
-  if (T.maxLoop && route.length > T.maxLoop) return `${T.name}는 짧은 동네 노선이에요. 한 바퀴가 ${T.maxLoop * CELL / 1000}km를 넘지 않게 해 주세요.`;
+  if (T.maxLoop && route.length > T.maxLoop) return `${T.name}는 한 바퀴 ${T.maxLoop * CELL / 1000}km 안의 짧은 동네 노선이에요. 이 노선은 ${(route.length * CELL / 1000).toFixed(1)}km예요. 멀리 이으려면 지선버스나 간선버스를 쓰세요.`;
   if (bus === 'express' && !stops.some((i) => i % N <= 6)) return '광역버스는 도시 밖으로 나가는 노선이에요. 서쪽 고속도로 입구 가까이에 정류장을 하나 두세요.';
   return null;
 }

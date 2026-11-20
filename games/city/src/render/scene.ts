@@ -246,7 +246,7 @@ export class CityScene {
     this.iconTimer -= dt;
     if (this.iconTimer <= 0) {
       this.iconTimer = 0.5;
-      this.buildings.updateIcons(w, this.overlay === 'power' || this.overlay === 'water');
+      this.buildings.updateIcons(w, this.overlay === 'power' || this.overlay === 'water', this.overlay === 'parking');
       this.buildings.refreshInfo(w);
     }
     // Bloom only earns its cost at night, when windows and street lights glow.

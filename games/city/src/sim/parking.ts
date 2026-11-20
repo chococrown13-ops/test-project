@@ -60,6 +60,7 @@ export function updateParking(w: World) {
     const sp = LOT_SPACES[b.kind];
     if (sp && net.access.has(b.id)) { b.occ = 0; lots.push({ b, free: sp, cx: b.x + 0.5, cy: b.y + 0.5 }); }
   });
+  let worst = -1, worstD = 0;
   w.parkPress.fill(0);
   let demand = 0, unmet = 0;
   const seen = new Int32Array(NN).fill(-1);
@@ -98,6 +99,7 @@ export function updateParking(w: World) {
       }
     }
     unmet += e.d;
+    if (e.d > worstD) { worstD = e.d; worst = b.y * N + b.x; }
     const p = Math.round((e.d / e.want) * 100);
     for (let y = b.y; y < b.y + bh(b); y++) for (let x = b.x; x < b.x + bw(b); x++) w.parkPress[y * N + x] = p;
     if (e.a !== undefined) w.parkPress[e.a] = Math.max(w.parkPress[e.a], p);
@@ -105,6 +107,7 @@ export function updateParking(w: World) {
   for (let i = 0; i < NN; i++) w.parked[i] = cap[i] - free[i];
   w.stats.parkDemand = demand;
   w.stats.parkUnmet = unmet;
+  w.stats.parkWorst = worst;
   w.stats.parkCurb = cap.reduce((s, v) => s + v, 0);
 }
 
