@@ -75,14 +75,14 @@ function makeBase(tier: number): THREE.Mesh {
   const tc = TIER_COLOR[tier] ?? '#777';
   if (style === 'carved') {
     // An octagonal 장기알 with a painted rim.
-    const b = mesh(new THREE.CylinderGeometry(0.42, 0.45, 0.14, 8), '#c9a274', 0, 0.07, 0);
-    b.add(mesh(new THREE.CylinderGeometry(0.455, 0.455, 0.035, 8), tc, 0, 0.0, 0));
+    const b = mesh(new THREE.CylinderGeometry(0.33, 0.35, 0.12, 8), '#c9a274', 0, 0.06, 0);
+    b.add(mesh(new THREE.CylinderGeometry(0.355, 0.355, 0.035, 8), tc, 0, 0.0, 0));
     b.receiveShadow = true;
     return b;
   }
-  const b = mesh(new THREE.CylinderGeometry(0.4, 0.44, 0.1, 32), style === 'porcelain' ? '#f4f1ea' : tc, 0, 0.05, 0, { rough: 0.5 });
-  if (style === 'porcelain') b.add(mesh(new THREE.CylinderGeometry(0.445, 0.445, 0.03, 32), tc, 0, -0.01, 0));
-  else b.add(mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.012, 28), '#fbf6ea', 0, 0.05, 0));
+  const b = mesh(new THREE.CylinderGeometry(0.31, 0.34, 0.08, 32), style === 'porcelain' ? '#f4f1ea' : tc, 0, 0.04, 0, { rough: 0.5 });
+  if (style === 'porcelain') b.add(mesh(new THREE.CylinderGeometry(0.345, 0.345, 0.03, 32), tc, 0, -0.01, 0));
+  else b.add(mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.012, 28), '#fbf6ea', 0, 0.04, 0));
   b.receiveShadow = true;
   return b;
 }
@@ -122,18 +122,19 @@ export function buildPiece(def: UnitDef, star: number, enemy = false, withFaces 
   const base = makeBase(def.tier);
   root.add(base);
   // A thin ring round the base: red for the other side.
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.035, 6, 32), new THREE.MeshBasicMaterial({ color: enemy ? '#d94a3a' : '#f4efe2' }));
-  ring.rotation.x = Math.PI / 2; ring.position.y = style === 'carved' ? 0.14 : 0.1;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.03, 6, 32), new THREE.MeshBasicMaterial({ color: enemy ? '#d94a3a' : '#f4efe2' }));
+  ring.rotation.x = Math.PI / 2; ring.position.y = style === 'carved' ? 0.12 : 0.08;
   root.add(ring);
   // A glow under the piece, lit when its trait is picked out.
-  const glow = new THREE.Mesh(new THREE.RingGeometry(0.46, 0.66, 40), new THREE.MeshBasicMaterial({ color: '#ffd84a', transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
+  const glow = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.5, 40), new THREE.MeshBasicMaterial({ color: '#ffd84a', transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
   glow.rotation.x = -Math.PI / 2; glow.position.y = 0.06; glow.visible = false;
   root.add(glow);
 
   const fig = new THREE.Group();
-  const s = 1.2 * (L.size ?? 1) * (star === 3 ? 1.22 : star === 2 ? 1.1 : 1);
+  // Pieces stand well inside their square (about 60% of it), as on the usual auto-battler boards.
+  const s = 0.92 * (L.size ?? 1) * (star === 3 ? 1.22 : star === 2 ? 1.1 : 1);
   fig.scale.setScalar(s);
-  fig.position.y = style === 'carved' ? 0.14 : 0.1;
+  fig.position.y = style === 'carved' ? 0.12 : 0.08;
   root.add(fig);
   const body = L.body, head = L.head;
   const serpent = L.acc === 'serpent';
@@ -284,7 +285,7 @@ export function buildPiece(def: UnitDef, star: number, enemy = false, withFaces 
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteFor(def, faces), transparent: true, alphaTest: 0.5 }));
     // Dishes are wide: draw them smaller so they stay inside their square.
     const dish = !!L.shape && L.shape !== 'figure' && !['snowman', 'cloud', 'twister', 'bird'].includes(L.shape);
-    const k = dish ? 0.74 : 1.08;
+    const k = dish ? 0.8 : 1.15;
     sp.scale.set(enemy ? -k : k, k, 1);
     sp.position.y = k * 0.45;
     fig.add(sp);
@@ -294,8 +295,8 @@ export function buildPiece(def: UnitDef, star: number, enemy = false, withFaces 
   }
 
   // A bubble for shields, little stars for a stun: shown when needed.
-  const shield = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 1), new THREE.MeshBasicMaterial({ color: '#cfe8ff', transparent: true, opacity: 0.28, depthWrite: false }));
-  shield.position.y = 0.45; shield.visible = false;
+  const shield = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1), new THREE.MeshBasicMaterial({ color: '#cfe8ff', transparent: true, opacity: 0.28, depthWrite: false }));
+  shield.position.y = 0.36; shield.visible = false;
   root.add(shield);
   const stun = new THREE.Group();
   for (let k = 0; k < 3; k++) {
@@ -303,7 +304,7 @@ export function buildPiece(def: UnitDef, star: number, enemy = false, withFaces 
     st.position.set(Math.cos((k / 3) * Math.PI * 2) * 0.22, 0, Math.sin((k / 3) * Math.PI * 2) * 0.22);
     stun.add(st);
   }
-  stun.position.y = 1.05 * s; stun.visible = false;
+  stun.position.y = 1.0 * s; stun.visible = false;
   root.add(stun);
   return { root, figure: fig, base, shield, stun, ring, glow };
 }

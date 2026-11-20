@@ -45,7 +45,21 @@ const faces = () => theme().faces !== false;
 const pic = (id: string, cls = 'pic') => `<img class="${cls}" src="${portrait(id, faces())}" alt="" draggable="false">`;
 const traitChip = (t: Trait) => `<span class="chip ${TRAITS[t].kind}">${TRAITS[t].name}</span>`;
 
+/** How each of my past rounds went, for the track at the top (kept for this session). */
+const history: Record<number, 'w' | 'l' | 'd'> = {};
+function renderTrack() {
+  const G = g!, from = Math.max(1, G.round - 3);
+  let h = '';
+  for (let r = from; r < from + 8; r++) {
+    const creep = isCreepRound(r), res = history[r];
+    const cls = r === G.round ? 'now' : res ? res : r < G.round ? 'past' : 'next';
+    h += `<li class="pip ${cls}${creep ? ' creep' : ''}" title="${r}라운드 · ${creep ? theme().creepName : '대결'}${res ? ` · ${res === 'w' ? '승' : res === 'l' ? '패' : '무'}` : ''}"><span>${creep ? '◆' : r}</span></li>`;
+  }
+  $('track').innerHTML = h;
+}
+
 function renderTop() {
+  renderTrack();
   const p = me();
   $('round').textContent = `${g!.season >= 0 ? `${SEASON_NAME[g!.season]} · ` : ''}${g!.round}라운드 · ${roundName(g!.round)}`;
   $('arenaChip').textContent = ARENAS[g!.arena].name;
@@ -55,6 +69,7 @@ function renderTop() {
   st.textContent = Math.abs(p.streak) >= 2 ? `${Math.abs(p.streak)}${p.streak > 0 ? '연승' : '연패'}` : '';
   st.className = `streak ${p.streak > 0 ? 'win' : 'lose'}`;
   $('interest').textContent = `이자 +${interest(p.gold)}`;
+  $('interest').title = '10냥마다 1냥씩, 최대 5냥';
   $('level').textContent = `${p.level}`;
   const need = XP_NEXT[p.level];
   $('xp').textContent = p.level >= 9 ? '최고' : `${p.xp}/${need}`;
@@ -68,16 +83,16 @@ function renderShop() {
     const d = BY_ID[id], cost = TIER_COST[d.tier];
     const have = owned(p).filter((o) => o.piece.id === id && o.piece.star === 1).length;
     const lit = hiTrait ? (d.traits.includes(hiTrait) ? ' hi' : ' lo') : '';
+    // A card like the usual auto-battler shop: the piece large, traits down the side, name and price on a strip.
     return `<button class="card t${d.tier}${p.gold < cost ? ' poor' : ''}${have >= 2 ? ' pair' : have ? ' one' : ''}${lit}" data-shop="${i}" role="listitem" style="--tier:${TIER_COLOR[d.tier]}">
       ${pic(id, 'c-img')}
-      <span class="c-name">${d.name}</span>
       <span class="c-traits">${d.traits.map(traitChip).join('')}</span>
-      <span class="c-cost num">${cost}냥</span>
-      ${have ? `<span class="c-have" title="가진 수">${have >= 2 ? '셋째면 ★★' : '하나 있음'}</span>` : ''}
+      ${have ? `<span class="c-have" title="가진 수">${have >= 2 ? '★★ 완성' : `${have}/3`}</span>` : ''}
+      <span class="c-foot"><span class="c-name">${d.name}</span><span class="c-cost num"><i class="ico coin" aria-hidden="true"></i>${cost}</span></span>
     </button>`;
   }).join('');
   const o = ODDS[p.level];
-  $('odds').innerHTML = `<i class="odds-bar">${o.map((v, i) => (v ? `<b style="width:${v}%;background:${TIER_COLOR[i + 1]}"></b>` : '')).join('')}</i>${o.map((v, i) => (v ? `<span style="--tier:${TIER_COLOR[i + 1]}"><i></i>${i + 1}냥 ${v}%</span>` : '')).join('')}`;
+  $('odds').innerHTML = o.map((v, i) => `<span class="${v ? '' : 'zero'}" style="--tier:${TIER_COLOR[i + 1]}"><i></i>${v}%</span>`).join('');
   $('lockBtn').setAttribute('aria-pressed', String(p.locked));
   $('lockBtn').textContent = p.locked ? '잠김' : '잠금';
   ($('xpBtn') as HTMLButtonElement).disabled = p.level >= 9 || p.gold < 4;
@@ -90,7 +105,9 @@ function renderTraits(p: Player) {
     const d = TRAITS[t.trait];
     const steps = d.steps.map((s, i) => `<b class="${t.step > i ? 'on' : ''}">${s}</b>`).join('<span>›</span>');
     const ripe = d.season !== undefined && d.season === g!.season;
-    return `<button class="trait ${t.step ? 'active' : ''} ${d.kind}${ripe ? ' ripe' : ''}" data-trait="${t.trait}"><span class="t-n num">${t.n}</span><span class="t-name">${d.name}${ripe ? ' <em>제철 ×2</em>' : ''}</span><span class="t-steps">${steps}</span></button>`;
+    // Badge colour by how far the trait has gone: bronze, silver, gold at the top step.
+    const tierCls = !t.step ? 'b0' : t.step === d.steps.length ? 'gold' : t.step === 1 ? 'bronze' : 'silver';
+    return `<button class="trait ${t.step ? 'active' : ''} ${d.kind} ${tierCls}${ripe ? ' ripe' : ''}" data-trait="${t.trait}"><span class="t-badge"><b>${d.name.slice(0, 1)}</b></span><span class="t-name">${d.name} <u class="num">${t.n}</u>${ripe ? ' <em>제철 ×2</em>' : ''}</span><span class="t-steps">${steps}</span></button>`;
   }).join('') : '<p class="t-empty">판에 말을 올리면 시너지가 보여요.</p>';
 }
 
@@ -98,7 +115,9 @@ function renderPlayers(hpOf?: (p: Player) => number, highlight = -1) {
   const list = g!.players.slice().sort((a, b) => (b.alive ? 1 : 0) - (a.alive ? 1 : 0) || (hpOf ? hpOf(b) - hpOf(a) : b.hp - a.hp) || a.place - b.place);
   $('players').innerHTML = list.map((p) => {
     const hp = Math.max(0, hpOf ? hpOf(p) : p.hp);
+    const hue = (p.idx * 47 + 10) % 360;
     return `<div class="pl${p.idx === 0 ? ' me' : ''}${p.alive || (hpOf && hp > 0) ? '' : ' out'}${p.idx === highlight ? ' vs' : ''}">
+      <span class="pl-av" style="--h:${hue}">${(p.idx === 0 ? '나' : p.name).slice(0, 1)}</span>
       <span class="pl-name">${p.idx === 0 ? '나' : p.name}</span>
       <i class="pl-bar"><b style="width:${hp}%"></b></i>
       <span class="pl-hp num">${p.alive || (hpOf && hp > 0) ? hp : `${p.place}등`}</span>
@@ -300,6 +319,7 @@ canvas.addEventListener('pointermove', (e) => {
   if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) return;
   drag.moved = true;
   document.body.classList.add('dragging');
+  table.showGrid(true);
   const sellNow = overShop(e.clientX, e.clientY);
   $('shopbar').classList.toggle('selling', sellNow);
   $('sellPrice').textContent = `+${sellValue(drag.id, drag.star)}냥`;
@@ -313,6 +333,7 @@ function endDrag(e: PointerEvent) {
   const d = drag;
   drag = null;
   document.body.classList.remove('dragging');
+  table.showGrid(false);
   $('shopbar').classList.remove('selling');
   table.highlight(null);
   if (!d.moved) {
@@ -381,6 +402,7 @@ function afterFight() {
   if (mine) {
     const meSide = mine.a === 0 ? 0 : 1;
     const won = mine.outcome.winner === meSide, draw = mine.outcome.winner === -1;
+    history[g.round - (g.over ? 0 : 1)] = won ? 'w' : draw ? 'd' : 'l';
     const lost = (hpBefore.get(0) ?? 0) - p.hp;
     // Who did the work on our side.
     const ours = (fightCombat?.f ?? []).filter((f) => f.side === meSide).sort((a, b) => b.dealt - a.dealt).slice(0, 3);

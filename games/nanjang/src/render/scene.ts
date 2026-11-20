@@ -12,7 +12,7 @@ import { buildPiece, type PieceObj } from './pieces';
  * thrown fire, numbers and falls.
  */
 
-const BENCH_Z = 5.05;
+const BENCH_Z = ROWS / 2 + 1.05;
 const benchX = (i: number) => (i - (BENCH - 1) / 2) * 0.98;
 const wx = (x: number) => x - (COLS - 1) / 2;
 const wz = (y: number) => y - (ROWS - 1) / 2;
@@ -44,6 +44,9 @@ export class Table {
   private river!: THREE.Mesh;
   private palette: Palette | null = null;
   private terrainLayer = new THREE.Group();
+  private grid!: THREE.LineSegments;
+  /** The square outlines of our half: on while a piece is being placed. */
+  showGrid(on: boolean) { this.grid.visible = on; this.enemyHalf.visible = on && !this.combat; }
   arena = 'yard';
   private flip = false;
   private acc = 0;
@@ -71,18 +74,20 @@ export class Table {
     this.scene.add(hemi, sun);
 
     // The table top and the board on it.
-    const table = this.tableTop = new THREE.Mesh(new THREE.BoxGeometry(14, 0.4, 15), new THREE.MeshStandardMaterial({ color: '#7a5233', roughness: 0.85 }));
+    const table = this.tableTop = new THREE.Mesh(new THREE.BoxGeometry(COLS + 7, 0.4, ROWS + 8), new THREE.MeshStandardMaterial({ color: '#7a5233', roughness: 0.85 }));
     table.position.set(0, -0.32, 0.6);
     table.receiveShadow = true;
     this.scene.add(table);
     const frame = this.frameMesh = new THREE.Mesh(new THREE.BoxGeometry(COLS + 0.5, 0.18, ROWS + 0.5), new THREE.MeshStandardMaterial({ color: '#4a3020', roughness: 0.7 }));
     frame.position.y = -0.1; frame.receiveShadow = true;
     this.scene.add(frame);
-    const tileG = new THREE.BoxGeometry(0.96, 0.06, 0.96);
+    // One seamless surface per half: the squares show only as grid lines while placing (see showGrid).
+    const tileG = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
     for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
       const mine = y >= HALF, light = (x + y) % 2 === 0;
-      const t = new THREE.Mesh(tileG, new THREE.MeshStandardMaterial({ color: mine ? (light ? '#efe4c8' : '#e2d3b0') : (light ? '#e7dccb' : '#d6c8b3'), roughness: 0.9 }));
-      t.position.set(wx(x), 0, wz(y));
+      void light;
+      const t = new THREE.Mesh(tileG, new THREE.MeshStandardMaterial({ color: mine ? '#efe4c8' : '#e7dccb', roughness: 0.9 }));
+      t.position.set(wx(x), 0.03, wz(y));
       t.receiveShadow = true;
       this.scene.add(t);
       this.tiles.push(t);
@@ -104,6 +109,15 @@ export class Table {
       this.scene.add(pad);
       this.benchPads.push(pad);
     }
+    // Grid lines over our half, shown while a piece is being placed.
+    const pts: number[] = [];
+    const y0 = 0.035, zA = wz(HALF) - 0.5, zB = wz(ROWS - 1) + 0.5, xA = wx(0) - 0.5, xB = wx(COLS - 1) + 0.5;
+    for (let c = 0; c <= COLS; c++) { const x = xA + c; pts.push(x, y0, zA, x, y0, zB); }
+    for (let r = 0; r <= HALF; r++) { const z = zA + r; pts.push(xA, y0, z, xB, y0, z); }
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    this.grid = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: '#5a3b26', transparent: true, opacity: 0.45 }));
+    this.grid.visible = false;
+    this.scene.add(this.grid);
     this.hiTile = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.08, 0.98), new THREE.MeshBasicMaterial({ color: '#f2c94c', transparent: true, opacity: 0.55, depthWrite: false }));
     this.hiTile.visible = false;
     this.scene.add(this.hiTile);
@@ -127,8 +141,9 @@ export class Table {
     const p = this.palette;
     if (!p) return;
     this.tiles.forEach((t, i) => {
-      const x = i % COLS, y = Math.floor(i / COLS), light = (x + y) % 2 === 0;
-      (t.material as THREE.MeshStandardMaterial).color.set(y >= HALF ? p.mine[light ? 0 : 1] : p.theirs[light ? 0 : 1]);
+      const y = Math.floor(i / COLS);
+      // A very faint wash by half; no checkerboard (the grid shows only when placing).
+      (t.material as THREE.MeshStandardMaterial).color.set(y >= HALF ? p.mine[0] : p.theirs[0]);
     });
   }
 
@@ -187,8 +202,8 @@ export class Table {
     this.camera.setViewOffset(w, free, 0, -this.insets.top, w, h);
     // Fit the board, the bench and the far pieces, then centre them.
     const pts = [
-      [-3.8, 0, -4.2], [3.8, 0, -4.2], [-3.6, 1.3, -3.6], [3.6, 1.3, -3.6],
-      [-4.8, 0, BENCH_Z + 0.6], [4.8, 0, BENCH_Z + 0.6], [-4.8, 1.1, BENCH_Z], [4.8, 1.1, BENCH_Z],
+      [-COLS / 2 - 0.3, 0, -ROWS / 2 - 0.2], [COLS / 2 + 0.3, 0, -ROWS / 2 - 0.2], [-COLS / 2 + 0.4, 1, -ROWS / 2 + 0.4], [COLS / 2 - 0.4, 1, -ROWS / 2 + 0.4],
+      [-4.8, 0, BENCH_Z + 0.55], [4.8, 0, BENCH_Z + 0.55], [-4.8, 0.9, BENCH_Z], [4.8, 0.9, BENCH_Z],
     ].map(([x, y, z]) => new THREE.Vector3(x, y, z));
     // Tall screens look down more steeply, so the board fills the height.
     const dir = (w / free < 0.85 ? new THREE.Vector3(0, 0.93, 0.37) : new THREE.Vector3(0, 0.8, 0.6)).normalize();
@@ -272,7 +287,7 @@ export class Table {
   /** Between fights: the player's board and bench, keyed by piece uid. */
   showPrep(p: Player, dragging = -1) {
     this.combat = null;
-    this.enemyHalf.visible = true;
+    this.enemyHalf.visible = this.grid.visible;
     const want = new Map<number, { piece: Piece; x: number; z: number }>();
     p.board.forEach((u) => want.set(u.uid, { piece: u, x: wx(u.c), z: wz(HALF + u.r) }));
     p.bench.forEach((u, i) => { if (u) want.set(u.uid, { piece: u, x: benchX(i), z: BENCH_Z }); });

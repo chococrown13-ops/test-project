@@ -326,7 +326,8 @@ export function autoFill(g: Game, p: Player): number {
 
 function freeSpot(g: Game, p: Player, pref: 'front' | 'back'): { c: number; r: number } | null {
   const rows = pref === 'front' ? [0, 1, 2, 3] : [3, 2, 1, 0];
-  const cols = [3, 2, 4, 1, 5, 0, 6];
+  // Middle columns first.
+  const cols = [...Array(COLS).keys()].sort((a, b) => Math.abs(a - (COLS - 1) / 2) - Math.abs(b - (COLS - 1) / 2) || a - b);
   for (const r of rows) for (const c of cols) if (standable(g.arena, c, r) && !p.board.some((u) => u.c === c && u.r === r)) return { c, r };
   return null;
 }
