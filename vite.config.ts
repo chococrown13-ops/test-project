@@ -18,6 +18,7 @@ export default defineConfig({
         city: 'games/city/index.html',
         keep: 'games/keep/index.html',
         roadlab: 'games/roadlab/index.html',
+        nanjang: 'games/nanjang/index.html',
       },
     },
   },
