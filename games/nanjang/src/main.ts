@@ -596,6 +596,24 @@ function fitTable() {
 }
 new ResizeObserver(fitTable).observe(document.body);
 
+/** Turning the phone: drop anything pinned to the old layout (an open card, a half-made drag). */
+function onTurn() {
+  hideInfo();
+  if (pinned || hiTrait) { pinned = false; lightTrait(null); }
+  if (drag) {
+    drag = null;
+    document.body.classList.remove('dragging');
+    $('shopbar').classList.remove('selling');
+    table.showGrid(false); table.highlight(null);
+    if (mode === 'prep') renderAll();
+  }
+  for (const id of ['traits', 'players', 'traitCard', 'info'] as const) { const el = $(id); el.style.left = ''; if (id !== 'traits' && id !== 'players') el.style.top = ''; }
+  fitTable();
+}
+window.addEventListener('orientationchange', () => { onTurn(); setTimeout(onTurn, 350); });
+window.addEventListener('resize', onTurn);
+window.visualViewport?.addEventListener('resize', onTurn);
+
 let last = performance.now();
 function loop(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
