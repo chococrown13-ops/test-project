@@ -17,7 +17,12 @@ for (let x = 20; x <= 100; x += 10) e(placeRoad(w, roadPath(x, row - 30, x, row)
 e(placeRoad(w, roadPath(20, row - 30, 100, row - 30), Road.Street));
 
 // 마을버스: short loops only.
-check('long 마을버스 refused', !!busProblem(w, 'village', [idx(20, row - 30), idx(100, row - 30), idx(100, row)]));
+// A loop of about 3.4 km, past the 3 km a 마을버스 may run.
+e(placeRoad(w, roadPath(20, row - 90, 100, row - 90), Road.Street));
+e(placeRoad(w, roadPath(20, row - 90, 20, row - 30), Road.Street));
+e(placeRoad(w, roadPath(100, row - 90, 100, row - 30), Road.Street));
+check('long 마을버스 refused', !!busProblem(w, 'village', [idx(20, row - 90), idx(100, row - 90), idx(100, row)]));
+check('2 km 마을버스 accepted', !busProblem(w, 'village', [idx(20, row - 30), idx(100, row - 30), idx(100, row)]));
 check('short 마을버스 accepted', !busProblem(w, 'village', [idx(20, row - 30), idx(30, row - 30), idx(30, row)]));
 // 광역버스: needs a stop by the expressway.
 check('광역버스 without an edge stop refused', !!busProblem(w, 'express', [idx(60, row), idx(90, row)]));

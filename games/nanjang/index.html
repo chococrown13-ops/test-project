@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#e9e1cf" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23c9553f'/><path d='M16 5 L19 13 L13 13Z' fill='%23f2e3b3'/><circle cx='16' cy='19' r='7' fill='%23e07a5f'/><circle cx='13.5' cy='18' r='1.4' fill='%231b1b1f'/><circle cx='18.5' cy='18' r='1.4' fill='%231b1b1f'/></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Black+Han+Sans&display=swap" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+    <meta name="description" content="도깨비, 구미호, 해태, 저승사자. 옛이야기 속 말을 모아 판에 세우면 알아서 싸워요. 여덟 명 가운데 마지막까지 남는 자동 전투 게임" />
+    <title>도깨비 난장</title>
+  </head>
+  <body>
+    <canvas id="view" aria-label="싸움판"></canvas>
+    <div id="labels" aria-hidden="true"></div>
+
+    <header class="top">
+      <div class="brand">
+        <b class="title">도깨비 난장</b>
+        <span class="round"><span id="round">1라운드</span> <button id="arenaChip" class="arena-chip" type="button">너른 마당</button></span>
+      </div>
+      <dl class="stats">
+        <div class="stat hp"><dt>체력</dt><dd><b id="hp" class="num">100</b></dd></div>
+        <div class="stat gold"><dt>엽전</dt><dd><b id="gold" class="num">0</b><small id="interest" class="muted">이자 0</small></dd></div>
+        <div class="stat lvl"><dt>레벨</dt><dd><b id="level" class="num">1</b><i class="xp"><b id="xpbar"></b></i><small id="xp" class="muted">0/2</small></dd></div>
+      </dl>
+      <button id="helpBtn" class="btn icon" aria-label="게임 방법">?</button>
+    </header>
+
+    <aside id="traits" class="traits" aria-label="시너지"></aside>
+    <aside id="players" class="players" aria-label="참가자"></aside>
+    <div id="cap" class="cap"></div>
+    <div id="tray" class="tray" hidden aria-label="재료"></div>
+
+    <footer id="shopbar" class="shopbar">
+      <div class="shop-side">
+        <button id="xpBtn" class="btn tool"><span>경험치 사기</span><small>4냥 · +4</small></button>
+        <button id="rerollBtn" class="btn tool"><span>새로고침</span><small>2냥</small></button>
+      </div>
+      <div id="shop" class="shop" role="list" aria-label="상점"></div>
+      <div class="shop-side right">
+        <div id="odds" class="odds"></div>
+        <div class="row">
+          <button id="lockBtn" class="btn tool small" aria-pressed="false">잠금</button>
+          <button id="fightBtn" class="btn primary fight">싸우기</button>
+        </div>
+      </div>
+      <div class="sell-cover" aria-hidden="true"><b>여기에 놓으면 팔아요</b><span id="sellPrice"></span></div>
+    </footer>
+
+    <footer id="fightbar" class="fightbar" hidden>
+      <div id="versus" class="versus"></div>
+      <div class="row">
+        <button id="speedBtn" class="btn tool small">빠르게</button>
+        <button id="skipBtn" class="btn tool small">결과 보기</button>
+      </div>
+    </footer>
+
+    <div id="info" class="info" hidden></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div id="banner" class="banner" hidden></div>
+
+    <section id="start" class="overlay">
+      <div class="panel hero">
+        <div id="themes" class="themes" role="radiogroup" aria-label="테마 고르기"></div>
+        <p class="kicker" id="startKicker">옛이야기 자동 전투</p>
+        <h1 id="startTitle">도깨비 난장</h1>
+        <p class="lede" id="startLede"></p>
+        <div class="row">
+          <button id="newBtn" class="btn primary big">새 판 시작</button>
+          <button id="contBtn" class="btn big" hidden>이어하기</button>
+        </div>
+        <button id="howBtn" class="btn ghost">게임 방법</button>
+      </div>
+    </section>
+
+    <section id="end" class="overlay" hidden>
+      <div class="panel hero">
+        <p class="kicker" id="endKicker">난장이 끝났어요</p>
+        <h1 id="endTitle">3등</h1>
+        <p class="lede" id="endText"></p>
+        <div class="row"><button id="againBtn" class="btn primary big">한 판 더</button></div>
+      </div>
+    </section>
+
+    <section id="help" class="overlay" hidden>
+      <div class="panel help">
+        <h2>게임 방법</h2>
+        <ol>
+          <li><b>말 사기.</b> 아래 장터에서 말을 사면 대기석에 놓여요. 끌어서 판(가까운 네 줄)에 올리세요. 판에는 <b>레벨만큼</b> 올릴 수 있어요.</li>
+          <li><b>별 올리기.</b> 같은 말 셋이 모이면 합쳐져 별이 하나 더 붙어요. 별 둘은 셋보다, 별 셋은 그보다 훨씬 세요.</li>
+          <li><b>시너지.</b> 왼쪽에 보이는 갈래(도깨비, 여우, 장수, 무당…)를 두셋 모으면 힘이 붙어요. 같은 말은 한 번만 세요.</li>
+          <li><b>싸우기.</b> 누르면 상대와 자동으로 싸워요. 지면 상대에게 남은 말만큼 체력이 깎여요. 처음 세 판과 여섯 판마다 한 번은 산짐승과 싸워 말과 엽전을 얻어요.</li>
+          <li><b>엽전.</b> 판마다 들어오고, 10냥마다 1냥씩 이자가 붙어요(최대 5냥). 연달아 이기거나 져도 조금 더 받아요. 레벨이 높을수록 비싼 말이 장터에 자주 나와요.</li>
+          <li id="helpArena"><b>경기장.</b> 라운드마다 싸움판의 땅이 바뀌어요. 개울과 바위 칸에는 설 수 없고, 대숲은 피하기 좋고, 갯벌은 느리고, 빙판은 빨라요. 위쪽 경기장 이름을 누르면 설명이 나와요.</li>
+          <li id="helpTheme" hidden></li>
+          <li><b>팔기.</b> 말을 장터 쪽으로 끌어 놓거나, 말을 눌러 나오는 카드에서 팔 수 있어요.</li>
+        </ol>
+        <div class="row"><button id="helpClose" class="btn primary">알겠어요</button></div>
+      </div>
+    </section>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

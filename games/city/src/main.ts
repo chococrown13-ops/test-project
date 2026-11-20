@@ -9,7 +9,7 @@ import { findAccess, network } from './sim/network';
 import { hasOpenWater } from './sim/tools';
 import { BUS_TYPES, type BusType, createLine, removeLine, STOP_RADIUS, stopProblem, type LineKind } from './sim/transit';
 import { gridMeetProblem, ringOf, roundaboutCells, roundaboutProblem, roundaboutType, ROUNDABOUT_COST } from './sim/roundabout';
-import { bez, curveProblem, HALF_WIDTH, nearestCurve, snapControl } from './sim/curves';
+import { bez, coverCells, curveCells, curveProblem, HALF_WIDTH, nearestCurve, snapControl } from './sim/curves';
 import { createRealWorld, createWorld, idx, startRowOf } from './sim/world';
 import { drawPreview, drawTiles, loadIndex, loadTile, savedDraw, storeDraw, type Draw } from './ui/korea';
 import { MAPS, randomMap, type MapKind } from './sim/maps';
@@ -138,6 +138,13 @@ $('dock').addEventListener('click', (e) => {
     if (el.dataset.draft === 'undo') draft.stops.pop();
     if (el.dataset.draft === 'cancel') { cat = null; setTool('select'); return; }
     if (el.dataset.draft === 'done') finishDraft();
+    if (el.dataset.draft.startsWith('up:')) {
+      // Same stops, bigger bus: switch to that bus's tool (which keeps the stops drawn so far).
+      const bus = el.dataset.draft.slice(3) as BusType;
+      const id = (Object.keys(TOOLS) as ToolId[]).find((k) => TOOLS[k].line === 'bus' && TOOLS[k].bus === bus);
+      if (id) { setTool(id); toast(`${BUS_TYPES[bus].name}로 업그레이드했어요. 정류장은 그대로예요. 노선 완성을 누르면 개통해요.`, 'good'); }
+      return;
+    }
     renderDraft();
   }
 });
@@ -262,8 +269,57 @@ function showTip(px: number, py: number, text: string, err = false) {
   tip.style.display = 'block';
   tip.style.left = `${px}px`;
   tip.style.top = `${py}px`;
-  tip.textContent = text;
+  tip.textContent = demolishNote && !err ? `${text}\n${demolishNote}` : text;
   tip.classList.toggle('err', err);
+  tip.classList.toggle('warn', !err && !!demolishNote);
+}
+
+/* ------------------------------------------------- knocking buildings down */
+
+/**
+ * The cells a tool would build over (or rezone) for the current drag, and so
+ * the homes, shops and works it would knock down. Bulldozing is left out: knocking down is what it is for.
+ */
+function cellsUnder(def: (typeof TOOLS)[string], a: { x: number; y: number }, b: { x: number; y: number }): number[] {
+  const w = sim.w;
+  if (def.roundabout) { const i = idx(b.x, b.y); return w.road[i] ? roundaboutCells({ cell: i, t: roundaboutType(w, i) }) : []; }
+  if (def.road !== undefined && (roadMode === 'free' || (roadMode === 'curve' && bend))) {
+    const ia = bend ? bend.a : idx(a.x, a.y), ib = bend ? bend.b : idx(b.x, b.y);
+    if (ia === ib) return [];
+    const h = bend ? snapControl(w, ia, ib, bend.hx, bend.hz) : { x: (((ia % N) + (ib % N)) / 2 + 0.5) * CELL, z: ((((ia / N) | 0) + ((ib / N) | 0)) / 2 + 0.5) * CELL };
+    const c = curveOf(ia, ib, h.x, h.z, def.road);
+    return [...curveCells(c), ...coverCells(c)];
+  }
+  if (def.road !== undefined && roadMode !== 'curve') return (roadMode === 'diag' ? diagonalPath : roadPath)(a.x, a.y, b.x, b.y);
+  if (def.zone !== undefined) return rectCells(a.x, a.y, b.x, b.y).filter((i) => (def.zone === Zone.None ? w.zone[i] !== 0 : zoneable(w, i) && w.zone[i] !== def.zone));
+  if (def.kind) { const f = footprintAt(def, b.x, b.y); return rectCells(f.x, f.y, f.x + f.s - 1, f.y + f.s - 1); }
+  return [];
+}
+
+function doomedBy(cells: number[]): { n: number; people: number; jobs: number } {
+  const w = sim.w, ids = new Set<number>();
+  for (const i of cells) { const id = w.bld[i]; if (id >= 0 && KINDS[w.buildings.get(id)!.kind].zone) ids.add(id); }
+  let people = 0, jobs = 0;
+  ids.forEach((id) => { const b = w.buildings.get(id)!; if (KINDS[b.kind].zone === Zone.R) people += b.occ; else jobs += b.occ; });
+  return { n: ids.size, people: Math.round(people), jobs: Math.round(jobs) };
+}
+
+const doomText = (d: { n: number; people: number; jobs: number }) =>
+  `건물 ${d.n}채를 허물어요${d.people || d.jobs ? ` (${[d.people ? `주민 ${d.people.toLocaleString('ko-KR')}명` : '', d.jobs ? `일자리 ${d.jobs.toLocaleString('ko-KR')}개` : ''].filter(Boolean).join(', ')})` : ''}`;
+
+/** Shown under the tool tip while the drag would knock buildings down. */
+let demolishNote = '';
+/** The action the player has been warned about: the same one again goes ahead. */
+let armed = '';
+const actionKey = (a: { x: number; y: number }, b: { x: number; y: number }) => `${tool}:${roadMode}:${a.x},${a.y}:${b.x},${b.y}:${bend ? `${bend.a},${bend.b},${Math.round(bend.hx)},${Math.round(bend.hz)}` : ''}`;
+
+/** True when the action may go ahead: nothing to knock down, or the player already confirmed it. */
+function confirmDemolish(cells: number[], key: string): boolean {
+  const d = doomedBy(cells);
+  if (!d.n || armed === key) { armed = ''; return true; }
+  armed = key;
+  toast(`${doomText(d)}. 그대로 진행하려면 같은 곳을 한 번 더 누르세요.`, 'warn');
+  return false;
 }
 function hideTip() { tip.style.display = 'none'; }
 
@@ -293,6 +349,8 @@ function preview() {
   if (!hover || tool === 'select' || !def) { p.clear(); hideTip(); return; }
   const a = drag ? { x: drag.sx, y: drag.sy } : hover;
   const b = hover;
+  const doom = tool === 'bulldoze' || def.trees || def.line || def.level || (def.road !== undefined && roadMode === 'curve' && !bend) ? null : doomedBy(cellsUnder(def, a, b));
+  demolishNote = doom && doom.n ? `${doomText(doom)}${armed === actionKey(a, b) ? '. 한 번 더 누르면 진행해요' : ''}` : '';
   if (def.trees) {
     const ok = treeCells(w, rectCells(a.x, a.y, b.x, b.y));
     const todo = ok.filter((i) => !w.trees[i]);
@@ -395,6 +453,7 @@ function commitCurve() {
   if (!bend) return;
   const def = TOOLS[tool];
   const h = snapControl(sim.w, bend.a, bend.b, bend.hx, bend.hz);
+  if (!confirmDemolish(cellsUnder(def, { x: 0, y: 0 }, { x: 0, y: 0 }), actionKey({ x: 0, y: 0 }, { x: 0, y: 0 }))) return;
   const err = placeCurve(sim.w, bend.a, bend.b, h.x, h.z, def.road!);
   bend = null;
   scene.preview.clear();
@@ -407,6 +466,9 @@ function commit() {
   const w = sim.w;
   const a = { x: drag.sx, y: drag.sy }, b = { x: drag.cx, y: drag.cy };
   let err: string | null = null;
+  // Building over homes and shops (or rezoning them) knocks them down: say so, and go ahead only on a second press.
+  if (tool !== 'bulldoze' && !(def.road !== undefined && roadMode === 'curve') && !def.line && !def.trees && !def.level
+    && !confirmDemolish(cellsUnder(def, a, b), actionKey(a, b))) return;
   if (def.roundabout) { err = placeRoundabout(w, idx(b.x, b.y)); if (err) toast(err, 'warn'); return; }
   if (def.trees) {
     const r = plantTrees(w, rectCells(a.x, a.y, b.x, b.y));
@@ -655,6 +717,14 @@ $('loadBtn').addEventListener('click', () => {
   if (w) useWorld(w);
   begin();
 });
+/* A notice's "어디인지 보기": the map that shows the problem, and the camera on the place. */
+document.addEventListener('city:goto', (e) => {
+  const { at, overlay } = (e as CustomEvent<{ at: number; overlay?: string }>).detail;
+  if (overlay) { scene.setOverlay(overlay as Overlay); renderPanel(true); }
+  scene.view.focus((at % N) * CELL + CELL / 2, Math.floor(at / N) * CELL + CELL / 2);
+  scene.view.zoom(220 / scene.view.dist);
+});
+
 function begin() {
   $('start').hidden = true;
   running = true;

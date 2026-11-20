@@ -1002,7 +1002,7 @@ export class BuildingLayer {
     };
     (Object.keys(GEOS) as Shape[]).forEach((s) => this.alloc(s, s === 'box' ? 4096 : 512));
     // Problem badges: a round pictogram on a card-stock ring, coral for what needs fixing, slate for empty houses.
-    for (const k of ['power', 'water', 'road', 'gone']) {
+    for (const k of ['power', 'water', 'road', 'gone', 'park']) {
       const c = document.createElement('canvas');
       c.width = c.height = 128;
       drawIcon(c.getContext('2d')!, k);
@@ -1101,7 +1101,8 @@ export class BuildingLayer {
   refreshInfo(w: World) { this.update(w, performance.now() / 1000, true); }
 
   /** Problem icons over buildings: no power, no water, no road, abandoned. */
-  updateIcons(w: World, showAll: boolean) {
+  /** `parking`: the 주차 map is open, so every building short of spaces gets a P; otherwise only the worst do. */
+  updateIcons(w: World, showAll: boolean, parking = false) {
     const net = network(w);
     let n = 0;
     const put = (b: Building, k: string) => {
@@ -1122,6 +1123,8 @@ export class BuildingLayer {
       if (!d.zone) { if (!net.access.has(b.id)) put(b, 'road'); else if (showAll && d.power > 0 && !b.powered) put(b, 'power'); return; }
       if (b.abandoned) put(b, 'gone');
       else if (b.outage > 3 || (showAll && b.outage > 0)) put(b, !b.powered ? 'power' : 'water');
+      // Cars with nowhere to go: the parking pressure (share of its cars without a space) of this lot.
+      else if (w.parkPress[b.y * N + b.x] >= (parking ? 30 : 70)) put(b, 'park');
     });
     for (let i = n; i < this.icons.length; i++) this.icons[i].visible = false;
   }
@@ -1137,12 +1140,18 @@ function drawIcon(g: CanvasRenderingContext2D, k: string) {
   g.fillStyle = '#fbf8ee';
   g.beginPath(); g.arc(64, 62, R + 6, 0, Math.PI * 2); g.fill();
   g.restore();
-  g.fillStyle = k === 'gone' ? '#5b616b' : k === 'water' ? '#2f7fc8' : k === 'road' ? '#e0892f' : '#f0644f';
+  g.fillStyle = k === 'gone' ? '#5b616b' : k === 'water' ? '#2f7fc8' : k === 'road' ? '#e0892f' : k === 'park' ? '#2f5fa8' : '#f0644f';
   g.beginPath(); g.arc(64, 62, R, 0, Math.PI * 2); g.fill();
   g.fillStyle = g.strokeStyle = '#fbf8ee';
   g.lineJoin = g.lineCap = 'round';
   g.beginPath();
-  if (k === 'power') {
+  if (k === 'park') {
+    // A parking sign: the bold P.
+    g.font = '700 70px system-ui, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('P', 64, 66);
+  } else if (k === 'power') {
     // Lightning bolt.
     g.moveTo(72, 24); g.lineTo(42, 68); g.lineTo(62, 68); g.lineTo(54, 100); g.lineTo(86, 52); g.lineTo(66, 52); g.lineTo(74, 24);
     g.closePath(); g.fill();

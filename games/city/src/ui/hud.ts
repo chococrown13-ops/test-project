@@ -1,12 +1,13 @@
+import { growthBlock, lotBlock } from '../sim/diagnose';
 import { isPocket, pocketKind, POCKET_NAME } from '../sim/pockets';
 import { MATURE, TIER_POP, tierOpen } from '../sim/growth';
-import { displayName, Ground, KINDS, LEVEL_NAME, N, Road, SERVICE, ZONE_NAME, Zone } from '../sim/defs';
+import { CELL, displayName, Ground, KINDS, LEVEL_NAME, N, Road, SERVICE, ZONE_NAME, Zone } from '../sim/defs';
 import { monthExpense, monthIncome } from '../sim/economy';
 import { curveInfo } from '../sim/curves';
 import { hasOpenWater } from '../sim/tools';
 import { curbCapacity, LOT_SPACES } from '../sim/parking';
 import { network } from '../sim/network';
-import { BUS_TYPES, type BusType, busCount, busTypeOf, lineCost, lineUpkeep, type LineKind, STATION_AREA, stationArea, stationAreaStats } from '../sim/transit';
+import { BUS_TYPES, type BusType, busCount, busProblem, busRoute, busTypeOf, lineCost, lineUpkeep, type LineKind, STATION_AREA, stationArea, stationAreaStats } from '../sim/transit';
 import { bh, bw, idx, lotsOf, type Building, type World } from '../sim/world';
 import type { Overlay } from '../render/ground';
 
@@ -50,15 +51,24 @@ export function pumpToasts(w: World) {
   for (const n of w.notices) { if (n === lastTop) break; fresh.push(n); }
   if (!fresh.length) return;
   lastTop = w.notices[0];
-  for (const n of fresh.slice(0, 3).reverse()) toast(n.text, n.tone);
+  for (const n of fresh.slice(0, 3).reverse()) toast(n.text, n.tone, n.at !== undefined ? { at: n.at, overlay: n.overlay } : undefined);
 }
 
-export function toast(text: string, tone: 'info' | 'warn' | 'good' = 'info') {
+/** A toast; with `place`, it carries a button that takes the camera there (main.ts listens for city:goto). */
+export function toast(text: string, tone: 'info' | 'warn' | 'good' = 'info', place?: { at: number; overlay?: string }) {
   const box = $('toasts');
   const el = document.createElement('div');
   el.className = `toast ${tone}`;
   el.setAttribute('role', tone === 'warn' ? 'alert' : 'status');
   el.textContent = text;
+  if (place) {
+    const go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'btn small toast-go';
+    go.textContent = '어디인지 보기';
+    go.addEventListener('click', () => { document.dispatchEvent(new CustomEvent('city:goto', { detail: place })); el.remove(); });
+    el.append(' ', go);
+  }
   box.prepend(el);
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 450); }, tone === 'warn' ? 7000 : 5000);
   while (box.children.length > 4) box.lastElementChild!.remove();
@@ -176,6 +186,8 @@ export function infoHtml(w: World, x: number, y: number): string {
   if (w.ground[i] === Ground.Water) return `${head('물')}<p class="hint">도로를 놓으면 다리가 돼요. 비용은 4배예요. 물 밑으로는 터널을 뚫을 수 있어요.</p>`;
   if (w.ground[i] === Ground.Mountain) return `${head('산')}<p class="hint">산에는 집을 짓거나 길을 낼 수 없어요. 터널로 뚫고 지나가거나, 꼭대기에 전망타워를 세울 수 있어요. 산이 보이는 동네는 땅값이 조금 올라요.</p>`;
   if (isPocket(w, i)) return `${head(`동네 쉼터 · ${POCKET_NAME[pocketKind(i)]}`)}${kv('구역', ZONE_NAME[w.zone[i]])}${kv('땅값', `${Math.round(w.land[i])}`)}<p class="hint">도로에 닿지 않는 안쪽 땅이라 건물 대신 블록 사람들이 함께 쓰는 쉼터로 남아요. 주변 땅값이 조금 올라요. 블록이 아파트 단지로 재건축되면 단지 안으로 들어가요.</p>`;
+  const block = w.zone[i] && !w.road[i] ? lotBlock(w, i) ?? growthBlock(w, w.zone[i]) : null;
+  if (block) return `${head(`빈 ${ZONE_NAME[w.zone[i]]} 구역`)}${kv('땅값', `${Math.round(w.land[i])}`)}<p class="hint">${block}</p>`;
   return `${head('빈 땅')}${w.zone[i] ? kv('구역', ZONE_NAME[w.zone[i]]) : ''}${kv('땅값', `${Math.round(w.land[i])}`)}${kv('오염', `${Math.round(w.pollution[i])}`)}`;
 }
 
@@ -274,14 +286,34 @@ export function linesHtml(w: World, confirm: number | null): string {
 export function draftHtml(w: World, kind: LineKind, stops: number[], bus: BusType = 'branch'): string {
   const cost = stops.length >= 2 ? lineCost(kind, stops, bus) : 0;
   const BUS_HINT: Record<BusType, string> = {
-    village: '마을버스 정류장을 골목과 역 근처에 (한 바퀴 1.8km 이내)',
+    village: '마을버스 정류장을 골목과 역 근처에 (한 바퀴 3km 이내)',
     branch: '지선버스 정류장을 도로 위에',
     trunk: '간선버스 정류장을 큰길 위에',
     express: '광역버스 정류장을 도로 위에 (하나는 서쪽 고속도로 입구 가까이)',
   };
   const what = kind === 'bus' ? BUS_HINT[bus] : '지하철역을 빈 땅이나 구역에';
-  const msg = stops.length ? `정류장 ${stops.length}곳${cost ? `, ${won(cost)} 원` : ''}` : `${what} 차례로 찍으세요.`;
-  return `<span class="draft-msg">${msg}</span><button class="btn small" data-draft="undo"${stops.length ? '' : ' disabled'}>되돌리기</button><button class="btn small" data-draft="cancel">취소</button><button class="btn primary small" data-draft="done"${stops.length >= 2 && cost <= w.money ? '' : ' disabled'}>노선 완성</button>`;
+  // While stops go in, say how long the loop is and what (if anything) stops it being built, before 노선 완성 is pressed.
+  let problem: string | null = null, length = '', upgrade = '';
+  if (kind === 'bus' && stops.length >= 2) {
+    problem = busProblem(w, bus, stops);
+    const r = busRoute(w, stops);
+    if (r) length = `, 한 바퀴 ${(r.length * CELL / 1000).toFixed(1)}km`;
+    // Past a 마을버스's reach: offer to make the same stops a bigger bus instead of starting over.
+    if (r && BUS_TYPES[bus].maxLoop && r.length > BUS_TYPES[bus].maxLoop) {
+      const km = (r.length * CELL / 1000).toFixed(1);
+      problem = null;
+      const opt = (b: BusType) => {
+        const c = lineCost('bus', stops, b);
+        return `<button class="btn small" data-draft="up:${b}"${busProblem(w, b, stops) ? ' disabled' : ''}>${BUS_TYPES[b].name}로 업그레이드 <small>${won(c)} 원</small></button>`;
+      };
+      upgrade = `<span class="draft-msg warn" role="status">한 바퀴 ${km}km라 ${BUS_TYPES[bus].name}(${BUS_TYPES[bus].maxLoop * CELL / 1000}km 이내)로는 달릴 수 없어요. 정류장은 그대로 두고 지선버스나 간선버스로 업그레이드할까요?</span>${opt('branch')}${opt('trunk')}`;
+    }
+  }
+  const msg = stops.length ? `정류장 ${stops.length}곳${length}${cost ? `, ${won(cost)} 원` : ''}` : `${what} 차례로 찍으세요.`;
+  const T = kind === 'bus' ? BUS_TYPES[bus] : null;
+  const about = T ? `<span class="draft-about"><b>${T.name}</b> 좋은 점: ${T.good} 아쉬운 점: ${T.bad}</span>` : '';
+  const warn = problem ? `<span class="draft-msg warn" role="status">${problem}</span>` : '';
+  return `${about}<span class="draft-msg">${msg}</span>${warn}${upgrade}<button class="btn small" data-draft="undo"${stops.length ? '' : ' disabled'}>되돌리기</button><button class="btn small" data-draft="cancel">취소</button><button class="btn primary small" data-draft="done"${stops.length >= 2 && cost <= w.money && !problem && !upgrade ? '' : ' disabled'}>노선 완성</button>`;
 }
 
 const STYLE_NAME = { lowpoly: '로우폴리', toon: '툰', pixel: '픽셀' } as const;
@@ -302,7 +334,7 @@ ${kv('이동', 'WASD, 방향키, 가운데 버튼 드래그')}${kv('회전', '�
 <h4>건설</h4>
 ${kv('도로', '드래그해서 직선이나 ㄱ자, 대각선은 45도')}${kv('고가와 터널', '도로 끝에서 끝까지 끌면 양 끝이 진입로가 돼요')}${kv('주차', '주차장이 모자라면 갓길에 세우고, 그래도 없으면 주변을 돌아요. 공영주차장, 주차타워, 지하철역이 주차난을 덜어요')}${kv('구역', '드래그해서 사각형으로 칠하기')}${kv('시설', '탭하거나 클릭해서 배치')}${kv('노선', '정류장을 차례로 찍고 완성')}${kv('취소', 'Esc 또는 우클릭')}
 <h4>건물 위 표시</h4>
-${kv('빨간 번개', '전기가 끊겼어요')}${kv('파란 물방울', '수돗물이 끊겼어요')}${kv('주황 도로', '도로에 연결되지 않았어요')}${kv('회색 집', '사람이 떠난 빈집이에요. 전기와 수도가 돌아오고 살기 좋아지면 다시 들어와요')}
+${kv('빨간 번개', '전기가 끊겼어요')}${kv('파란 물방울', '수돗물이 끊겼어요')}${kv('주황 도로', '도로에 연결되지 않았어요')}${kv('회색 집', '사람이 떠난 빈집이에요. 전기와 수도가 돌아오고 살기 좋아지면 다시 들어와요')}${kv('파란 P', '차를 세울 곳이 크게 모자라요. 근처에 공영주차장이나 주차타워를 지으세요. 현황의 주차 지도에서는 모자란 건물이 모두 보여요')}
 <h4>단축키</h4>
 ${kv('도구', 'Z 도로, X 구역, C 전기, V 상하수도, B 공공, N 대중교통, M 공원, L 명소')}${kv('직각, 대각선', 'T')}${kv('속도', 'Space 멈춤, 1, 2, 3')}
 <p class="hint">전기와 수도는 도로 밑으로 흘러요. 발전소와 정수장이 도로망에 붙어 있어야 해요. 화력 발전소, 하수처리장, 공장은 오염을 내니 주거지와 떨어뜨리세요.</p>`;

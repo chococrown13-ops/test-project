@@ -1,3 +1,4 @@
+import { stalledZones } from './diagnose';
 import { calendarMonthOf } from './calendar';
 import { closeMobilityMonth, updateFestivals } from './attractions';
 import { closeMonth, accrueDay } from './economy';
@@ -75,12 +76,14 @@ function seasonNotice(w: World) {
 function warnings(w: World) {
   const st = w.stats;
   if (st.pop > 50 && st.powerSupply === 0) notify(w, '전기가 없어요. 발전소를 짓고 도로로 연결하세요.', 'warn');
-  else if (st.powerSupply && st.powerUse > st.powerSupply * 0.95) notify(w, '전력이 부족해요. 발전소를 더 지으세요.', 'warn');
+  else if (st.powerSupply && st.powerUse > st.powerSupply * 0.95) notify(w, '전력이 부족해서 새 건물이 더 들어오지 못해요. 발전소를 더 지으세요.', 'warn');
   if (st.pop > 50 && st.waterSupply === 0) notify(w, hasOpenWater(w) ? '수돗물이 없어요. 물가에 정수장을 짓고 도로로 이어 주세요.' : '수돗물이 없어요. 물가가 없는 땅이니 지하수 관정을 짓고 도로로 이어 주세요.', 'warn');
-  else if (st.waterSupply && st.waterUse > st.waterSupply * 0.95) notify(w, hasOpenWater(w) ? '수돗물이 부족해요. 정수장이나 지하수 관정을 늘리세요.' : '수돗물이 부족해요. 지하수 관정을 늘리세요.', 'warn');
+  else if (st.waterSupply && st.waterUse > st.waterSupply * 0.95) notify(w, hasOpenWater(w) ? '수돗물이 부족해서 새 건물이 더 들어오지 못해요. 정수장이나 지하수 관정을 늘리세요.' : '수돗물이 부족해서 새 건물이 더 들어오지 못해요. 지하수 관정을 늘리세요.', 'warn');
   if (st.pop > 800 && st.sewageCap < st.waterUse * 0.8) notify(w, '하수처리 용량이 모자라요. 하수처리장을 지으세요.', 'warn');
-  if (st.parkDemand > 200 && st.parkUnmet > st.parkDemand * 0.25) notify(w, '주차할 곳이 모자라요. 공영주차장이나 주차타워를 지어 보세요.', 'warn');
+  if (st.parkDemand > 200 && st.parkUnmet > st.parkDemand * 0.25) notify(w, '주차할 곳이 모자라요. P 표시가 뜬 건물 근처에 공영주차장이나 주차타워를 지어 보세요.', 'warn', st.parkWorst !== undefined && st.parkWorst >= 0 ? st.parkWorst : undefined, 'parking');
   if (st.congestion > 0.7) notify(w, '교통 체증이 심해요. 대로를 깔거나 우회로를 만들어 보세요.', 'warn');
+  // Zoned lots that sit empty: say why, once a month.
+  if (w.day % 30 === 0) for (const s of stalledZones(w)) notify(w, s.text, 'warn', s.at >= 0 ? s.at : undefined);
 }
 
 /** How fast game time runs at 1x against real time (everything: cars, buses, the clock and the calendar). */
