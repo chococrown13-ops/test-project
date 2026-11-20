@@ -9,13 +9,45 @@ import type { Look, UnitDef } from '../sim/units';
 
 export const TIER_COLOR = ['#888', '#9aa3ab', '#4f9d69', '#3f7cc4', '#9b59b6', '#e2a822'];
 
-const mats = new Map<string, THREE.MeshStandardMaterial>();
-function mat(color: string, opts: { emissive?: string; rough?: number } = {}): THREE.MeshStandardMaterial {
-  const k = `${color}|${opts.emissive ?? ''}|${opts.rough ?? 0.75}`;
+/**
+ * Three ways to draw the same pieces (the player picks one):
+ *  - doll: 치비 인형. Big round heads, soft toon shading, a dark outline.
+ *  - carved: 나무 장기알. Faceted, wood-toned figures on octagonal wooden tokens.
+ *  - porcelain: 도자기 인형. Smooth glazed figures with a clear-coat shine.
+ */
+export type PieceStyle = 'doll' | 'carved' | 'porcelain';
+export const STYLE_NAME: Record<PieceStyle, string> = { doll: '인형', carved: '나무 장기알', porcelain: '도자기' };
+let style: PieceStyle = 'doll';
+export function setPieceStyle(s: PieceStyle) { style = s; }
+export const pieceStyle = () => style;
+/** Whether figures get eyes (한식 대전's dishes don't). */
+let faces = true;
+
+let toonRamp: THREE.DataTexture | null = null;
+function ramp() {
+  if (!toonRamp) {
+    toonRamp = new THREE.DataTexture(new Uint8Array([90, 90, 90, 255, 175, 175, 175, 255, 255, 255, 255, 255]), 3, 1, THREE.RGBAFormat);
+    toonRamp.minFilter = toonRamp.magFilter = THREE.NearestFilter;
+    toonRamp.needsUpdate = true;
+  }
+  return toonRamp;
+}
+
+const WOOD = new THREE.Color('#b58a5a');
+const mats = new Map<string, THREE.Material>();
+function mat(color: string, opts: { emissive?: string; rough?: number } = {}): THREE.Material {
+  const k = `${style}|${color}|${opts.emissive ?? ''}|${opts.rough ?? 0.75}`;
   let m = mats.get(k);
-  if (!m) { m = new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: opts.rough ?? 0.75, emissive: opts.emissive ?? '#000000' }); mats.set(k, m); }
+  if (m) return m;
+  if (style === 'doll') m = new THREE.MeshToonMaterial({ color, gradientMap: ramp(), emissive: opts.emissive ?? '#000000' });
+  else if (style === 'porcelain') m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.12, emissive: opts.emissive ?? '#000000' });
+  else m = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).lerp(WOOD, 0.22), flatShading: true, roughness: 0.88, emissive: opts.emissive ?? '#000000' });
+  mats.set(k, m);
   return m;
 }
+
+/** Round things get more facets in the smooth styles. */
+const seg = (n: number) => (style === 'carved' ? Math.max(5, Math.round(n * 0.7)) : Math.round(n * 1.6));
 
 function mesh(g: THREE.BufferGeometry, color: string, x = 0, y = 0, z = 0, opts?: { emissive?: string; rough?: number }) {
   const m = new THREE.Mesh(g, mat(color, opts));
@@ -24,43 +56,115 @@ function mesh(g: THREE.BufferGeometry, color: string, x = 0, y = 0, z = 0, opts?
   return m;
 }
 
-export interface PieceObj { root: THREE.Group; figure: THREE.Group; base: THREE.Mesh; shield: THREE.Mesh; stun: THREE.Group; ring: THREE.Mesh }
+export interface PieceObj { root: THREE.Group; figure: THREE.Group; base: THREE.Mesh; shield: THREE.Mesh; stun: THREE.Group; ring: THREE.Mesh; glow: THREE.Mesh }
 
-export function buildPiece(def: UnitDef, star: number, enemy = false): PieceObj {
+/** The token the figure stands on, in the tier's colour. */
+function makeBase(tier: number): THREE.Mesh {
+  const tc = TIER_COLOR[tier] ?? '#777';
+  if (style === 'carved') {
+    // An octagonal 장기알 with a painted rim.
+    const b = mesh(new THREE.CylinderGeometry(0.42, 0.45, 0.14, 8), '#c9a274', 0, 0.07, 0);
+    b.add(mesh(new THREE.CylinderGeometry(0.455, 0.455, 0.035, 8), tc, 0, 0.0, 0));
+    b.receiveShadow = true;
+    return b;
+  }
+  const b = mesh(new THREE.CylinderGeometry(0.4, 0.44, 0.1, 32), style === 'porcelain' ? '#f4f1ea' : tc, 0, 0.05, 0, { rough: 0.5 });
+  if (style === 'porcelain') b.add(mesh(new THREE.CylinderGeometry(0.445, 0.445, 0.03, 32), tc, 0, -0.01, 0));
+  else b.add(mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.012, 28), '#fbf6ea', 0, 0.05, 0));
+  b.receiveShadow = true;
+  return b;
+}
+
+/** Dark back-face shells: the drawn outline of the doll style. */
+function outline(fig: THREE.Group) {
+  const ink = new THREE.MeshBasicMaterial({ color: '#2a1d17', side: THREE.BackSide });
+  const add: [THREE.Object3D, THREE.Mesh][] = [];
+  fig.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || m.userData.noOutline) return;
+    const g = m.geometry as THREE.BufferGeometry & { parameters?: { radius?: number } };
+    if (g.type === 'CircleGeometry' || g.type === 'RingGeometry') return;
+    g.computeBoundingSphere();
+    if ((g.boundingSphere?.radius ?? 0) < 0.04) return;
+    const hull = new THREE.Mesh(g, ink);
+    const k = 1 + 0.025 / Math.max(0.05, g.boundingSphere!.radius);
+    hull.scale.setScalar(k);
+    hull.userData.noOutline = true;
+    add.push([m, hull]);
+  });
+  for (const [m, hull] of add) m.add(hull);
+}
+
+export function buildPiece(def: UnitDef, star: number, enemy = false, withFaces = true): PieceObj {
+  faces = withFaces;
   const root = new THREE.Group();
   const L = def.look;
-  const base = mesh(new THREE.CylinderGeometry(0.4, 0.44, 0.1, 18), TIER_COLOR[def.tier] ?? '#777', 0, 0.05, 0, { rough: 0.5 });
-  base.receiveShadow = true;
+  const base = makeBase(def.tier);
   root.add(base);
   // A thin ring round the base: red for the other side.
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.035, 6, 24), new THREE.MeshBasicMaterial({ color: enemy ? '#d94a3a' : '#f4efe2' }));
-  ring.rotation.x = Math.PI / 2; ring.position.y = 0.1;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.035, 6, 32), new THREE.MeshBasicMaterial({ color: enemy ? '#d94a3a' : '#f4efe2' }));
+  ring.rotation.x = Math.PI / 2; ring.position.y = style === 'carved' ? 0.14 : 0.1;
   root.add(ring);
+  // A glow under the piece, lit when its trait is picked out.
+  const glow = new THREE.Mesh(new THREE.RingGeometry(0.46, 0.66, 40), new THREE.MeshBasicMaterial({ color: '#ffd84a', transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
+  glow.rotation.x = -Math.PI / 2; glow.position.y = 0.06; glow.visible = false;
+  root.add(glow);
 
   const fig = new THREE.Group();
   const s = 1.2 * (L.size ?? 1) * (star === 3 ? 1.22 : star === 2 ? 1.1 : 1);
   fig.scale.setScalar(s);
-  fig.position.y = 0.1;
+  fig.position.y = style === 'carved' ? 0.14 : 0.1;
   root.add(fig);
   const body = L.body, head = L.head;
   const serpent = L.acc === 'serpent';
-  if (L.shape && L.shape !== 'figure') shapeBody(fig, L);
+  // Where things hang: accessories drawn for a head at y 0.62 (r 0.17) and a body 0.48 tall, refitted to this style's proportions.
+  const doll = style === 'doll';
+  const headY = doll ? 0.6 : 0.62, headK = doll ? 1.45 : 1, bodyK = doll ? 0.8 : 1;
+  const headG = new THREE.Group(), bodyG = new THREE.Group();
+  headG.position.y = headY - 0.62 * headK; headG.scale.setScalar(headK);
+  bodyG.scale.set(doll ? 1.15 : 1, bodyK, doll ? 1.15 : 1);
+  fig.add(headG, bodyG);
+  const shaped = !!L.shape && L.shape !== 'figure';
+  if (shaped) shapeBody(fig, L);
   else if (serpent) {
     // A coiled body instead of a standing one.
-    const coil = mesh(new THREE.TorusGeometry(0.22, 0.1, 6, 14), body, 0, 0.12, 0);
+    const coil = mesh(new THREE.TorusGeometry(0.22, 0.1, seg(6), seg(14)), body, 0, 0.12, 0);
     coil.rotation.x = Math.PI / 2;
-    fig.add(coil, mesh(new THREE.CylinderGeometry(0.08, 0.11, 0.45, 7), body, 0.05, 0.38, 0));
-    fig.add(mesh(new THREE.DodecahedronGeometry(0.15, 0), head, 0.08, 0.66, 0.06));
+    fig.add(coil, mesh(new THREE.CylinderGeometry(0.08, 0.11, 0.45, seg(7)), body, 0.05, 0.38, 0));
+    fig.add(mesh(new THREE.SphereGeometry(0.15, seg(8), seg(6)), head, 0.08, 0.66, 0.06));
+    if (faces) faceOn(fig, 0.08, 0.68, 0.19, 0.05, 0.028);
     fig.add(mesh(new THREE.ConeGeometry(0.04, 0.16, 4), '#e8d9a8', 0.0, 0.8, 0.02), mesh(new THREE.ConeGeometry(0.04, 0.16, 4), '#e8d9a8', 0.16, 0.8, 0.02));
   } else {
     const wide = L.acc === 'shell' || L.acc === 'spikes' || L.acc === 'mane';
-    fig.add(mesh(new THREE.CylinderGeometry(wide ? 0.22 : 0.16, wide ? 0.3 : 0.24, 0.48, 7), body, 0, 0.24, 0));
-    fig.add(mesh(new THREE.IcosahedronGeometry(wide ? 0.2 : 0.17, 0), head, 0, 0.62, 0));
-    // Eyes, so they face somewhere.
-    const eye = new THREE.SphereGeometry(0.025, 5, 4);
-    if (L.acc !== 'eye') fig.add(mesh(eye, '#1b1b1f', -0.06, 0.65, 0.15), mesh(eye, '#1b1b1f', 0.06, 0.65, 0.15));
+    if (doll) {
+      // A round little body, stubby arms and feet, a big head.
+      const b = mesh(new THREE.SphereGeometry(wide ? 0.25 : 0.21, seg(10), seg(8)), body, 0, 0.21, 0); b.scale.set(1, 0.95, 0.9); fig.add(b);
+      for (const sd of [-1, 1]) {
+        fig.add(mesh(new THREE.SphereGeometry(0.075, seg(8), seg(6)), body, sd * (wide ? 0.26 : 0.22), 0.24, 0.03));
+        const ft = mesh(new THREE.SphereGeometry(0.08, seg(8), seg(6)), head, sd * 0.1, 0.03, 0.05); ft.scale.set(1, 0.55, 1.3); fig.add(ft);
+      }
+      fig.add(mesh(new THREE.SphereGeometry(0.25, seg(12), seg(10)), head, 0, headY, 0));
+      if (faces && L.acc !== 'eye') faceOn(fig, 0, headY + 0.01, 0.22, 0.085, 0.045, true);
+    } else {
+      fig.add(mesh(new THREE.CylinderGeometry(wide ? 0.22 : 0.16, wide ? 0.3 : 0.24, 0.48, seg(7)), body, 0, 0.24, 0));
+      for (const sd of [-1, 1]) {
+        const arm = mesh(new THREE.CapsuleGeometry(0.045, 0.2, 3, seg(6)), body, sd * (wide ? 0.27 : 0.21), 0.26, 0.02); arm.rotation.z = sd * 0.25; fig.add(arm);
+        fig.add(mesh(new THREE.SphereGeometry(0.05, seg(6), seg(4)), head, sd * (wide ? 0.3 : 0.24), 0.14, 0.04));
+      }
+      fig.add(mesh(style === 'carved' ? new THREE.IcosahedronGeometry(wide ? 0.2 : 0.17, 0) : new THREE.SphereGeometry(wide ? 0.2 : 0.17, seg(10), seg(8)), head, 0, 0.62, 0));
+      if (faces && L.acc !== 'eye') faceOn(fig, 0, 0.64, 0.155, 0.06, 0.026);
+    }
   }
-  const add = (...o: THREE.Object3D[]) => fig.add(...o);
+  /** Accessories: head things (y 0.6 and up) onto the head, the rest onto the body. */
+  const add = (...o: THREE.Object3D[]) => {
+    let last: THREE.Group = fig;
+    for (const x of o) {
+      if (shaped || serpent) { fig.add(x); last = fig; continue; }
+      last = x.position.y >= 0.6 ? headG : bodyG;
+      last.add(x);
+    }
+    return last;
+  };
   switch (L.acc) {
     case 'horn': add(mesh(new THREE.ConeGeometry(0.05, 0.2, 5), '#f2e3b3', 0, 0.85, 0)); break;
     case 'horns': {
@@ -89,7 +193,9 @@ export function buildPiece(def: UnitDef, star: number, enemy = false): PieceObj 
     }
     case 'stripes': for (let k = 0; k < 3; k++) add(mesh(new THREE.TorusGeometry(0.21 - k * 0.012, 0.025, 4, 10), '#2a2420', 0, 0.12 + k * 0.14, 0)).children.at(-1)!.rotation.set(Math.PI / 2, 0, 0); break;
     case 'gat': {
-      add(mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.02, 16), '#1a1a1d', 0, 0.76, 0), mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.16, 10), '#1a1a1d', 0, 0.85, 0));
+      // A 갓; smaller on the big-headed dolls so it doesn't hide them from the camera above.
+      const br = doll ? 0.2 : 0.3;
+      add(mesh(new THREE.CylinderGeometry(br, br, 0.02, seg(16)), '#1a1a1d', 0, 0.76, 0), mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.15, seg(10)), '#1a1a1d', 0, 0.85, 0));
       break;
     }
     case 'hat': add(mesh(new THREE.ConeGeometry(0.2, 0.28, 8), '#8a5a2b', 0, 0.88, 0)); break;
@@ -141,6 +247,7 @@ export function buildPiece(def: UnitDef, star: number, enemy = false): PieceObj 
     case 'cloud': case 'none': case undefined: break;
   }
   fig.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
+  if (style === 'doll') outline(fig);
 
   // A bubble for shields, little stars for a stun: shown when needed.
   const shield = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 1), new THREE.MeshBasicMaterial({ color: '#cfe8ff', transparent: true, opacity: 0.28, depthWrite: false }));
@@ -154,16 +261,34 @@ export function buildPiece(def: UnitDef, star: number, enemy = false): PieceObj 
   }
   stun.position.y = 1.05 * s; stun.visible = false;
   root.add(stun);
-  return { root, figure: fig, base, shield, stun, ring };
+  return { root, figure: fig, base, shield, stun, ring, glow };
 }
 
 /* ------------------------------------------------------------ shapes */
 
 /** Cartoon eyes (white with a dark pupil), for food and other non-figure pieces. */
 function eyes(fig: THREE.Group, y: number, z: number, spread = 0.07, r = 0.035) {
+  if (!faces) return;
   for (const sd of [-1, 1]) {
     fig.add(mesh(new THREE.SphereGeometry(r, 8, 6), '#ffffff', sd * spread, y, z));
     fig.add(mesh(new THREE.SphereGeometry(r * 0.55, 6, 4), '#1b1b1f', sd * spread, y, z + r * 0.6));
+  }
+}
+
+/** A plate under a dish. */
+function plate(fig: THREE.Group, r: number, color: string) {
+  fig.add(mesh(new THREE.CylinderGeometry(r, r * 0.8, 0.04, seg(20)), color, 0, 0.02, 0, { rough: 0.3 }));
+}
+
+/** A face on a figure's head: eyes (big and shiny for the doll style) and, for dolls, rosy cheeks. */
+function faceOn(fig: THREE.Group, x: number, y: number, z: number, spread: number, r: number, cute = false) {
+  for (const sd of [-1, 1]) {
+    const e = mesh(new THREE.SphereGeometry(r, 10, 8), '#1b1b1f', x + sd * spread, y, z);
+    e.scale.set(cute ? 0.85 : 1, cute ? 1.15 : 1, 0.6); e.userData.noOutline = true; fig.add(e);
+    if (cute) {
+      const hl = mesh(new THREE.SphereGeometry(r * 0.35, 6, 4), '#ffffff', x + sd * spread + r * 0.3, y + r * 0.4, z + r * 0.5, { emissive: '#888888' }); hl.userData.noOutline = true; fig.add(hl);
+      const ck = mesh(new THREE.SphereGeometry(r * 0.8, 8, 6), '#f2a0a0', x + sd * spread * 1.55, y - r * 1.5, z - 0.02); ck.scale.set(1, 0.6, 0.4); ck.userData.noOutline = true; fig.add(ck);
+    }
   }
 }
 
@@ -181,24 +306,48 @@ function shapeBody(fig: THREE.Group, L: Look) {
       break;
     }
     case 'rods': {
-      for (let k = 0; k < 3; k++) { const r = mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.5, 8), head, (k - 1) * 0.15, 0.12 + (k === 1 ? 0.12 : 0), 0); r.rotation.x = Math.PI / 2; add(r); }
-      // The sauce over them.
-      const sauce = mesh(new THREE.SphereGeometry(0.24, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), body, 0, 0.12, 0, { rough: 0.35 });
-      sauce.scale.set(1.3, 0.8, 1.2); add(sauce);
+      // 떡볶이: rice cakes and a fish-cake triangle in red sauce on a shallow plate.
+      plate(fig, 0.36, '#f4f1ea');
+      const sauce = mesh(new THREE.SphereGeometry(0.3, seg(12), seg(6), 0, Math.PI * 2, 0, Math.PI / 2), body, 0, 0.06, 0, { rough: 0.3 }); sauce.scale.set(1, 0.28, 1); add(sauce);
+      for (let k = 0; k < 6; k++) {
+        const r = mesh(new THREE.CapsuleGeometry(0.045, 0.16, 3, seg(8)), head, Math.cos(k * 1.1) * 0.15, 0.13 + (k % 3) * 0.04, Math.sin(k * 1.1) * 0.12);
+        r.rotation.set(Math.PI / 2, 0, k * 0.9); add(r);
+      }
+      const fc = mesh(new THREE.ConeGeometry(0.1, 0.03, 3), '#e8c27a', 0.05, 0.22, 0.04); fc.rotation.set(0.3, 0.4, 0); add(fc);
+      for (let k = 0; k < 4; k++) add(mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.06, 6), '#4f9a3a', Math.cos(k * 2) * 0.1, 0.23, Math.sin(k * 2) * 0.1));
       eyes(fig, 0.27, 0.22, 0.08);
       break;
     }
     case 'roll': {
-      const r = mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.36, 14), body, 0, 0.18, 0); add(r);
-      add(mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.02, 14), head, 0, 0.365, 0));
-      for (const [c, x, z] of [['#f2d04a', 0.07, 0], ['#4f8f3a', -0.07, 0.04], ['#e0703a', 0, -0.08], ['#c8352a', -0.04, -0.03]] as [string, number, number][]) add(mesh(new THREE.BoxGeometry(0.06, 0.03, 0.06), c, x, 0.38, z));
+      // 김밥: three slices standing in a row, cut faces to the front.
+      plate(fig, 0.36, '#f4f1ea');
+      for (let k = 0; k < 3; k++) {
+        const g = new THREE.Group(); g.position.set((k - 1) * 0.2, 0.16, (k === 1 ? 0.04 : 0)); g.rotation.y = (k - 1) * -0.25;
+        const nori = mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.1, seg(14)), body); nori.rotation.x = Math.PI / 2; g.add(nori);
+        const rice = mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.102, seg(14)), head); rice.rotation.x = Math.PI / 2; g.add(rice);
+        for (const [c, x, y] of [['#f2d04a', 0.03, 0.02], ['#4f8f3a', -0.03, 0.02], ['#e0703a', 0, -0.035], ['#c8352a', 0.035, -0.03]] as [string, number, number][]) g.add(mesh(new THREE.BoxGeometry(0.035, 0.035, 0.104), c, x, y, 0));
+        add(g);
+      }
       eyes(fig, 0.2, 0.24, 0.08);
       break;
     }
     case 'disc': {
-      add(mesh(new THREE.CylinderGeometry(0.32, 0.34, 0.1, 16), body, 0, 0.06, 0));
-      for (let k = 0; k < 6; k++) add(mesh(new THREE.BoxGeometry(0.06, 0.03, 0.12), head, Math.cos(k) * 0.18, 0.12, Math.sin(k * 2.1) * 0.18));
+      // A pancake on a plate, golden at the edge.
+      plate(fig, 0.4, '#f4f1ea');
+      add(mesh(new THREE.CylinderGeometry(0.31, 0.33, 0.08, seg(18)), body, 0, 0.09, 0));
+      add(mesh(new THREE.TorusGeometry(0.31, 0.025, 5, seg(18)), '#b8742a', 0, 0.12, 0)).children.at(-1)!.rotation.set(Math.PI / 2, 0, 0);
+      for (let k = 0; k < 7; k++) { const t = mesh(new THREE.BoxGeometry(0.05, 0.025, 0.14), head, Math.cos(k * 0.9) * 0.17, 0.14, Math.sin(k * 2.1) * 0.17); t.rotation.y = k; add(t); }
       eyes(fig, 0.16, 0.2, 0.09, 0.045);
+      break;
+    }
+    case 'pan': {
+      // 닭갈비 on a round iron pan: red chicken, cabbage, rice cakes.
+      add(mesh(new THREE.CylinderGeometry(0.38, 0.34, 0.08, seg(18)), '#2b2b2e', 0, 0.04, 0, { rough: 0.5 }));
+      add(mesh(new THREE.TorusGeometry(0.37, 0.03, 5, seg(18)), '#3a3a3e', 0, 0.09, 0)).children.at(-1)!.rotation.set(Math.PI / 2, 0, 0);
+      for (const sd of [-1, 1]) add(mesh(new THREE.BoxGeometry(0.12, 0.03, 0.05), '#2b2b2e', sd * 0.44, 0.08, 0));
+      for (let k = 0; k < 9; k++) { const c = mesh(new THREE.DodecahedronGeometry(0.065, 0), k % 3 === 2 ? '#7fb04a' : body, Math.cos(k * 1.7) * 0.2, 0.13 + (k % 2) * 0.03, Math.sin(k * 1.7) * 0.2); c.rotation.set(k, k * 2, 0); add(c); }
+      for (let k = 0; k < 3; k++) { const r = mesh(new THREE.CapsuleGeometry(0.035, 0.12, 3, seg(6)), head, (k - 1) * 0.12, 0.16, 0.05); r.rotation.z = Math.PI / 2; add(r); }
+      eyes(fig, 0.24, 0.2, 0.08);
       break;
     }
     case 'fish': {

@@ -3,7 +3,7 @@ import { COLS, type Combat, DT, type Ev, HALF, ROWS, step } from '../sim/combat'
 import type { Piece, Player } from '../sim/game';
 import { BENCH } from '../sim/game';
 import { ARENAS, BUSH, ICE, MUD, ROCK, WATER } from '../sim/arena';
-import { BY_ID, itemDef, type Palette } from '../sim/units';
+import { BY_ID, itemDef, type Palette, theme } from '../sim/units';
 import { buildPiece, type PieceObj } from './pieces';
 
 /**
@@ -219,7 +219,8 @@ export class Table {
   /* ---------------------------------------------------------- pieces */
 
   private make(key: number, id: string, star: number, enemy: boolean, items: string[] = []): Shown {
-    const obj = buildPiece(BY_ID[id], star, enemy);
+    const obj = buildPiece(BY_ID[id], star, enemy, theme().faces !== false);
+    obj.root.userData.id = id;
     obj.root.userData.key = key;
     obj.root.traverse((o) => { o.userData.key = key; });
     this.scene.add(obj.root);
@@ -238,6 +239,32 @@ export class Table {
     this.scene.remove(s.obj.root);
     s.label.remove();
     this.shown.delete(key);
+  }
+
+  /** Light up the pieces a test picks out (a trait being looked at), or none. */
+  private hi: ((id: string) => boolean) | null = null;
+  setHighlight(fn: ((id: string) => boolean) | null) {
+    this.hi = fn;
+    for (const s of this.shown.values()) {
+      const on = !!fn && fn(s.obj.root.userData.id);
+      s.obj.glow.visible = on;
+      s.label.classList.toggle('hi', on);
+      s.label.classList.toggle('lo', !!fn && !on);
+    }
+  }
+
+  /** Every piece of the theme stood out on the board (for the collection and for comparing styles). */
+  showLineup(ids: string[]) {
+    this.clearPieces();
+    this.combat = null;
+    this.enemyHalf.visible = false;
+    ids.forEach((id, k) => {
+      const s = this.make(1000 + k, id, 1, false);
+      const x = wx(k % COLS), z = wz(1 + Math.floor(k / COLS) * 2);
+      s.x = s.tx = x; s.z = s.tz = z; s.face = Math.PI * 0.9;
+      s.label.classList.add('prep');
+      this.shown.set(1000 + k, s);
+    });
   }
 
   clearPieces() { for (const k of [...this.shown.keys()]) this.drop(k); }
@@ -265,6 +292,7 @@ export class Table {
       if (k !== dragging) { s.tx = w.x; s.tz = w.z; }
       s.label.classList.add('prep');
       s.dead = 0; s.face = Math.PI;
+      if (this.hi) { const on = this.hi(s.obj.root.userData.id); s.obj.glow.visible = on; s.label.classList.toggle('hi', on); s.label.classList.toggle('lo', !on); }
     }
   }
 
@@ -283,8 +311,8 @@ export class Table {
   }
 
   /** The player's piece under the pointer (prep only). */
-  pick(cx: number, cy: number): number | null {
-    if (this.combat) return null;
+  pick(cx: number, cy: number, any = false): number | null {
+    if (this.combat && !any) return null;
     this.ray.setFromCamera(this.ndc(cx, cy), this.camera);
     const objs = [...this.shown.values()].map((s) => s.obj.root);
     const hit = this.ray.intersectObjects(objs, true)[0];
@@ -293,7 +321,7 @@ export class Table {
     const g = this.ground(cx, cy);
     if (!g) return null;
     let best: number | null = null, bd = 0.5;
-    for (const [k, s] of this.shown) { const d = Math.hypot(s.x - g.x, s.z - g.z); if (d < bd) { bd = d; best = k; } }
+    for (const [k, s] of this.shown) { if (s.dead) continue; const d = Math.hypot(s.x - g.x, s.z - g.z); if (d < bd) { bd = d; best = k; } }
     return best;
   }
 
@@ -466,7 +494,8 @@ export class Table {
       const d = ((s.face - root.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
       root.rotation.y += d * Math.min(1, dt * 10);
       // A gentle idle bob.
-      s.obj.figure.position.y = 0.1 + Math.abs(Math.sin(t * 2 + k)) * 0.03;
+      s.obj.figure.position.y = (s.obj.figure.userData.y0 ??= s.obj.figure.position.y) + Math.abs(Math.sin(t * 2 + k)) * 0.03 + (s.obj.glow.visible ? 0.12 : 0);
+      if (s.obj.glow.visible) (s.obj.glow.material as THREE.MeshBasicMaterial).opacity = 0.55 + Math.sin(t * 6) * 0.3;
       if (s.dead > 0) {
         s.dead += dt * this.speed;
         root.rotation.z = Math.min(1.4, s.dead * 4);
