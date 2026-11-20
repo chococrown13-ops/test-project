@@ -209,3 +209,9 @@ body { background: var(--color-paper); -webkit-user-select: none; user-select: n
   .sheet, .sheet.wide { left: var(--pad); right: var(--pad-r); width: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 92px); max-height: 52vh; }
   .tool { min-width: 88px; }
 }
+
+/* Music toggle beside the speed buttons, and the volume row in the menu. */
+.music-btn { appearance: none; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--color-edge); background: var(--color-card); color: var(--color-muted); font-size: 17px; font-weight: 800; cursor: pointer; flex: none; }
+.music-btn[aria-pressed="true"] { background: var(--color-accent); color: var(--color-accent-ink); border-color: var(--color-accent-deep); }
+.menu .vol { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.menu .vol b { min-width: 2ch; text-align: center; }

@@ -318,12 +318,14 @@ export function draftHtml(w: World, kind: LineKind, stops: number[], bus: BusTyp
 
 const STYLE_NAME = { lowpoly: '로우폴리', toon: '툰', pixel: '픽셀' } as const;
 
-export function menuHtml(w: World, quality: 'high' | 'normal', style: keyof typeof STYLE_NAME = 'lowpoly'): string {
+export function menuHtml(w: World, quality: 'high' | 'normal', style: keyof typeof STYLE_NAME = 'lowpoly', music = { on: false, volume: 0.6 }): string {
   let h = head('메뉴');
   h += `<p class="hint">${esc(w.name)}, ${dateText(w.day)}</p><div class="menu">`;
   h += '<button class="btn" data-act="save">저장하기</button><button class="btn" data-act="load">마지막 저장 불러오기</button><button class="btn" data-act="new">새 도시</button><button class="btn" data-act="help">조작법</button>';
   h += `<button class="btn" data-act="quality" aria-pressed="${quality === 'high'}">그래픽 품질: ${quality === 'high' ? '높음' : '보통'}</button>`;
-  h += `<button class="btn" data-act="style">그림체: ${STYLE_NAME[style]}</button></div>`;
+  h += `<button class="btn" data-act="style">그림체: ${STYLE_NAME[style]}</button>`;
+  h += `<button class="btn" data-act="music" aria-pressed="${music.on}">배경음악: ${music.on ? '켜짐' : '꺼짐'}</button>`;
+  h += `<div class="vol"><span>음량</span><button class="btn small" data-act="vol-" aria-label="음량 줄이기">−</button><b>${Math.round(music.volume * 10)}</b><button class="btn small" data-act="vol+" aria-label="음량 키우기">+</button></div></div>`;
   h += '<h4>최근 소식</h4><ol class="log">' + w.notices.slice(0, 20).map((n) => `<li><span>${dateText(n.day)}</span>${esc(n.text)}</li>`).join('') + '</ol>';
   return h;
 }
