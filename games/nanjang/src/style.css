@@ -453,3 +453,49 @@ body.fighting .tray { display: none; }
 /* The portrait fills the card above the name strip, at any card size. */
 .card .c-img, .card .c-img { position: absolute; inset: auto; left: 4px; top: 4px; right: auto; bottom: auto; width: calc(100% - 8px); height: calc(100% - 30px); margin: 0; object-fit: contain; }
 @media (max-width: 900px) { .card .c-img { left: 2px; top: 2px; width: calc(100% - 4px); height: calc(100% - 22px); } }
+
+/* Notches: keep the bars clear of the camera cut-out and rounded corners in either orientation. */
+.top { left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); }
+.shopbar, .fightbar { left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); }
+.traits { left: max(10px, env(safe-area-inset-left)); }
+.players { right: max(10px, env(safe-area-inset-right)); }
+
+/* Phone on its side: short screen, so everything goes compact and the board keeps the middle. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .top { top: max(6px, env(safe-area-inset-top)); padding: 3px 6px 3px 10px; border-radius: 12px; grid-template-columns: minmax(0, 1fr) auto; }
+  .title { font-size: 1rem; }
+  .round { font-size: 11px; }
+  .track { display: none; }
+  .hp-pill { font-size: var(--text-md); padding: 2px 9px 2px 7px; }
+  .btn.icon { width: 32px; height: 32px; min-height: 32px; font-size: var(--text-md); }
+  .btn.book { min-height: 30px; padding: 2px 10px; font-size: 12px; }
+  .traits { width: 128px; gap: 3px; max-height: calc(100% - 200px); }
+  .trait { grid-template-columns: 24px auto; padding: 2px 6px 2px 2px; }
+  .t-badge { width: 22px; height: 24px; grid-row: auto; } .t-badge b { width: 18px; height: 20px; font-size: 10px; }
+  .trait .t-steps { display: none; }
+  .trait .t-name { font-size: 12px; }
+  .players { width: 122px; padding: 4px; cursor: pointer; }
+  .players:not(.open) .pl:not(.me):not(.vs) { display: none; }
+  .players::after { content: "전체 보기 ▾"; font-size: 10px; color: var(--color-muted); text-align: center; }
+  .players.open::after { content: "접기 ▴"; }
+  .pl { grid-template-columns: 18px 1fr 26px; font-size: 11px; padding: 1px 3px; } .pl-bar { display: none; } .pl-av { width: 18px; height: 18px; font-size: 10px; }
+  .shopbar { bottom: max(4px, env(safe-area-inset-bottom)); padding: 4px 8px 6px; gap: 3px; border-radius: 14px; }
+  .shop-top { grid-template-columns: auto 1fr auto; gap: 8px; }
+  .lvl-box { font-size: 11px; gap: 5px; } .lvl-box b { font-size: var(--text-md); } .lvl-box .xp { width: 60px; height: 5px; }
+  .odds { display: flex; justify-self: center; gap: 6px; } .odds > span { font-size: 10px; }
+  .gold-box { padding: 1px 10px; } .gold-box b { font-size: var(--text-lg); } .gold-box .ico.coin { width: 14px; height: 14px; } .gold-box .ico.coin::after { inset: 4.5px; }
+  .shop-main { grid-template-columns: auto 1fr auto; grid-template-areas: none; gap: 6px; }
+  .shop-main .shop { grid-area: auto; gap: 5px; }
+  .shop-main .shop-side, .shop-main .shop-side:first-child, .shop-main .shop-side.right { grid-area: auto; grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; gap: 4px; }
+  .btn.tool { padding: 2px 8px; min-height: 0; font-size: 12px; }
+  .btn.tool small { font-size: 10px; }
+  .btn.fight { font-size: var(--text-md); min-width: 74px; }
+  .card { min-height: 64px; }
+  .card .c-img { left: 2px; top: 2px; width: calc(100% - 4px); height: calc(100% - 20px); }
+  .card .c-foot { height: 18px; padding: 0 5px; } .card .c-name { font-size: 11px; } .card .c-cost { font-size: 11px; }
+  .card .c-traits .chip { font-size: 9px; padding: 0 3px; }
+  .cap { display: none; }
+  .fightbar { padding: 6px 12px; } .versus b { font-size: var(--text-md); }
+  .trait-card { max-height: calc(100% - 140px); overflow: auto; }
+  .info { max-height: calc(100% - 20px); overflow: auto; }
+}

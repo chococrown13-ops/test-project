@@ -193,8 +193,11 @@ export class Table {
     this.resize();
   }
 
+  private sized = { w: 0, h: 0 };
   resize() {
     const w = this.canvas.clientWidth || window.innerWidth, h = this.canvas.clientHeight || window.innerHeight;
+    this.sized = { w, h };
+    this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
     this.renderer.setSize(w, h, false);
     const free = Math.max(120, h - this.insets.top - this.insets.bottom);
     this.camera.aspect = w / free;
@@ -485,6 +488,8 @@ export class Table {
   /* ------------------------------------------------------------ frame */
 
   frame(dt: number) {
+    // Phones settle their new size a moment after turning: follow the canvas, not just the resize event.
+    if (this.canvas.clientWidth !== this.sized.w || this.canvas.clientHeight !== this.sized.h) this.resize();
     const c = this.combat;
     if (c && !c.over) {
       this.acc += dt * this.speed;
