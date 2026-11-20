@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { COLS, type Combat, DT, type Ev, HALF, ROWS, step } from '../sim/combat';
 import type { Piece, Player } from '../sim/game';
 import { BENCH } from '../sim/game';
-import { BY_ID } from '../sim/units';
+import { ARENAS, BUSH, ICE, MUD, ROCK, WATER } from '../sim/arena';
+import { BY_ID, itemDef, type Palette } from '../sim/units';
 import { buildPiece, type PieceObj } from './pieces';
 
 /**
@@ -38,6 +39,12 @@ export class Table {
   private benchPads: THREE.Mesh[] = [];
   private enemyHalf: THREE.Mesh;
   combat: Combat | null = null;
+  private tableTop!: THREE.Mesh;
+  private frameMesh!: THREE.Mesh;
+  private river!: THREE.Mesh;
+  private palette: Palette | null = null;
+  private terrainLayer = new THREE.Group();
+  arena = 'yard';
   private flip = false;
   private acc = 0;
   speed = 1.5;
@@ -64,11 +71,11 @@ export class Table {
     this.scene.add(hemi, sun);
 
     // The table top and the board on it.
-    const table = new THREE.Mesh(new THREE.BoxGeometry(14, 0.4, 15), new THREE.MeshStandardMaterial({ color: '#7a5233', roughness: 0.85 }));
+    const table = this.tableTop = new THREE.Mesh(new THREE.BoxGeometry(14, 0.4, 15), new THREE.MeshStandardMaterial({ color: '#7a5233', roughness: 0.85 }));
     table.position.set(0, -0.32, 0.6);
     table.receiveShadow = true;
     this.scene.add(table);
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(COLS + 0.5, 0.18, ROWS + 0.5), new THREE.MeshStandardMaterial({ color: '#4a3020', roughness: 0.7 }));
+    const frame = this.frameMesh = new THREE.Mesh(new THREE.BoxGeometry(COLS + 0.5, 0.18, ROWS + 0.5), new THREE.MeshStandardMaterial({ color: '#4a3020', roughness: 0.7 }));
     frame.position.y = -0.1; frame.receiveShadow = true;
     this.scene.add(frame);
     const tileG = new THREE.BoxGeometry(0.96, 0.06, 0.96);
@@ -81,7 +88,7 @@ export class Table {
       this.tiles.push(t);
     }
     // The 강 (river) line across the middle, as on a 장기판.
-    const river = new THREE.Mesh(new THREE.BoxGeometry(COLS, 0.065, 0.06), new THREE.MeshStandardMaterial({ color: '#7b2d26' }));
+    const river = this.river = new THREE.Mesh(new THREE.BoxGeometry(COLS, 0.065, 0.06), new THREE.MeshStandardMaterial({ color: '#7b2d26' }));
     river.position.set(0, 0.01, 0);
     this.scene.add(river);
     this.enemyHalf = new THREE.Mesh(new THREE.PlaneGeometry(COLS, HALF), new THREE.MeshBasicMaterial({ color: '#3a2a20', transparent: true, opacity: 0.12, depthWrite: false }));
@@ -100,8 +107,67 @@ export class Table {
     this.hiTile = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.08, 0.98), new THREE.MeshBasicMaterial({ color: '#f2c94c', transparent: true, opacity: 0.55, depthWrite: false }));
     this.hiTile.visible = false;
     this.scene.add(this.hiTile);
+    this.scene.add(this.terrainLayer);
     this.resize();
     window.addEventListener('resize', () => this.resize());
+  }
+
+  /** Colours of the table for a theme. */
+  setPalette(p: Palette) {
+    this.palette = p;
+    (this.scene.background as THREE.Color).set(p.bg);
+    (this.scene.fog as THREE.Fog).color.set(p.bg);
+    (this.tableTop.material as THREE.MeshStandardMaterial).color.set(p.table);
+    (this.frameMesh.material as THREE.MeshStandardMaterial).color.set(p.frame);
+    (this.river.material as THREE.MeshStandardMaterial).color.set(p.line);
+    this.paintTiles();
+  }
+
+  private paintTiles() {
+    const p = this.palette;
+    if (!p) return;
+    this.tiles.forEach((t, i) => {
+      const x = i % COLS, y = Math.floor(i / COLS), light = (x + y) % 2 === 0;
+      (t.material as THREE.MeshStandardMaterial).color.set(y >= HALF ? p.mine[light ? 0 : 1] : p.theirs[light ? 0 : 1]);
+    });
+  }
+
+  /** The round's ground: water, rocks, bamboo, mud and ice drawn on the squares. */
+  setArena(id: string) {
+    if (id === this.arena && this.terrainLayer.children.length) return;
+    this.arena = id;
+    this.terrainLayer.clear();
+    this.paintTiles();
+    const a = ARENAS[id];
+    if (!a) return;
+    const M = (c: string, o: Partial<THREE.MeshStandardMaterialParameters> = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, flatShading: true, ...o });
+    a.grid.forEach((g, i) => {
+      const x = wx(i % COLS), z = wz(Math.floor(i / COLS));
+      const tile = this.tiles[i];
+      const add = (m: THREE.Mesh, y = 0) => { m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; this.terrainLayer.add(m); return m; };
+      if (g === WATER) {
+        (tile.material as THREE.MeshStandardMaterial).color.set('#5d93b0');
+        add(new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.04, 0.98), M('#7fb6d0', { transparent: true, opacity: 0.85, roughness: 0.2 })), 0.035);
+      } else if (g === ROCK) {
+        const r = add(new THREE.Mesh(new THREE.DodecahedronGeometry(0.36, 0), M('#8d8a82')), 0.22);
+        r.rotation.set(i * 0.7, i * 1.3, 0); r.scale.set(1, 0.75, 1);
+        add(new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), M('#a3a097')), 0.12).position.x += 0.22;
+      } else if (g === BUSH) {
+        (tile.material as THREE.MeshStandardMaterial).color.set('#c9d6a8');
+        for (let k = 0; k < 5; k++) {
+          const st = add(new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.9, 5), M(k % 2 ? '#6f9a4a' : '#87b25a')), 0.45);
+          st.position.x += Math.cos(k * 2.4 + i) * 0.33; st.position.z += Math.sin(k * 2.4 + i) * 0.33;
+        }
+      } else if (g === MUD) {
+        (tile.material as THREE.MeshStandardMaterial).color.set('#9b7e5c');
+        add(new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.02, 10), M('#7d6347')), 0.04).position.x += 0.18;
+      } else if (g === ICE) {
+        (tile.material as THREE.MeshStandardMaterial).color.set('#a9d3e6');
+        add(new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.015, 0.96), M('#e4f4fb', { transparent: true, opacity: 0.55, roughness: 0.05, metalness: 0.1 })), 0.04);
+        // A couple of white scratches on the ice.
+        for (let k = 0; k < 2; k++) { const sc = add(new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.005, 0.03), M('#ffffff')), 0.05); sc.rotation.y = 0.5 + k * 1.1 + i; sc.position.x += (k - 0.5) * 0.25; }
+      }
+    });
   }
 
   private insets = { top: 0, bottom: 0 };
@@ -152,14 +218,15 @@ export class Table {
 
   /* ---------------------------------------------------------- pieces */
 
-  private make(key: number, id: string, star: number, enemy: boolean): Shown {
+  private make(key: number, id: string, star: number, enemy: boolean, items: string[] = []): Shown {
     const obj = buildPiece(BY_ID[id], star, enemy);
     obj.root.userData.key = key;
     obj.root.traverse((o) => { o.userData.key = key; });
     this.scene.add(obj.root);
     const label = document.createElement('div');
     label.className = `plabel${enemy ? ' enemy' : ''}`;
-    label.innerHTML = `<span class="stars s${star}">${'★'.repeat(star)}</span><i class="bar hp"><b></b><u></u></i><i class="bar mp"><b></b></i>`;
+    const dots = items.map((it) => { const d = itemDef(it); return `<i class="it${d.base ? '' : ' sauce'}" style="--c:${d.color}" title="${d.name}"></i>`; }).join('');
+    label.innerHTML = `<span class="stars s${star}">${'★'.repeat(star)}</span><i class="bar hp"><b></b><u></u></i><i class="bar mp"><b></b></i>${dots ? `<span class="items">${dots}</span>` : ''}`;
     this.labels.appendChild(label);
     const [hp, sh] = [label.querySelector('.hp b') as HTMLElement, label.querySelector('.hp u') as HTMLElement];
     return { obj, label, hp, sh, mp: label.querySelector('.mp b') as HTMLElement, x: 0, z: 0, tx: 0, tz: 0, lunge: 0, lx: 0, lz: 0, dead: 0, side: enemy ? 1 : 0, face: enemy ? 0 : Math.PI };
@@ -184,13 +251,14 @@ export class Table {
     p.bench.forEach((u, i) => { if (u) want.set(u.uid, { piece: u, x: benchX(i), z: BENCH_Z }); });
     for (const [k, s] of this.shown) {
       const w = want.get(k);
-      if (!w || s.obj.root.userData.star !== w.piece.star || s.side !== 0) this.drop(k);
+      if (!w || s.obj.root.userData.star !== w.piece.star || s.obj.root.userData.items !== (w.piece.items ?? []).join() || s.side !== 0) this.drop(k);
     }
     for (const [k, w] of want) {
       let s = this.shown.get(k);
       if (!s) {
-        s = this.make(k, w.piece.id, w.piece.star, false);
+        s = this.make(k, w.piece.id, w.piece.star, false, w.piece.items);
         s.obj.root.userData.star = w.piece.star;
+        s.obj.root.userData.items = (w.piece.items ?? []).join();
         s.x = w.x; s.z = w.z;
         this.shown.set(k, s);
       }
@@ -272,7 +340,7 @@ export class Table {
     this.hiTile.visible = false;
     this.combat = c; this.flip = flip; this.acc = 0;
     for (const f of c.f) {
-      const s = this.make(f.key, f.def.id, f.star, (f.side === 1) !== flip);
+      const s = this.make(f.key, f.def.id, f.star, (f.side === 1) !== flip, f.items);
       const p = this.pos(f.x, f.y);
       s.x = s.tx = p.x; s.z = s.tz = p.z;
       s.face = s.side === 1 ? 0 : Math.PI;

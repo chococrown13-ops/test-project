@@ -1,12 +1,14 @@
 import '../../city/src/tokens.css';
 import '../../city/src/base.css';
 import './style.css';
+import { ARENAS, SEASON_NAME } from './sim/arena';
 import { type Combat, setup } from './sim/combat';
 import {
-  autoFill, boardCap, boardTraits, buy, buyXp, clearSave, interest, isCreepRound, load, type Match, move, newGame,
+  autoFill, boardCap, boardTraits, buy, buyXp, clearSave, equip, findPiece, interest, isCreepRound, ITEM_SLOTS, load, type Match, move, newGame,
   owned, type Game, type Player, playRound, reroll, roundName, save, sell,
 } from './sim/game';
-import { BY_ID, ODDS, sellValue, TIER_COST, TRAITS, type Trait, XP_NEXT } from './sim/units';
+import { BY_ID, itemDef, ODDS, sellValue, theme, type Theme, TIER_COST, TRAITS, type Trait, XP_NEXT } from './sim/units';
+import { THEMES, themeById, useTheme } from './themes';
 import { Table, type DropTarget } from './render/scene';
 import { TIER_COLOR } from './render/pieces';
 
@@ -16,6 +18,13 @@ const table = new Table($('view') as HTMLCanvasElement, $('labels'));
 let g: Game | null = null;
 let mode: 'prep' | 'fight' | 'menu' = 'menu';
 const me = () => g!.players[0];
+
+/** The right particle after a Korean word: 이/가, 을/를, 은/는 by whether it ends in a consonant. */
+function josa(word: string, withBatchim: string, without: string) {
+  const c = word.charCodeAt(word.length - 1);
+  const has = c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0;
+  return word + (has ? withBatchim : without);
+}
 
 /* ------------------------------------------------------------ toast */
 
@@ -34,7 +43,8 @@ const traitChip = (t: Trait) => `<span class="chip ${TRAITS[t].kind}">${TRAITS[t
 
 function renderTop() {
   const p = me();
-  $('round').textContent = `${g!.round}라운드 · ${roundName(g!.round)}`;
+  $('round').textContent = `${g!.season >= 0 ? `${SEASON_NAME[g!.season]} · ` : ''}${g!.round}라운드 · ${roundName(g!.round)}`;
+  $('arenaChip').textContent = ARENAS[g!.arena].name;
   $('hp').textContent = `${Math.max(0, p.hp)}`;
   $('gold').textContent = `${p.gold}`;
   $('interest').textContent = `이자 +${interest(p.gold)}`;
@@ -70,7 +80,8 @@ function renderTraits(p: Player) {
   $('traits').innerHTML = tr.length ? tr.map((t) => {
     const d = TRAITS[t.trait];
     const steps = d.steps.map((s, i) => `<b class="${t.step > i ? 'on' : ''}">${s}</b>`).join('<span>›</span>');
-    return `<button class="trait ${t.step ? 'active' : ''} ${d.kind}" data-trait="${t.trait}"><span class="t-n num">${t.n}</span><span class="t-name">${d.name}</span><span class="t-steps">${steps}</span></button>`;
+    const ripe = d.season !== undefined && d.season === g!.season;
+    return `<button class="trait ${t.step ? 'active' : ''} ${d.kind}${ripe ? ' ripe' : ''}" data-trait="${t.trait}"><span class="t-n num">${t.n}</span><span class="t-name">${d.name}${ripe ? ' <em>제철 ×2</em>' : ''}</span><span class="t-steps">${steps}</span></button>`;
   }).join('') : '<p class="t-empty">판에 말을 올리면 시너지가 보여요.</p>';
 }
 
@@ -93,9 +104,22 @@ function renderCap() {
   $('cap').innerHTML = `판 <b class="num ${n < cap && bench ? 'short' : ''}">${n}/${cap}</b>`;
 }
 
+/** 한식 대전: the ingredients waiting to go on a piece. Tap one, then tap a piece. */
+let armed = -1;
+function renderTray() {
+  const el = $('tray'), p = me();
+  el.hidden = !theme().items || mode !== 'prep';
+  if (el.hidden) return;
+  el.innerHTML = `<span class="tray-h">재료</span>${p.items.length ? p.items.map((id, k) => {
+    const d = itemDef(id);
+    return `<button class="ing${k === armed ? ' armed' : ''}" data-item="${k}" style="--c:${d.color}" title="${d.text}"><i></i>${d.name}</button>`;
+  }).join('') : '<span class="tray-empty">장보기 라운드에서 이기면 재료가 생겨요</span>'}`;
+}
+
 function renderAll() {
   if (!g) return;
-  renderTop(); renderShop(); renderTraits(me()); renderPlayers(); renderCap();
+  table.setArena(g.arena);
+  renderTop(); renderShop(); renderTraits(me()); renderPlayers(); renderCap(); renderTray();
   if (mode === 'prep') table.showPrep(me(), drag?.uid ?? -1);
 }
 
@@ -111,6 +135,7 @@ function showInfo(id: string, star: number, at: { x: number; y: number } | null,
     <div class="i-traits">${d.traits.map((t) => `<span class="chip ${TRAITS[t].kind}">${TRAITS[t].name}</span><small>${TRAITS[t].text}</small>`).join('')}</div>
     <dl class="i-stats">${stat('체력', `${Math.round(d.hp * m)}`)}${stat('공격력', `${Math.round(d.ad * m)}`)}${stat('공격 속도', d.as.toFixed(2))}${stat('사거리', d.range > 1 ? `${d.range}칸` : '근접')}${stat('방어', `${d.armor}`)}${stat('마나', `${d.manaStart}/${d.mana}`)}</dl>
     <p class="i-skill"><b>기술</b> ${d.skillText}</p>
+    ${(() => { const its = uid !== undefined && g ? findPiece(me(), uid)?.items ?? [] : []; return its.length ? `<div class="i-items">${its.map((i) => { const it = itemDef(i); return `<span><i style="--c:${it.color}"></i><b>${it.name}</b> ${it.text}</span>`; }).join('')}</div>` : ''; })()}
     ${uid !== undefined && mode === 'prep' ? `<button class="btn small sell" data-sell="${uid}">팔기 +${sellValue(id, star)}냥</button>` : ''}`;
   el.hidden = false;
   if (at) {
@@ -127,7 +152,7 @@ $('info').addEventListener('click', (e) => {
   const uid = +b.dataset.sell!;
   const piece = owned(me()).find((o) => o.piece.uid === uid)?.piece;
   sell(g, me(), uid);
-  if (piece) toast(`${BY_ID[piece.id].name}을(를) 팔았어요. +${sellValue(piece.id, piece.star)}냥`, 'good');
+  if (piece) toast(`${josa(BY_ID[piece.id].name, '을', '를')} 팔았어요. +${sellValue(piece.id, piece.star)}냥`, 'good');
   hideInfo(); renderAll();
 });
 
@@ -141,7 +166,7 @@ $('shop').addEventListener('click', (e) => {
   const err = buy(g, me(), slot);
   if (err) { toast(err, 'warn'); return; }
   const up = owned(me()).find((o) => o.piece.id === id && o.piece.star > 1 && !before.includes(`${o.piece.uid}:${o.piece.star}`));
-  if (up) toast(`${BY_ID[id].name} 셋이 모여 ${'★'.repeat(up.piece.star)}이 됐어요!`, 'good');
+  if (up) toast(`${BY_ID[id].name} 셋이 모여 별 ${up.piece.star}개가 됐어요!`, 'good');
   renderAll();
 });
 $('shop').addEventListener('contextmenu', (e) => {
@@ -182,6 +207,22 @@ canvas.addEventListener('pointerdown', (e) => {
   if (mode !== 'prep' || !g) return;
   hideInfo();
   const uid = table.pick(e.clientX, e.clientY);
+  if (armed >= 0) {
+    // Putting an ingredient on the piece tapped.
+    const k = armed; armed = -1;
+    if (uid !== null) {
+      const name = itemDef(me().items[k]).name;
+      const before = (findPiece(me(), uid)?.items ?? []).filter((x) => x.includes('+')).length;
+      const err = equip(g, me(), uid, k);
+      const piece = findPiece(me(), uid)!;
+      const sauces = (piece.items ?? []).filter((x) => x.includes('+'));
+      if (err) toast(err, 'warn');
+      else if (sauces.length > before) toast(`${BY_ID[piece.id].name}의 재료가 섞여 ${josa(itemDef(sauces.at(-1)!).name, '이', '가')} 됐어요! ${itemDef(sauces.at(-1)!).text}`, 'good');
+      else toast(`${BY_ID[piece.id].name}에 ${josa(name, '을', '를')} 올렸어요. 재료를 하나 더 올리면 양념이 돼요.`, 'good');
+    }
+    renderAll();
+    return;
+  }
   if (uid === null) return;
   const piece = owned(me()).find((o) => o.piece.uid === uid)?.piece;
   if (!piece) return;
@@ -217,10 +258,10 @@ function endDrag(e: PointerEvent) {
   }
   if (overShop(e.clientX, e.clientY)) {
     sell(g, me(), d.uid);
-    toast(`${BY_ID[d.id].name}을(를) 팔았어요. +${sellValue(d.id, d.star)}냥`, 'good');
+    toast(`${josa(BY_ID[d.id].name, '을', '를')} 팔았어요. +${sellValue(d.id, d.star)}냥`, 'good');
   } else {
     const t: DropTarget = table.targetAt(table.ground(e.clientX, e.clientY));
-    if (t) { const err = move(me(), d.uid, t); if (err) toast(err, 'warn'); }
+    if (t) { const err = move(g, me(), d.uid, t); if (err) toast(err, 'warn'); }
   }
   renderAll();
 }
@@ -235,10 +276,11 @@ let fightCombat: Combat | null = null;
 $('fightBtn').addEventListener('click', () => {
   if (!g || mode !== 'prep') return;
   const p = me();
-  const filled = autoFill(p);
+  const filled = autoFill(g, p);
   if (filled) toast(`빈자리에 대기석 말 ${filled}개를 올렸어요.`);
   if (!p.board.length) { toast('판에 말이 하나도 없어요. 대기석의 말을 끌어 올리세요.', 'warn'); return; }
   const hpBefore = new Map(g.players.map((q) => [q.idx, q.hp]));
+  prevArena = g.arena; prevSeason = g.season;
   const matches = playRound(g);
   const mine = matches.find((m) => m.a === 0 || m.b === 0) ?? null;
   pending = { matches, mine, hpBefore };
@@ -249,10 +291,10 @@ $('fightBtn').addEventListener('click', () => {
   $('shopbar').hidden = true; $('fightbar').hidden = false;
   const flip = mine.b === 0;
   const oppIdx = mine.creeps ? -1 : flip ? mine.a : mine.b;
-  $('versus').innerHTML = mine.creeps ? `<b>산짐승</b><span>이기면 말 하나와 엽전을 얻어요</span>` : `<b>${g.players[oppIdx].name}</b><span>${mine.ghost ? '(그림자 상대: 이 판의 승패는 나만 받아요)' : `체력 ${hpBefore.get(oppIdx)}`}</span>`;
+  $('versus').innerHTML = mine.creeps ? `<b>${theme().creepName}</b><span>${theme().creepText} · ${ARENAS[mine.ctx.arena!].name}</span>` : `<b>${g.players[oppIdx].name}</b><span>${mine.ghost ? '(그림자 상대: 이 판의 승패는 나만 받아요)' : `체력 ${hpBefore.get(oppIdx)}`} · ${ARENAS[mine.ctx.arena!].name}</span>`;
   renderPlayers((q) => hpBefore.get(q.idx)!, oppIdx);
   // The traits on show are the player's own for this fight.
-  fightCombat = setup(mine.aTeam, mine.bTeam, mine.seed);
+  fightCombat = setup(mine.aTeam, mine.bTeam, mine.seed, mine.ctx);
   table.onFightEnd = () => afterFight();
   table.startFight(fightCombat, flip);
 });
@@ -273,8 +315,8 @@ function afterFight() {
     const meSide = mine.a === 0 ? 0 : 1;
     const won = mine.outcome.winner === meSide, draw = mine.outcome.winner === -1;
     const lost = (hpBefore.get(0) ?? 0) - p.hp;
-    banner(won ? (mine.creeps ? '산짐승을 물리쳤어요' : '이겼어요!') : draw ? '비겼어요' : '졌어요',
-      won ? (mine.creeps ? '엽전과 말을 얻었어요' : '+1냥, 연승 중이면 더 받아요') : `체력 -${lost}`, won ? 'win' : 'lose');
+    banner(won ? (mine.creeps ? `${theme().creepName} 승리!` : '이겼어요!') : draw ? '비겼어요' : '졌어요',
+      won ? (mine.creeps ? (theme().items ? '재료와 엽전을 얻었어요' : '엽전과 말을 얻었어요') : '+1냥, 연승 중이면 더 받아요') : `체력 -${lost}`, won ? 'win' : 'lose');
   }
   setTimeout(() => {
     $('banner').hidden = true;
@@ -285,8 +327,17 @@ function afterFight() {
     table.clearPieces();
     save(g!);
     renderAll();
-    if (isCreepRound(g!.round)) toast(`${g!.round}라운드는 산짐승과 싸워요.`);
+    roundNews(prevArena, prevSeason);
   }, mine ? 1700 : 0);
+}
+
+let prevArena = '', prevSeason = -1;
+/** What changed with the new round: the season, the ground, a creep round coming. */
+function roundNews(arena: string, season: number) {
+  const G = g!;
+  if (G.season >= 0 && G.season !== season) toast(`${josa(SEASON_NAME[G.season], '이', '가')} 왔어요! ${Object.values(TRAITS).find((t) => t.season === G.season)?.name} 요괴가 두 배로 세지고, 경기장은 ${josa(ARENAS[G.arena].name, '이에요', '예요')}.`, 'good');
+  else if (G.arena !== arena) toast(`이번 경기장: ${ARENAS[G.arena].name}. ${ARENAS[G.arena].text}`);
+  else if (isCreepRound(G.round)) toast(`${G.round}라운드는 ${josa(theme().creepName, '이에요', '예요')}. ${theme().creepText}.`);
 }
 
 function banner(title: string, sub: string, tone: string) {
@@ -299,8 +350,9 @@ function banner(title: string, sub: string, tone: string) {
 function finish() {
   const p = me();
   mode = 'menu';
-  clearSave();
+  clearSave(g!.theme);
   const place = p.alive ? 1 : p.place;
+  $('againBtn').textContent = '테마 고르고 한 판 더';
   $('endKicker').textContent = place === 1 ? '난장의 주인' : '난장이 끝났어요';
   $('endTitle').textContent = `${place}등`;
   const winner = g!.players.find((q) => q.place === 1);
@@ -312,6 +364,8 @@ function finish() {
 
 function begin(game: Game) {
   g = game;
+  armed = -1;
+  applyTheme(themeById(g.theme));
   mode = 'prep';
   table.clearPieces();
   $('start').hidden = true; $('end').hidden = true;
@@ -319,13 +373,62 @@ function begin(game: Game) {
   save(g);
 }
 
-$('newBtn').addEventListener('click', () => { begin(newGame((Math.random() * 2 ** 31) | 0)); toast('대기석의 말을 끌어서 판에 올려 보세요.'); });
-$('contBtn').addEventListener('click', () => { const s = load(); if (s) begin(s); });
-$('againBtn').addEventListener('click', () => begin(newGame((Math.random() * 2 ** 31) | 0)));
+/* ------------------------------------------------------------ themes */
+
+let picked = 'dokkaebi';
+try { picked = localStorage.getItem('nanjang.theme') ?? 'dokkaebi'; } catch { /* storage blocked */ }
+
+/** Dress the page in a theme: names, colours, the table. */
+function applyTheme(T: Theme) {
+  useTheme(T.id);
+  document.title = T.title;
+  document.body.dataset.theme = T.id;
+  document.querySelector('.title')!.textContent = T.title;
+  const r = document.documentElement.style;
+  r.setProperty('--lacquer', T.palette.line); r.setProperty('--lacquer-deep', T.palette.deep); r.setProperty('--brass', T.palette.accent);
+  document.body.style.background = T.palette.bg;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', T.palette.bg);
+  table.setPalette(T.palette);
+  const help = $('helpTheme');
+  help.hidden = !T.items && !T.seasons;
+  if (T.items) help.innerHTML = `<b>재료.</b> 장보기 라운드에서 이기면 재료(고춧가루, 참기름, 간장…)를 얻어요. 아래 재료를 누르고 음식을 누르면 올라가요. 한 음식에 재료 둘을 올리면 양념(고추장, 다대기, 갈비 양념…)이 되어 더 세져요. 음식 하나에 ${ITEM_SLOTS}개까지, 팔면 재료는 돌아와요.`;
+  if (T.seasons) help.innerHTML = '<b>계절.</b> 세 라운드마다 봄, 여름, 가을, 겨울이 바뀌어요. 그 계절 요괴의 시너지는 두 배가 되고(제철), 경기장도 봄 대숲, 여름 개울, 가을 갯벌, 겨울 빙판으로 바뀌어요.';
+}
+
+function renderStart() {
+  const T = themeById(picked);
+  applyTheme(T);
+  $('themes').innerHTML = THEMES.map((t) => `<button class="theme-card${t.id === picked ? ' on' : ''}" role="radio" aria-checked="${t.id === picked}" data-theme="${t.id}" style="--a:${t.palette.line};--b:${t.palette.accent}"><b>${t.title}</b><span>${t.kicker}</span></button>`).join('');
+  $('startKicker').textContent = T.kicker;
+  $('startTitle').textContent = T.title;
+  $('startLede').textContent = `${T.lede} 여덟 명 가운데 마지막까지 남으면 이겨요.`;
+  $('contBtn').hidden = !load(picked);
+  applyTheme(T);
+}
+$('themes').addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest('[data-theme]') as HTMLElement | null;
+  if (!b) return;
+  picked = b.dataset.theme!;
+  try { localStorage.setItem('nanjang.theme', picked); } catch { /* storage blocked */ }
+  renderStart();
+});
+
+$('newBtn').addEventListener('click', () => { begin(newGame((Math.random() * 2 ** 31) | 0, picked)); toast('대기석의 말을 끌어서 판에 올려 보세요.'); });
+$('contBtn').addEventListener('click', () => { const s = load(picked); if (s) begin(s); });
+$('againBtn').addEventListener('click', () => { $('end').hidden = true; $('start').hidden = false; mode = 'menu'; renderStart(); });
+$('arenaChip').addEventListener('click', () => { if (g) toast(`${ARENAS[g.arena].name}: ${ARENAS[g.arena].text}`); });
+$('tray').addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest('[data-item]') as HTMLElement | null;
+  if (!b || mode !== 'prep') return;
+  const k = +b.dataset.item!;
+  armed = armed === k ? -1 : k;
+  if (armed >= 0) { const d = itemDef(me().items[k]); toast(`${d.name} (${d.text}): 올릴 음식을 누르세요.`); }
+  renderTray();
+});
 $('helpBtn').addEventListener('click', () => { $('help').hidden = false; });
 $('howBtn').addEventListener('click', () => { $('help').hidden = false; });
 $('helpClose').addEventListener('click', () => { $('help').hidden = true; });
-if (load()) $('contBtn').hidden = false;
+renderStart();
 
 // Keyboard: D buys XP, F rerolls, Space fights.
 window.addEventListener('keydown', (e) => {
@@ -339,12 +442,17 @@ window.addEventListener('keydown', (e) => {
 /** Keep the table clear of the bars at the top and bottom. */
 function fitTable() {
   let top = document.querySelector('.top')!.getBoundingClientRect().bottom + 4;
-  // On a phone the synergy row sits under the top bar.
-  if (window.innerWidth <= 600) top = Math.max(top, $('traits').getBoundingClientRect().bottom + 2);
+  // On a phone the synergy row sits under the top bar (however tall it wrapped), the player list under that.
+  if (window.innerWidth <= 600) {
+    $('traits').style.top = `${top}px`;
+    top = Math.max(top, $('traits').getBoundingClientRect().bottom + 2);
+    $('players').style.top = `${top + 2}px`;
+  } else { $('traits').style.top = `${top + 4}px`; $('players').style.top = `${top + 4}px`; }
   const bar = !$('shopbar').hidden ? $('shopbar') : !$('fightbar').hidden ? $('fightbar') : null;
   const bottom = bar ? window.innerHeight - bar.getBoundingClientRect().top + 30 : 10;
   table.setInsets(top, bottom);
   $('cap').style.bottom = `${bottom - 24}px`;
+  $('tray').style.bottom = `${bottom - 24}px`;
 }
 new ResizeObserver(fitTable).observe(document.body);
 
@@ -359,4 +467,4 @@ function loop(now: number) {
 requestAnimationFrame(loop);
 
 // For checks in a headless browser.
-(window as unknown as { nanjang: unknown }).nanjang = { get game() { return g; }, table };
+(window as unknown as { nanjang: unknown }).nanjang = { get game() { return g; }, table, render: () => renderAll() };

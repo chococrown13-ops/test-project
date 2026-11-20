@@ -19,7 +19,7 @@
     <header class="top">
       <div class="brand">
         <b class="title">도깨비 난장</b>
-        <span id="round" class="round">1라운드 · 산짐승</span>
+        <span class="round"><span id="round">1라운드</span> <button id="arenaChip" class="arena-chip" type="button">너른 마당</button></span>
       </div>
       <dl class="stats">
         <div class="stat hp"><dt>체력</dt><dd><b id="hp" class="num">100</b></dd></div>
@@ -32,6 +32,7 @@
     <aside id="traits" class="traits" aria-label="시너지"></aside>
     <aside id="players" class="players" aria-label="참가자"></aside>
     <div id="cap" class="cap"></div>
+    <div id="tray" class="tray" hidden aria-label="재료"></div>
 
     <footer id="shopbar" class="shopbar">
       <div class="shop-side">
@@ -63,9 +64,10 @@
 
     <section id="start" class="overlay">
       <div class="panel hero">
-        <p class="kicker">옛이야기 자동 전투</p>
-        <h1>도깨비 난장</h1>
-        <p class="lede">도깨비, 구미호, 해태, 저승사자. 장터에서 말을 사 모아 판에 세우면, 싸움은 알아서 벌어져요. 여덟 명 가운데 마지막까지 남으면 이겨요.</p>
+        <div id="themes" class="themes" role="radiogroup" aria-label="테마 고르기"></div>
+        <p class="kicker" id="startKicker">옛이야기 자동 전투</p>
+        <h1 id="startTitle">도깨비 난장</h1>
+        <p class="lede" id="startLede"></p>
         <div class="row">
           <button id="newBtn" class="btn primary big">새 판 시작</button>
           <button id="contBtn" class="btn big" hidden>이어하기</button>
@@ -92,6 +94,8 @@
           <li><b>시너지.</b> 왼쪽에 보이는 갈래(도깨비, 여우, 장수, 무당…)를 두셋 모으면 힘이 붙어요. 같은 말은 한 번만 세요.</li>
           <li><b>싸우기.</b> 누르면 상대와 자동으로 싸워요. 지면 상대에게 남은 말만큼 체력이 깎여요. 처음 세 판과 여섯 판마다 한 번은 산짐승과 싸워 말과 엽전을 얻어요.</li>
           <li><b>엽전.</b> 판마다 들어오고, 10냥마다 1냥씩 이자가 붙어요(최대 5냥). 연달아 이기거나 져도 조금 더 받아요. 레벨이 높을수록 비싼 말이 장터에 자주 나와요.</li>
+          <li id="helpArena"><b>경기장.</b> 라운드마다 싸움판의 땅이 바뀌어요. 개울과 바위 칸에는 설 수 없고, 대숲은 피하기 좋고, 갯벌은 느리고, 빙판은 빨라요. 위쪽 경기장 이름을 누르면 설명이 나와요.</li>
+          <li id="helpTheme" hidden></li>
           <li><b>팔기.</b> 말을 장터 쪽으로 끌어 놓거나, 말을 눌러 나오는 카드에서 팔 수 있어요.</li>
         </ol>
         <div class="row"><button id="helpClose" class="btn primary">알겠어요</button></div>

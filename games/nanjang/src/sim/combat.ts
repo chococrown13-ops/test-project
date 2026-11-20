@@ -1,32 +1,32 @@
+import { blocks, BUSH, COLS, HALF, ICE, MUD, ROWS, terrain } from './arena';
 import { Rng } from './rng';
-import { BY_ID, SKILL_MUL, STAR_MUL, traitCounts, type Trait, type UnitDef } from './units';
+import { BY_ID, itemDef, SKILL_MUL, STAR_MUL, TRAITS, traitCounts, type Trait, type UnitDef } from './units';
 
 /**
  * The fight: two teams on a 7 x 8 board, fought out in steps of a tenth of a
  * second with no input. Each piece picks the nearest enemy, walks into range
  * and strikes; strikes and blows fill its mana, and a full bar casts its
- * skill. The same seed always gives the same fight, so the one on screen is
- * the one the game scored.
+ * skill. The ground (the round's arena) can block, slow, speed or hide. The
+ * same seed always gives the same fight, so the one on screen is the one the
+ * game scored.
  */
 
-export const COLS = 7;
-export const ROWS = 8;
-/** Rows each side places on (row 0 is the front line). */
-export const HALF = 4;
+export { COLS, HALF, ROWS };
 export const DT = 0.1;
 export const TIME_LIMIT = 35;
 
-export interface Placed { id: string; star: number; c: number; r: number }
+export interface Placed { id: string; star: number; c: number; r: number; items?: string[] }
+export interface Ctx { arena?: string; season?: number }
 
 export interface Fighter {
-  key: number; side: 0 | 1; def: UnitDef; star: number;
+  key: number; side: 0 | 1; def: UnitDef; star: number; items: string[];
   x: number; y: number;
   hp: number; maxHp: number; ad: number; as: number; range: number; armor: number; mr: number;
   mana: number; maxMana: number;
   shield: number; shieldT: number; stunT: number; atkT: number; moveT: number;
   target: number; tauntBy: number; tauntT: number; asBuff: number; asBuffT: number;
   alive: boolean;
-  dodge: number; double: number; lifesteal: number; crit: number; skillMul: number; manaRegen: number;
+  dodge: number; double: number; lifesteal: number; crit: number; leap: boolean; skillMul: number; manaRegen: number; regen: number; ramp: number;
   dealt: number;
 }
 
@@ -42,7 +42,7 @@ export type Ev =
   | { k: 'stun'; b: number; t: number }
   | { k: 'die'; a: number };
 
-export interface Combat { t: number; f: Fighter[]; grid: Int16Array; rng: Rng; over: boolean; winner: 0 | 1 | -1 }
+export interface Combat { t: number; f: Fighter[]; grid: Int16Array; rng: Rng; over: boolean; winner: 0 | 1 | -1; arena: string; season: number }
 
 const cheb = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 const cell = (x: number, y: number) => y * COLS + x;
@@ -53,40 +53,76 @@ export function toFight(side: 0 | 1, c: number, r: number): { x: number; y: numb
   return side === 0 ? { x: c, y: HALF + r } : { x: COLS - 1 - c, y: HALF - 1 - r };
 }
 
-function stepOf(tr: { trait: Trait; step: number }[], t: Trait): number { return tr.find((x) => x.trait === t)?.step ?? 0; }
-
-export function setup(a: Placed[], b: Placed[], seed: number): Combat {
-  const c: Combat = { t: 0, f: [], grid: new Int16Array(COLS * ROWS).fill(-1), rng: new Rng(seed), over: false, winner: -1 };
+export function setup(a: Placed[], b: Placed[], seed: number, ctx: Ctx = {}): Combat {
+  const c: Combat = { t: 0, f: [], grid: new Int16Array(COLS * ROWS).fill(-1), rng: new Rng(seed), over: false, winner: -1, arena: ctx.arena ?? 'yard', season: ctx.season ?? -1 };
   ([a, b] as Placed[][]).forEach((team, s) => {
     const side = s as 0 | 1;
     const tr = traitCounts(team.map((p) => p.id));
-    const guard = [0, 20, 45][stepOf(tr, 'guard')];
+    const val = (t: Trait, step: number) => {
+      const d = TRAITS[t];
+      return d.effect.v[step - 1] * (d.season !== undefined && d.season === c.season ? 2 : 1);
+    };
+    let teamArmor = 0;
+    for (const t of tr) if (t.step && TRAITS[t.trait].effect.k === 'teamArmor') teamArmor += val(t.trait, t.step);
     for (const p of team) {
       const def = BY_ID[p.id], m = STAR_MUL[p.star];
-      const { x, y } = toFight(side, p.c, p.r);
+      let { x, y } = toFight(side, p.c, p.r);
+      // A square the ground or another piece has taken: the nearest open one on its own side.
+      if (!free(c, x, y)) { const q = nearestFree(c, x, y, side); x = q.x; y = q.y; }
       const f: Fighter = {
-        key: c.f.length, side, def, star: p.star, x, y,
-        hp: def.hp * m, maxHp: def.hp * m, ad: def.ad * m, as: def.as, range: def.range, armor: def.armor + guard, mr: def.mr,
+        key: c.f.length, side, def, star: p.star, items: p.items ?? [], x, y,
+        hp: def.hp * m, maxHp: def.hp * m, ad: def.ad * m, as: def.as, range: def.range, armor: def.armor + teamArmor, mr: def.mr + teamArmor * 0.5,
         mana: def.manaStart, maxMana: def.mana,
         shield: 0, shieldT: 0, stunT: 0, atkT: 0.2, moveT: 0, target: -1, tauntBy: -1, tauntT: 0, asBuff: 0, asBuffT: 0,
-        alive: true, dodge: 0, double: 0, lifesteal: 0, crit: 0, skillMul: SKILL_MUL[p.star], manaRegen: 0, dealt: 0,
+        alive: true, dodge: 0, double: 0, lifesteal: 0, crit: 0, leap: false, skillMul: SKILL_MUL[p.star], manaRegen: 0, regen: 0, ramp: 0, dealt: 0,
       };
-      const has = (t: Trait) => def.traits.includes(t) ? stepOf(tr, t) : 0;
-      f.double = [0, 0.2, 0.4][has('dokkaebi')];
-      f.dodge = [0, 0.25, 0.45][has('fox')];
-      f.ad *= [1, 1.3, 1.65][has('tiger')];
-      f.manaRegen = [0, 4, 9][has('sea')];
-      f.lifesteal = [0, 0.25, 0.5][has('under')];
-      const bz = [0, 35, 80][has('beast')]; f.armor += bz; f.mr += bz;
-      const hpk = [1, 1.25, 1.6][has('warrior')]; f.hp *= hpk; f.maxHp *= hpk;
-      f.as *= [1, 1.3, 1.7][has('archer')];
-      f.skillMul *= [1, 1.5, 2.1][has('shaman')];
-      f.crit = [0, 0.25, 0.45][has('assassin')];
+      let adK = 1, asK = 1, hpK = 1;
+      for (const t of def.traits) {
+        const step = tr.find((q) => q.trait === t)?.step ?? 0;
+        if (!step) continue;
+        const e = TRAITS[t].effect, v = val(t, step);
+        switch (e.k) {
+          case 'double': f.double += v; break;
+          case 'dodge': f.dodge += v; break;
+          case 'ad': adK += v; break;
+          case 'as': asK += v; break;
+          case 'hp': hpK += v; break;
+          case 'lifesteal': f.lifesteal += v; break;
+          case 'skill': f.skillMul *= 1 + v; break;
+          case 'resist': f.armor += v; f.mr += v; break;
+          case 'mana': f.manaRegen += v; break;
+          case 'regen': f.regen += v; break;
+          case 'ramp': f.ramp += v; break;
+          case 'crit': f.crit += v; f.leap = true; break;
+          case 'teamArmor': break;
+        }
+      }
+      // What it holds (한식 대전's ingredients and sauces).
+      for (const id of f.items) {
+        const md = itemDef(id).mods;
+        adK += md.ad ?? 0; asK += md.as ?? 0;
+        f.hp += md.hp ?? 0; f.maxHp += md.hp ?? 0;
+        f.armor += md.resist ?? 0; f.mr += md.resist ?? 0;
+        f.mana = Math.min(f.maxMana - 1, f.mana + (md.mana ?? 0));
+        f.crit += md.crit ?? 0; f.dodge += md.dodge ?? 0; f.skillMul *= 1 + (md.skill ?? 0);
+      }
+      f.ad *= adK; f.as *= asK; f.hp *= hpK; f.maxHp *= hpK;
       c.f.push(f);
       c.grid[cell(x, y)] = f.key;
     }
   });
   return c;
+}
+
+function nearestFree(c: Combat, x0: number, y0: number, side: 0 | 1): { x: number; y: number } {
+  let best = { x: x0, y: y0 }, bd = Infinity;
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    if (!free(c, x, y)) continue;
+    const own = side === 0 ? y >= HALF : y < HALF;
+    const d = Math.hypot(x - x0, y - y0) + (own ? 0 : 100);
+    if (d < bd) { bd = d; best = { x, y }; }
+  }
+  return best;
 }
 
 /* ------------------------------------------------------------- helpers */
@@ -103,7 +139,7 @@ function nearest(c: Combat, f: Fighter, list = foes(c, f)): Fighter | null {
   return best;
 }
 
-function free(c: Combat, x: number, y: number) { return inBoard(x, y) && c.grid[cell(x, y)] < 0; }
+function free(c: Combat, x: number, y: number) { return inBoard(x, y) && c.grid[cell(x, y)] < 0 && !blocks(terrain(c.arena, x, y)); }
 
 function place(c: Combat, f: Fighter, x: number, y: number) {
   c.grid[cell(f.x, f.y)] = -1;
@@ -264,12 +300,34 @@ function cast(c: Combat, ev: Ev[], f: Fighter, t: Fighter) {
   f.mana = 0;
 }
 
+/** The first square on the shortest walk (eight ways) from f to any square within its reach of t, or null. */
+function pathStep(c: Combat, f: Fighter, t: Fighter): { x: number; y: number } | null {
+  const N = COLS * ROWS, prev = new Int16Array(N).fill(-2), q: number[] = [cell(f.x, f.y)];
+  prev[q[0]] = -1;
+  for (let h = 0; h < q.length; h++) {
+    const i = q[h], x = i % COLS, y = (i / COLS) | 0;
+    if (h > 0 && Math.max(Math.abs(x - t.x), Math.abs(y - t.y)) <= f.range) {
+      let k = i;
+      while (prev[k] !== q[0]) k = prev[k];
+      return { x: k % COLS, y: (k / COLS) | 0 };
+    }
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const nx = x + dx, ny = y + dy;
+      if ((!dx && !dy) || !free(c, nx, ny)) continue;
+      const j = cell(nx, ny);
+      if (prev[j] !== -2) continue;
+      prev[j] = i; q.push(j);
+    }
+  }
+  return null;
+}
+
 /* ---------------------------------------------------------------- step */
 
 /** Assassins leap to the enemy's back line as the fight opens. */
 function opening(c: Combat, ev: Ev[]) {
   for (const f of c.f) {
-    if (!f.crit) continue;
+    if (!f.leap) continue;
     const backY = f.side === 0 ? 0 : ROWS - 1, dir = f.side === 0 ? 1 : -1;
     let spot: { x: number; y: number } | null = null;
     for (let row = 0; row < HALF && !spot; row++) {
@@ -292,6 +350,8 @@ export function step(c: Combat): Ev[] {
     if (f.tauntT > 0 && (f.tauntT -= DT) <= 0) f.tauntBy = -1;
     if (f.asBuffT > 0 && (f.asBuffT -= DT) <= 0) f.asBuff = 0;
     if (f.manaRegen) f.mana = Math.min(f.maxMana, f.mana + f.manaRegen * DT);
+    if (f.regen) f.hp = Math.min(f.maxHp, f.hp + f.maxHp * f.regen * DT);
+    if (f.ramp) f.ad *= 1 + f.ramp * DT / 2;
     if (f.stunT > 0) { f.stunT -= DT; continue; }
     // Who to fight: the one taunting, else keep the current target while it lives and is near, else the nearest.
     let t = f.tauntBy >= 0 && c.f[f.tauntBy].alive ? c.f[f.tauntBy] : f.target >= 0 && c.f[f.target].alive ? c.f[f.target] : null;
@@ -308,7 +368,8 @@ export function step(c: Combat): Ev[] {
       const swings = c.rng.next() < f.double ? 2 : 1;
       ev.push({ k: 'atk', a: f.key, b: t.key, ranged });
       for (let k = 0; k < swings && t.alive; k++) {
-        if (t.dodge && c.rng.next() < t.dodge) { ev.push({ k: 'miss', a: f.key, b: t.key }); continue; }
+        const dodge = t.dodge + (terrain(c.arena, t.x, t.y) === BUSH ? 0.2 : 0);
+        if (dodge && c.rng.next() < dodge) { ev.push({ k: 'miss', a: f.key, b: t.key }); continue; }
         const crit = f.crit > 0 && c.rng.next() < f.crit;
         deal(c, ev, f, t, f.ad * (crit ? 2 : 1), false, crit);
       }
@@ -317,15 +378,22 @@ export function step(c: Combat): Ev[] {
       f.atkT = Math.max(f.atkT, 0.15);
       f.moveT -= DT;
       if (f.moveT > 0) continue;
-      // One cell toward the target, round anyone in the way.
-      let best: { x: number; y: number } | null = null, bd = cheb(f, t) + Math.hypot(f.x - t.x, f.y - t.y) * 0.01;
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        const x = f.x + dx, y = f.y + dy;
-        if ((!dx && !dy) || !free(c, x, y)) continue;
-        const d = Math.max(Math.abs(x - t.x), Math.abs(y - t.y)) + Math.hypot(x - t.x, y - t.y) * 0.01;
-        if (d < bd) { bd = d; best = { x, y }; }
+      // One cell along the shortest way to a square in reach of the target, round water, rocks and anyone in the way.
+      let best = pathStep(c, f, t);
+      if (!best) {
+        let bd = cheb(f, t) + Math.hypot(f.x - t.x, f.y - t.y) * 0.01;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const x = f.x + dx, y = f.y + dy;
+          if ((!dx && !dy) || !free(c, x, y)) continue;
+          const d = Math.max(Math.abs(x - t.x), Math.abs(y - t.y)) + Math.hypot(x - t.x, y - t.y) * 0.01;
+          if (d < bd) { bd = d; best = { x, y }; }
+        }
       }
-      if (best) { place(c, f, best.x, best.y); ev.push({ k: 'move', a: f.key, x: best.x, y: best.y }); f.moveT = 0.45; }
+      if (best) {
+        place(c, f, best.x, best.y); ev.push({ k: 'move', a: f.key, x: best.x, y: best.y });
+        const g = terrain(c.arena, best.x, best.y);
+        f.moveT = g === MUD ? 0.85 : g === ICE ? 0.22 : 0.45;
+      }
       else f.moveT = 0.2;
     }
   }
@@ -338,8 +406,8 @@ export function step(c: Combat): Ev[] {
 
 export interface Outcome { winner: 0 | 1 | -1; survivors: Fighter[]; t: number }
 
-export function fight(a: Placed[], b: Placed[], seed: number): Outcome {
-  const c = setup(a, b, seed);
+export function fight(a: Placed[], b: Placed[], seed: number, ctx: Ctx = {}): Outcome {
+  const c = setup(a, b, seed, ctx);
   if (!a.length || !b.length) { c.over = true; c.winner = a.length ? 0 : b.length ? 1 : -1; }
   while (!c.over) step(c);
   return { winner: c.winner, survivors: c.f.filter((f) => f.alive), t: c.t };

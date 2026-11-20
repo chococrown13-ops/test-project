@@ -204,3 +204,35 @@ body.dragging .sell-cover { display: grid; opacity: 0.55; }
   .players.open::after { content: "접기 ▴"; }
 }
 .info.peek { pointer-events: none; }
+
+/* Arena, seasons, ingredients, theme picker */
+.round { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.arena-chip { appearance: none; border: 1px solid var(--color-edge); background: var(--color-paper-2); color: var(--color-ink-2); font: inherit; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; cursor: pointer; }
+.arena-chip::before { content: "경기장 "; color: var(--color-muted); font-weight: 600; }
+.trait.ripe { border-color: var(--brass); box-shadow: 0 0 0 2px color-mix(in oklab, var(--brass) 45%, transparent); }
+.trait em { font-style: normal; font-size: 10px; font-weight: 800; color: var(--lacquer); margin-left: 2px; }
+.tray { position: fixed; left: 10px; z-index: 4; display: flex; gap: 4px; align-items: center; max-width: calc(50% - 60px); overflow-x: auto; padding: 4px 6px; background: var(--panel); border: 1px solid var(--color-edge); border-radius: 999px; scrollbar-width: none; }
+.tray-h { font-size: 11px; font-weight: 800; color: var(--color-muted); padding: 0 4px; flex: none; }
+.tray-empty { font-size: 11px; color: var(--color-muted); white-space: nowrap; padding-right: 6px; }
+.ing { flex: none; display: inline-flex; align-items: center; gap: 4px; appearance: none; border: 1px solid var(--color-edge); background: var(--color-card); color: var(--color-ink); font: inherit; font-size: 12px; font-weight: 700; padding: 3px 9px 3px 5px; border-radius: 999px; cursor: pointer; min-height: 30px; }
+.ing i { width: 14px; height: 14px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px oklch(20% 0.02 30 / 0.25); }
+.ing.armed { background: var(--brass); border-color: var(--lacquer); transform: translateY(-2px); }
+.plabel .items { display: flex; gap: 2px; }
+.plabel .items .it { width: 8px; height: 8px; border-radius: 2px; background: var(--c); box-shadow: 0 0 0 1px oklch(20% 0.02 30 / 0.5); }
+.plabel .items .it.sauce { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 1.5px #fff8e0, 0 0 0 2.5px oklch(20% 0.02 30 / 0.5); }
+.i-items { display: grid; gap: 4px; font-size: var(--text-xs); }
+.i-items span { display: flex; gap: 6px; align-items: center; }
+.i-items i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
+.themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+.theme-card { appearance: none; display: grid; gap: 2px; padding: 10px 8px; border-radius: 14px; border: 1.5px solid var(--color-edge); background: var(--color-card); color: var(--color-ink); font: inherit; cursor: pointer; text-align: center; transition: transform var(--dur-short) var(--ease-spring); }
+.theme-card b { font-family: var(--font-display); font-size: var(--text-md); color: var(--a); }
+.theme-card span { font-size: 11px; color: var(--color-muted); }
+.theme-card.on { border-color: var(--a); box-shadow: 0 0 0 2px var(--b); transform: translateY(-2px); }
+.hero h1 { color: var(--lacquer); }
+@media (max-width: 600px) {
+  .tray { left: 6px; max-width: calc(100% - 120px); }
+  .theme-card { padding: 8px 4px; } .theme-card b { font-size: 14px; }
+}
+body[data-theme="hansik"] .cap { left: auto; right: 10px; transform: none; }
+.stat dt { white-space: nowrap; }
+body.fighting .tray { display: none; }
