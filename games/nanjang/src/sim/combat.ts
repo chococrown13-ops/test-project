@@ -13,7 +13,7 @@ import { BY_ID, itemDef, SKILL_MUL, STAR_MUL, TRAITS, traitCounts, type Trait, t
 
 export { COLS, HALF, ROWS };
 export const DT = 0.1;
-export const TIME_LIMIT = 35;
+export const TIME_LIMIT = 40;
 
 export interface Placed { id: string; star: number; c: number; r: number; items?: string[] }
 export interface Ctx { arena?: string; season?: number }

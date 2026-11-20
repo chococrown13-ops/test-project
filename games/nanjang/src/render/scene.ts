@@ -3,7 +3,7 @@ import { COLS, type Combat, DT, type Ev, HALF, ROWS, step } from '../sim/combat'
 import type { Piece, Player } from '../sim/game';
 import { BENCH } from '../sim/game';
 import { ARENAS, BUSH, ICE, MUD, ROCK, WATER } from '../sim/arena';
-import { BY_ID, itemDef, type Palette } from '../sim/units';
+import { BY_ID, itemDef, type Palette, theme } from '../sim/units';
 import { buildPiece, type PieceObj } from './pieces';
 
 /**
@@ -12,7 +12,7 @@ import { buildPiece, type PieceObj } from './pieces';
  * thrown fire, numbers and falls.
  */
 
-const BENCH_Z = 5.05;
+const BENCH_Z = ROWS / 2 + 1.05;
 const benchX = (i: number) => (i - (BENCH - 1) / 2) * 0.98;
 const wx = (x: number) => x - (COLS - 1) / 2;
 const wz = (y: number) => y - (ROWS - 1) / 2;
@@ -44,6 +44,9 @@ export class Table {
   private river!: THREE.Mesh;
   private palette: Palette | null = null;
   private terrainLayer = new THREE.Group();
+  private grid!: THREE.LineSegments;
+  /** The square outlines of our half: on while a piece is being placed. */
+  showGrid(on: boolean) { this.grid.visible = on; this.enemyHalf.visible = on && !this.combat; }
   arena = 'yard';
   private flip = false;
   private acc = 0;
@@ -71,18 +74,20 @@ export class Table {
     this.scene.add(hemi, sun);
 
     // The table top and the board on it.
-    const table = this.tableTop = new THREE.Mesh(new THREE.BoxGeometry(14, 0.4, 15), new THREE.MeshStandardMaterial({ color: '#7a5233', roughness: 0.85 }));
+    const table = this.tableTop = new THREE.Mesh(new THREE.BoxGeometry(COLS + 7, 0.4, ROWS + 8), new THREE.MeshStandardMaterial({ color: '#7a5233', roughness: 0.85 }));
     table.position.set(0, -0.32, 0.6);
     table.receiveShadow = true;
     this.scene.add(table);
     const frame = this.frameMesh = new THREE.Mesh(new THREE.BoxGeometry(COLS + 0.5, 0.18, ROWS + 0.5), new THREE.MeshStandardMaterial({ color: '#4a3020', roughness: 0.7 }));
     frame.position.y = -0.1; frame.receiveShadow = true;
     this.scene.add(frame);
-    const tileG = new THREE.BoxGeometry(0.96, 0.06, 0.96);
+    // One seamless surface per half: the squares show only as grid lines while placing (see showGrid).
+    const tileG = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
     for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
       const mine = y >= HALF, light = (x + y) % 2 === 0;
-      const t = new THREE.Mesh(tileG, new THREE.MeshStandardMaterial({ color: mine ? (light ? '#efe4c8' : '#e2d3b0') : (light ? '#e7dccb' : '#d6c8b3'), roughness: 0.9 }));
-      t.position.set(wx(x), 0, wz(y));
+      void light;
+      const t = new THREE.Mesh(tileG, new THREE.MeshStandardMaterial({ color: mine ? '#efe4c8' : '#e7dccb', roughness: 0.9 }));
+      t.position.set(wx(x), 0.03, wz(y));
       t.receiveShadow = true;
       this.scene.add(t);
       this.tiles.push(t);
@@ -104,6 +109,15 @@ export class Table {
       this.scene.add(pad);
       this.benchPads.push(pad);
     }
+    // Grid lines over our half, shown while a piece is being placed.
+    const pts: number[] = [];
+    const y0 = 0.035, zA = wz(HALF) - 0.5, zB = wz(ROWS - 1) + 0.5, xA = wx(0) - 0.5, xB = wx(COLS - 1) + 0.5;
+    for (let c = 0; c <= COLS; c++) { const x = xA + c; pts.push(x, y0, zA, x, y0, zB); }
+    for (let r = 0; r <= HALF; r++) { const z = zA + r; pts.push(xA, y0, z, xB, y0, z); }
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    this.grid = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: '#5a3b26', transparent: true, opacity: 0.45 }));
+    this.grid.visible = false;
+    this.scene.add(this.grid);
     this.hiTile = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.08, 0.98), new THREE.MeshBasicMaterial({ color: '#f2c94c', transparent: true, opacity: 0.55, depthWrite: false }));
     this.hiTile.visible = false;
     this.scene.add(this.hiTile);
@@ -127,8 +141,9 @@ export class Table {
     const p = this.palette;
     if (!p) return;
     this.tiles.forEach((t, i) => {
-      const x = i % COLS, y = Math.floor(i / COLS), light = (x + y) % 2 === 0;
-      (t.material as THREE.MeshStandardMaterial).color.set(y >= HALF ? p.mine[light ? 0 : 1] : p.theirs[light ? 0 : 1]);
+      const y = Math.floor(i / COLS);
+      // A very faint wash by half; no checkerboard (the grid shows only when placing).
+      (t.material as THREE.MeshStandardMaterial).color.set(y >= HALF ? p.mine[0] : p.theirs[0]);
     });
   }
 
@@ -187,8 +202,8 @@ export class Table {
     this.camera.setViewOffset(w, free, 0, -this.insets.top, w, h);
     // Fit the board, the bench and the far pieces, then centre them.
     const pts = [
-      [-3.8, 0, -4.2], [3.8, 0, -4.2], [-3.6, 1.3, -3.6], [3.6, 1.3, -3.6],
-      [-4.8, 0, BENCH_Z + 0.6], [4.8, 0, BENCH_Z + 0.6], [-4.8, 1.1, BENCH_Z], [4.8, 1.1, BENCH_Z],
+      [-COLS / 2 - 0.3, 0, -ROWS / 2 - 0.2], [COLS / 2 + 0.3, 0, -ROWS / 2 - 0.2], [-COLS / 2 + 0.4, 1, -ROWS / 2 + 0.4], [COLS / 2 - 0.4, 1, -ROWS / 2 + 0.4],
+      [-4.8, 0, BENCH_Z + 0.55], [4.8, 0, BENCH_Z + 0.55], [-4.8, 0.9, BENCH_Z], [4.8, 0.9, BENCH_Z],
     ].map(([x, y, z]) => new THREE.Vector3(x, y, z));
     // Tall screens look down more steeply, so the board fills the height.
     const dir = (w / free < 0.85 ? new THREE.Vector3(0, 0.93, 0.37) : new THREE.Vector3(0, 0.8, 0.6)).normalize();
@@ -219,7 +234,8 @@ export class Table {
   /* ---------------------------------------------------------- pieces */
 
   private make(key: number, id: string, star: number, enemy: boolean, items: string[] = []): Shown {
-    const obj = buildPiece(BY_ID[id], star, enemy);
+    const obj = buildPiece(BY_ID[id], star, enemy, theme().faces !== false);
+    obj.root.userData.id = id;
     obj.root.userData.key = key;
     obj.root.traverse((o) => { o.userData.key = key; });
     this.scene.add(obj.root);
@@ -240,12 +256,38 @@ export class Table {
     this.shown.delete(key);
   }
 
+  /** Light up the pieces a test picks out (a trait being looked at), or none. */
+  private hi: ((id: string) => boolean) | null = null;
+  setHighlight(fn: ((id: string) => boolean) | null) {
+    this.hi = fn;
+    for (const s of this.shown.values()) {
+      const on = !!fn && fn(s.obj.root.userData.id);
+      s.obj.glow.visible = on;
+      s.label.classList.toggle('hi', on);
+      s.label.classList.toggle('lo', !!fn && !on);
+    }
+  }
+
+  /** Every piece of the theme stood out on the board (for the collection and for comparing styles). */
+  showLineup(ids: string[]) {
+    this.clearPieces();
+    this.combat = null;
+    this.enemyHalf.visible = false;
+    ids.forEach((id, k) => {
+      const s = this.make(1000 + k, id, 1, false);
+      const x = wx(k % COLS), z = wz(1 + Math.floor(k / COLS) * 2);
+      s.x = s.tx = x; s.z = s.tz = z; s.face = Math.PI * 0.9;
+      s.label.classList.add('prep');
+      this.shown.set(1000 + k, s);
+    });
+  }
+
   clearPieces() { for (const k of [...this.shown.keys()]) this.drop(k); }
 
   /** Between fights: the player's board and bench, keyed by piece uid. */
   showPrep(p: Player, dragging = -1) {
     this.combat = null;
-    this.enemyHalf.visible = true;
+    this.enemyHalf.visible = this.grid.visible;
     const want = new Map<number, { piece: Piece; x: number; z: number }>();
     p.board.forEach((u) => want.set(u.uid, { piece: u, x: wx(u.c), z: wz(HALF + u.r) }));
     p.bench.forEach((u, i) => { if (u) want.set(u.uid, { piece: u, x: benchX(i), z: BENCH_Z }); });
@@ -265,6 +307,7 @@ export class Table {
       if (k !== dragging) { s.tx = w.x; s.tz = w.z; }
       s.label.classList.add('prep');
       s.dead = 0; s.face = Math.PI;
+      if (this.hi) { const on = this.hi(s.obj.root.userData.id); s.obj.glow.visible = on; s.label.classList.toggle('hi', on); s.label.classList.toggle('lo', !on); }
     }
   }
 
@@ -283,8 +326,8 @@ export class Table {
   }
 
   /** The player's piece under the pointer (prep only). */
-  pick(cx: number, cy: number): number | null {
-    if (this.combat) return null;
+  pick(cx: number, cy: number, any = false): number | null {
+    if (this.combat && !any) return null;
     this.ray.setFromCamera(this.ndc(cx, cy), this.camera);
     const objs = [...this.shown.values()].map((s) => s.obj.root);
     const hit = this.ray.intersectObjects(objs, true)[0];
@@ -293,7 +336,7 @@ export class Table {
     const g = this.ground(cx, cy);
     if (!g) return null;
     let best: number | null = null, bd = 0.5;
-    for (const [k, s] of this.shown) { const d = Math.hypot(s.x - g.x, s.z - g.z); if (d < bd) { bd = d; best = k; } }
+    for (const [k, s] of this.shown) { if (s.dead) continue; const d = Math.hypot(s.x - g.x, s.z - g.z); if (d < bd) { bd = d; best = k; } }
     return best;
   }
 
@@ -466,7 +509,8 @@ export class Table {
       const d = ((s.face - root.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
       root.rotation.y += d * Math.min(1, dt * 10);
       // A gentle idle bob.
-      s.obj.figure.position.y = 0.1 + Math.abs(Math.sin(t * 2 + k)) * 0.03;
+      s.obj.figure.position.y = (s.obj.figure.userData.y0 ??= s.obj.figure.position.y) + Math.abs(Math.sin(t * 2 + k)) * 0.03 + (s.obj.glow.visible ? 0.12 : 0);
+      if (s.obj.glow.visible) (s.obj.glow.material as THREE.MeshBasicMaterial).opacity = 0.55 + Math.sin(t * 6) * 0.3;
       if (s.dead > 0) {
         s.dead += dt * this.speed;
         root.rotation.z = Math.min(1.4, s.dead * 4);

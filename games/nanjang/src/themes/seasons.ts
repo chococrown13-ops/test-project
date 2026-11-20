@@ -27,7 +27,7 @@ export const SEASONS: Theme = {
     u('namul', '봄나물 도령', 1, ['spring', 'sturdy'], 'fighter', [0, 70], 'bonk', '쑥 내밀어 때려 피해를 주고 잠깐 기절시켜요.', { body: '#7fb04a', head: '#f2dcc0', acc: 'leaf' }),
     u('firefly', '반딧불이', 1, ['summer', 'caller'], 'caster', [20, 70], 'foxfire', '여름밤 불빛을 쏘아 마법 피해를 줘요.', { body: '#3a3d2a', head: '#e8f27a', acc: 'wings', extra: '#e8f27a' }),
     u('scarecrow', '허수아비', 1, ['autumn', 'sturdy'], 'tank', [0, 80], 'guardup', '지푸라기를 두툼하게 둘러 피해를 막아요.', { body: '#c9a25a', head: '#efdcb0', acc: 'hat' }),
-    u('frog', '청개구리', 1, ['rain', 'flinger'], 'ranged', [0, 60], 'snipe', '거꾸로 뛰어 체력이 가장 낮은 적에게 물방울을 쏴요.', { body: '#5aa84a', head: '#7cc46a', acc: 'eye' }),
+    u('frog', '청개구리', 1, ['rain', 'flinger'], 'ranged', [0, 60], 'snipe', '거꾸로 뛰어 체력이 가장 낮은 적에게 물방울을 쏴요.', { body: '#5aa84a', head: '#7cc46a', acc: 'bumps' }),
     u('toad', '장마 두꺼비', 2, ['rain', 'shelter'], 'tank', [30, 100], 'taunt', '배를 부풀려 둘레의 적이 자기만 때리게 하고 보호막을 둘러요.', { body: '#6b7a3a', head: '#8a9a52', acc: 'none', size: 1.2 }),
     u('cicada', '매미', 2, ['summer', 'flinger'], 'ranged', [0, 70], 'boulder', '맴맴 울음을 터뜨려 맞은 적과 그 둘레에 피해를 줘요.', { body: '#5a4a2a', head: '#7a6a3a', acc: 'wings', extra: '#cfe3ea' }),
     u('squirrel', '도토리 다람쥐', 2, ['autumn', 'lurker'], 'striker', [0, 60], 'blink', '도토리 숲을 건너뛰어 가장 약한 적 뒤로 가 할퀴어요.', { body: '#a8652f', head: '#c98a4f', acc: 'ears' }),

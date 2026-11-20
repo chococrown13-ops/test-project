@@ -19,9 +19,9 @@ export interface TraitDef {
 
 export type Acc =
   | 'horn' | 'horns' | 'eye' | 'ears' | 'ears9' | 'stripes' | 'hat' | 'gat' | 'shell' | 'fins' | 'mane' | 'pole' | 'crown' | 'hood' | 'whiskers' | 'spikes' | 'serpent'
-  | 'wings' | 'leaf' | 'petals' | 'longears' | 'sun' | 'swirl' | 'snow' | 'cloud' | 'bolt' | 'none';
+  | 'wings' | 'bumps' | 'leaf' | 'petals' | 'longears' | 'sun' | 'swirl' | 'snow' | 'cloud' | 'bolt' | 'none';
 /** Food and other non-figure bodies (한식 대전 and a few 사계절 pieces). */
-export type Shape = 'figure' | 'bowl' | 'rods' | 'roll' | 'disc' | 'fish' | 'crab' | 'cabbage' | 'skewer' | 'bird' | 'pot' | 'snowman' | 'cloud' | 'twister';
+export type Shape = 'figure' | 'bowl' | 'rods' | 'roll' | 'disc' | 'fish' | 'crab' | 'cabbage' | 'skewer' | 'bird' | 'pot' | 'snowman' | 'cloud' | 'twister' | 'pan';
 
 export interface Look { body: string; head: string; acc?: Acc; shape?: Shape; size?: number; extra?: string }
 
@@ -53,6 +53,8 @@ export interface Theme {
   recipes?: Record<string, string>;
   /** 사계절 요괴: the season turns every three rounds. */
   seasons?: boolean;
+  /** Whether the pieces get faces (dishes look better without). */
+  faces?: boolean;
 }
 
 /* ------------------------------------------------------------ registry */

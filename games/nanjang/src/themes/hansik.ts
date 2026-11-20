@@ -8,6 +8,7 @@ export const HANSIK: Theme = {
   lede: '떡볶이, 김밥, 순두부찌개, 간장게장. 장터에서 음식을 사 상에 올리고, 장 봐 온 재료로 양념을 더하면 싸움은 알아서 벌어져요.',
   creepName: '장보기',
   creepText: '이기면 재료와 엽전을 얻어요',
+  faces: false,
   traits: {
     spicy: { name: '매운맛', kind: 'origin', steps: [2, 3], text: '매운 음식의 공격력이 올라요.', levels: ['공격력 +30%', '공격력 +65%'], effect: { k: 'ad', v: [0.3, 0.65] } },
     soup: { name: '국물', kind: 'origin', steps: [2, 3], text: '국물 요리가 싸우는 동안 체력을 조금씩 되찾아요.', levels: ['초당 체력 2%', '초당 체력 4.5%'], effect: { k: 'regen', v: [0.02, 0.045] } },
@@ -31,7 +32,7 @@ export const HANSIK: Theme = {
     u('sundubu', '순두부찌개', 2, ['soup', 'side'], 'tank', [30, 100], 'taunt', '보글보글 끓어올라 둘레의 적이 자기만 보게 하고 보호막을 둘러요.', { body: '#3a3330', head: '#d9502f', shape: 'bowl', size: 1.1 }),
     u('pajeon', '해물파전', 2, ['sea', 'crispy'], 'striker', [0, 60], 'blink', '철판에서 뒤집히듯 가장 약한 적 뒤로 넘어가 베어요.', { body: '#d8b25c', head: '#5f8f3a', shape: 'disc' }),
     u('guljeon', '굴전', 2, ['sea', 'hearty'], 'fighter', [20, 80], 'wave', '기름이 튀어 둘레의 적 모두에게 피해를 줘요.', { body: '#e3c27a', head: '#b9b2a6', shape: 'disc', size: 0.9 }),
-    u('dakgalbi', '닭갈비', 3, ['spicy', 'hearty'], 'fighter', [0, 70], 'roar', '철판 위로 매운 김이 올라 둘레에 피해를 주고 공격력이 올라요.', { body: '#c8452c', head: '#f0c27a', shape: 'bird', size: 1.1 }),
+    u('dakgalbi', '닭갈비', 3, ['spicy', 'hearty'], 'fighter', [0, 70], 'roar', '철판 위로 매운 김이 올라 둘레에 피해를 주고 공격력이 올라요.', { body: '#c8452c', head: '#f4ead2', shape: 'pan', size: 1.05 }),
     u('doenjang', '된장찌개', 3, ['ferment', 'side'], 'tank', [40, 100], 'judge', '구수한 냄새로 둘레의 적을 멈춰 세우고 보호막을 둘러요.', { body: '#3a3330', head: '#9b6b2f', shape: 'bowl', size: 1.15 }),
     u('jangeo', '장어구이', 3, ['boyang', 'care'], 'caster', [30, 80], 'heal', '기운 나는 한 점을 나눠 체력이 가장 낮은 우리 편을 고쳐요.', { body: '#5a3a22', head: '#c9772f', shape: 'fish' }),
     u('godeungeo', '고등어구이', 3, ['sea', 'care'], 'caster', [20, 80], 'ttukttak', '"밥도둑!" 우리 편 모두의 체력을 채우고 공격 속도를 올려요.', { body: '#4f6f86', head: '#d8d4c4', shape: 'fish', size: 1.1 }),

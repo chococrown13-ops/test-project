@@ -21,12 +21,12 @@
         <b class="title">도깨비 난장</b>
         <span class="round"><span id="round">1라운드</span> <button id="arenaChip" class="arena-chip" type="button">너른 마당</button></span>
       </div>
-      <dl class="stats">
-        <div class="stat hp"><dt>체력</dt><dd><b id="hp" class="num">100</b></dd></div>
-        <div class="stat gold"><dt>엽전</dt><dd><b id="gold" class="num">0</b><small id="interest" class="muted">이자 0</small></dd></div>
-        <div class="stat lvl"><dt>레벨</dt><dd><b id="level" class="num">1</b><i class="xp"><b id="xpbar"></b></i><small id="xp" class="muted">0/2</small></dd></div>
-      </dl>
-      <button id="helpBtn" class="btn icon" aria-label="게임 방법">?</button>
+      <ol id="track" class="track" aria-label="라운드 진행"></ol>
+      <div class="top-right">
+        <div class="hp-pill" title="체력"><i class="ico heart" aria-hidden="true"></i><b id="hp" class="num">100</b></div>
+        <button id="bookBtn" class="btn small book" aria-label="도감 보기">도감</button>
+        <button id="helpBtn" class="btn icon" aria-label="게임 방법과 설정">?</button>
+      </div>
     </header>
 
     <aside id="traits" class="traits" aria-label="시너지"></aside>
@@ -35,14 +35,18 @@
     <div id="tray" class="tray" hidden aria-label="재료"></div>
 
     <footer id="shopbar" class="shopbar">
-      <div class="shop-side">
-        <button id="xpBtn" class="btn tool"><span>경험치 사기</span><small>4냥 · +4</small></button>
-        <button id="rerollBtn" class="btn tool"><span>새로고침</span><small>2냥</small></button>
+      <div class="shop-top">
+        <div class="lvl-box"><span>레벨</span><b id="level" class="num">1</b><i class="xp"><b id="xpbar"></b></i><small id="xp" class="num">0/2</small></div>
+        <div id="odds" class="odds" aria-label="장터 확률"></div>
+        <div class="gold-box"><i class="ico coin" aria-hidden="true"></i><b id="gold" class="num">0</b><small id="interest">이자 +0</small><small id="streak" class="streak"></small></div>
       </div>
-      <div id="shop" class="shop" role="list" aria-label="상점"></div>
-      <div class="shop-side right">
-        <div id="odds" class="odds"></div>
-        <div class="row">
+      <div class="shop-main">
+        <div class="shop-side">
+          <button id="xpBtn" class="btn tool"><span>경험치 사기</span><small><i class="ico coin" aria-hidden="true"></i>4 · D</small></button>
+          <button id="rerollBtn" class="btn tool"><span>새로고침</span><small><i class="ico coin" aria-hidden="true"></i>2 · F</small></button>
+        </div>
+        <div id="shop" class="shop" role="list" aria-label="상점"></div>
+        <div class="shop-side right">
           <button id="lockBtn" class="btn tool small" aria-pressed="false">잠금</button>
           <button id="fightBtn" class="btn primary fight">싸우기</button>
         </div>
@@ -59,6 +63,7 @@
     </footer>
 
     <div id="info" class="info" hidden></div>
+    <div id="traitCard" class="trait-card" hidden></div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <div id="banner" class="banner" hidden></div>
 
@@ -72,6 +77,7 @@
           <button id="newBtn" class="btn primary big">새 판 시작</button>
           <button id="contBtn" class="btn big" hidden>이어하기</button>
         </div>
+        <div class="style-pick" role="radiogroup" aria-label="말 모양"><span>말 모양</span><div class="seg" data-stylepick></div></div>
         <button id="howBtn" class="btn ghost">게임 방법</button>
       </div>
     </section>
@@ -82,6 +88,14 @@
         <h1 id="endTitle">3등</h1>
         <p class="lede" id="endText"></p>
         <div class="row"><button id="againBtn" class="btn primary big">한 판 더</button></div>
+      </div>
+    </section>
+
+    <section id="book" class="overlay" hidden>
+      <div class="panel book-panel">
+        <div class="book-head"><h2 id="bookTitle">도감</h2><button id="bookClose" class="btn small">닫기</button></div>
+        <div id="bookTraits" class="book-traits"></div>
+        <div id="bookList" class="book-list"></div>
       </div>
     </section>
 
@@ -98,6 +112,7 @@
           <li id="helpTheme" hidden></li>
           <li><b>팔기.</b> 말을 장터 쪽으로 끌어 놓거나, 말을 눌러 나오는 카드에서 팔 수 있어요.</li>
         </ol>
+        <div class="style-pick" role="radiogroup" aria-label="말 모양"><span>말 모양</span><div class="seg" data-stylepick></div></div>
         <div class="row"><button id="helpClose" class="btn primary">알겠어요</button></div>
       </div>
     </section>
