@@ -5,11 +5,11 @@ import { ARENAS, SEASON_NAME } from './sim/arena';
 import { type Combat, setup } from './sim/combat';
 import {
   autoFill, boardCap, boardTraits, buy, buyXp, clearSave, equip, findPiece, interest, isCreepRound, ITEM_SLOTS, load, type Match, move, newGame,
-  owned, type Game, type Player, playRound, reroll, roundName, save, sell,
+  nextRound, owned, type Game, type Player, playRound, reroll, roundName, save, sell, settleRound,
 } from './sim/game';
 import { BY_ID, itemDef, ODDS, UNITS, sellValue, theme, type Theme, TIER_COST, TRAITS, type Trait, XP_NEXT } from './sim/units';
 import { THEMES, themeById, useTheme } from './themes';
-import { Table, type DropTarget } from './render/scene';
+import { BENCH_KEY, Table, type DropTarget } from './render/scene';
 import { type PieceStyle, pieceStyle, setPieceStyle, STYLE_NAME, TIER_COLOR } from './render/pieces';
 import { portrait } from './render/thumbs';
 import type { Fighter } from './sim/combat';
@@ -147,8 +147,9 @@ function renderTray() {
 function renderAll() {
   if (!g) return;
   table.setArena(g.arena);
-  renderTop(); renderShop(); renderTraits(me()); renderPlayers(); renderCap(); renderTray();
-  if (mode === 'prep') table.showPrep(me(), drag?.uid ?? -1);
+  renderTop(); renderShop(); renderTraits(me()); renderPlayers(undefined, mode === 'fight' ? fightOpp : -1); renderCap(); renderTray();
+  if (mode === 'fight') table.showBench(me(), drag?.key ?? -1);
+  if (mode === 'prep') table.showPrep(me(), drag?.key ?? -1);
   if (hiTrait) lightTrait(hiTrait, document.querySelector<HTMLElement>(`#traits [data-trait="${hiTrait}"]`) ?? undefined);
 }
 
@@ -167,7 +168,7 @@ function showInfo(id: string, star: number, at: { x: number; y: number } | null,
     <dl class="i-stats">${stat('체력', `${Math.round(d.hp * m)}`)}${stat('공격력', `${Math.round(d.ad * m)}`)}${stat('공격 속도', d.as.toFixed(2))}${stat('사거리', d.range > 1 ? `${d.range}칸` : '근접')}${stat('방어', `${d.armor}`)}${stat('마나', `${d.manaStart}/${d.mana}`)}</dl>
     ${creep ? '' : `<p class="i-skill"><b>기술</b> ${d.skillText}</p>`}
     ${(() => { const its = live ? live.items : uid !== undefined && g ? findPiece(me(), uid)?.items ?? [] : []; return its.length ? `<div class="i-items">${its.map((i) => { const it = itemDef(i); return `<span><i style="--c:${it.color}"></i><b>${it.name}</b> ${it.text}</span>`; }).join('')}</div>` : ''; })()}
-    ${uid !== undefined && mode === 'prep' ? `<button class="btn small sell" data-sell="${uid}">팔기 +${sellValue(id, star)}냥</button>` : ''}`;
+    ${uid !== undefined && (mode === 'prep' || (mode === 'fight' && !!me().bench.find((u) => u?.uid === uid))) ? `<button class="btn small sell" data-sell="${uid}">팔기 +${sellValue(id, star)}냥</button>` : ''}`;
   el.hidden = false;
   if (at) {
     const w = el.offsetWidth, h = el.offsetHeight;
@@ -191,7 +192,7 @@ $('info').addEventListener('click', (e) => {
 
 $('shop').addEventListener('click', (e) => {
   const b = (e.target as HTMLElement).closest('[data-shop]') as HTMLElement | null;
-  if (!b || !g || mode !== 'prep') return;
+  if (!b || !g || mode === 'menu') return;
   const slot = +b.dataset.shop!, id = me().shop[slot]!;
   const before = owned(me()).map((o) => `${o.piece.uid}:${o.piece.star}`).join();
   const err = buy(g, me(), slot);
@@ -274,7 +275,8 @@ $('traitCard').addEventListener('click', () => { pinned = false; lightTrait(null
 
 /* --------------------------------------------------------- dragging */
 
-let drag: { uid: number; x0: number; y0: number; moved: boolean; id: string; star: number } | null = null;
+/** A piece being dragged: its game uid, and its key on the table (bench pieces in a fight are keyed apart). */
+let drag: { uid: number; key: number; x0: number; y0: number; moved: boolean; id: string; star: number } | null = null;
 const canvas = $('view');
 
 canvas.addEventListener('pointerdown', (e) => {
@@ -282,6 +284,12 @@ canvas.addEventListener('pointerdown', (e) => {
   if (mode === 'fight' && fightCombat) {
     // During a fight: tap a piece (either side) to see what it is and how it's doing.
     const key = table.pick(e.clientX, e.clientY, true);
+    if (key !== null && key >= BENCH_KEY && g) {
+      // A bench piece: it can still be moved along the bench or sold while the fight runs.
+      const piece = me().bench.find((u) => u?.uid === key - BENCH_KEY);
+      if (piece) { hideInfo(); drag = { uid: piece.uid, key, x0: e.clientX, y0: e.clientY, moved: false, id: piece.id, star: piece.star }; canvas.setPointerCapture(e.pointerId); }
+      return;
+    }
     const f = key !== null ? fightCombat.f[key] : null;
     if (f) showInfo(f.def.id, f.star, table.screenOf(key!), undefined, false, f); else hideInfo();
     return;
@@ -308,7 +316,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (uid === null) return;
   const piece = owned(me()).find((o) => o.piece.uid === uid)?.piece;
   if (!piece) return;
-  drag = { uid, x0: e.clientX, y0: e.clientY, moved: false, id: piece.id, star: piece.star };
+  drag = { uid, key: uid, x0: e.clientX, y0: e.clientY, moved: false, id: piece.id, star: piece.star };
   canvas.setPointerCapture(e.pointerId);
 });
 
@@ -319,13 +327,14 @@ canvas.addEventListener('pointermove', (e) => {
   if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) return;
   drag.moved = true;
   document.body.classList.add('dragging');
-  table.showGrid(true);
+  if (mode === 'prep') table.showGrid(true);
   const sellNow = overShop(e.clientX, e.clientY);
   $('shopbar').classList.toggle('selling', sellNow);
   $('sellPrice').textContent = `+${sellValue(drag.id, drag.star)}냥`;
   const p = table.ground(e.clientX, e.clientY);
-  if (p) table.dragTo(drag.uid, p.x, p.z);
-  table.highlight(sellNow ? null : table.targetAt(p));
+  if (p) table.dragTo(drag.key, p.x, p.z);
+  const tgt = sellNow ? null : table.targetAt(p);
+  table.highlight(mode === 'fight' && tgt && !('bench' in tgt) ? null : tgt);
 });
 
 function endDrag(e: PointerEvent) {
@@ -337,7 +346,7 @@ function endDrag(e: PointerEvent) {
   $('shopbar').classList.remove('selling');
   table.highlight(null);
   if (!d.moved) {
-    showInfo(d.id, d.star, table.screenOf(d.uid), d.uid);
+    showInfo(d.id, d.star, table.screenOf(d.key), d.uid);
     return;
   }
   if (overShop(e.clientX, e.clientY)) {
@@ -345,7 +354,8 @@ function endDrag(e: PointerEvent) {
     toast(`${josa(BY_ID[d.id].name, '을', '를')} 팔았어요. +${sellValue(d.id, d.star)}냥`, 'good');
   } else {
     const t: DropTarget = table.targetAt(table.ground(e.clientX, e.clientY));
-    if (t) { const err = move(g, me(), d.uid, t); if (err) toast(err, 'warn'); }
+    if (t && mode === 'fight' && !('bench' in t)) toast('싸우는 동안에는 판에 올릴 수 없어요. 대기석끼리 옮기거나 팔 수는 있어요.', 'warn');
+    else if (t) { const err = move(g, me(), d.uid, t); if (err) toast(err, 'warn'); }
   }
   renderAll();
 }
@@ -357,6 +367,7 @@ canvas.addEventListener('pointercancel', endDrag);
 let pending: { matches: Match[]; mine: Match | null; hpBefore: Map<number, number> } | null = null;
 let fightCombat: Combat | null = null;
 let flipView = false;
+let fightOpp = -1;
 
 $('fightBtn').addEventListener('click', () => {
   if (!g || mode !== 'prep') return;
@@ -366,7 +377,8 @@ $('fightBtn').addEventListener('click', () => {
   if (!p.board.length) { toast('판에 말이 하나도 없어요. 대기석의 말을 끌어 올리세요.', 'warn'); return; }
   const hpBefore = new Map(g.players.map((q) => [q.idx, q.hp]));
   prevArena = g.arena; prevSeason = g.season;
-  const matches = playRound(g);
+  // Fights are worked out now but scored when the one on screen ends; the shop stays open meanwhile.
+  const matches = playRound(g, false);
   const mine = matches.find((m) => m.a === 0 || m.b === 0) ?? null;
   pending = { matches, mine, hpBefore };
   if (!mine) { afterFight(); return; }
@@ -374,35 +386,40 @@ $('fightBtn').addEventListener('click', () => {
   hideInfo();
   pinned = false; lightTrait(null);
   document.body.classList.add('fighting');
-  $('shopbar').hidden = true; $('fightbar').hidden = false;
+  $('fightbar').hidden = false;
+  ($('fightBtn') as HTMLButtonElement).disabled = true; $('fightBtn').textContent = '싸우는 중';
   const flip = mine.b === 0;
   flipView = flip;
   const oppIdx = mine.creeps ? -1 : flip ? mine.a : mine.b;
   $('versus').innerHTML = mine.creeps ? `<b>${theme().creepName}</b><span>${theme().creepText} · ${ARENAS[mine.ctx.arena!].name}</span>` : `<b>${g.players[oppIdx].name}</b><span>${mine.ghost ? '(그림자 상대: 이 판의 승패는 나만 받아요)' : `체력 ${hpBefore.get(oppIdx)}`} · ${ARENAS[mine.ctx.arena!].name}</span>`;
-  renderPlayers((q) => hpBefore.get(q.idx)!, oppIdx);
+  fightOpp = oppIdx;
+  renderPlayers(undefined, oppIdx);
   // The traits on show are the player's own for this fight.
   fightCombat = setup(mine.aTeam, mine.bTeam, mine.seed, mine.ctx);
   table.onFightEnd = () => afterFight();
   table.startFight(fightCombat, flip);
+  table.showBench(me());
 });
 
 $('speedBtn').addEventListener('click', () => {
-  table.speed = table.speed > 2 ? 1.5 : 3;
-  $('speedBtn').textContent = table.speed > 2 ? '보통 빠르기' : '빠르게';
+  table.speed = table.speed > 1.5 ? 1 : 2;
+  $('speedBtn').textContent = table.speed > 1.5 ? '보통 빠르기' : '빠르게';
 });
 $('skipBtn').addEventListener('click', () => table.finishNow());
 
 function afterFight() {
   if (!g || !pending) return;
-  const { mine, hpBefore } = pending;
+  const { mine, hpBefore, matches } = pending;
   pending = null;
+  drag = null; document.body.classList.remove('dragging'); $('shopbar').classList.remove('selling');
+  settleRound(g, matches);
   table.onFightEnd = null;
   hideInfo();
   const p = me();
   if (mine) {
     const meSide = mine.a === 0 ? 0 : 1;
     const won = mine.outcome.winner === meSide, draw = mine.outcome.winner === -1;
-    history[g.round - (g.over ? 0 : 1)] = won ? 'w' : draw ? 'd' : 'l';
+    history[g.round] = won ? 'w' : draw ? 'd' : 'l';
     const lost = (hpBefore.get(0) ?? 0) - p.hp;
     // Who did the work on our side.
     const ours = (fightCombat?.f ?? []).filter((f) => f.side === meSide).sort((a, b) => b.dealt - a.dealt).slice(0, 3);
@@ -415,7 +432,10 @@ function afterFight() {
     $('banner').hidden = true;
     document.body.classList.remove('fighting');
     $('fightbar').hidden = true; $('shopbar').hidden = false;
+    ($('fightBtn') as HTMLButtonElement).disabled = false; $('fightBtn').textContent = '싸우기';
+    fightOpp = -1;
     if (!p.alive || g!.over) { finish(); return; }
+    nextRound(g!);
     mode = 'prep';
     table.clearPieces();
     save(g!);
@@ -572,7 +592,8 @@ renderStart();
 
 // Keyboard: D buys XP, F rerolls, Space fights.
 window.addEventListener('keydown', (e) => {
-  if (mode !== 'prep' || e.target instanceof HTMLInputElement) return;
+  if (mode === 'menu' || e.target instanceof HTMLInputElement) return;
+  if (mode === 'fight' && e.key === ' ') return;
   if (e.key === 'd' || e.key === 'D') $('xpBtn').click();
   else if (e.key === 'f' || e.key === 'F') $('rerollBtn').click();
   else if (e.key === ' ') { e.preventDefault(); $('fightBtn').click(); }
@@ -583,12 +604,16 @@ window.addEventListener('keydown', (e) => {
 function fitTable() {
   let top = document.querySelector('.top')!.getBoundingClientRect().bottom + 4;
   // On a phone the synergy row sits under the top bar (however tall it wrapped), the player list under that.
-  if (window.innerWidth <= 600) {
+  const phone = window.innerWidth <= 600;
+  if (phone) {
     $('traits').style.top = `${top}px`;
     top = Math.max(top, $('traits').getBoundingClientRect().bottom + 2);
-    $('players').style.top = `${top + 2}px`;
-  } else { $('traits').style.top = `${top + 4}px`; $('players').style.top = `${top + 4}px`; }
-  const bar = !$('shopbar').hidden ? $('shopbar') : !$('fightbar').hidden ? $('fightbar') : null;
+  } else $('traits').style.top = `${top + 4}px`;
+  // In a fight the opponent bar sits under the top bar (the shop stays at the bottom); on a phone the player list goes below it.
+  const sideTop = top;
+  if (!$('fightbar').hidden) { $('fightbar').style.top = `${top}px`; top += $('fightbar').offsetHeight + 6; }
+  $('players').style.top = `${phone ? top + 2 : sideTop + 4}px`;
+  const bar = !$('shopbar').hidden ? $('shopbar') : null;
   const bottom = bar ? window.innerHeight - bar.getBoundingClientRect().top + 30 : 10;
   table.setInsets(top, bottom);
   $('cap').style.bottom = `${bottom - 24}px`;

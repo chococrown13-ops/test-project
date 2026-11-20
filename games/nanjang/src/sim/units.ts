@@ -82,7 +82,7 @@ const ROLE: Record<Role, { hp: number; ad: number; as: number; range: number; ar
   tank: { hp: 700, ad: 50, as: 0.6, range: 1, armor: 40, mr: 35 },
   fighter: { hp: 620, ad: 60, as: 0.7, range: 1, armor: 30, mr: 25 },
   striker: { hp: 520, ad: 66, as: 0.8, range: 1, armor: 20, mr: 20 },
-  ranged: { hp: 480, ad: 58, as: 0.75, range: 4, armor: 15, mr: 15 },
+  ranged: { hp: 490, ad: 58, as: 0.75, range: 4, armor: 15, mr: 15 },
   caster: { hp: 480, ad: 42, as: 0.65, range: 3, armor: 15, mr: 25 },
 };
 
