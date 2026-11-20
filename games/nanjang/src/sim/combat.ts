@@ -23,7 +23,7 @@ export interface Fighter {
   x: number; y: number;
   hp: number; maxHp: number; ad: number; as: number; range: number; armor: number; mr: number;
   mana: number; maxMana: number;
-  shield: number; shieldT: number; stunT: number; atkT: number; moveT: number;
+  shield: number; shieldT: number; stunT: number; silenceT: number; atkT: number; moveT: number;
   target: number; tauntBy: number; tauntT: number; asBuff: number; asBuffT: number;
   alive: boolean;
   dodge: number; double: number; lifesteal: number; crit: number; leap: boolean; skillMul: number; manaRegen: number; regen: number; ramp: number;
@@ -40,6 +40,7 @@ export type Ev =
   | { k: 'heal'; a: number; b: number; v: number }
   | { k: 'shield'; a: number; b: number; v: number }
   | { k: 'stun'; b: number; t: number }
+  | { k: 'silence'; b: number; t: number }
   | { k: 'die'; a: number };
 
 export interface Combat { t: number; f: Fighter[]; grid: Int16Array; rng: Rng; over: boolean; winner: 0 | 1 | -1; arena: string; season: number }
@@ -73,7 +74,7 @@ export function setup(a: Placed[], b: Placed[], seed: number, ctx: Ctx = {}): Co
         key: c.f.length, side, def, star: p.star, items: p.items ?? [], x, y,
         hp: def.hp * m, maxHp: def.hp * m, ad: def.ad * m, as: def.as, range: def.range, armor: def.armor + teamArmor, mr: def.mr + teamArmor * 0.5,
         mana: def.manaStart, maxMana: def.mana,
-        shield: 0, shieldT: 0, stunT: 0, atkT: 0.2, moveT: 0, target: -1, tauntBy: -1, tauntT: 0, asBuff: 0, asBuffT: 0,
+        shield: 0, shieldT: 0, stunT: 0, silenceT: 0, atkT: 0.2, moveT: 0, target: -1, tauntBy: -1, tauntT: 0, asBuff: 0, asBuffT: 0,
         alive: true, dodge: 0, double: 0, lifesteal: 0, crit: 0, leap: false, skillMul: SKILL_MUL[p.star], manaRegen: 0, regen: 0, ramp: 0, dealt: 0,
       };
       let adK = 1, asK = 1, hpK = 1;
@@ -173,6 +174,13 @@ function shield(ev: Ev[], src: Fighter, dst: Fighter, v: number, t: number) {
   ev.push({ k: 'shield', a: src.key, b: dst.key, v: Math.round(v) });
 }
 
+/** Silenced: it still fights, but can't cast its skill until it wears off. */
+function silence(ev: Ev[], dst: Fighter, t: number) {
+  if (!dst.alive) return;
+  dst.silenceT = Math.max(dst.silenceT, t);
+  ev.push({ k: 'silence', b: dst.key, t });
+}
+
 function stun(ev: Ev[], dst: Fighter, t: number) {
   if (!dst.alive) return;
   dst.stunT = Math.max(dst.stunT, t);
@@ -224,6 +232,7 @@ function cast(c: Combat, ev: Ev[], f: Fighter, t: Fighter) {
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) cells.push([t.x + dx, t.y + dy]);
       ev.push({ k: 'cast', a: f.key, skill: 'boulder', b: t.key, cells });
       deal(c, ev, f, t, 120 * s, true);
+      silence(ev, t, 2 + 0.5 * f.star);
       for (const o of around(c, t.x, t.y, 1, f.side)) deal(c, ev, f, o, 120 * s, true);
       break;
     }
@@ -238,7 +247,7 @@ function cast(c: Combat, ev: Ev[], f: Fighter, t: Fighter) {
       const cells: [number, number][] = [];
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) cells.push([f.x + dx, f.y + dy]);
       ev.push({ k: 'cast', a: f.key, skill: 'wave', cells });
-      for (const o of around(c, f.x, f.y, 1, f.side)) deal(c, ev, f, o, 150 * s, true);
+      for (const o of around(c, f.x, f.y, 1, f.side)) { deal(c, ev, f, o, 150 * s, true); silence(ev, o, 1.5); }
       break;
     }
     case 'heal': { const v = lowestFriend(); ev.push({ k: 'cast', a: f.key, skill: 'heal', b: v.key }); heal(c, ev, f, v, 420 * s); break; }
@@ -352,6 +361,7 @@ export function step(c: Combat): Ev[] {
     if (f.manaRegen) f.mana = Math.min(f.maxMana, f.mana + f.manaRegen * DT);
     if (f.regen) f.hp = Math.min(f.maxHp, f.hp + f.maxHp * f.regen * DT);
     if (f.ramp) f.ad *= 1 + f.ramp * DT / 2;
+    if (f.silenceT > 0) f.silenceT -= DT;
     if (f.stunT > 0) { f.stunT -= DT; continue; }
     // Who to fight: the one taunting, else keep the current target while it lives and is near, else the nearest.
     let t = f.tauntBy >= 0 && c.f[f.tauntBy].alive ? c.f[f.tauntBy] : f.target >= 0 && c.f[f.target].alive ? c.f[f.target] : null;
@@ -359,7 +369,7 @@ export function step(c: Combat): Ev[] {
     if (!near) break;
     if (!t || (cheb(f, t) > f.range && cheb(f, near) < cheb(f, t))) t = near;
     f.target = t.key;
-    if (f.mana >= f.maxMana && f.def.skill !== 'none') { cast(c, ev, f, t); continue; }
+    if (f.mana >= f.maxMana && f.def.skill !== 'none' && f.silenceT <= 0) { cast(c, ev, f, t); continue; }
     if (cheb(f, t) <= f.range) {
       f.atkT -= DT;
       if (f.atkT > 0) continue;
@@ -392,7 +402,7 @@ export function step(c: Combat): Ev[] {
       if (best) {
         place(c, f, best.x, best.y); ev.push({ k: 'move', a: f.key, x: best.x, y: best.y });
         const g = terrain(c.arena, best.x, best.y);
-        f.moveT = g === MUD ? 0.85 : g === ICE ? 0.22 : 0.45;
+        f.moveT = g === MUD ? 1.15 : g === ICE ? 0.38 : 0.7;
       }
       else f.moveT = 0.2;
     }

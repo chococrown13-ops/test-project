@@ -499,3 +499,25 @@ body.fighting .tray { display: none; }
   .trait-card { max-height: calc(100% - 140px); overflow: auto; }
   .info { max-height: calc(100% - 20px); overflow: auto; }
 }
+
+/* Fights with the shop open: the opponent bar floats under the top bar. */
+.fightbar { top: 80px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); width: min(560px, calc(100% - 20px)); padding: 6px 8px 6px 14px; border-radius: 14px; z-index: 6; }
+.versus b { font-size: var(--text-md); } .versus span { font-size: 12px; }
+.btn.fight:disabled { opacity: 0.6; }
+
+/* Status badges over a fighter, and effect words that rise from it. */
+.plabel .status { display: flex; gap: 2px; min-height: 0; }
+.plabel .status b { font-size: 10px; font-weight: 800; line-height: 1; padding: 2px 4px; border-radius: 5px; color: #fff; white-space: nowrap; box-shadow: 0 1px 2px oklch(15% 0.03 30 / 0.5); }
+.plabel .status b.stun { background: #e0a800; color: #2a1d17; }
+.plabel .status b.silence { background: #8a4fd8; }
+.plabel .status b.shield { background: #3d8bd9; }
+.plabel .status b.taunt { background: #d9692b; }
+.plabel .status b.fast { background: #2f9e5b; }
+.pop { font-size: 13px; }
+.pop.heal { color: #8ff0a0; font-size: 14px; }
+.pop.stun { color: #ffd84a; font-size: 16px; }
+.pop.silence { color: #d2b0ff; font-size: 15px; }
+.pop.shield { color: #a8d8ff; }
+.pop.crit { color: #ffb84a; font-size: 14px; }
+.pop.miss { color: #e8e8e8; font-size: 11px; }
+@media (max-width: 600px) { .fightbar { width: calc(100% - 12px); } .plabel .status b { font-size: 9px; padding: 1px 3px; } }

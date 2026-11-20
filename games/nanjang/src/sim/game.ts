@@ -338,8 +338,12 @@ export const worth = (u: Piece) => BY_ID[u.id].tier * 3 ** (u.star - 1) + (u.ite
 
 const team = (p: Player): Placed[] => p.board.map((u) => ({ id: u.id, star: u.star, c: u.c, r: u.r, items: u.items }));
 
-/** Everyone fights; returns the matches (yours first) and moves the game on a round. */
-export function playRound(g: Game): Match[] {
+/**
+ * Everyone fights; returns the matches (yours first). With `advance` the game moves straight on to
+ * the next round; without, it waits for nextRound (the screen plays the fight first, and the player
+ * may keep shopping with this round's gold and shop meanwhile).
+ */
+export function playRound(g: Game, advance = true): Match[] {
   for (const p of g.players) if (p.alive) autoFill(g, p);
   const alive = g.players.filter((p) => p.alive);
   const matches: Match[] = [];
@@ -360,12 +364,21 @@ export function playRound(g: Game): Match[] {
       matches.push({ a, b, ghost, seed: s, aTeam: aT, bTeam: bT, outcome: fight(aT, bT, s, ctx), damage: 0, loser: [], ctx });
     }
   }
-  // Scoring.
-  const stage = 1 + Math.floor(g.round / 4);
+  matches.sort((x, y) => (x.a === 0 || x.b === 0 ? -1 : 0) - (y.a === 0 || y.b === 0 ? -1 : 0));
+  g.last = matches;
+  if (advance) { settleRound(g, matches); nextRound(g); }
+  return matches;
+}
+
+/** The fights are over: health lost, win gold and streaks, creep rewards, who is knocked out. */
+export function settleRound(g: Game, matches: Match[]) {
+  const alive = g.players.filter((p) => p.alive);
+  // Losing costs a little for the stage of the game plus a point per surviving enemy piece (more for stars), at most 20.
+  const stage = 1 + Math.floor(g.round / 7);
   for (const m of matches) {
     const pa = g.players[m.a], pb = m.b >= 0 ? g.players[m.b] : null;
-    const surv = m.outcome.survivors.reduce((s, f) => s + f.def.tier + f.star - 1, 0);
-    const dmg = Math.min(30, (m.creeps ? 1 : stage) + surv);
+    const surv = m.outcome.survivors.reduce((s, f) => s + f.star + (f.def.tier >= 4 ? 1 : 0), 0);
+    const dmg = Math.min(20, (m.creeps ? 1 : stage) + surv);
     m.damage = dmg;
     const w = m.outcome.winner;
     if (m.creeps) {
@@ -385,9 +398,13 @@ export function playRound(g: Game): Match[] {
   for (const p of out) { p.alive = false; p.place = left--; returnAll(g, p); }
   const still = g.players.filter((p) => p.alive);
   if (still.length <= 1) { g.over = true; if (still[0]) still[0].place = 1; }
-  g.last = matches.sort((x, y) => (x.a === 0 || x.b === 0 ? -1 : 0) - (y.a === 0 || y.b === 0 ? -1 : 0));
-  if (!g.over) { g.round++; beginRound(g); }
-  return g.last;
+}
+
+/** After the fights: the next round's pay, shops and bots. */
+export function nextRound(g: Game) {
+  if (g.over) return;
+  g.round++;
+  beginRound(g);
 }
 
 /** What a beaten creep round gives: a piece (if the bench has room), or with ingredients, ingredients. */

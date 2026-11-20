@@ -13,12 +13,14 @@ import { buildPiece, type PieceObj } from './pieces';
  */
 
 const BENCH_Z = ROWS / 2 + 1.05;
+/** Bench pieces shown during a fight are keyed from here (fighters use 0, 1, 2...). */
+export const BENCH_KEY = 1_000_000;
 const benchX = (i: number) => (i - (BENCH - 1) / 2) * 0.98;
 const wx = (x: number) => x - (COLS - 1) / 2;
 const wz = (y: number) => y - (ROWS - 1) / 2;
 
 interface Shown {
-  obj: PieceObj; label: HTMLDivElement; hp: HTMLElement; mp: HTMLElement; sh: HTMLElement;
+  obj: PieceObj; label: HTMLDivElement; hp: HTMLElement; mp: HTMLElement; sh: HTMLElement; st: HTMLElement; stKey: string;
   x: number; z: number; tx: number; tz: number;
   lunge: number; lx: number; lz: number; dead: number; side: number; face: number;
 }
@@ -50,7 +52,7 @@ export class Table {
   arena = 'yard';
   private flip = false;
   private acc = 0;
-  speed = 1.5;
+  speed = 1;
   onFightEvent: ((e: Ev, c: Combat) => void) | null = null;
   onFightEnd: (() => void) | null = null;
 
@@ -245,10 +247,10 @@ export class Table {
     const label = document.createElement('div');
     label.className = `plabel${enemy ? ' enemy' : ''}`;
     const dots = items.map((it) => { const d = itemDef(it); return `<i class="it${d.base ? '' : ' sauce'}" style="--c:${d.color}" title="${d.name}"></i>`; }).join('');
-    label.innerHTML = `<span class="stars s${star}">${'★'.repeat(star)}</span><i class="bar hp"><b></b><u></u></i><i class="bar mp"><b></b></i>${dots ? `<span class="items">${dots}</span>` : ''}`;
+    label.innerHTML = `<span class="status"></span><span class="stars s${star}">${'★'.repeat(star)}</span><i class="bar hp"><b></b><u></u></i><i class="bar mp"><b></b></i>${dots ? `<span class="items">${dots}</span>` : ''}`;
     this.labels.appendChild(label);
     const [hp, sh] = [label.querySelector('.hp b') as HTMLElement, label.querySelector('.hp u') as HTMLElement];
-    return { obj, label, hp, sh, mp: label.querySelector('.mp b') as HTMLElement, x: 0, z: 0, tx: 0, tz: 0, lunge: 0, lx: 0, lz: 0, dead: 0, side: enemy ? 1 : 0, face: enemy ? 0 : Math.PI };
+    return { obj, label, hp, sh, mp: label.querySelector('.mp b') as HTMLElement, st: label.querySelector('.status') as HTMLElement, stKey: '', x: 0, z: 0, tx: 0, tz: 0, lunge: 0, lx: 0, lz: 0, dead: 0, side: enemy ? 1 : 0, face: enemy ? 0 : Math.PI };
   }
 
   private drop(key: number) {
@@ -288,6 +290,28 @@ export class Table {
   clearPieces() { for (const k of [...this.shown.keys()]) this.drop(k); }
 
   /** Between fights: the player's board and bench, keyed by piece uid. */
+  /** During a fight: the bench pieces (keyed apart from the fighters), which may still be sold or swapped. */
+  showBench(p: Player, dragging = -1) {
+    const want = new Map<number, { piece: Piece; x: number }>();
+    p.bench.forEach((u, i) => { if (u) want.set(BENCH_KEY + u.uid, { piece: u, x: benchX(i) }); });
+    for (const [k, s] of this.shown) {
+      if (k < BENCH_KEY) continue;
+      const w = want.get(k);
+      if (!w || s.obj.root.userData.star !== w.piece.star) this.drop(k);
+    }
+    for (const [k, w] of want) {
+      let s = this.shown.get(k);
+      if (!s) {
+        s = this.make(k, w.piece.id, w.piece.star, false, w.piece.items);
+        s.obj.root.userData.star = w.piece.star;
+        s.x = w.x; s.z = BENCH_Z;
+        s.label.classList.add('prep');
+        this.shown.set(k, s);
+      }
+      if (k !== dragging) { s.tx = w.x; s.tz = BENCH_Z; }
+    }
+  }
+
   showPrep(p: Player, dragging = -1) {
     this.combat = null;
     this.enemyHalf.visible = this.grid.visible;
@@ -415,9 +439,13 @@ export class Table {
         else { a.lunge = 1; a.lx = b.x - a.x; a.lz = b.z - a.z; }
         break;
       }
-      case 'hit': this.number(e.b, `${e.v}`, e.crit ? 'crit' : e.magic ? 'magic' : ''); break;
-      case 'miss': this.number(e.b, '빗나감', 'miss'); break;
-      case 'heal': this.number(e.b, `+${e.v}`, 'heal'); break;
+      // No damage numbers: the bars say enough. Effects get a word and a ring.
+      case 'hit': if (e.crit) this.number(e.b, '치명타!', 'crit'); break;
+      case 'miss': this.number(e.b, '회피', 'miss'); break;
+      case 'heal': { const b = S(e.b); if (!b) break; this.number(e.b, `회복 +${e.v}`, 'heal'); this.ring(b.x, b.z, '#5fd17a', 0.5); this.sparkle(b.x, b.z, '#7ddc8a'); break; }
+      case 'shield': { const b = S(e.b); if (!b) break; this.number(e.b, '보호막', 'shield'); this.ring(b.x, b.z, '#8ec5ff', 0.5); break; }
+      case 'stun': { const b = S(e.b); if (!b) break; this.number(e.b, '기절!', 'stun'); this.ring(b.x, b.z, '#ffd84a', 0.4); break; }
+      case 'silence': { const b = S(e.b); if (!b) break; this.number(e.b, '침묵!', 'silence'); this.ring(b.x, b.z, '#b07cff', 0.4); break; }
       case 'cast': this.castFx(e); break;
       case 'die': S(e.a).dead = 0.001; break;
     }
@@ -465,6 +493,17 @@ export class Table {
     m.position.set(x, 0.4, z);
     this.scene.add(m);
     this.fx.push({ obj: m, t: 0, life: 0.35, update: (k) => { m.scale.setScalar(1 + k * 1.5); (m.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - k); } });
+  }
+
+  /** Little rising motes over a piece (healing). */
+  private sparkle(x: number, z: number, color: string) {
+    for (let k = 0; k < 5; k++) {
+      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.05, 0), new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false }));
+      const a = (k / 5) * Math.PI * 2, r = 0.22;
+      m.position.set(x + Math.cos(a) * r, 0.2, z + Math.sin(a) * r);
+      this.scene.add(m);
+      this.fx.push({ obj: m, t: -k * 0.06, life: 0.7, update: (q) => { m.position.y = 0.2 + Math.max(0, q) * 0.9; (m.material as THREE.MeshBasicMaterial).opacity = 1 - Math.max(0, q); } });
+    }
   }
 
   private number(key: number, text: string, cls: string) {
@@ -527,12 +566,20 @@ export class Table {
         s.obj.shield.visible = f.alive && f.shield > 1;
         s.obj.stun.visible = f.alive && f.stunT > 0;
         s.obj.stun.rotation.y = t * 4;
+        s.obj.stun.scale.setScalar(1.4);
+        // Status badges over the bars: only rewritten when they change.
+        const st = !f.alive ? '' : [f.stunT > 0 ? 'stun' : '', f.silenceT > 0 ? 'silence' : '', f.shield > 1 ? 'shield' : '', f.tauntBy >= 0 ? 'taunt' : '', f.asBuffT > 0 ? 'fast' : ''].filter(Boolean).join(' ');
+        if (st !== s.stKey) {
+          s.stKey = st;
+          const NAME: Record<string, string> = { stun: '기절', silence: '침묵', shield: '보호막', taunt: '도발됨', fast: '빨라짐' };
+          s.st.innerHTML = st ? st.split(' ').map((k) => `<b class="${k}">${NAME[k]}</b>`).join('') : '';
+        }
         s.hp.style.width = `${(Math.max(0, f.hp) / f.maxHp) * 100}%`;
         s.sh.style.width = `${Math.min(100, (f.shield / f.maxHp) * 100)}%`;
         s.mp.style.width = `${f.maxMana > 500 ? 0 : (f.mana / f.maxMana) * 100}%`;
       } else { s.hp.style.width = '100%'; s.sh.style.width = '0%'; s.mp.style.width = '0%'; s.obj.shield.visible = false; s.obj.stun.visible = false; }
       if (s.label.style.display !== 'none') {
-        v.set(root.position.x, 1.25 * root.children[2].scale.y, root.position.z).project(this.camera);
+        v.set(root.position.x, 1.18 * s.obj.figure.scale.y + 0.1, root.position.z).project(this.camera);
         s.label.style.transform = `translate(${((v.x + 1) / 2) * r.width}px, ${((1 - v.y) / 2) * r.height}px) translate(-50%, -100%)`;
       }
     }
