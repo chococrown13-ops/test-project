@@ -572,3 +572,22 @@ body.dragging .zoom { opacity: 0.3; pointer-events: none; }
   .btn.music { width: 30px; height: 30px; min-height: 30px; }
 }
 @media (max-width: 900px) and (min-height: 521px) { .track { display: flex; gap: 4px; } .pip { width: 22px; height: 22px; } .top { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); } }
+
+/* The sell button sits in the card's header, so it's always on screen. */
+.info .i-head .sell { margin-left: auto; flex: none; }
+/* Overlays scroll when the screen is short (a phone on its side). */
+.overlay { overflow-y: auto; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .overlay { place-items: start center; padding: 10px; }
+  .panel.hero { gap: 6px; padding: 14px 18px; }
+  .hero h1 { font-size: 2.2rem; }
+  .hero .lede { font-size: 13px; line-height: 1.45; margin: 0; }
+  .start-theme { margin: 0; }
+  #startKicker { display: none; }
+  .theme-card { padding: 6px 4px; } .theme-card b { font-size: 14px; } .theme-card span { font-size: 10px; }
+  .info { width: min(560px, calc(100vw - 16px)); padding: 8px 10px; gap: 5px; font-size: 12px; }
+  .info .i-stats { grid-template-columns: repeat(5, 1fr); gap: 3px; }
+  .info .i-stats dt { font-size: 10px; } .info .i-stats dd { font-size: 13px; }
+  .info .i-traits small { font-size: 11px; }
+  .info .i-head .pic { width: 40px; height: 40px; }
+}
