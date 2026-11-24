@@ -217,7 +217,7 @@ body { background: var(--color-paper); -webkit-user-select: none; user-select: n
 .menu .vol b { min-width: 2ch; text-align: center; }
 
 /* Saved cities */
-#slots { z-index: 60; }
+#slots { z-index: calc(var(--z-modal) + 10); }
 .slots-card { max-width: 460px; }
 .slot-list { display: grid; gap: 8px; margin: 12px 0; max-height: 60vh; overflow: auto; }
 .slot { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 12px; background: var(--color-card); box-shadow: inset 0 0 0 1px var(--color-rule); }
