@@ -238,3 +238,9 @@ body { background: var(--color-paper); -webkit-user-select: none; user-select: n
 .notices .btn { grid-column: 2; justify-self: start; }
 .tax { grid-template-columns: 40px 32px minmax(0, 1fr) 32px 40px; }
 .tax .step { min-width: 32px; padding: 0; }
+
+/* 도전과제 */
+.achieve { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.achieve li { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: baseline; padding: 4px 8px; border-radius: 8px; font-size: var(--text-sm); color: var(--color-muted); }
+.achieve li.got { background: color-mix(in oklab, var(--color-mint-deep) 12%, var(--color-card)); color: var(--color-ink); }
+.achieve li b { white-space: nowrap; }

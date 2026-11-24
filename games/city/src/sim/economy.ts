@@ -47,6 +47,7 @@ export function takeLoan(w: World, amount: number): string | null {
   if (w.loans.length >= MAX_LOANS) return `대출은 ${MAX_LOANS}건까지예요. 하나를 다 갚으면 또 빌릴 수 있어요.`;
   const pay = Math.ceil((amount * LOAN_RATE) / (1 - (1 + LOAN_RATE) ** -LOAN_MONTHS));
   w.loans.push({ amount, pay, left: pay * LOAN_MONTHS, months: LOAN_MONTHS });
+  w.everLoan = true;
   w.money += amount;
   return null;
 }

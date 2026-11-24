@@ -138,6 +138,8 @@ export interface World {
   ver: { roads: number; zones: number; buildings: number; transit: number };
   /** Milestones already announced. */
   milestones: number[];
+  /** Goals met so far (they stay met), chapters whose grant was paid, 도전과제 got, and whether a loan was ever taken. */
+  goal?: number; chapterPaid?: number; achieved?: string[]; everLoan?: boolean;
 }
 
 export const idx = (x: number, y: number) => y * N + x;

@@ -1,12 +1,12 @@
 import { growthBlock, lotBlock } from '../sim/diagnose';
 import { isPocket, pocketKind, POCKET_NAME } from '../sim/pockets';
 import { MATURE, TIER_POP, tierOpen } from '../sim/growth';
-import { CELL, displayName, Ground, KINDS, LEVEL_NAME, N, Road, SERVICE, ZONE_NAME, Zone } from '../sim/defs';
+import { CELL, displayName, Ground, KINDS, LEVEL_NAME, Road, SERVICE, ZONE_NAME, Zone } from '../sim/defs';
 import { grantFor, LOAN_SIZES, MAX_LOANS, monthExpense, monthIncome } from '../sim/economy';
 import { curveInfo } from '../sim/curves';
-import { hasOpenWater } from '../sim/tools';
 import { curbCapacity, LOT_SPACES } from '../sim/parking';
 import { network } from '../sim/network';
+import { ACHIEVEMENTS, advanceGoals, CHAPTERS, GOALS } from '../sim/goals';
 import { BUS_TYPES, type BusType, busCount, busProblem, busRoute, busTypeOf, lineCost, lineUpkeep, type LineKind, STATION_AREA, stationArea, stationAreaStats } from '../sim/transit';
 import { bh, bw, idx, lotsOf, type Building, type World } from '../sim/world';
 import type { Overlay } from '../render/ground';
@@ -97,42 +97,27 @@ export function toast(text: string, tone: 'info' | 'warn' | 'good' = 'info', pla
 
 /* -------------------------------------------------------------- goals */
 
-interface Goal { text: string | ((w: World) => string); done: (w: World) => boolean }
-const count = (w: World, f: (b: Building) => boolean) => { let n = 0; w.buildings.forEach((b) => { if (f(b)) n++; }); return n; };
-const roads = (w: World) => { let n = 0; for (let i = 0; i < N * N; i++) if (w.road[i]) n++; return n; };
-const zoned = (w: World, z: number) => { for (let i = 0; i < N * N; i++) if (w.zone[i] === z) return true; return false; };
-
-export const GOALS: Goal[] = [
-  { text: '서쪽 고속도로 끝에서 이어지는 도로를 깔아 보세요. 도구는 아래 도로에 있어요.', done: (w) => roads(w) > 40 },
-  { text: '도로 옆에 주거 구역을 칠하세요. 도로에서 3칸까지 칠할 수 있어요.', done: (w) => zoned(w, Zone.R) },
-  { text: '발전소를 짓고 도로로 연결하세요. 전기는 도로를 따라 흘러요.', done: (w) => w.stats.powerSupply > 0 },
-  { text: (w) => (hasOpenWater(w) ? '물가에 정수장을 지어 수돗물을 공급하세요. 도로에 붙여야 작동해요.' : '이 땅에는 물가가 없어요. 지하수 관정을 지어 수돗물을 공급하세요. 도로에 붙여야 작동해요.'), done: (w) => w.stats.waterSupply > 0 },
-  { text: '상업과 산업 구역을 만들어 일자리를 주세요.', done: (w) => zoned(w, Zone.C) && zoned(w, Zone.I) },
-  { text: '인구 300명을 모아 보세요. 위쪽 수요 막대를 참고하세요.', done: (w) => w.stats.pop >= 300 },
-  { text: '하수처리장을 지어 하수를 처리하세요. 주거지와 떨어뜨리면 좋아요.', done: (w) => w.stats.sewageCap > 0 },
-  { text: '초등학교를 지어 아이들을 가르치세요. 주변 땅값이 올라요.', done: (w) => count(w, (b) => b.kind === 'school') > 0 },
-  { text: '경찰서, 소방서, 보건소를 하나씩 지으세요.', done: (w) => ['police', 'fire', 'clinic'].every((k) => count(w, (b) => b.kind === k) > 0) },
-  { text: '인구 1,500명을 달성하세요. 공원도 땅값을 올려 줘요.', done: (w) => w.stats.pop >= 1500 },
-  { text: '버스 노선을 만들어 차 없이 출근하게 해 주세요.', done: (w) => w.lines.some((l) => l.kind === 'bus') },
-  { text: '인구 2,500명이 되면 2단계가 열려요. 땅값을 올려 첫 빌라·저층 아파트를 올려 보세요.', done: (w) => count(w, (b) => b.kind === 'r2') > 0 },
-  { text: '인구 5,000명. 대로와 버스로 교통 체증을 줄이세요.', done: (w) => w.stats.pop >= 5000 },
-  { text: '지하철 1호선을 개통하세요. 역 주변은 역세권이 돼요.', done: (w) => w.lines.some((l) => l.kind === 'metro') },
-  { text: '역세권을 키우세요. 역에서 250m 안에 2,000명이 살고 일자리 800개가 있게 해 보세요. 역 주변을 주거와 상업으로 함께 채워요.', done: (w) => { const s = stationAreaStats(w); return s.pop >= 2000 && s.jobs >= 800; } },
-  { text: '고가도로, 지하차도, 터널 중 하나로 막힌 길을 뚫어 보세요.', done: (w) => w.roadAlt.some((r) => r > 0) },
-  { text: '명소를 하나 지어 보세요. 전통시장, 수변공원, 고궁, 전망타워가 있어요.', done: (w) => count(w, (b) => ['market', 'riverpark', 'palace', 'tower'].includes(b.kind)) > 0 },
-  { text: '인구 10,000명이 되면 3단계가 열려요. 땅값 높은 2단계 건물들이 모이면 첫 고층 아파트나 주상복합으로 재건축돼요.', done: (w) => count(w, (b) => b.kind === 'r3') > 0 },
-  { text: '첫 오피스 타워를 올리세요. 상업 구역의 땅값이 관건이에요.', done: (w) => count(w, (b) => b.kind === 'c3') > 0 },
-  { text: '인구 20,000명. 진짜 도시가 됐어요!', done: (w) => w.stats.pop >= 20000 },
-];
-
 export function updateGoal(w: World): number {
-  let k = 0;
-  while (k < GOALS.length && GOALS[k].done(w)) k++;
-  $('goalStep').textContent = `${Math.min(k + 1, GOALS.length)}/${GOALS.length}`;
-  $('goalText').textContent = k < GOALS.length ? (typeof GOALS[k].text === 'function' ? (GOALS[k].text as (w: World) => string)(w) : (GOALS[k].text as string)) : '모든 목표를 이뤘어요. 이제 마음껏 도시를 키워 보세요.';
-  $('goalBar').style.transform = `scaleX(${(k / GOALS.length).toFixed(3)})`;
-  $('goal').classList.toggle('done', k >= GOALS.length);
-  return k;
+  const st = advanceGoals(w);
+  const g = st.goal;
+  if (st.done) {
+    $('goalStep').textContent = `${GOALS.length}/${GOALS.length}`;
+    $('goalText').textContent = '모든 목표를 이뤘어요. 이제 마음껏 도시를 키우며 도전과제(현황 창)를 모아 보세요.';
+    $('goalBar').style.transform = 'scaleX(1)';
+  } else {
+    const ch = CHAPTERS[st.chapter];
+    $('goalStep').textContent = `${st.chapter + 1}장 ${ch.name} · ${st.inChapter + 1}/${ch.size}`;
+    $('goalText').textContent = typeof g!.text === 'function' ? g!.text(w) : g!.text;
+    $('goalBar').style.transform = `scaleX(${(st.inChapter / ch.size).toFixed(3)})`;
+  }
+  $('goal').classList.toggle('done', st.done);
+  return st.index;
+}
+
+/** 도전과제: every challenge, got or not, for the 현황 sheet. */
+function achievementsHtml(w: World): string {
+  const got = new Set(w.achieved ?? []);
+  return `<h4>도전과제 <small>${got.size}/${ACHIEVEMENTS.length}</small></h4><ul class="achieve">` + ACHIEVEMENTS.map((a) => `<li class="${got.has(a.id) ? 'got' : ''}"><b>${got.has(a.id) ? '🏅' : '·'} ${a.name}</b><span>${a.text}</span></li>`).join('') + '</ul>';
 }
 
 /* ---------------------------------------------------------- info sheet */
@@ -270,11 +255,11 @@ export function statsHtml(w: World, overlay: Overlay): string {
   let h = head('도시 현황');
   h += '<h4>지도 보기</h4><div class="chips" role="group" aria-label="지도 보기">' + OVERLAYS.map(([k, n]) => `<button data-ov="${k}" aria-pressed="${k === overlay}">${n}</button>`).join('') + '</div>';
   h += '<h4>사람과 일자리</h4>';
-  h += kv('인구', `${num(s.pop)}명`) + kv('일자리', `${num(s.jobs)}개`) + kv('취업률', pct(s.employed, s.workers)) + kv('평균 만족도', s.pop ? `${Math.round(s.happy)}%` : '없음');
+  h += kv('인구', `${num(s.pop)}명`) + kv('일자리', `${num(s.jobs)}개`) + kv('취업률', pct(s.employed, s.workers)) + kv('행복도 (평균 만족도)', s.pop ? `${Math.round(s.happy)}%` : '없음');
   h += '<h4>기반 시설, 사용 / 공급</h4>';
   h += kv('전력', use(s.powerUse, s.powerSupply)) + kv('수도', use(s.waterUse, s.waterSupply)) + kv('하수 처리', use(s.sewageUse, s.sewageCap));
   h += '<h4>교통</h4>';
-  h += kv('평균 통근', `${Math.round(s.commute)}분`) + kv('도로 혼잡도', state(toneOf(100 - s.congestion * 100), `${Math.round(s.congestion * 100)}%`));
+  h += kv('평균 출퇴근 시간', `${Math.round(s.commute)}분`) + kv('도로 혼잡도', state(toneOf(100 - s.congestion * 100), `${Math.round(s.congestion * 100)}%`));
   h += kv('대중교통 승객', `지난달 ${num(w.lines.reduce((a, l) => a + l.riders, 0))}명`);
   if (w.bikeLast) h += kv('공공자전거 이용', `지난달 ${num(w.bikeLast)}회`);
   if (w.intercityLast) h += kv('고속버스·KTX로 외출', `지난달 ${num(w.intercityLast)}회`);
@@ -286,6 +271,7 @@ export function statsHtml(w: World, overlay: Overlay): string {
   h += kv('주차 수요', `${num(s.parkDemand)}대`) + kv('갓길 / 주차장', `${num(s.parkCurb)}면 / ${num(lots)}면`);
   h += kv('세울 곳 없는 차', state(s.parkDemand && s.parkUnmet > s.parkDemand * 0.25 ? 'no' : s.parkUnmet > s.parkDemand * 0.1 ? 'meh' : 'ok', `${num(s.parkUnmet)}대`));
   if (w.noAvenueParking) h += kv('대로 주정차', state('meh', '금지 중'));
+  h += achievementsHtml(w);
   return h;
 }
 
