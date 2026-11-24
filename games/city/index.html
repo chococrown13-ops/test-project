@@ -8,6 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;600;700&family=Jua&display=swap" />
+    <!-- 나눔스퀘어 라운드: soft, round letters for the whole interface. -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/innks/NanumSquareRound@master/nanumsquareround.min.css" />
     <meta name="description" content="강가, 바닷가, 산골의 빈 땅에 도로, 구역, 전기와 수도, 버스와 지하철을 놓아 키우는 로우폴리 한국 도시 건설 게임" />
     <title>내 도시 더 크게</title>
   </head>
@@ -58,6 +60,13 @@
       <div id="cats" class="cats"></div>
     </nav>
 
+    <div id="slots" class="overlay" hidden>
+      <div class="card hero slots-card">
+        <h2>저장한 도시</h2>
+        <div id="slotList" class="slot-list"></div>
+        <div class="row"><button class="btn" data-close-slots>닫기</button></div>
+      </div>
+    </div>
     <div id="start" class="overlay">
       <div class="card hero">
         <h1>내 도시 더 크게</h1>
@@ -71,7 +80,7 @@
         </div>
         <div class="row">
           <button id="newBtn" class="btn primary">새 도시 시작</button>
-          <button id="loadBtn" class="btn" hidden>이어하기</button>
+          <button id="loadBtn" class="btn" hidden>불러오기</button>
         </div>
         <dl class="howto">
           <div><dt>PC</dt><dd>좌클릭으로 건설, 우클릭 드래그로 회전, 휠로 확대, WASD로 이동</dd></div>

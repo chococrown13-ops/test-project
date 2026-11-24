@@ -48,7 +48,17 @@ export function buildCityNetwork(w: World): Network {
   const info = curveInfo(w);
   const own = info.owned;
   // Ground links of a cell (no ramps), and links that belong to a curve's own chain (the curve edge draws those).
-  const links = (i: number) => { const out: number[] = []; forEachNeighbour(w, i, (n) => { if (n < NN) out.push(n); }); return out; };
+  const raw = (i: number) => { const out: number[] = []; forEachNeighbour(w, i, (n) => { if (n < NN) out.push(n); }); return out; };
+  const isDiag = (a: number, b: number) => a % N !== b % N && ((a / N) | 0) !== ((b / N) | 0);
+  /**
+   * Ground links to draw. A diagonal passing a corner of a junction also touches the cells beside it,
+   * which makes a little triangle of roads (two short sides and the diagonal); drawn, its three junctions
+   * overlap into broken shards of pavement. The short straight side of such a triangle isn't drawn:
+   * the junction it would join is already reached through the third cell.
+   */
+  // A link carries on straight at either end (so it's part of a real road, not just a corner stub).
+  const straight = (i: number, n: number) => raw(i).includes(2 * i - n) || raw(n).includes(2 * n - i);
+  const links = (i: number) => raw(i).filter((n) => isDiag(i, n) || straight(i, n) || !raw(n).some((m) => m !== i && raw(i).includes(m) && (isDiag(i, m) || isDiag(n, m))));
   const chain = new Set<string>();
   const key = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
   // (A link between two older road cells stays a grid link even if the curve also runs along it: that street goes straight on.)

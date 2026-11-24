@@ -40,6 +40,7 @@ export function deserialize(json: string): World {
   for (const k of ['land', 'traffic', 'pollution'] as const) w[k] = unb64(o[k], (b) => new Float32Array(b));
   for (const k of ['edu', 'safety', 'fire', 'health', 'transit'] as const) w[k] = o[k] ? unb64(o[k], (b) => new Uint8Array(b)) : new Uint8Array(w.ground.length);
   w.lines ??= [];
+  w.loans ??= [];
   w.curves ??= [];
   w.roundabouts ??= [];
   w.civic = new Uint8Array(w.ground.length);
@@ -73,10 +74,50 @@ export function unpack(s: string): World | null {
   return w.ground.length === N * N ? w : null;
 }
 
-export function saveLocal(w: World): boolean {
-  try { localStorage.setItem(KEY, pack(w)); return true; } catch { return false; }
+/**
+ * Several cities, each in its own slot: an index of what's saved (name, size,
+ * when) and one packed save per slot. The single save from before slots is
+ * kept as the slot 'main'.
+ */
+export interface Slot { id: string; name: string; pop: number; day: number; money: number; at: number }
+const INDEX = 'city.slots';
+const slotKey = (id: string) => (id === 'main' ? KEY : `${KEY}:${id}`);
+
+export function listSlots(): Slot[] {
+  let list: Slot[] = [];
+  try { list = JSON.parse(localStorage.getItem(INDEX) ?? '[]'); } catch { list = []; }
+  try {
+    // The old single save, from before slots.
+    if (!list.some((x) => x.id === 'main') && localStorage.getItem(KEY)) list.push({ id: 'main', name: '저장된 도시', pop: 0, day: 0, money: 0, at: 0 });
+  } catch { /* storage blocked */ }
+  return list.sort((a, b) => b.at - a.at);
 }
-export function loadLocal(): World | null {
-  try { const s = localStorage.getItem(KEY); return s ? unpack(s) : null; } catch { return null; }
+function writeIndex(list: Slot[]) { try { localStorage.setItem(INDEX, JSON.stringify(list)); } catch { /* storage blocked */ } }
+
+/** Save a city into its slot (a new slot the first time). False if the browser has no room. */
+export function saveLocal(w: World): boolean {
+  w.slot ??= `c${Date.now().toString(36)}`;
+  try {
+    localStorage.setItem(slotKey(w.slot), pack(w));
+    const list = listSlots().filter((x) => x.id !== w.slot);
+    list.push({ id: w.slot, name: w.name, pop: w.stats.pop, day: w.day, money: Math.round(w.money), at: Date.now() });
+    writeIndex(list);
+    return true;
+  } catch { return false; }
+}
+/** A saved city: the one asked for, or the most recently saved. */
+export function loadLocal(id?: string): World | null {
+  const slot = id ?? listSlots()[0]?.id;
+  if (!slot) return null;
+  try {
+    const s = localStorage.getItem(slotKey(slot));
+    const w = s ? unpack(s) : null;
+    if (w) w.slot = slot;
+    return w;
+  } catch { return null; }
+}
+export function deleteSlot(id: string) {
+  try { localStorage.removeItem(slotKey(id)); } catch { /* ignore */ }
+  writeIndex(listSlots().filter((x) => x.id !== id));
 }
 export function clearLocal() { try { localStorage.removeItem(KEY); } catch { /* ignore */ } }

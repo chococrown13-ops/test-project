@@ -3,7 +3,7 @@ import { Rng } from './rng';
 import { BY_ID, itemDef, SKILL_MUL, STAR_MUL, TRAITS, traitCounts, type Trait, type UnitDef } from './units';
 
 /**
- * The fight: two teams on a 7 x 8 board, fought out in steps of a tenth of a
+ * The fight: two teams on a 12 x 8 board, fought out in steps of a tenth of a
  * second with no input. Each piece picks the nearest enemy, walks into range
  * and strikes; strikes and blows fill its mana, and a full bar casts its
  * skill. The ground (the round's arena) can block, slow, speed or hide. The
@@ -28,10 +28,12 @@ export interface Fighter {
   alive: boolean;
   dodge: number; double: number; lifesteal: number; crit: number; leap: boolean; skillMul: number; manaRegen: number; regen: number; ramp: number;
   dealt: number;
+  /** About to step into mud (it waits a moment first). */
+  wade?: boolean;
 }
 
 export type Ev =
-  | { k: 'move'; a: number; x: number; y: number }
+  | { k: 'move'; a: number; x: number; y: number; t?: number }
   | { k: 'blink'; a: number; x: number; y: number }
   | { k: 'atk'; a: number; b: number; ranged: boolean }
   | { k: 'hit'; a: number; b: number; v: number; magic?: boolean; crit?: boolean }
@@ -211,19 +213,50 @@ function behind(c: Combat, t: Fighter, from: { x: number; y: number }): { x: num
 
 /* -------------------------------------------------------------- skills */
 
+/** Each skill's numbers at one star (damage, heal and shield grow with stars, items and traits; times are seconds). */
+export const SK = {
+  bonk: { dmg: 160, stun: 1.5 }, foxfire: { dmg: 230 }, snipe: { dmg: 240 }, drag: { dmg: 170, stun: 1, heal: 120 },
+  guardup: { shield: 280 }, taunt: { shield: 420 }, boulder: { dmg: 120, silence: 2 }, blink: { dmg: 260 },
+  wave: { dmg: 150, silence: 1.5 }, heal: { heal: 420 }, roar: { dmg: 190 }, judge: { dmg: 80, stun: 1.5, shield: 320 },
+  ttukttak: { heal: 110 }, charm: { dmg: 380, stun: 2.5 }, reap: { dmg: 320 }, shell: { shield: 190 },
+  mountain: { heal: 160, dmg: 230 }, devour: { heal: 200 }, beam: { dmg: 250 },
+} as const;
+
+/**
+ * A skill's numbers in words, for the info card: `mul` is the skill power (stars, traits and items together),
+ * `star` adds the little extra some stuns and silences get per star.
+ */
+export function skillNumbers(skill: string, mul: number, star: number): string {
+  const k = (SK as Record<string, Record<string, number>>)[skill];
+  if (!k) return '';
+  const n = (v: number) => Math.round(v * mul).toLocaleString('ko-KR');
+  const out: string[] = [];
+  const magic = !['bonk', 'snipe', 'blink', 'roar'].includes(skill);
+  if (k.dmg) out.push(`${magic ? '마법' : '물리'} 피해 ${n(k.dmg)}`);
+  if (k.heal) out.push(`회복 ${n(k.heal)}`);
+  if (k.shield) out.push(`보호막 ${n(k.shield)} (4초)`);
+  if (k.stun) out.push(`기절 ${(k.stun + (skill === 'judge' ? 0.3 * star : 0)).toFixed(1)}초`);
+  if (k.silence) out.push(`침묵 ${(k.silence + (skill === 'boulder' ? 0.5 * star : 0)).toFixed(1)}초`);
+  if (skill === 'roar') out.push('공격력 +25%');
+  if (skill === 'ttukttak') out.push('공속 +30% (5초)');
+  if (skill === 'devour') out.push('공격력 +15%, 방어·마저 +10');
+  if (skill === 'taunt') out.push('도발 3초');
+  return out.join(' · ');
+}
+
 function cast(c: Combat, ev: Ev[], f: Fighter, t: Fighter) {
   const s = f.skillMul;
   const lowestFoe = () => foes(c, f).sort((a, b) => a.hp - b.hp || a.key - b.key)[0];
   const lowestFriend = () => friends(c, f).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp || a.key - b.key)[0];
   switch (f.def.skill) {
-    case 'bonk': ev.push({ k: 'cast', a: f.key, skill: 'bonk', b: t.key }); deal(c, ev, f, t, 160 * s, false); stun(ev, t, 1.5); break;
-    case 'foxfire': ev.push({ k: 'cast', a: f.key, skill: 'foxfire', b: t.key }); deal(c, ev, f, t, 230 * s, true); break;
-    case 'snipe': { const v = lowestFoe(); ev.push({ k: 'cast', a: f.key, skill: 'snipe', b: v.key }); deal(c, ev, f, v, 240 * s, false); break; }
-    case 'drag': ev.push({ k: 'cast', a: f.key, skill: 'drag', b: t.key }); deal(c, ev, f, t, 170 * s, true); stun(ev, t, 1); heal(c, ev, f, f, 120 * s); break;
-    case 'guardup': ev.push({ k: 'cast', a: f.key, skill: 'guardup', b: f.key }); shield(ev, f, f, 280 * s, 4); break;
+    case 'bonk': ev.push({ k: 'cast', a: f.key, skill: 'bonk', b: t.key }); deal(c, ev, f, t, SK.bonk.dmg * s, false); stun(ev, t, SK.bonk.stun); break;
+    case 'foxfire': ev.push({ k: 'cast', a: f.key, skill: 'foxfire', b: t.key }); deal(c, ev, f, t, SK.foxfire.dmg * s, true); break;
+    case 'snipe': { const v = lowestFoe(); ev.push({ k: 'cast', a: f.key, skill: 'snipe', b: v.key }); deal(c, ev, f, v, SK.snipe.dmg * s, false); break; }
+    case 'drag': ev.push({ k: 'cast', a: f.key, skill: 'drag', b: t.key }); deal(c, ev, f, t, SK.drag.dmg * s, true); stun(ev, t, SK.drag.stun); heal(c, ev, f, f, SK.drag.heal * s); break;
+    case 'guardup': ev.push({ k: 'cast', a: f.key, skill: 'guardup', b: f.key }); shield(ev, f, f, SK.guardup.shield * s, 4); break;
     case 'taunt': {
       ev.push({ k: 'cast', a: f.key, skill: 'taunt', b: f.key });
-      shield(ev, f, f, 420 * s, 4);
+      shield(ev, f, f, SK.taunt.shield * s, 4);
       for (const o of around(c, f.x, f.y, 2, f.side)) { o.tauntBy = f.key; o.tauntT = 3; o.target = f.key; }
       break;
     }
@@ -231,63 +264,63 @@ function cast(c: Combat, ev: Ev[], f: Fighter, t: Fighter) {
       const cells: [number, number][] = [];
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) cells.push([t.x + dx, t.y + dy]);
       ev.push({ k: 'cast', a: f.key, skill: 'boulder', b: t.key, cells });
-      deal(c, ev, f, t, 120 * s, true);
-      silence(ev, t, 2 + 0.5 * f.star);
-      for (const o of around(c, t.x, t.y, 1, f.side)) deal(c, ev, f, o, 120 * s, true);
+      deal(c, ev, f, t, SK.boulder.dmg * s, true);
+      silence(ev, t, SK.boulder.silence + 0.5 * f.star);
+      for (const o of around(c, t.x, t.y, 1, f.side)) deal(c, ev, f, o, SK.boulder.dmg * s, true);
       break;
     }
     case 'blink': {
       const v = lowestFoe(), spot = behind(c, v, f);
       if (spot) { place(c, f, spot.x, spot.y); ev.push({ k: 'blink', a: f.key, x: spot.x, y: spot.y }); f.target = v.key; }
       ev.push({ k: 'cast', a: f.key, skill: 'blink', b: v.key });
-      deal(c, ev, f, v, 260 * s, false, true);
+      deal(c, ev, f, v, SK.blink.dmg * s, false, true);
       break;
     }
     case 'wave': {
       const cells: [number, number][] = [];
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) cells.push([f.x + dx, f.y + dy]);
       ev.push({ k: 'cast', a: f.key, skill: 'wave', cells });
-      for (const o of around(c, f.x, f.y, 1, f.side)) { deal(c, ev, f, o, 150 * s, true); silence(ev, o, 1.5); }
+      for (const o of around(c, f.x, f.y, 1, f.side)) { deal(c, ev, f, o, SK.wave.dmg * s, true); silence(ev, o, SK.wave.silence); }
       break;
     }
-    case 'heal': { const v = lowestFriend(); ev.push({ k: 'cast', a: f.key, skill: 'heal', b: v.key }); heal(c, ev, f, v, 420 * s); break; }
+    case 'heal': { const v = lowestFriend(); ev.push({ k: 'cast', a: f.key, skill: 'heal', b: v.key }); heal(c, ev, f, v, SK.heal.heal * s); break; }
     case 'roar': {
       ev.push({ k: 'cast', a: f.key, skill: 'roar' });
-      for (const o of around(c, f.x, f.y, 1, f.side)) deal(c, ev, f, o, 190 * s, false);
+      for (const o of around(c, f.x, f.y, 1, f.side)) deal(c, ev, f, o, SK.roar.dmg * s, false);
       f.ad *= 1.25;
       break;
     }
     case 'judge': {
       ev.push({ k: 'cast', a: f.key, skill: 'judge' });
-      for (const o of around(c, f.x, f.y, 1, f.side)) { deal(c, ev, f, o, 80 * s, true); stun(ev, o, 1.5 + 0.3 * f.star); }
-      shield(ev, f, f, 320 * s, 4);
+      for (const o of around(c, f.x, f.y, 1, f.side)) { deal(c, ev, f, o, SK.judge.dmg * s, true); stun(ev, o, SK.judge.stun + 0.3 * f.star); }
+      shield(ev, f, f, SK.judge.shield * s, 4);
       break;
     }
     case 'ttukttak': {
       ev.push({ k: 'cast', a: f.key, skill: 'ttukttak' });
-      for (const o of friends(c, f)) { heal(c, ev, f, o, 110 * s); o.asBuff = 0.3; o.asBuffT = 5; }
+      for (const o of friends(c, f)) { heal(c, ev, f, o, SK.ttukttak.heal * s); o.asBuff = 0.3; o.asBuffT = 5; }
       break;
     }
-    case 'charm': ev.push({ k: 'cast', a: f.key, skill: 'charm', b: t.key }); deal(c, ev, f, t, 380 * s, true); stun(ev, t, 2.5); break;
+    case 'charm': ev.push({ k: 'cast', a: f.key, skill: 'charm', b: t.key }); deal(c, ev, f, t, SK.charm.dmg * s, true); stun(ev, t, SK.charm.stun); break;
     case 'reap': {
       const v = lowestFoe();
       ev.push({ k: 'cast', a: f.key, skill: 'reap', b: v.key });
-      deal(c, ev, f, v, 320 * s, true);
+      deal(c, ev, f, v, SK.reap.dmg * s, true);
       f.mana = v.alive ? 0 : f.maxMana * 0.5;
       return; // a kill refunds half the bar
     }
-    case 'shell': ev.push({ k: 'cast', a: f.key, skill: 'shell' }); for (const o of friends(c, f)) shield(ev, f, o, 190 * s, 4); break;
+    case 'shell': ev.push({ k: 'cast', a: f.key, skill: 'shell' }); for (const o of friends(c, f)) shield(ev, f, o, SK.shell.shield * s, 4); break;
     case 'mountain': {
       const cells: [number, number][] = [];
       for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) cells.push([t.x + dx, t.y + dy]);
       ev.push({ k: 'cast', a: f.key, skill: 'mountain', b: t.key, cells });
-      for (const o of friends(c, f)) heal(c, ev, f, o, 160 * s);
-      for (const o of around(c, t.x, t.y, 2, f.side)) deal(c, ev, f, o, 230 * s, true);
+      for (const o of friends(c, f)) heal(c, ev, f, o, SK.mountain.heal * s);
+      for (const o of around(c, t.x, t.y, 2, f.side)) deal(c, ev, f, o, SK.mountain.dmg * s, true);
       break;
     }
     case 'devour': {
       ev.push({ k: 'cast', a: f.key, skill: 'devour', b: f.key });
-      heal(c, ev, f, f, 200 * s);
+      heal(c, ev, f, f, SK.devour.heal * s);
       f.ad *= 1.15; f.armor += 10; f.mr += 10;
       break;
     }
@@ -302,7 +335,7 @@ function cast(c: Combat, ev: Ev[], f: Fighter, t: Fighter) {
       }
       ev.push({ k: 'cast', a: f.key, skill: 'beam', b: t.key, cells });
       const hitKeys = new Set(cells.map(([x, y]) => c.grid[cell(x, y)]).filter((k) => k >= 0));
-      for (const k of hitKeys) { const o = c.f[k]; if (o.side !== f.side) deal(c, ev, f, o, 250 * s, true); }
+      for (const k of hitKeys) { const o = c.f[k]; if (o.side !== f.side) deal(c, ev, f, o, SK.beam.dmg * s, true); }
       break;
     }
   }
@@ -400,9 +433,13 @@ export function step(c: Combat): Ev[] {
         }
       }
       if (best) {
-        place(c, f, best.x, best.y); ev.push({ k: 'move', a: f.key, x: best.x, y: best.y });
+        // Wading into mud takes a moment before the step itself.
+        if (terrain(c.arena, best.x, best.y) === MUD && !f.wade) { f.wade = true; f.moveT = 0.45; continue; }
+        f.wade = false;
+        place(c, f, best.x, best.y);
         const g = terrain(c.arena, best.x, best.y);
         f.moveT = g === MUD ? 1.15 : g === ICE ? 0.38 : 0.7;
+        ev.push({ k: 'move', a: f.key, x: best.x, y: best.y, t: f.moveT });
       }
       else f.moveT = 0.2;
     }

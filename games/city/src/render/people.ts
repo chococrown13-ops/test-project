@@ -5,6 +5,7 @@ import { HALF_WIDTH, KERB_W } from '../sim/curves';
 import { forEachNeighbour, NN } from '../sim/graph';
 import type { World } from '../sim/world';
 import { nodeCentre } from './roadheight';
+import { laneAt } from './lanepath';
 
 /**
  * People on the pavements: walking a few blocks along the streets near
@@ -102,6 +103,7 @@ export class PeopleLayer {
     while (this.walkers.length < want) { const p = this.spawn(w); if (!p) break; this.walkers.push(p); }
     if (this.walkers.length > want) this.walkers.length = want;
     // Drawn a little larger than life (like the cars), so they read from the usual camera height.
+    const pt = { x: 0, z: 0 }, prev = { x: 0, z: 0 };
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), one = new THREE.Vector3(1.4, 1.4, 1.4), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
     let n = 0;
     for (let k = 0; k < this.walkers.length; k++) {
@@ -117,10 +119,15 @@ export class PeopleLayer {
       const cell = wk.path[wk.i];
       const t = (w.road[cell] || 1) as 1 | 2;
       const off = wk.side * (HALF_WIDTH[t] + KERB_W[t] * 0.5) + (wk.look - 0.5) * 0.5;
-      p.set(a.x + (b.x - a.x) * wk.t - dz * off, SW, a.z + (b.z - a.z) * wk.t + dx * off);
+      // Along the pavement; at a junction straight to the corner and across on the line of the crossing.
+      laneAt((j) => nodeCentre(wk.path[j], w), wk.path.length - 1, wk.i + wk.t, off, Math.abs(off) + 1.5, true, pt);
+      p.set(pt.x, SW, pt.z);
       // A little bob as they step.
       p.y += Math.abs(Math.sin((wk.t * L) / 0.7)) * 0.05;
-      q.setFromAxisAngle(up, Math.atan2(-dz, dx) + Math.PI / 2);
+      // Face the way they're actually walking (round corners too).
+      laneAt((j) => nodeCentre(wk.path[j], w), wk.path.length - 1, Math.max(0, wk.i + wk.t - 0.05), off, Math.abs(off) + 1.5, true, prev);
+      const hx = pt.x - prev.x, hz = pt.z - prev.z;
+      q.setFromAxisAngle(up, (hx * hx + hz * hz > 1e-6 ? Math.atan2(-hz, hx) : Math.atan2(-dz, dx)) + Math.PI / 2);
       this.mesh.setMatrixAt(n, m.compose(p, q, one));
       this.mesh.setColorAt(n, c.set(SHIRTS[Math.floor(wk.look * 997) % SHIRTS.length]));
       n++;

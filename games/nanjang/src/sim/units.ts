@@ -1,7 +1,7 @@
 /**
  * What every theme shares: the shape of a piece, a trait and an item, the
  * shop's numbers, and the registry the rest of the game reads from. A theme
- * (도깨비 난장, 한식 대전, 사계절 요괴) fills the registry with its own pieces.
+ * (정령 키우기, 한식 대전, 사계절 요괴) fills the registry with its own pieces.
  */
 
 export type Trait = string;
@@ -19,17 +19,33 @@ export interface TraitDef {
 
 export type Acc =
   | 'horn' | 'horns' | 'eye' | 'ears' | 'ears9' | 'stripes' | 'hat' | 'gat' | 'shell' | 'fins' | 'mane' | 'pole' | 'crown' | 'hood' | 'whiskers' | 'spikes' | 'serpent'
-  | 'wings' | 'bumps' | 'leaf' | 'petals' | 'longears' | 'sun' | 'swirl' | 'snow' | 'cloud' | 'bolt' | 'none';
+  | 'wings' | 'bumps' | 'leaf' | 'petals' | 'longears' | 'sun' | 'swirl' | 'snow' | 'cloud' | 'bolt' | 'none'
+  | 'quills' | 'flame' | 'snailshell' | 'penguin' | 'mole' | 'fleece' | 'antlers' | 'roundears' | 'starmark' | 'dragon' | 'halo' | 'conch' | 'castle' | 'antennae';
 /** Food and other non-figure bodies (한식 대전 and a few 사계절 pieces). */
-export type Shape = 'figure' | 'bowl' | 'rods' | 'roll' | 'disc' | 'fish' | 'crab' | 'cabbage' | 'skewer' | 'bird' | 'pot' | 'snowman' | 'cloud' | 'twister' | 'pan';
+export type Shape = 'figure' | 'bowl' | 'rods' | 'roll' | 'disc' | 'fish' | 'crab' | 'cabbage' | 'skewer' | 'bird' | 'pot' | 'snowman' | 'cloud' | 'twister' | 'pan' | 'drop' | 'pebble' | 'jelly';
 
-export interface Look { body: string; head: string; acc?: Acc; shape?: Shape; size?: number; extra?: string }
+export interface Look { body: string; head: string; acc?: Acc; shape?: Shape; size?: number; extra?: string;
+  /** A second accessory (evolutions add one). */
+  acc2?: Acc }
 
 export interface UnitDef {
   id: string; name: string; tier: number; traits: Trait[];
   hp: number; ad: number; as: number; range: number; armor: number; mr: number;
   mana: number; manaStart: number;
   skill: string; skillText: string; look: Look;
+  /** 정령 키우기: what it evolves into at two stars and at three (a new name and a change of look). */
+  evo?: [Evolution, Evolution];
+}
+export interface Evolution { name: string; look: Partial<Look> }
+
+/** The name a piece goes by at a number of stars (its evolution, where it has one). */
+export const nameAt = (d: UnitDef, star: number) => (star >= 2 && d.evo ? d.evo[Math.min(3, star) - 2].name : d.name);
+/** How a piece looks at a number of stars: each evolution adds to the one before. */
+export function lookAt(d: UnitDef, star: number): Look {
+  if (!d.evo || star < 2) return d.look;
+  let l = { ...d.look, ...d.evo[0].look };
+  if (star >= 3) l = { ...l, ...d.evo[1].look };
+  return l;
 }
 
 /** Stat changes an item gives the piece holding it. */
@@ -47,8 +63,10 @@ export interface Theme {
   traits: Record<Trait, TraitDef>;
   botNames: string[]; plans: Trait[][];
   palette: Palette;
-  /** 한식 대전: ingredients that go on pieces. */
+  /** Things that go on pieces (ingredients, charms, fruit); two on one piece make a stronger mix. */
   items?: ItemDef[];
+  /** What the items are called (재료, 부적, 열매) and what two of them make (양념, 부적, 비약). */
+  itemWord?: string; mixWord?: string;
   /** Named sauces for some pairs of ingredients (key: ids joined by '+', sorted). */
   recipes?: Record<string, string>;
   /** 사계절 요괴: the season turns every three rounds. */
@@ -86,9 +104,9 @@ const ROLE: Record<Role, { hp: number; ad: number; as: number; range: number; ar
   caster: { hp: 480, ad: 42, as: 0.65, range: 3, armor: 15, mr: 25 },
 };
 
-export function unit(id: string, name: string, tier: number, traits: Trait[], role: Role, mana: [number, number], skill: string, skillText: string, look: Look): UnitDef {
+export function unit(id: string, name: string, tier: number, traits: Trait[], role: Role, mana: [number, number], skill: string, skillText: string, look: Look, evo?: [Evolution, Evolution]): UnitDef {
   const r = ROLE[role], k = 1 + (tier - 1) * 0.22;
-  return { id, name, tier, traits, hp: Math.round(r.hp * k), ad: Math.round(r.ad * k), as: r.as, range: r.range, armor: r.armor, mr: r.mr, mana: mana[1], manaStart: mana[0], skill, skillText, look };
+  return { id, name, tier, traits, hp: Math.round(r.hp * k), ad: Math.round(r.ad * k), as: r.as, range: r.range, armor: r.armor, mr: r.mr, mana: mana[1], manaStart: mana[0], skill, skillText, look, evo };
 }
 
 export function creep(id: string, name: string, role: Role, hp: number, ad: number, look: Look): UnitDef {
@@ -149,7 +167,7 @@ export function itemDef(id: string): ItemDef {
   const mods: Mods = {};
   const k = a.id === b.id ? 1.7 : 1.4;
   for (const m of [a.mods, b.mods]) for (const key of Object.keys(m) as (keyof Mods)[]) mods[key] = (mods[key] ?? 0) + m[key]! * k;
-  const name = t.recipes?.[id] ?? `${a.name}·${b.name} 양념`;
+  const name = t.recipes?.[id] ?? `${a.name}·${b.name} ${t.mixWord ?? '양념'}`;
   return { id, name, text: modsText(mods), color: a.id === b.id ? a.color : b.color, mods, base: false };
 }
 export const comboId = (a: string, b: string) => [a, b].sort().join('+');

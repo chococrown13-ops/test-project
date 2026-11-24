@@ -9,6 +9,7 @@ export const HANSIK: Theme = {
   creepName: '장보기',
   creepText: '이기면 재료와 엽전을 얻어요',
   faces: false,
+  itemWord: '재료', mixWord: '양념',
   traits: {
     spicy: { name: '매운맛', kind: 'origin', steps: [2, 3], text: '매운 음식의 공격력이 올라요.', levels: ['공격력 +30%', '공격력 +65%'], effect: { k: 'ad', v: [0.3, 0.65] } },
     soup: { name: '국물', kind: 'origin', steps: [2, 3], text: '국물 요리가 싸우는 동안 체력을 조금씩 되찾아요.', levels: ['초당 체력 2%', '초당 체력 4.5%'], effect: { k: 'regen', v: [0.02, 0.045] } },

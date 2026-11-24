@@ -95,7 +95,9 @@ export function updateUtilities(w: World) {
     const a = net.access.get(b.id);
     const g = a === undefined ? null : supply.get(net.comp[a]);
     const lots = lotsOf(b);
-    const pNeed = Math.max(0, d.power) * lots, wNeed = Math.max(0, d.water) * lots;
+    // Homes, shops and factories draw less than their full rating (they ran short too soon as the city grew).
+    const draw = d.zone ? ZONE_DRAW : 1;
+    const pNeed = Math.max(0, d.power) * lots * draw, wNeed = Math.max(0, d.water) * lots * draw;
     // An empty or abandoned building draws almost nothing.
     const load = b.abandoned ? 0.1 : d.zone ? 0.3 + 0.7 * occRatio(b) : 1;
     const pn = pNeed * load, wn = wNeed * load;
@@ -112,6 +114,9 @@ export function updateUtilities(w: World) {
   w.stats.waterSupply = wS; w.stats.waterUse = wU;
   w.stats.sewageCap = sS; w.stats.sewageUse = sU;
 }
+
+/** Share of their rated power and water that zoned buildings really use. */
+export const ZONE_DRAW = 0.6;
 
 export function occRatio(b: Building): number {
   const d = KINDS[b.kind];
