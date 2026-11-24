@@ -133,23 +133,6 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
     keep.push(c);
   }
   tr.cars = keep;
-  // Keep a car's length between cars in the same lane (they queued on top of each other at red lights).
-  const lanes = new Map<string, Car[]>();
-  for (const c of keep) {
-    if (c.i >= c.path.length - 1) continue;
-    const node = c.path[c.i], next = c.path[c.i + 1];
-    const k = `${node}>${next}>${roadTypeOf(w, node) === 2 && c.look > 0.5 ? 1 : 0}`;
-    let l = lanes.get(k); if (!l) lanes.set(k, (l = []));
-    l.push(c);
-  }
-  for (const l of lanes.values()) {
-    if (l.length < 2) continue;
-    l.sort((a, b) => b.t - a.t);
-    for (let q = 1; q < l.length; q++) {
-      const gap = l[q - 1].kind === 1 || l[q - 1].kind === 2 ? 0.75 : l[q - 1].kind === 3 ? 0.3 : 0.55;
-      if (l[q].t > l[q - 1].t - gap) l[q].t = Math.max(0, l[q - 1].t - gap);
-    }
-  }
   // Congestion field: load relative to capacity, smoothed over time.
   const k = Math.min(1, dt * 0.6);
   for (let i = 0; i < N * N; i++) {
