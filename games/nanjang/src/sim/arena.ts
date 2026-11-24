@@ -28,7 +28,7 @@ export const ARENAS: Record<string, ArenaDef> = Object.fromEntries([
   make('alley', '좁은 골목', '양옆이 담이라 가운데 여덟 줄만 써요. 몸싸움이 세져요.', (x) => x <= 1 || x >= COLS - 2 ? ROCK : OPEN),
   make('bamboo', '대숲', '대숲 칸에 선 말은 평타를 20% 피해요.', (x, y) => ((x === 3 || x === COLS - 4) && y >= HALF - 2 && y <= HALF - 1) || ((x === 0 || x === COLS - 1) && y >= 1 && y <= 2) ? BUSH : OPEN),
   make('mudflat', '갯벌', '가운데 두 줄은 진흙이라 걸음이 느려요. 원거리 말이 유리해요.', (_x, y) => y === HALF - 1 ? MUD : OPEN),
-  make('ice', '꽁꽁 언 연못', '얼음 위에서는 빨리 미끄러져 금세 맞붙어요.', (_x, y) => y === HALF - 1 ? ICE : OPEN),
+  make('ice', '꽁꽁 언 연못', '가운데 네 줄이 얼음이라 빨리 미끄러져 금세 맞붙어요.', (_x, y) => y >= HALF - 2 ? ICE : OPEN),
 ].map((a) => [a.id, a]));
 
 export const ARENA_ROTATION = ['yard', 'brook', 'rocks', 'alley', 'bamboo', 'mudflat', 'ice'];

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BY_ID } from '../sim/units';
 import type { UnitDef } from '../sim/units';
-import { beginEyeCapture, buildPiece, endEyeCapture, pieceStyle, setSpriteMaker } from './pieces';
+import { beginEyeCapture, buildPiece, endEyeCapture, evolved, pieceStyle, setSpriteMaker } from './pieces';
 
 /**
  * Little portraits of the pieces for the shop cards, the info card and the
@@ -28,12 +28,13 @@ function setup() {
 }
 
 /** A data-URL image of a piece's figure, three-quarter view, on a transparent ground. */
-export function portrait(id: string, faces: boolean): string {
-  const key = `${pieceStyle()}|${faces}|${id}`;
+export function portrait(id: string, faces: boolean, star = 1): string {
+  const key = `${pieceStyle()}|${faces}|${id}|${star}`;
   const hit = cache.get(key);
   if (hit) return hit;
   if (!renderer) setup();
-  const def = BY_ID[id];
+  // An evolved form gets its own picture.
+  const def = evolved(BY_ID[id], star);
   if (pieceStyle() === 'pixel') {
     // The pixel sprite itself, blown up with hard edges.
     const src = pixelCanvas(def, faces), big = document.createElement('canvas');

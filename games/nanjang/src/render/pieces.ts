@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Look, UnitDef } from '../sim/units';
+import { type Look, lookAt, type UnitDef } from '../sim/units';
 
 /**
  * Low-poly figures for the pieces: a disc in the colour of the cost tier,
@@ -16,7 +16,8 @@ export const TIER_COLOR = ['#888', '#9aa3ab', '#4f9d69', '#3f7cc4', '#9b59b6', '
  *  - porcelain: 도자기 인형. Smooth glazed figures with a clear-coat shine.
  */
 export type PieceStyle = 'doll' | 'carved' | 'porcelain' | 'pixel' | 'voxel';
-export const STYLE_NAME: Record<PieceStyle, string> = { pixel: '도트', doll: '인형', voxel: '복셀', porcelain: '도자기', carved: '나무 장기알' };
+/** The styles on offer: 도트 and 인형 (the others are kept for comparing, not offered). */
+export const STYLE_NAME: Partial<Record<PieceStyle, string>> = { pixel: '도트', doll: '인형' };
 /** Styles whose figures use the big-headed doll proportions. */
 const chibi = () => style === 'doll' || style === 'pixel' || style === 'voxel';
 let style: PieceStyle = 'doll';
@@ -107,6 +108,11 @@ function outline(fig: THREE.Group) {
   for (const [m, hull] of add) m.add(hull);
 }
 
+/** A piece's evolved form as a def of its own (id `kind@star`), or the def itself. */
+export function evolved(def: UnitDef, star: number): UnitDef {
+  return def.evo && star >= 2 ? { ...def, id: `${def.id}@${star}`, look: lookAt(def, star) } : def;
+}
+
 /** 도트 style: a hook (set by thumbs.ts) that draws a piece as a little pixel sprite texture. */
 let spriteFor: ((def: UnitDef, faces: boolean) => THREE.Texture) | null = null;
 export function setSpriteMaker(fn: (def: UnitDef, faces: boolean) => THREE.Texture) { spriteFor = fn; }
@@ -115,9 +121,11 @@ export function setSpriteMaker(fn: (def: UnitDef, faces: boolean) => THREE.Textu
  * `raw` builds the figure from primitives even in the 도트 and 복셀 styles (the sprite maker and the
  * voxeliser start from it).
  */
-export function buildPiece(def: UnitDef, star: number, enemy = false, withFaces = true, raw = false): PieceObj {
+export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces = true, raw = false): PieceObj {
   faces = withFaces;
   const root = new THREE.Group();
+  // An evolved piece is drawn as its own form (its look and its own sprite).
+  const def = evolved(def0, star);
   const L = def.look;
   const base = makeBase(def.tier);
   root.add(base);
@@ -191,7 +199,7 @@ export function buildPiece(def: UnitDef, star: number, enemy = false, withFaces 
     case 'horns': {
       const h1 = mesh(new THREE.ConeGeometry(0.05, 0.22, 5), '#f2e3b3', -0.1, 0.82, 0), h2 = mesh(new THREE.ConeGeometry(0.05, 0.22, 5), '#f2e3b3', 0.1, 0.82, 0);
       h1.rotation.z = 0.35; h2.rotation.z = -0.35;
-      add(h1, h2, mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.5, 5), '#6b4b2a', 0.28, 0.35, 0.05));
+      add(h1, h2);
       break;
     }
     case 'eye': {
@@ -251,7 +259,7 @@ export function buildPiece(def: UnitDef, star: number, enemy = false, withFaces 
       break;
     }
     case 'crown': add(mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.12, 6), '#d9b44a', 0, 0.82, 0, { rough: 0.4 }), mesh(new THREE.TorusGeometry(0.26, 0.03, 5, 16), '#8fb4d9', 0, 0.42, 0)).children.at(-1)!.rotation.set(Math.PI / 2, 0, 0); break;
-    case 'whiskers': add(mesh(new THREE.ConeGeometry(0.1, 0.32, 6), '#ffffff', 0, 0.42, 0.14), mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.95, 5), '#7a5a3a', 0.26, 0.45, 0.05), mesh(new THREE.ConeGeometry(0.06, 0.2, 5), '#e9e3d3', 0, 0.84, 0)); break;
+    case 'whiskers': for (const sd of [-1, 1]) for (const k of [-1, 1]) { const w = mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.2, 4), '#3a2a20', sd * 0.2, 0.6 + k * 0.025, 0.14); w.rotation.z = Math.PI / 2 + sd * k * 0.2; add(w); } break;
     case 'spikes': for (let k = 0; k < 5; k++) { const sp = mesh(new THREE.ConeGeometry(0.06, 0.22, 4), '#3c3e44', (k - 2) * 0.08, 0.58 - Math.abs(k - 2) * 0.06, -0.2); sp.rotation.x = -0.6; add(sp); } break;
     case 'serpent': break;
     case 'wings': {

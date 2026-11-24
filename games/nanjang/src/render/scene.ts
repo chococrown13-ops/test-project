@@ -7,7 +7,7 @@ import { BY_ID, itemDef, type Palette, theme } from '../sim/units';
 import { buildPiece, type PieceObj } from './pieces';
 
 /**
- * The table: a 7 x 8 board of paper-and-wood squares, the bench along the
+ * The table: a 12 x 8 board, long side across the screen, the bench along the
  * near edge, the pieces, and the fight played out step by step with strikes,
  * thrown fire, numbers and falls.
  */
@@ -22,6 +22,10 @@ const wz = (y: number) => y - (ROWS - 1) / 2;
 interface Shown {
   obj: PieceObj; label: HTMLDivElement; hp: HTMLElement; mp: HTMLElement; sh: HTMLElement; st: HTMLElement; stKey: string;
   x: number; z: number; tx: number; tz: number;
+  /** A step in progress: from where, how far along (0..1), and how long it takes (fight seconds). */
+  fx0: number; fz0: number; mk: number; md: number;
+  /** Recoil after a shot, a little squash on landing. */
+  kick: number;
   lunge: number; lx: number; lz: number; dead: number; side: number; face: number;
 }
 
@@ -196,6 +200,36 @@ export class Table {
   }
 
   private sized = { w: 0, h: 0 };
+  /** Zoom (1 = the whole board fits) and how far the view is slid, in screen pixels. */
+  private zoom = 1;
+  private pan = { x: 0, y: 0 };
+  get zoomLevel() { return this.zoom; }
+  /** Zoom in or out by a factor, keeping the point under (cx, cy) where it is. */
+  zoomBy(k: number, cx?: number, cy?: number) {
+    const z = Math.max(1, Math.min(2.6, this.zoom * k));
+    if (z === this.zoom) return;
+    const r = this.canvas.getBoundingClientRect();
+    const midX = r.left + r.width / 2, midY = r.top + this.insets.top + (r.height - this.insets.top - this.insets.bottom) / 2;
+    const px = (cx ?? midX) - midX, py = (cy ?? midY) - midY;
+    // The point under the pointer: (p - pan) / zoom in board pixels; keep it there.
+    this.pan.x = px - ((px - this.pan.x) / this.zoom) * z;
+    this.pan.y = py - ((py - this.pan.y) / this.zoom) * z;
+    this.zoom = z;
+    this.applyView();
+  }
+  panBy(dx: number, dy: number) { if (this.zoom <= 1) return; this.pan.x += dx; this.pan.y += dy; this.applyView(); }
+  resetZoom() { this.zoom = 1; this.pan = { x: 0, y: 0 }; this.applyView(); }
+  private applyView() {
+    const { w, h } = this.sized;
+    const free = Math.max(120, h - this.insets.top - this.insets.bottom);
+    // Never slide the board out of sight.
+    const mx = ((this.zoom - 1) * w) / 2, my = ((this.zoom - 1) * free) / 2;
+    this.pan.x = Math.max(-mx, Math.min(mx, this.pan.x)); this.pan.y = Math.max(-my, Math.min(my, this.pan.y));
+    if (this.zoom <= 1) this.pan = { x: 0, y: 0 };
+    this.camera.zoom = this.zoom;
+    this.camera.setViewOffset(w, free, -this.pan.x, -this.insets.top - this.pan.y, w, h);
+    this.camera.updateProjectionMatrix();
+  }
   resize() {
     const w = this.canvas.clientWidth || window.innerWidth, h = this.canvas.clientHeight || window.innerHeight;
     this.sized = { w, h };
@@ -211,8 +245,11 @@ export class Table {
       [-4.8, 0, BENCH_Z + 0.55], [4.8, 0, BENCH_Z + 0.55], [-4.8, 0.9, BENCH_Z], [4.8, 0.9, BENCH_Z],
     ].map(([x, y, z]) => new THREE.Vector3(x, y, z));
     // Tall screens look down more steeply, so the board fills the height.
-    const dir = (w / free < 0.85 ? new THREE.Vector3(0, 0.93, 0.37) : new THREE.Vector3(0, 0.8, 0.6)).normalize();
+    const ar = w / free;
+    // Short, wide bands (a phone on its side) look along the table more, so the long board fills the width.
+    const dir = (ar < 0.85 ? new THREE.Vector3(0, 0.93, 0.37) : ar > 2.2 ? new THREE.Vector3(0, 0.6, 0.8) : new THREE.Vector3(0, 0.8, 0.6)).normalize();
     const look = new THREE.Vector3(0, 0, 0.8);
+    this.camera.zoom = 1;
     const place = (d: number) => { this.camera.position.copy(look).addScaledVector(dir, d); this.camera.lookAt(look); this.camera.updateProjectionMatrix(); this.camera.updateMatrixWorld(); };
     const span = () => {
       // The NDC extent of the points in the virtual (free-band) view, without the offset.
@@ -234,6 +271,7 @@ export class Table {
       look.z -= mid * d * 0.35;
     }
     place(d);
+    this.applyView();
   }
 
   /* ---------------------------------------------------------- pieces */
@@ -250,7 +288,7 @@ export class Table {
     label.innerHTML = `<span class="status"></span><span class="stars s${star}">${'★'.repeat(star)}</span><i class="bar hp"><b></b><u></u></i><i class="bar mp"><b></b></i>${dots ? `<span class="items">${dots}</span>` : ''}`;
     this.labels.appendChild(label);
     const [hp, sh] = [label.querySelector('.hp b') as HTMLElement, label.querySelector('.hp u') as HTMLElement];
-    return { obj, label, hp, sh, mp: label.querySelector('.mp b') as HTMLElement, st: label.querySelector('.status') as HTMLElement, stKey: '', x: 0, z: 0, tx: 0, tz: 0, lunge: 0, lx: 0, lz: 0, dead: 0, side: enemy ? 1 : 0, face: enemy ? 0 : Math.PI };
+    return { obj, label, hp, sh, mp: label.querySelector('.mp b') as HTMLElement, st: label.querySelector('.status') as HTMLElement, stKey: '', x: 0, z: 0, tx: 0, tz: 0, fx0: 0, fz0: 0, mk: 1, md: 0, kick: 0, lunge: 0, lx: 0, lz: 0, dead: 0, side: enemy ? 1 : 0, face: enemy ? 0 : Math.PI };
   }
 
   private drop(key: number) {
@@ -424,7 +462,13 @@ export class Table {
     const c = this.combat!;
     const S = (k: number) => this.shown.get(k)!;
     switch (e.k) {
-      case 'move': { const p = this.pos(e.x, e.y); S(e.a).tx = p.x; S(e.a).tz = p.z; break; }
+      case 'move': {
+        // A real step: from the square it stood on to the next, over the time the step takes, with a hop.
+        const p = this.pos(e.x, e.y), s = S(e.a);
+        s.fx0 = s.x; s.fz0 = s.z; s.tx = p.x; s.tz = p.z; s.mk = 0; s.md = Math.max(0.25, (e.t ?? 0.7) * 0.9);
+        s.face = Math.atan2(p.x - s.x, p.z - s.z);
+        break;
+      }
       case 'blink': {
         const p = this.pos(e.x, e.y), s = S(e.a);
         this.puff(s.x, s.z, '#b9a7d9');
@@ -435,8 +479,9 @@ export class Table {
       case 'atk': {
         const a = S(e.a), b = S(e.b);
         a.face = Math.atan2(b.x - a.x, b.z - a.z);
-        if (e.ranged) this.shot(a, b, BY_ID[c.f[e.a].def.id].look.body === '#2f5d62' ? '#7fd1d9' : '#f4efe2', 0.07);
-        else { a.lunge = 1; a.lx = b.x - a.x; a.lz = b.z - a.z; }
+        // Every basic attack shows: a shot in the attacker's colour (with a glowing core and a trail), or a lunge and a slash.
+        if (e.ranged) { this.bolt(a, b, BY_ID[c.f[e.a].def.id].look.extra ?? BY_ID[c.f[e.a].def.id].look.body); a.kick = 1; }
+        else { a.lunge = 1; a.lx = b.x - a.x; a.lz = b.z - a.z; this.slash(b, a); }
         break;
       }
       // No damage numbers: the bars say enough. Effects get a word and a ring.
@@ -467,6 +512,44 @@ export class Table {
 
   /* ----------------------------------------------------------- effects */
 
+  /** A basic ranged attack: a bright ball with a white core and a fading trail, flying in an arc. */
+  private bolt(a: Shown, b: Shown, color: string) {
+    const g = new THREE.Group();
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), new THREE.MeshBasicMaterial({ color }));
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, depthWrite: false }));
+    g.add(ball, core, halo);
+    this.scene.add(g);
+    const from = new THREE.Vector3(a.x, 0.7, a.z), to = new THREE.Vector3(b.x, 0.55, b.z);
+    const dist = from.distanceTo(to);
+    let lastTrail = 0;
+    this.fx.push({ obj: g, t: 0, life: Math.min(0.45, 0.12 + dist * 0.06), update: (k) => {
+      g.position.lerpVectors(from, to, k); g.position.y += Math.sin(k * Math.PI) * Math.min(0.6, dist * 0.12);
+      if (k - lastTrail > 0.12 && k < 0.95) { lastTrail = k; this.puff(g.position.x, g.position.z, color, g.position.y, 0.08); }
+      if (k >= 1) this.burst(b.x, b.z, color);
+    } });
+  }
+
+  /** A melee hit: a curved white swipe across the target. */
+  private slash(b: Shown, a: Shown) {
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 20, 1, 0, Math.PI * 0.8), new THREE.MeshBasicMaterial({ color: '#fffbe8', transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    m.position.set(b.x, 0.55, b.z);
+    m.lookAt(a.x, 0.55, a.z);
+    m.rotateZ(Math.random() * Math.PI);
+    this.scene.add(m);
+    this.fx.push({ obj: m, t: -0.08, life: 0.3, update: (k) => { const q = Math.max(0, k); m.scale.setScalar(0.8 + q * 0.5); (m.material as THREE.MeshBasicMaterial).opacity = q <= 0 ? 0 : 0.95 * (1 - q); } });
+  }
+
+  /** A little spray where a shot lands. */
+  private burst(x: number, z: number, color: string) {
+    for (let k = 0; k < 4; k++) {
+      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.05, 0), new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false }));
+      const a = (k / 4) * Math.PI * 2 + Math.random();
+      this.scene.add(m);
+      this.fx.push({ obj: m, t: 0, life: 0.3, update: (q) => { m.position.set(x + Math.cos(a) * q * 0.35, 0.55 + q * 0.2, z + Math.sin(a) * q * 0.35); (m.material as THREE.MeshBasicMaterial).opacity = 1 - q; } });
+    }
+  }
+
   private shot(a: Shown, b: Shown, color: string, r: number) {
     const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), new THREE.MeshBasicMaterial({ color }));
     this.scene.add(m);
@@ -488,9 +571,9 @@ export class Table {
     this.fx.push({ obj: m, t: 0, life: 0.45, update: (k) => { (m.material as THREE.MeshBasicMaterial).opacity = 0.7 * (1 - k); } });
   }
 
-  private puff(x: number, z: number, color: string) {
-    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3, 0), new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false }));
-    m.position.set(x, 0.4, z);
+  private puff(x: number, z: number, color: string, y = 0.4, r = 0.3) {
+    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false }));
+    m.position.set(x, y, z);
     this.scene.add(m);
     this.fx.push({ obj: m, t: 0, life: 0.35, update: (k) => { m.scale.setScalar(1 + k * 1.5); (m.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - k); } });
   }
@@ -543,12 +626,25 @@ export class Table {
     const t = performance.now() / 1000;
     for (const [k, s] of this.shown) {
       const f = c ? c.f[k] : null;
-      const ease = 1 - Math.exp(-dt * 12);
-      s.x += (s.tx - s.x) * ease; s.z += (s.tz - s.z) * ease;
+      let hop = 0;
+      if (s.mk < 1 && s.md > 0) {
+        // Stepping: steady across the square, a small hop at the middle.
+        s.mk = Math.min(1, s.mk + (dt * this.speed) / s.md);
+        const q = s.mk < 0.5 ? 2 * s.mk * s.mk : 1 - (-2 * s.mk + 2) ** 2 / 2;
+        s.x = s.fx0 + (s.tx - s.fx0) * q; s.z = s.fz0 + (s.tz - s.fz0) * q;
+        hop = Math.sin(s.mk * Math.PI) * 0.12;
+      } else {
+        const ease = 1 - Math.exp(-dt * 12);
+        s.x += (s.tx - s.x) * ease; s.z += (s.tz - s.z) * ease;
+      }
       let ox = 0, oz = 0;
-      if (s.lunge > 0) { const q = Math.sin(s.lunge * Math.PI) * 0.28; const l = Math.hypot(s.lx, s.lz) || 1; ox = (s.lx / l) * q; oz = (s.lz / l) * q; s.lunge = Math.max(0, s.lunge - dt * 4 * this.speed); }
+      // A melee swing: wind back a touch, then a quick lunge at the target and back.
+      if (s.lunge > 0) { const p = 1 - s.lunge; const q = p < 0.25 ? -p * 0.4 : Math.sin(((p - 0.25) / 0.75) * Math.PI) * 0.34; const l = Math.hypot(s.lx, s.lz) || 1; ox = (s.lx / l) * q; oz = (s.lz / l) * q; s.lunge = Math.max(0, s.lunge - dt * 3.2 * this.speed); }
+      let squash = 1;
+      if (s.kick > 0) { squash = 1 - Math.sin(s.kick * Math.PI) * 0.12; s.kick = Math.max(0, s.kick - dt * 5 * this.speed); }
       const root = s.obj.root;
-      root.position.set(s.x + ox, 0, s.z + oz);
+      root.position.set(s.x + ox, hop, s.z + oz);
+      s.obj.figure.scale.y = (s.obj.figure.userData.sy ??= s.obj.figure.scale.y) * squash;
       // Turn smoothly to face the way it's fighting.
       const d = ((s.face - root.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
       root.rotation.y += d * Math.min(1, dt * 10);
@@ -574,8 +670,12 @@ export class Table {
           const NAME: Record<string, string> = { stun: '기절', silence: '침묵', shield: '보호막', taunt: '도발됨', fast: '빨라짐' };
           s.st.innerHTML = st ? st.split(' ').map((k) => `<b class="${k}">${NAME[k]}</b>`).join('') : '';
         }
-        s.hp.style.width = `${(Math.max(0, f.hp) / f.maxHp) * 100}%`;
-        s.sh.style.width = `${Math.min(100, (f.shield / f.maxHp) * 100)}%`;
+        // The shield sits right after the health left (squeezing the bar when the two pass the maximum).
+        const total = Math.max(f.maxHp, Math.max(0, f.hp) + f.shield);
+        const hpW = (Math.max(0, f.hp) / total) * 100;
+        s.hp.style.width = `${hpW}%`;
+        s.sh.style.left = `${hpW}%`;
+        s.sh.style.width = `${(f.shield / total) * 100}%`;
         s.mp.style.width = `${f.maxMana > 500 ? 0 : (f.mana / f.maxMana) * 100}%`;
       } else { s.hp.style.width = '100%'; s.sh.style.width = '0%'; s.mp.style.width = '0%'; s.obj.shield.visible = false; s.obj.stun.visible = false; }
       if (s.label.style.display !== 'none') {

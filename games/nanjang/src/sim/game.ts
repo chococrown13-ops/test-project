@@ -41,7 +41,10 @@ export interface Game {
   arena: string; season: number;
   last: Match[] | null;
   over: boolean;
+  /** How each of my rounds went, for the record when the game ends. */
+  log?: RoundLog[];
 }
+export interface RoundLog { round: number; res: 'w' | 'l' | 'd'; vs: string; lost: number; arena: string }
 
 /* --------------------------------------------------------------- rounds */
 
@@ -524,10 +527,11 @@ export function save(g: Game) { try { localStorage.setItem(key(g.theme), JSON.st
 export function load(themeId: string): Game | null {
   try {
     const s = localStorage.getItem(key(themeId));
-    const g = s ? JSON.parse(s) as Game : null;
-    if (!g || (g.v !== 2 && g.v !== 3) || g.over) return null;
+    const g = s ? JSON.parse(s) as Omit<Game, 'v'> & { v: number } as Game : null;
+    const v = (g as { v: number } | null)?.v;
+    if (!g || (v !== 2 && v !== 3) || g.over) return null;
     useTheme(g.theme);
-    if (g.v === 2) migrate(g);
+    if (v === 2) migrate(g);
     return g;
   } catch { return null; }
 }
