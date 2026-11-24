@@ -255,11 +255,11 @@ export function statsHtml(w: World, overlay: Overlay): string {
   let h = head('도시 현황');
   h += '<h4>지도 보기</h4><div class="chips" role="group" aria-label="지도 보기">' + OVERLAYS.map(([k, n]) => `<button data-ov="${k}" aria-pressed="${k === overlay}">${n}</button>`).join('') + '</div>';
   h += '<h4>사람과 일자리</h4>';
-  h += kv('인구', `${num(s.pop)}명`) + kv('일자리', `${num(s.jobs)}개`) + kv('취업률', pct(s.employed, s.workers)) + kv('평균 만족도', s.pop ? `${Math.round(s.happy)}%` : '없음');
+  h += kv('인구', `${num(s.pop)}명`) + kv('일자리', `${num(s.jobs)}개`) + kv('취업률', pct(s.employed, s.workers)) + kv('행복도 (평균 만족도)', s.pop ? `${Math.round(s.happy)}%` : '없음');
   h += '<h4>기반 시설, 사용 / 공급</h4>';
   h += kv('전력', use(s.powerUse, s.powerSupply)) + kv('수도', use(s.waterUse, s.waterSupply)) + kv('하수 처리', use(s.sewageUse, s.sewageCap));
   h += '<h4>교통</h4>';
-  h += kv('평균 통근', `${Math.round(s.commute)}분`) + kv('도로 혼잡도', state(toneOf(100 - s.congestion * 100), `${Math.round(s.congestion * 100)}%`));
+  h += kv('평균 출퇴근 시간', `${Math.round(s.commute)}분`) + kv('도로 혼잡도', state(toneOf(100 - s.congestion * 100), `${Math.round(s.congestion * 100)}%`));
   h += kv('대중교통 승객', `지난달 ${num(w.lines.reduce((a, l) => a + l.riders, 0))}명`);
   if (w.bikeLast) h += kv('공공자전거 이용', `지난달 ${num(w.bikeLast)}회`);
   if (w.intercityLast) h += kv('고속버스·KTX로 외출', `지난달 ${num(w.intercityLast)}회`);

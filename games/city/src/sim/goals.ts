@@ -53,7 +53,7 @@ export const GOALS: Goal[] = [
   { text: '버스 노선을 만들어 차 없이 출근하게 해 주세요.', done: (w) => w.lines.some((l) => l.kind === 'bus') },
   { text: '인구 2,500명이 되면 2단계가 열려요. 땅값을 올려 첫 빌라·저층 아파트를 올려 보세요.', done: (w) => kinds(w, 'r2') > 0 },
   { text: '석 달 연속 흑자를 내 보세요. 예산 창에서 수입과 지출을 볼 수 있어요.', done: (w) => surplusRun(w) >= 3 },
-  { text: '주민 행복도를 55 이상으로 올려 보세요. 공원, 학교, 행정복지센터가 도움이 돼요.', done: (w) => w.stats.pop >= 1000 && w.stats.happy >= 55 },
+  { text: (w) => `주민 행복도를 55% 이상으로 올려 보세요 (지금 ${Math.round(w.stats.happy)}%). 공원, 학교, 행정복지센터가 도움이 돼요.`, done: (w) => w.stats.pop >= 1000 && w.stats.happy >= 55 },
   { text: '인구 5,000명. 대로와 버스로 교통 체증을 줄이세요.', done: (w) => w.stats.pop >= 5000 },
   // 3장 시
   { text: '지하철 1호선을 개통하세요. 역 주변은 역세권이 돼요.', done: (w) => metroLines(w) >= 1 },
@@ -62,7 +62,7 @@ export const GOALS: Goal[] = [
   { text: '명소를 하나 지어 보세요. 전통시장, 수변공원, 고궁, 전망타워가 있어요.', done: (w) => kinds(w, 'market', 'riverpark', 'palace', 'tower') > 0 },
   { text: '공공자전거 대여소를 세 곳 지어 가까운 길은 자전거로 다니게 해 주세요.', done: (w) => kinds(w, 'bike') >= 3 },
   { text: '고속버스터미널을 지어 다른 도시와 이어 주세요. 대로에 붙여 지어요.', done: (w) => kinds(w, 'terminal') > 0 },
-  { text: '인구 8,000명이 넘은 도시에서 평균 출퇴근을 45분 아래로 줄여 보세요.', done: (w) => w.stats.pop >= 8000 && w.stats.commute > 0 && w.stats.commute <= 45 },
+  { text: (w) => `인구 8,000명이 넘은 도시에서 평균 출퇴근 시간을 45분 아래로 줄여 보세요 (지금 ${Math.round(w.stats.commute)}분). 버스, 지하철, 대로가 도움이 돼요.`, done: (w) => w.stats.pop >= 8000 && w.stats.commute > 0 && w.stats.commute <= 45 },
   { text: '인구 10,000명이 되면 3단계가 열려요. 땅값 높은 2단계 건물들이 모이면 첫 고층 아파트나 주상복합으로 재건축돼요.', done: (w) => kinds(w, 'r3') > 0 },
   // 4장 대도시
   { text: '첫 오피스 타워를 올리세요. 상업 구역의 땅값이 관건이에요.', done: (w) => kinds(w, 'c3') > 0 },
@@ -75,11 +75,11 @@ export const GOALS: Goal[] = [
   { text: '고층 아파트·주상복합을 열 동 올리세요.', done: (w) => kinds(w, 'r3') >= 10 },
   // 5장 광역시
   { text: '인구 30,000명을 달성하세요.', done: (w) => w.stats.pop >= 30000 },
-  { text: '인구 20,000명이 넘는 도시에서 행복도를 65 이상으로 지켜 보세요.', done: (w) => w.stats.pop >= 20000 && w.stats.happy >= 65 },
+  { text: (w) => `인구 20,000명이 넘는 도시에서 행복도를 65% 이상으로 지켜 보세요 (지금 ${Math.round(w.stats.happy)}%).`, done: (w) => w.stats.pop >= 20000 && w.stats.happy >= 65 },
   { text: '버스와 지하철 노선을 합쳐 여덟 개 운행하세요.', done: (w) => w.lines.length >= 8 },
   { text: '여섯 달 연속 흑자를 내 보세요.', done: (w) => surplusRun(w) >= 6 },
   { text: '빚 없이 시 금고에 10억 원을 모으세요 (대출이 남아 있으면 안 돼요).', done: (w) => w.money >= 100000 && !w.loans.length },
-  { text: '인구 30,000명이 넘는 도시에서 교통 혼잡을 낮게 지켜 보세요 (현황 창 교통 지도의 빨간 길을 줄여요).', done: (w) => w.stats.pop >= 30000 && w.stats.congestion <= 0.15 },
+  { text: (w) => `인구 30,000명이 넘는 도시에서 도로 혼잡도를 15% 아래로 지켜 보세요 (지금 ${Math.round(w.stats.congestion * 100)}%). 현황 창의 교통 지도에서 빨간 길을 줄여요.`, done: (w) => w.stats.pop >= 30000 && w.stats.congestion <= 0.15 },
   { text: '인구 50,000명. 광역시가 눈앞이에요.', done: (w) => w.stats.pop >= 50000 },
   { text: '인구 100,000명. 광역시가 됐어요!', done: (w) => w.stats.pop >= 100000 },
 ];
@@ -126,8 +126,8 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'towers', name: '마천루', text: '오피스 타워 열 동', done: (w) => kinds(w, 'c3') >= 10 },
   { id: 'apts', name: '아파트 숲', text: '고층 아파트·주상복합 서른 동', done: (w) => kinds(w, 'r3') >= 30 },
   { id: 'sights', name: '명소 수집가', text: '전통시장, 수변공원, 고궁, 전망타워를 모두', done: (w) => ['market', 'riverpark', 'palace', 'tower'].every((k) => kinds(w, k) > 0) },
-  { id: 'happy', name: '살기 좋은 도시', text: '인구 5,000명 넘는 도시에서 행복도 80', done: (w) => w.stats.pop >= 5000 && w.stats.happy >= 80 },
-  { id: 'flow', name: '뻥 뚫린 길', text: '인구 20,000명 넘는 도시에서 교통 혼잡 아주 낮게', done: (w) => w.stats.pop >= 20000 && w.stats.congestion < 0.08 },
+  { id: 'happy', name: '살기 좋은 도시', text: '인구 5,000명 넘는 도시에서 행복도 80%', done: (w) => w.stats.pop >= 5000 && w.stats.happy >= 80 },
+  { id: 'flow', name: '뻥 뚫린 길', text: '인구 20,000명 넘는 도시에서 도로 혼잡도 8% 아래', done: (w) => w.stats.pop >= 20000 && w.stats.congestion < 0.08 },
   { id: 'tourism', name: '관광 도시', text: '관광 수입 한 달 2,000만 원', done: (w) => lastTourism(w) >= 2000 },
   { id: 'debtfree', name: '빚 갚은 시장', text: '대출을 받았다가 모두 갚기', done: (w) => !!w.everLoan && !w.loans.length },
 ];
