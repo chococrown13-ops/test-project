@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { KINDS, N, Zone } from '../sim/defs';
+import { CELL, KINDS, N, Zone } from '../sim/defs';
 import { HALF_WIDTH, KERB_W } from '../sim/curves';
 import { forEachNeighbour, NN } from '../sim/graph';
 import type { World } from '../sim/world';
@@ -118,7 +118,24 @@ export class PeopleLayer {
       const dx = (b.x - a.x) / L, dz = (b.z - a.z) / L;
       const cell = wk.path[wk.i];
       const t = (w.road[cell] || 1) as 1 | 2;
-      const off = wk.side * (HALF_WIDTH[t] + KERB_W[t] * 0.5) + (wk.look - 0.5) * 0.5;
+      let off = wk.side * (HALF_WIDTH[t] + KERB_W[t] * 0.5) + (wk.look - 0.5) * 0.5;
+      // Going straight past a side street: step out to its zebra (painted just beyond the junction's edge) to cross.
+      const j = Math.round(wk.i + wk.t);
+      if (j > 0 && j < wk.path.length - 1) {
+        const pa = wk.path[j - 1], pc = wk.path[j], pb = wk.path[j + 1];
+        const dx = Math.sign((pb % N) - (pa % N)), dy = Math.sign(((pb / N) | 0) - ((pa / N) | 0));
+        if ((dx === 0) !== (dy === 0) && pc - pa === pb - pc) {
+          const sx = (pc % N) - dy * wk.side, sy = ((pc / N) | 0) + dx * wk.side;
+          const sc = sy * N + sx;
+          if (sx >= 0 && sy >= 0 && sx < N && sy < N && w.road[sc]) {
+            const st = (w.road[sc] || 1) as 1 | 2;
+            const zebra = HALF_WIDTH[t] + KERB_W[t] + 1.6;
+            const dist = Math.abs(wk.i + wk.t - j) * CELL;
+            const k = Math.max(0, Math.min(1, (HALF_WIDTH[st] + 2.5 - dist) / 2));
+            off += Math.sign(off) * (zebra - Math.abs(off)) * k;
+          }
+        }
+      }
       // Along the pavement; at a junction straight to the corner and across on the line of the crossing.
       laneAt((j) => nodeCentre(wk.path[j], w), wk.path.length - 1, wk.i + wk.t, off, Math.abs(off) + 1.5, true, pt);
       p.set(pt.x, SW, pt.z);
