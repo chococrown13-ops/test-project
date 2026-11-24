@@ -35,7 +35,7 @@ export interface Player {
 export interface Match { a: number; b: number; ghost?: boolean; creeps?: boolean; seed: number; aTeam: Placed[]; bTeam: Placed[]; outcome: Outcome; damage: number; loser: number[]; ctx: Ctx }
 
 export interface Game {
-  v: 2; theme: string; seed: number; rng: number; round: number; uid: number;
+  v: 3; theme: string; seed: number; rng: number; round: number; uid: number;
   players: Player[]; pool: Record<string, number>;
   /** This round's ground, and (사계절 요괴) season. */
   arena: string; season: number;
@@ -49,7 +49,8 @@ export interface Game {
 export const isCreepRound = (r: number) => r <= 3 || (r > 6 && r % 6 === 3);
 export function creepTeam(r: number): Placed[] {
   const [small, mid, big] = theme().creeps.map((d) => d.id);
-  const P = (id: string, star: number, c: number, row: number): Placed => ({ id, star, c, r: row });
+  // Laid out for an 8-wide board, then centred on the real one.
+  const P = (id: string, star: number, c: number, row: number): Placed => ({ id, star, c: c + Math.floor((COLS - 8) / 2), r: Math.min(HALF - 1, row) });
   if (r === 1) return [P(small, 1, 2, 1), P(small, 1, 4, 1)];
   if (r === 2) return [P(small, 1, 2, 1), P(small, 1, 3, 2), P(small, 1, 4, 1)];
   if (r === 3) return [P(small, 1, 2, 2), P(mid, 1, 3, 1), P(small, 1, 4, 2)];
@@ -67,7 +68,7 @@ export const interest = (gold: number) => Math.min(5, Math.floor(gold / 10));
 
 /* ---------------------------------------------------------------- setup */
 
-export function newGame(seed: number, themeId = 'dokkaebi', name = '나'): Game {
+export function newGame(seed: number, themeId = 'spirits', name = '나'): Game {
   const T = useTheme(themeId);
   const rng = new Rng(seed);
   const pool: Record<string, number> = {};
@@ -80,7 +81,7 @@ export function newGame(seed: number, themeId = 'dokkaebi', name = '나'): Game 
     bench: Array(BENCH).fill(null), board: [], shop: Array(SHOP).fill(null), locked: false,
     streak: 0, alive: true, place: 0, items: [], plan: k > 0 ? plans[k - 1] : undefined,
   });
-  const g: Game = { v: 2, theme: T.id, seed, rng: rng.s, round: 1, uid: 1, players, pool, arena: 'yard', season: -1, last: null, over: false };
+  const g: Game = { v: 3, theme: T.id, seed, rng: rng.s, round: 1, uid: 1, players, pool, arena: 'yard', season: -1, last: null, over: false };
   // Everyone starts with one piece of the cheapest kind (and, with ingredients, one of those).
   for (const p of players) {
     const id = draw(g, 1);
@@ -507,14 +508,26 @@ export function census(g: Game): Record<string, number> {
   return n;
 }
 
+/** A game saved on the old 8 x 10 board: pieces from the rows that are gone find new squares. */
+function migrate(g: Game) {
+  g.v = 3;
+  for (const p of g.players) {
+    const keep = p.board.filter((u) => u.r < HALF && u.c < COLS && standable(g.arena, u.c, u.r));
+    const moved = p.board.filter((u) => !keep.includes(u));
+    p.board = keep;
+    for (const u of moved) { const s = freeSpot(g, p, 'back'); if (s) p.board.push({ ...u, ...s }); else { const i = benchFree(p); if (i >= 0) p.bench[i] = { uid: u.uid, id: u.id, star: u.star, items: u.items }; } }
+  }
+}
+
 const key = (themeId: string) => `nanjang.save.${themeId}`;
 export function save(g: Game) { try { localStorage.setItem(key(g.theme), JSON.stringify(g)); } catch { /* storage blocked */ } }
 export function load(themeId: string): Game | null {
   try {
     const s = localStorage.getItem(key(themeId));
     const g = s ? JSON.parse(s) as Game : null;
-    if (!g || g.v !== 2 || g.over) return null;
+    if (!g || (g.v !== 2 && g.v !== 3) || g.over) return null;
     useTheme(g.theme);
+    if (g.v === 2) migrate(g);
     return g;
   } catch { return null; }
 }

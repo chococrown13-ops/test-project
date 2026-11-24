@@ -7,7 +7,7 @@ export const SEASONS: Theme = {
   kicker: '계절이 바뀌는 자동 전투',
   lede: '봄나비, 장마 두꺼비, 보름달 토끼, 동장군. 세 판마다 계절이 바뀌고, 제철을 맞은 요괴는 두 배로 세져요. 판의 땅도 계절 따라 달라져요.',
   creepName: '들짐승',
-  creepText: '이기면 요괴 하나와 엽전을 얻어요',
+  creepText: '이기면 부적과 엽전을 얻어요',
   seasons: true,
   traits: {
     spring: { name: '봄', kind: 'origin', steps: [2, 3], season: 0, text: '봄 요괴가 싸우는 동안 체력을 조금씩 되찾아요. 봄에는 두 배.', levels: ['초당 체력 1.5%', '초당 체력 3%'], effect: { k: 'regen', v: [0.015, 0.03] } },
@@ -50,5 +50,18 @@ export const SEASONS: Theme = {
   ],
   botNames: ['봄 처녀', '여름 소년', '가을 나그네', '겨울 할멈', '비 오는 날', '바람 언덕', '달밤 도령'],
   plans: [['spring', 'caller'], ['summer', 'flinger'], ['autumn', 'lurker'], ['winter', 'sturdy'], ['rain', 'shelter'], ['wind', 'sturdy'], ['rain', 'caller'], ['summer', 'caller'], ['winter', 'shelter'], ['spring', 'lurker']],
+  itemWord: '부적', mixWord: '부적',
+  items: [
+    { id: 'maple', name: '단풍잎', text: '공격력 +15%', color: '#d8553a', mods: { ad: 0.15 }, base: true },
+    { id: 'fan', name: '바람 부채', text: '공격 속도 +15%', color: '#9fc4d8', mods: { as: 0.15 }, base: true },
+    { id: 'rice', name: '햅쌀', text: '체력 +180', color: '#efe6cf', mods: { hp: 180 }, base: true },
+    { id: 'pine', name: '솔잎', text: '방어·마법 저항 +20', color: '#3f6a3a', mods: { resist: 20 }, base: true },
+    { id: 'dew', name: '아침 이슬', text: '시작 마나 +20', color: '#7ec4ea', mods: { mana: 20 }, base: true },
+    { id: 'hail', name: '우박', text: '치명타 +15%', color: '#d8eef7', mods: { crit: 0.15 }, base: true },
+  ],
+  recipes: {
+    'maple+maple': '불바람 부적', 'fan+fan': '태풍 부적', 'rice+rice': '풍년 부적', 'pine+pine': '소나무 부적', 'dew+dew': '단비 부적', 'hail+hail': '서리 부적',
+    'dew+rice': '풍년가', 'maple+pine': '가을 산', 'fan+hail': '눈보라', 'hail+maple': '첫서리',
+  },
   palette: { accent: '#f2b9c9', deep: '#26323a', bg: '#e4ece6', table: '#6e7f63', frame: '#3f4a3c', mine: ['#eef1e6', '#dfe5d3'], theirs: ['#e6e9e3', '#d3d9cf'], line: '#5a7a9a' },
 };
