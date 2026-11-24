@@ -65,7 +65,7 @@ export function portrait(id: string, faces: boolean, star = 1): string {
 
 /* ---------------------------------------------------------------- 도트 */
 
-const PX = 44;
+const PX = 52;
 let pxRenderer: THREE.WebGLRenderer | null = null;
 const pxCache = new Map<string, HTMLCanvasElement>();
 const texCache = new Map<string, THREE.Texture>();

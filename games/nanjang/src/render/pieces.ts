@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { type Look, lookAt, type UnitDef } from '../sim/units';
+import { type Acc, type Look, lookAt, type UnitDef } from '../sim/units';
 
 /**
  * Low-poly figures for the pieces: a disc in the colour of the cost tier,
@@ -9,6 +9,8 @@ import { type Look, lookAt, type UnitDef } from '../sim/units';
 
 /** Shapes that are creatures (drawn standing, sized like figures), not dishes on a plate. */
 export const CREATURES: string[] = ['snowman', 'cloud', 'twister', 'bird', 'drop', 'pebble', 'jelly'];
+
+let creatureShape = false;
 
 export const TIER_COLOR = ['#888', '#9aa3ab', '#4f9d69', '#3f7cc4', '#9b59b6', '#e2a822'];
 
@@ -197,7 +199,8 @@ export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces
     }
     return last;
   };
-  switch (L.acc) {
+  /** One accessory (a piece can have two: its own, and one an evolution adds). */
+  const accessory = (acc: Acc | undefined) => { switch (acc) {
     case 'horn': add(mesh(new THREE.ConeGeometry(0.05, 0.2, 5), '#f2e3b3', 0, 0.85, 0)); break;
     case 'horns': {
       const h1 = mesh(new THREE.ConeGeometry(0.05, 0.22, 5), '#f2e3b3', -0.1, 0.82, 0), h2 = mesh(new THREE.ConeGeometry(0.05, 0.22, 5), '#f2e3b3', 0.1, 0.82, 0);
@@ -263,7 +266,19 @@ export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces
       add(mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.35, 7), body, 0, 0.82, 0), mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.05, 7), '#b33a2e', 0, 1.0, 0));
       break;
     }
-    case 'crown': add(mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.12, 6), '#d9b44a', 0, 0.82, 0, { rough: 0.4 }), mesh(new THREE.TorusGeometry(0.26, 0.03, 5, 16), '#8fb4d9', 0, 0.42, 0)).children.at(-1)!.rotation.set(Math.PI / 2, 0, 0); break;
+    case 'crown': {
+      // A small gold crown with points and a jewel.
+      const band = mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.06, 12, 1, true), '#e8c04a', 0, 0.8, 0, { rough: 0.35 });
+      (band.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide; add(band);
+      for (let k = 0; k < 5; k++) { const a = (k / 5) * Math.PI * 2 + Math.PI / 2; add(mesh(new THREE.ConeGeometry(0.035, 0.1, 4), '#e8c04a', Math.cos(a) * 0.12, 0.87, Math.sin(a) * 0.12, { rough: 0.35 })); }
+      add(mesh(new THREE.OctahedronGeometry(0.035, 0), '#e8435a', 0, 0.8, 0.135, { emissive: '#5a0a14' }));
+      break;
+    }
+    case 'halo': {
+      // A glowing ring floating over the head.
+      const h = mesh(new THREE.TorusGeometry(0.15, 0.025, 6, 20), L.extra ?? '#fff2a0', 0, 0.94, 0, { emissive: L.extra ?? '#fff2a0' }); h.rotation.x = Math.PI / 2 - 0.25; add(h);
+      break;
+    }
     case 'whiskers': for (const sd of [-1, 1]) for (const k of [-1, 1]) { const w = mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.2, 4), '#3a2a20', sd * 0.2, 0.6 + k * 0.025, 0.14); w.rotation.z = Math.PI / 2 + sd * k * 0.2; add(w); } break;
     case 'spikes': for (let k = 0; k < 5; k++) { const sp = mesh(new THREE.ConeGeometry(0.06, 0.22, 4), '#3c3e44', (k - 2) * 0.08, 0.58 - Math.abs(k - 2) * 0.06, -0.2); sp.rotation.x = -0.6; add(sp); } break;
     case 'serpent': break;
@@ -371,7 +386,9 @@ export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces
       break;
     }
     case 'cloud': case 'none': case undefined: break;
-  }
+  } };
+  accessory(L.acc);
+  if (L.acc2 && L.acc2 !== L.acc) accessory(L.acc2);
   fig.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
   if (style === 'doll') outline(fig);
   if (!raw && style === 'voxel') voxelise(fig, `${def.id}|${faces}`);
@@ -410,6 +427,8 @@ export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces
 /** Cartoon eyes (white with a dark pupil), for food and other non-figure pieces. */
 function eyes(fig: THREE.Group, y: number, z: number, spread = 0.07, r = 0.035) {
   if (!faces) return;
+  // Creatures get the big shiny eyes and rosy cheeks of the figures.
+  if (creatureShape) { faceOn(fig, 0, y, z + r * 0.4, spread, r * 1.15, true); return; }
   if (eyeLog) { eyeLog.push({ x: 0, y, z: z + r, spread, cute: false }); return; }
   for (const sd of [-1, 1]) {
     fig.add(mesh(new THREE.SphereGeometry(r, 8, 6), '#ffffff', sd * spread, y, z));
@@ -437,6 +456,7 @@ function faceOn(fig: THREE.Group, x: number, y: number, z: number, spread: numbe
 
 function shapeBody(fig: THREE.Group, L: Look) {
   const body = L.body, head = L.head;
+  creatureShape = CREATURES.includes(L.shape ?? '');
   const add = (...o: THREE.Object3D[]) => fig.add(...o);
   switch (L.shape) {
     case 'bowl': {
