@@ -22,7 +22,7 @@ import { MAPS, randomMap, type MapKind } from './sim/maps';
 import { CityScene } from './render/scene';
 import type { Overlay } from './render/ground';
 import { CATEGORIES, TOOLS, type ToolDef, type ToolId } from './ui/tools';
-import { budgetHtml, draftHtml, HELP, infoHtml, linesHtml, menuHtml, pumpToasts, resetToasts, statsHtml, toast, updateGoal, updateTop } from './ui/hud';
+import { budgetHtml, clearUnread, noticesHtml, draftHtml, HELP, infoHtml, linesHtml, menuHtml, pumpToasts, resetToasts, statsHtml, toast, updateGoal, updateTop } from './ui/hud';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('view');
@@ -189,7 +189,7 @@ document.querySelector('.speed')!.addEventListener('click', (e) => {
 
 /* -------------------------------------------------------------- panels */
 
-type PanelKind = 'budget' | 'stats' | 'menu' | 'help' | 'lines';
+type PanelKind = 'budget' | 'stats' | 'menu' | 'help' | 'lines' | 'notices';
 let confirmLine: number | null = null;
 let panel: PanelKind | null = null;
 let panelStamp = '';
@@ -201,7 +201,7 @@ function openPanel(k: PanelKind) {
   confirmLine = null;
   closeInfo();
   $('panel').hidden = false;
-  $('panel').setAttribute('aria-label', { budget: '예산', stats: '도시 현황', menu: '메뉴', help: '조작법', lines: '노선 관리' }[k]);
+  $('panel').setAttribute('aria-label', { budget: '예산', stats: '도시 현황', menu: '메뉴', help: '조작법', lines: '노선 관리', notices: '알림' }[k]);
   renderPanel(true);
   renderCats();
 }
@@ -210,10 +210,10 @@ function renderPanel(force = false) {
   if (!panel) return;
   const w = sim.w;
   // The budget sheet only rebuilds on a new month so sliders don't jump under the finger.
-  const stamp = panel === 'budget' ? `${w.reports.length}:${w.tax.R}${w.tax.C}${w.tax.I}` : panel === 'stats' ? `${w.day}:${scene.overlay}` : panel === 'lines' ? `${w.ver.transit}:${w.reports.length}:${confirmLine}` : panel;
+  const stamp = panel === 'budget' ? `${w.reports.length}:${w.tax.R}${w.tax.C}${w.tax.I}` : panel === 'stats' ? `${w.day}:${scene.overlay}` : panel === 'lines' ? `${w.ver.transit}:${w.reports.length}:${confirmLine}` : panel === 'notices' ? `${w.notices.length}:${w.notices[0]?.text}` : panel;
   if (!force && stamp === panelStamp) return;
   panelStamp = stamp;
-  $('panel').innerHTML = panel === 'budget' ? budgetHtml(w) : panel === 'stats' ? statsHtml(w, scene.overlay) : panel === 'menu' ? menuHtml(w, scene.quality, scene.style, { on: bgm.on, volume: bgm.volume }) : panel === 'lines' ? linesHtml(w, confirmLine) : HELP;
+  $('panel').innerHTML = panel === 'budget' ? budgetHtml(w) : panel === 'stats' ? statsHtml(w, scene.overlay) : panel === 'menu' ? menuHtml(w, scene.quality, scene.style, { on: bgm.on, volume: bgm.volume }) : panel === 'lines' ? linesHtml(w, confirmLine) : panel === 'notices' ? noticesHtml(w) : HELP;
 }
 function openInfo(x: number, y: number) {
   infoCell = { x, y };
@@ -224,6 +224,7 @@ function openInfo(x: number, y: number) {
 function closeInfo() { infoCell = null; $('info').hidden = true; }
 
 $('menuBtn').addEventListener('click', () => openPanel('menu'));
+$('bellBtn').addEventListener('click', () => { openPanel('notices'); clearUnread(); });
 for (const id of ['info', 'panel']) {
   const el = $(id);
   el.addEventListener('click', (e) => {
@@ -244,6 +245,9 @@ for (const id of ['info', 'panel']) {
     }
     if (t.dataset.act === 'save') { const ok = saveLocal(sim.w); toast(ok ? `${sim.w.name}을(를) 저장했어요. 불러오기에서 다른 도시와 골라 열 수 있어요.` : '저장하지 못했어요. 저장 공간이 모자라면 불러오기에서 안 쓰는 도시를 지워 주세요.', ok ? 'good' : 'warn'); }
     if (t.dataset.act === 'slots') { closePanel(); openSlots(); }
+    if (t.dataset.notice) { const n = sim.w.notices[Number(t.dataset.notice)]; if (n?.at !== undefined) document.dispatchEvent(new CustomEvent('city:goto', { detail: { at: n.at, overlay: n.overlay } })); }
+    if (t.dataset.taxstep) { const [k, d] = t.dataset.taxstep.split(':'); const key = k as 'R' | 'C' | 'I'; sim.w.tax[key] = Math.max(0, Math.min(20, sim.w.tax[key] + Number(d))); renderPanel(true); }
+    if (t.dataset.taxpreset) { const v = Number(t.dataset.taxpreset); sim.w.tax.R = sim.w.tax.C = sim.w.tax.I = v; renderPanel(true); toast(`세율을 모두 ${v}%로 맞췄어요.`, 'good'); }
     if (t.dataset.loan) { const err = takeLoan(sim.w, Number(t.dataset.loan)); toast(err ?? `${Number(t.dataset.loan) / 10000}억 원을 빌렸어요. 다음 달부터 나눠 갚아요.`, err ? 'warn' : 'good'); renderPanel(true); }
     if (t.dataset.repay) { const err = repayLoan(sim.w, Number(t.dataset.repay)); toast(err ?? '대출을 다 갚았어요.', err ? 'warn' : 'good'); renderPanel(true); }
     if (t.dataset.act === 'new') { closePanel(); setSpeed(0); running = false; $('start').hidden = false; }

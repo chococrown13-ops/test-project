@@ -182,15 +182,26 @@ export class CityScene {
     return { x, y, wx: hit.x, wz: hit.z };
   }
 
-  private light(clock: number) {
-    const day = smooth(5, 7, clock) * (1 - smooth(18, 20, clock));
-    shared.uNight.value = 1 - smooth(5.5, 7, clock) * (1 - smooth(17.5, 19.5, clock));
-    const dusk = Math.max(0, 1 - Math.abs(clock - 18.7) / 1.6) + Math.max(0, 1 - Math.abs(clock - 6) / 1.3);
-    const ang = ((clock - 6) / 12) * Math.PI;
+  /**
+   * Daylight from the real sun over Seoul (37.5°N) on the game's date: high and early in June, low and late in
+   * December, so shadows swing round from the east in the morning to the west in the evening and stretch in winter.
+   */
+  private light(clock: number, gameDay = 0) {
+    const doy = (((gameDay + 59) % 360) * 365) / 360; // the game starts on 1 March; 30-day months
+    const decl = ((23.44 * Math.PI) / 180) * Math.sin((2 * Math.PI * (284 + doy)) / 365);
+    const lat = (37.5 * Math.PI) / 180, H = ((clock - 12.5) * 15 * Math.PI) / 180; // Korean clocks run half an hour ahead of the sun
+    const sinEl = Math.sin(lat) * Math.sin(decl) + Math.cos(lat) * Math.cos(decl) * Math.cos(H);
+    const elDeg = (Math.asin(sinEl) * 180) / Math.PI;
+    const azm = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(lat) - Math.tan(decl) * Math.cos(lat)) + Math.PI; // from north, clockwise
+    const day = smooth(-3, 8, elDeg);
+    shared.uNight.value = 1 - smooth(-5, 5, elDeg);
+    const dusk = Math.max(0, 1 - Math.abs(elDeg - 3) / 9) * (day > 0.02 ? 1 : 0.4);
     const t = this.view.target;
-    const el = day > 0.01 ? Math.max(0.12, Math.sin(ang)) : 0.8;
-    const az = day > 0.01 ? Math.cos(ang) : 0.3;
-    this.sun.position.set(t.x + az * 400, el * 520, t.z + 220);
+    // The sun's direction (north is -z on the map); at night a moonlike light from high up.
+    const el = day > 0.01 ? Math.max(0.12, sinEl) : 0.8;
+    const ce = Math.sqrt(1 - el * el);
+    const dx = day > 0.01 ? Math.sin(azm) * ce : 0.3, dz = day > 0.01 ? -Math.cos(azm) * ce : 0.4;
+    this.sun.position.set(t.x + dx * 520, el * 520, t.z + dz * 520);
     this.sun.target.position.copy(t);
     this.sun.intensity = 0.22 + day * 2.4;
     this.sun.color.setRGB(1, 0.93 - dusk * 0.2, 0.84 - dusk * 0.35);
@@ -215,7 +226,7 @@ export class CityScene {
     const w = this.sim.w;
     this.view.update(dt);
     shared.uTime.value = now;
-    this.light(this.sim.clock);
+    this.light(this.sim.clock, this.sim.w.day);
     // Ground cells under bus routes, for the median bus lanes.
     const bk = `${w.ver.transit}:${w.ver.roads}:${w.lines.length}`;
     if (bk !== this.busKey) {

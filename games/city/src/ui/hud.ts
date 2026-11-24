@@ -51,7 +51,27 @@ export function pumpToasts(w: World) {
   for (const n of w.notices) { if (n === lastTop) break; fresh.push(n); }
   if (!fresh.length) return;
   lastTop = w.notices[0];
-  for (const n of fresh.slice(0, 3).reverse()) toast(n.text, n.tone, n.at !== undefined ? { at: n.at, overlay: n.overlay } : undefined);
+  // The city's notices don't pop up over the screen any more: they wait in the 알림 box, counted on its bell.
+  unread = Math.min(99, unread + fresh.length);
+  showBell(fresh.some((n) => n.tone === 'warn'));
+}
+
+let unread = 0;
+function showBell(warn = false) {
+  const el = document.getElementById('bellCount');
+  if (!el) return;
+  el.textContent = unread ? String(unread) : '';
+  el.hidden = !unread;
+  if (warn) { const b = document.getElementById('bellBtn'); b?.classList.remove('ring'); void b?.offsetWidth; b?.classList.add('ring'); }
+}
+export function clearUnread() { unread = 0; showBell(); }
+
+/** 알림: the city's recent notices, newest first, with a way to see where each one is. */
+export function noticesHtml(w: World): string {
+  let h = head('알림');
+  if (!w.notices.length) return h + '<p class="hint">아직 알림이 없어요.</p>';
+  h += '<ul class="notices">' + w.notices.map((n, k) => `<li class="${n.tone}"><span class="when">${Math.floor(n.day / 360) + 1}년 ${((Math.floor(n.day / 30) % 12) + 2) % 12 + 1}월</span><span class="text">${n.text}</span>${n.at !== undefined ? `<button class="btn small" data-notice="${k}">어디인지 보기</button>` : ''}</li>`).join('') + '</ul>';
+  return h;
 }
 
 /** A toast; with `place`, it carries a button that takes the camera there (main.ts listens for city:goto). */
@@ -70,8 +90,9 @@ export function toast(text: string, tone: 'info' | 'warn' | 'good' = 'info', pla
     el.append(' ', go);
   }
   box.prepend(el);
-  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 450); }, tone === 'warn' ? 7000 : 5000);
-  while (box.children.length > 4) box.lastElementChild!.remove();
+  // Short, and only for what the player just did: one or two at a time, gone in a few seconds.
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 450); }, tone === 'warn' ? 3500 : 2600);
+  while (box.children.length > 2) box.lastElementChild!.remove();
 }
 
 /* -------------------------------------------------------------- goals */
@@ -217,9 +238,10 @@ export function budgetHtml(w: World): string {
   h += '<h4>지출</h4>' + kv('도로 유지', won(last.expense.roads)) + kv('전기, 상하수도 시설', won(last.expense.facilities)) + kv('공공 서비스', won(last.expense.services)) + kv('대중교통 운영', won(last.expense.transit ?? 0)) + (w.loans.length || last.expense.debt ? kv('대출 상환', won(last.expense.debt ?? 0)) : '');
   const net = inc - exp;
   h += `<div class="kv total"><span class="k">월 수지</span>${state(net >= 0 ? 'ok' : 'no', `${net >= 0 ? '+' : '−'}${won(Math.abs(net))}`)}</div>`;
-  h += '<h4>세율</h4><p class="hint">높일수록 수입은 늘고 수요는 줄어요.</p>';
+  h += '<h4>세율</h4><p class="hint">높일수록 수입은 늘고 이사 오려는 사람과 가게는 줄어요. 보통 9~12%가 알맞고, 15%를 넘으면 수요가 크게 줄어요.</p>';
   for (const [k, n] of [['R', '주거'], ['C', '상업'], ['I', '산업']] as const)
-    h += `<div class="tax"><label for="tax${k}">${n}</label><input id="tax${k}" type="range" min="0" max="20" step="1" value="${w.tax[k]}" data-tax="${k}" /><b>${w.tax[k]}%</b></div>`;
+    h += `<div class="tax"><label for="tax${k}">${n}</label><button class="btn small step" data-taxstep="${k}:-1" aria-label="${n} 세율 내리기">−</button><input id="tax${k}" type="range" min="0" max="20" step="1" value="${w.tax[k]}" data-tax="${k}" /><button class="btn small step" data-taxstep="${k}:1" aria-label="${n} 세율 올리기">+</button><b>${w.tax[k]}%</b></div>`;
+  h += '<div class="loan-row"><button class="btn small" data-taxpreset="8">세금 낮게 (8%) · 성장 우선</button><button class="btn small" data-taxpreset="10">보통 (10%)</button><button class="btn small" data-taxpreset="13">세금 높게 (13%) · 수입 우선</button></div>';
   h += '<h4>지방채 (대출)</h4><p class="hint">돈이 모자랄 때 빌려 쓰고 5년 동안 매달 나눠 갚아요 (연 3.5%). 도시가 크면 지방교부세도 늘어요.</p>';
   h += w.loans.map((l, k) => `<div class="kv"><span class="k">${won(l.amount)} · ${l.months}개월 남음</span><span>월 ${won(l.pay)} <button class="btn small" data-repay="${k}">갚기</button></span></div>`).join('');
   if (w.loans.length < MAX_LOANS) h += `<div class="loan-row">${LOAN_SIZES.map((a) => `<button class="btn small" data-loan="${a}">${a / 10000}억 빌리기</button>`).join('')}</div>`;

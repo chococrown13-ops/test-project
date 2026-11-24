@@ -58,7 +58,14 @@ export function buildCityNetwork(w: World): Network {
    */
   // A link carries on straight at either end (so it's part of a real road, not just a corner stub).
   const straight = (i: number, n: number) => raw(i).includes(2 * i - n) || raw(n).includes(2 * n - i);
-  const links = (i: number) => raw(i).filter((n) => isDiag(i, n) || straight(i, n) || !raw(n).some((m) => m !== i && raw(i).includes(m) && (isDiag(i, m) || isDiag(n, m))));
+  /**
+   * Two roads laid side by side in neighbouring rows link at every cell, which would draw a ladder of
+   * junctions and crossings. A link whose two ends both run straight on across it is such a rung:
+   * the pair is drawn as two roads side by side instead.
+   */
+  const through = (i: number, n: number) => { const d = n - i, p = Math.abs(d) === 1 ? N : 1; return raw(i).includes(i + p) && raw(i).includes(i - p); };
+  const rung = (i: number, n: number) => !isDiag(i, n) && through(i, n) && through(n, i) && !straight(i, n);
+  const links = (i: number) => raw(i).filter((n) => !rung(i, n) && (isDiag(i, n) || straight(i, n) || !raw(n).some((m) => m !== i && raw(i).includes(m) && (isDiag(i, m) || isDiag(n, m)))));
   const chain = new Set<string>();
   const key = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
   // (A link between two older road cells stays a grid link even if the curve also runs along it: that street goes straight on.)

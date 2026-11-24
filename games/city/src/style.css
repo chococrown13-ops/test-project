@@ -224,3 +224,17 @@ body { background: var(--color-paper); -webkit-user-select: none; user-select: n
 .slot b { display: block; font-family: var(--font-display); font-size: var(--text-lg); }
 .slot small { color: var(--color-muted); }
 .loan-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+
+/* 알림: a bell with a count; notices wait in their own panel instead of covering the screen. */
+.bell { position: relative; font-size: 15px; }
+.bell-count { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--color-accent-3); color: #fff; font: 700 11px/18px var(--font-body); text-align: center; }
+.bell.ring { animation: bell-ring 0.6s ease-in-out 2; }
+@keyframes bell-ring { 0%, 100% { rotate: 0deg; } 25% { rotate: -14deg; } 75% { rotate: 14deg; } }
+.notices { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.notices li { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: baseline; padding: 6px 8px; border-radius: 10px; background: var(--color-card); box-shadow: inset 3px 0 0 var(--color-accent-2); font-size: var(--text-sm); }
+.notices li.warn { box-shadow: inset 3px 0 0 var(--color-accent-3); }
+.notices li.good { box-shadow: inset 3px 0 0 var(--color-mint-deep); }
+.notices .when { color: var(--color-muted); font-size: var(--text-xs); white-space: nowrap; }
+.notices .btn { grid-column: 2; justify-self: start; }
+.tax { grid-template-columns: 40px 32px minmax(0, 1fr) 32px 40px; }
+.tax .step { min-width: 32px; padding: 0; }

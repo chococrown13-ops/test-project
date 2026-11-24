@@ -115,10 +115,30 @@ export class VehicleLayer {
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), pitch = new THREE.Quaternion(), fwdZ = new THREE.Vector3(0, 0, 1), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
     const n = [0, 0, 0, 0];
     const a = { x: 0, z: 0, y: 0 }, b = { x: 0, z: 0, y: 0 };
+    // Drawn a car's length apart in each lane (the simulation lets a busy cell hold several at once,
+    // and a red light stops them all at the same line).
+    const lanes = new Map<string, Car[]>();
+    for (const car of tr.cars) {
+      if (car.i >= car.path.length - 1) continue;
+      const node = car.path[car.i], k = `${node}>${car.path[car.i + 1]}>${roadTypeOf(w, node) === Road.Avenue && car.look > 0.5 ? 1 : 0}`;
+      let l = lanes.get(k); if (!l) lanes.set(k, (l = []));
+      l.push(car);
+    }
+    const shown = new Map<Car, number>();
+    for (const l of lanes.values()) {
+      l.sort((p, q) => q.t - p.t);
+      let ahead = Infinity;
+      for (const car of l) {
+        const t = Math.min(car.t, ahead);
+        shown.set(car, t);
+        ahead = t - (car.kind === 1 || car.kind === 2 ? 0.75 : car.kind === 3 ? 0.3 : 0.55);
+      }
+    }
     for (const car of tr.cars) {
       // Average two points along the path so cars round the corners.
-      sample(w, car, car.i + car.t - 0.3, a);
-      sample(w, car, car.i + car.t + 0.3, b);
+      const st = car.i + (shown.get(car) ?? car.t);
+      sample(w, car, st - 0.3, a);
+      sample(w, car, st + 0.3, b);
       const dx = b.x - a.x, dz = b.z - a.z;
       if (dx * dx + dz * dz < 1e-4) continue;
       const k = car.kind, i = n[k]++;
