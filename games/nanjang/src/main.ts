@@ -18,7 +18,7 @@ import type { Fighter } from './sim/combat';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 /** The game's name (the themes are tables it can be played on). */
-const GAME_NAME = '한판 난장';
+const GAME_NAME = '셋모아 쑥쑥';
 const table = new Table($('view') as HTMLCanvasElement, $('labels'));
 
 let g: Game | null = null;
@@ -575,7 +575,7 @@ function finish() {
     log: g!.log ?? [],
   });
   $('againBtn').textContent = '테마 고르고 한 판 더';
-  $('endKicker').textContent = place === 1 ? '난장의 주인' : '난장이 끝났어요';
+  $('endKicker').textContent = place === 1 ? '마지막까지 남았어요' : '한 판이 끝났어요';
   $('endTitle').textContent = `${place}등`;
   const winner = g!.players.find((q) => q.place === 1);
   $('endText').textContent = place === 1 ? `${g!.round}라운드 만에 일곱 상대를 모두 물리쳤어요.` : `${g!.round}라운드에서 떨어졌어요.${winner ? ` 1등은 ${winner.name}이에요.` : ''} 다음 판에는 같은 갈래를 더 모아 보세요.`;
@@ -797,6 +797,6 @@ requestAnimationFrame(loop);
 // For checks in a headless browser.
 (window as unknown as { nanjang: unknown }).nanjang = {
   get game() { return g; }, table, render: () => renderAll(),
-  portraits: (st: PieceStyle, th: string) => { applyTheme(themeById(th)); setPieceStyle(st); return UNITS.map((d) => ({ name: d.name, url: portrait(d.id, theme().faces !== false) })); },
+  portraits: (st: PieceStyle, th: string, star = 1) => { applyTheme(themeById(th)); setPieceStyle(st); return UNITS.map((d) => ({ name: nameAt(d, star), url: portrait(d.id, theme().faces !== false, star) })); },
   lineup: (st: PieceStyle, th: string) => { applyTheme(themeById(th)); setPieceStyle(st); $('start').hidden = true; table.setArena('yard'); table.showLineup(UNITS.map((d) => d.id)); },
 };

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BY_ID } from '../sim/units';
 import type { UnitDef } from '../sim/units';
-import { beginEyeCapture, buildPiece, endEyeCapture, evolved, pieceStyle, setSpriteMaker } from './pieces';
+import { beginEyeCapture, buildPiece, CREATURES, endEyeCapture, evolved, pieceStyle, setSpriteMaker } from './pieces';
 
 /**
  * Little portraits of the pieces for the shop cards, the info card and the
@@ -92,7 +92,7 @@ function pixelCanvas(def: UnitDef, faces: boolean): HTMLCanvasElement {
   obj.base.visible = false; obj.ring.visible = false;
   // Dishes and other non-figures read best from higher up, and fish side-on.
   const shape = def.look.shape;
-  const dish = !!shape && shape !== 'figure' && !['snowman', 'cloud', 'twister', 'bird'].includes(shape);
+  const dish = !!shape && shape !== 'figure' && !CREATURES.includes(shape);
   if (shape === 'fish') obj.root.rotation.y = -Math.PI / 2;
   if (shape === 'crab') obj.root.rotation.y = -0.5;
   obj.root.updateMatrixWorld(true);

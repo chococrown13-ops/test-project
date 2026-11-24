@@ -7,6 +7,9 @@ import { type Look, lookAt, type UnitDef } from '../sim/units';
  * tails, a 갓, a shell...). Built from a handful of primitives, flat-shaded.
  */
 
+/** Shapes that are creatures (drawn standing, sized like figures), not dishes on a plate. */
+export const CREATURES: string[] = ['snowman', 'cloud', 'twister', 'bird', 'drop', 'pebble', 'jelly'];
+
 export const TIER_COLOR = ['#888', '#9aa3ab', '#4f9d69', '#3f7cc4', '#9b59b6', '#e2a822'];
 
 /**
@@ -239,8 +242,10 @@ export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces
     case 'hat': add(mesh(new THREE.ConeGeometry(0.2, 0.28, 8), '#8a5a2b', 0, 0.88, 0)); break;
     case 'hood': add(mesh(new THREE.ConeGeometry(0.24, 0.5, 7), body, 0, 0.72, -0.04)); break;
     case 'shell': {
-      const sh = mesh(new THREE.SphereGeometry(0.3, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), '#3e6b3e', 0, 0.2, -0.08);
-      sh.scale.set(1, 0.8, 1); add(sh);
+      // A domed shell with a rim, wide enough to show round the sides.
+      const sh = mesh(new THREE.SphereGeometry(0.33, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), L.extra ?? '#3e6b3e', 0, 0.2, -0.1);
+      sh.scale.set(1.05, 0.95, 1); add(sh);
+      add(mesh(new THREE.TorusGeometry(0.33, 0.03, 5, 16), '#c9a86a', 0, 0.2, -0.1)).children.at(-1)!.rotation.set(Math.PI / 2, 0, 0);
       break;
     }
     case 'fins': {
@@ -282,6 +287,89 @@ export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces
     }
     case 'bolt': for (let k = 0; k < 3; k++) { const b = mesh(new THREE.BoxGeometry(0.05, 0.14, 0.03), '#f2d04a', (k % 2 ? 0.04 : -0.02), 0.95 + k * 0.11, 0, { emissive: '#7a6a12' }); b.rotation.z = k % 2 ? -0.6 : 0.6; add(b); } break;
     case 'snow': add(mesh(new THREE.SphereGeometry(0.12, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), '#ffffff', 0, 0.74, 0)); break;
+    case 'flame': {
+      // A flickering tuft of fire on the head.
+      add(mesh(new THREE.ConeGeometry(0.09, 0.3, 6), '#ffd24a', 0, 0.9, 0, { emissive: '#7a4a00' }));
+      for (const sd of [-1, 1]) { const f = mesh(new THREE.ConeGeometry(0.06, 0.2, 6), '#ff7a2a', sd * 0.08, 0.83, 0.01, { emissive: '#5a1a00' }); f.rotation.z = -sd * 0.35; add(f); }
+      break;
+    }
+    case 'quills': {
+      // Spines fanned round the top and back of the head, so they show from the front.
+      const col = L.extra ?? '#5a3a20';
+      for (let k = 0; k < 9; k++) {
+        const a = (k / 8 - 0.5) * Math.PI * 1.15;
+        const dir = new THREE.Vector3(Math.sin(a), Math.cos(a) * 0.9 + 0.15, -0.45).normalize();
+        const sp = mesh(new THREE.ConeGeometry(0.05, 0.2, 5), col, dir.x * 0.17, 0.62 + dir.y * 0.17, dir.z * 0.17);
+        sp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        add(sp);
+      }
+      break;
+    }
+    case 'snailshell': {
+      // A big coiled shell on the back, peeking over the shoulders, and two eye stalks.
+      const col = L.extra ?? '#c98a4a';
+      // (Set off to one side and up, so it shows from the front over the shoulder.)
+      add(mesh(new THREE.SphereGeometry(0.27, seg(10), seg(8)), col, 0.16, 0.42, -0.16));
+      const ring = mesh(new THREE.TorusGeometry(0.14, 0.035, 6, 16), '#7a4a2a', 0.18, 0.44, 0.08); add(ring);
+      for (const sd of [-1, 1]) { const st = mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.2, 5), head, sd * 0.07, 0.86, 0.02); st.rotation.z = -sd * 0.25; add(st, mesh(new THREE.SphereGeometry(0.04, 6, 4), head, sd * 0.1, 0.96, 0.02)); }
+      break;
+    }
+    case 'penguin': {
+      // White face and belly, an orange beak, little flippers.
+      const white = L.extra ?? '#f4f7fa';
+      const belly = mesh(new THREE.SphereGeometry(0.17, seg(10), seg(8)), white, 0, 0.22, 0.09); belly.scale.set(0.9, 1.1, 0.6); add(belly);
+      const face = mesh(new THREE.SphereGeometry(0.13, seg(10), seg(8)), white, 0, 0.6, 0.08); face.scale.set(1.1, 0.9, 0.7); add(face);
+      const bk = mesh(new THREE.ConeGeometry(0.04, 0.12, 5), '#f2a03a', 0, 0.56, 0.2); bk.rotation.x = Math.PI / 2; add(bk);
+      for (const sd of [-1, 1]) { const fl = mesh(new THREE.BoxGeometry(0.05, 0.2, 0.12), body, sd * 0.24, 0.26, 0); fl.rotation.z = sd * 0.4; add(fl); }
+      break;
+    }
+    case 'mole': {
+      // A pink nose and big digging claws.
+      add(mesh(new THREE.SphereGeometry(0.055, 8, 6), '#f29bb0', 0, 0.58, 0.18));
+      for (const sd of [-1, 1]) { const cl = mesh(new THREE.SphereGeometry(0.085, 8, 6), '#f2c4b8', sd * 0.25, 0.22, 0.1); cl.scale.set(1, 0.6, 1.2); add(cl); }
+      break;
+    }
+    case 'fleece': {
+      // Fluffy wool all over, a woolly cap, and curled horns.
+      const wool = L.extra ?? '#f4f1e8';
+      for (const [x, y, z, r] of [[-0.15, 0.24, 0.06, 0.13], [0.15, 0.24, 0.06, 0.13], [0, 0.3, 0.12, 0.13], [0, 0.16, 0.1, 0.12], [-0.12, 0.36, -0.08, 0.13], [0.12, 0.36, -0.08, 0.13]] as number[][]) add(mesh(new THREE.IcosahedronGeometry(r, 1), wool, x, y, z));
+      for (const x of [-0.08, 0, 0.08]) add(mesh(new THREE.IcosahedronGeometry(0.08, 1), wool, x, 0.78, 0.02));
+      for (const sd of [-1, 1]) { const h = mesh(new THREE.TorusGeometry(0.06, 0.025, 5, 10), '#c9b08a', sd * 0.17, 0.66, 0.02); h.rotation.y = Math.PI / 2; add(h); }
+      break;
+    }
+    case 'antlers': {
+      // Branching antlers, with blossoms at the tips when the piece has a flower colour.
+      for (const sd of [-1, 1]) {
+        const main = mesh(new THREE.CylinderGeometry(0.018, 0.026, 0.26, 5), '#8a6a4a', sd * 0.1, 0.86, 0); main.rotation.z = -sd * 0.45; add(main);
+        const tine = mesh(new THREE.CylinderGeometry(0.014, 0.018, 0.13, 5), '#8a6a4a', sd * 0.1, 0.9, 0); tine.rotation.z = sd * 0.35; add(tine);
+        if (L.extra) add(mesh(new THREE.SphereGeometry(0.045, 6, 4), L.extra, sd * 0.17, 0.97, 0), mesh(new THREE.SphereGeometry(0.035, 6, 4), L.extra, sd * 0.06, 0.96, 0));
+      }
+      break;
+    }
+    case 'roundears': {
+      // Round mouse ears with pink insides, and a long thin tail.
+      for (const sd of [-1, 1]) {
+        const e = mesh(new THREE.SphereGeometry(0.085, 10, 8), head, sd * 0.13, 0.78, 0); e.scale.set(1, 1, 0.4); add(e);
+        const i = mesh(new THREE.SphereGeometry(0.055, 8, 6), '#f2a7b8', sd * 0.13, 0.78, 0.025); i.scale.set(1, 1, 0.3); add(i);
+      }
+      const tail = mesh(new THREE.CylinderGeometry(0.012, 0.02, 0.4, 5), '#f2a7b8', 0.12, 0.14, -0.24); tail.rotation.set(-1.1, 0, -0.6); add(tail);
+      break;
+    }
+    case 'starmark': {
+      // Cat ears and a little gold star on the forehead.
+      add(mesh(new THREE.ConeGeometry(0.06, 0.16, 4), head, -0.1, 0.8, 0), mesh(new THREE.ConeGeometry(0.06, 0.16, 4), head, 0.1, 0.8, 0));
+      const star = mesh(new THREE.OctahedronGeometry(0.05, 0), '#ffd84a', 0, 0.71, 0.16, { emissive: '#7a5a00' }); star.scale.set(1, 1, 0.4); add(star);
+      const tail = mesh(new THREE.ConeGeometry(0.06, 0.36, 5), body, 0.08, 0.2, -0.24); tail.rotation.x = -1.1; add(tail);
+      break;
+    }
+    case 'dragon': {
+      // Little horns, wings on the back, a lighter belly and a tail.
+      for (const sd of [-1, 1]) { const h = mesh(new THREE.ConeGeometry(0.035, 0.14, 5), '#f6ead0', sd * 0.08, 0.82, -0.02); h.rotation.z = -sd * 0.3; add(h); }
+      for (const sd of [-1, 1]) { const wg = mesh(new THREE.CircleGeometry(0.16, 6), L.extra ?? '#f2c14a', sd * 0.2, 0.42, -0.14); wg.scale.set(1.2, 0.9, 1); wg.rotation.set(0, sd * 0.8, sd * 0.3); (wg.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide; add(wg); }
+      const belly = mesh(new THREE.SphereGeometry(0.14, seg(8), seg(6)), '#f6dca0', 0, 0.22, 0.1); belly.scale.set(0.9, 1.1, 0.5); add(belly);
+      const tail = mesh(new THREE.ConeGeometry(0.07, 0.34, 5), body, 0, 0.14, -0.26); tail.rotation.x = -1.2; add(tail);
+      break;
+    }
     case 'cloud': case 'none': case undefined: break;
   }
   fig.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
@@ -292,7 +380,7 @@ export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces
     fig.clear();
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteFor(def, faces), transparent: true, alphaTest: 0.5 }));
     // Dishes are wide: draw them smaller so they stay inside their square.
-    const dish = !!L.shape && L.shape !== 'figure' && !['snowman', 'cloud', 'twister', 'bird'].includes(L.shape);
+    const dish = !!L.shape && L.shape !== 'figure' && !CREATURES.includes(L.shape);
     const k = dish ? 0.8 : 1.15;
     sp.scale.set(enemy ? -k : k, k, 1);
     sp.position.y = k * 0.45;
@@ -466,6 +554,32 @@ function shapeBody(fig: THREE.Group, L: Look) {
       add(mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.16, 10), '#2a2a2e', 0, 0.76, 0), mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.02, 12), '#2a2a2e', 0, 0.69, 0));
       add(mesh(new THREE.TorusGeometry(0.15, 0.035, 5, 12), '#c8352a', 0, 0.42, 0)).children.at(-1)!.rotation.set(Math.PI / 2, 0, 0);
       eyes(fig, 0.6, 0.14, 0.06, 0.025);
+      break;
+    }
+    case 'drop': {
+      // A water drop: round below, drawn up to a point.
+      add(mesh(new THREE.SphereGeometry(0.25, seg(12), seg(10)), body, 0, 0.26, 0));
+      add(mesh(new THREE.ConeGeometry(0.205, 0.32, seg(12)), body, 0, 0.6, 0));
+      add(mesh(new THREE.SphereGeometry(0.05, 6, 4), '#ffffff', -0.1, 0.4, 0.18));
+      eyes(fig, 0.3, 0.2, 0.08, 0.04);
+      break;
+    }
+    case 'pebble': {
+      // A round river stone with a face, a few flecks.
+      const b = mesh(new THREE.DodecahedronGeometry(0.28, 1), body, 0, 0.24, 0); b.scale.set(1.15, 0.85, 1); add(b);
+      for (let k = 0; k < 3; k++) add(mesh(new THREE.SphereGeometry(0.03, 5, 4), head, Math.cos(k * 2.1) * 0.2, 0.32 + (k % 2) * 0.06, 0.14 + Math.sin(k * 2.1) * 0.05));
+      eyes(fig, 0.27, 0.25, 0.09, 0.04);
+      break;
+    }
+    case 'jelly': {
+      // A jellyfish: a glowing bell, and tentacles trailing under it.
+      const bell = mesh(new THREE.SphereGeometry(0.28, seg(12), seg(8), 0, Math.PI * 2, 0, Math.PI / 2), body, 0, 0.42, 0, { emissive: '#2a1a3a' }); bell.scale.set(1, 1.1, 1); add(bell);
+      add(mesh(new THREE.CylinderGeometry(0.28, 0.24, 0.05, seg(12)), head, 0, 0.42, 0));
+      for (let k = 0; k < 7; k++) {
+        const a = (k / 7) * Math.PI * 2;
+        const t = mesh(new THREE.CylinderGeometry(0.018, 0.01, 0.34, 4), L.extra ?? head, Math.cos(a) * 0.17, 0.24, Math.sin(a) * 0.17); t.rotation.z = Math.cos(a * 3) * 0.25; add(t);
+      }
+      eyes(fig, 0.52, 0.24, 0.09, 0.04);
       break;
     }
     case 'cloud': {

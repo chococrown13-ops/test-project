@@ -1,4 +1,4 @@
-/* Headless checks for 한판 난장 and its themes: fights, arenas, merging, ingredients, seasons, the shared pool, and whole bot-only games. */
+/* Headless checks for 셋모아 쑥쑥 and its themes: fights, arenas, merging, ingredients, seasons, the shared pool, and whole bot-only games. */
 import { ARENA_ROTATION, ARENAS, blocks, COLS, ROWS, terrain } from '../src/sim/arena';
 import { fight, setup, skillNumbers, step } from '../src/sim/combat';
 import { botTurn, buy, census, equip, merge, move, newGame, playRound, sell, type Game } from '../src/sim/game';
