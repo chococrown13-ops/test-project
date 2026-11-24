@@ -20,7 +20,7 @@ export interface TraitDef {
 export type Acc =
   | 'horn' | 'horns' | 'eye' | 'ears' | 'ears9' | 'stripes' | 'hat' | 'gat' | 'shell' | 'fins' | 'mane' | 'pole' | 'crown' | 'hood' | 'whiskers' | 'spikes' | 'serpent'
   | 'wings' | 'bumps' | 'leaf' | 'petals' | 'longears' | 'sun' | 'swirl' | 'snow' | 'cloud' | 'bolt' | 'none'
-  | 'quills' | 'flame' | 'snailshell' | 'penguin' | 'mole' | 'fleece' | 'antlers' | 'roundears' | 'starmark' | 'dragon' | 'halo';
+  | 'quills' | 'flame' | 'snailshell' | 'penguin' | 'mole' | 'fleece' | 'antlers' | 'roundears' | 'starmark' | 'dragon' | 'halo' | 'conch' | 'castle' | 'antennae';
 /** Food and other non-figure bodies (한식 대전 and a few 사계절 pieces). */
 export type Shape = 'figure' | 'bowl' | 'rods' | 'roll' | 'disc' | 'fish' | 'crab' | 'cabbage' | 'skewer' | 'bird' | 'pot' | 'snowman' | 'cloud' | 'twister' | 'pan' | 'drop' | 'pebble' | 'jelly';
 

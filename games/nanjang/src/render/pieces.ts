@@ -252,9 +252,10 @@ export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces
       break;
     }
     case 'fins': {
-      const f1 = mesh(new THREE.ConeGeometry(0.08, 0.25, 3), '#f2b880', -0.22, 0.32, 0), f2 = mesh(new THREE.ConeGeometry(0.08, 0.25, 3), '#f2b880', 0.22, 0.32, 0);
+      const fc = L.extra ?? '#f2b880';
+      const f1 = mesh(new THREE.ConeGeometry(0.08, 0.25, 3), fc, -0.22, 0.32, 0), f2 = mesh(new THREE.ConeGeometry(0.08, 0.25, 3), fc, 0.22, 0.32, 0);
       f1.rotation.z = 1.2; f2.rotation.z = -1.2;
-      add(f1, f2, mesh(new THREE.ConeGeometry(0.07, 0.2, 3), '#c96f1d', 0, 0.84, -0.03));
+      add(f1, f2, mesh(new THREE.ConeGeometry(0.07, 0.2, 3), L.extra ?? '#c96f1d', 0, 0.84, -0.03));
       break;
     }
     case 'mane': {
@@ -272,6 +273,37 @@ export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces
       (band.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide; add(band);
       for (let k = 0; k < 5; k++) { const a = (k / 5) * Math.PI * 2 + Math.PI / 2; add(mesh(new THREE.ConeGeometry(0.035, 0.1, 4), '#e8c04a', Math.cos(a) * 0.12, 0.87, Math.sin(a) * 0.12, { rough: 0.35 })); }
       add(mesh(new THREE.OctahedronGeometry(0.035, 0), '#e8435a', 0, 0.8, 0.135, { emissive: '#5a0a14' }));
+      break;
+    }
+    case 'conch': {
+      // A tall spiral conch on the back, standing up over the head, with knobs down its whorls.
+      const col = L.extra ?? '#f0a8a0';
+      // (Leaning out to one side, so it stands clear of the big head from the front.)
+      const c = mesh(new THREE.ConeGeometry(0.22, 0.7, seg(10)), col, 0.26, 0.6, -0.12); c.rotation.z = -0.5; add(c);
+      for (let k = 0; k < 3; k++) { const r = mesh(new THREE.TorusGeometry(0.19 - k * 0.055, 0.028, 5, 14), '#fbe8d8', 0.2 + k * 0.08, 0.42 + k * 0.15, -0.12); r.rotation.set(Math.PI / 2, 0.5, 0); add(r); }
+      for (let k = 0; k < 4; k++) add(mesh(new THREE.ConeGeometry(0.035, 0.1, 4), '#fbe8d8', 0.4 - k * 0.06, 0.38 + k * 0.13, -0.02));
+      for (const sd of [-1, 1]) { const st = mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.2, 5), head, sd * 0.07, 0.86, 0.02); st.rotation.z = -sd * 0.25; add(st, mesh(new THREE.SphereGeometry(0.04, 6, 4), head, sd * 0.1, 0.96, 0.02)); }
+      break;
+    }
+    case 'castle': {
+      // A little fortress carried on the back: a wall, two towers with red roofs, a flag.
+      const col = L.extra ?? '#c9d6ea';
+      add(mesh(new THREE.BoxGeometry(0.46, 0.26, 0.26), col, 0, 0.5, -0.2));
+      for (const sd of [-1, 1]) {
+        add(mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.42, 8), col, sd * 0.22, 0.6, -0.2));
+        add(mesh(new THREE.ConeGeometry(0.11, 0.18, 8), '#c8433a', sd * 0.22, 0.9, -0.2));
+      }
+      for (let k = 0; k < 3; k++) add(mesh(new THREE.BoxGeometry(0.06, 0.06, 0.06), col, (k - 1) * 0.12, 0.66, -0.08));
+      add(mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.24, 4), '#5a4a3a', 0.22, 1.08, -0.2), mesh(new THREE.BoxGeometry(0.1, 0.06, 0.01), '#f2d04a', 0.27, 1.15, -0.2));
+      for (const sd of [-1, 1]) { const st = mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.2, 5), head, sd * 0.07, 0.86, 0.06); st.rotation.z = -sd * 0.25; add(st, mesh(new THREE.SphereGeometry(0.04, 6, 4), head, sd * 0.1, 0.96, 0.06)); }
+      break;
+    }
+    case 'antennae': {
+      // Two feelers ending in glowing lights.
+      for (const sd of [-1, 1]) {
+        const st = mesh(new THREE.CylinderGeometry(0.012, 0.016, 0.28, 4), '#3a3020', sd * 0.08, 0.88, 0); st.rotation.z = -sd * 0.4; add(st);
+        add(mesh(new THREE.SphereGeometry(0.05, 8, 6), L.extra ?? '#f2e04a', sd * 0.14, 1.01, 0, { emissive: L.extra ?? '#f2e04a' }));
+      }
       break;
     }
     case 'halo': {

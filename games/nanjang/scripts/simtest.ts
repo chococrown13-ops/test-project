@@ -65,7 +65,7 @@ useTheme('spirits');
 const tc = traitCounts(['saessak', 'saessak', 'kkotsasum']);
 check('traits count kinds, not copies', tc.find((t) => t.trait === 'mage')?.n === 1 && tc.find((t) => t.trait === 'grass')?.n === 2 && tc.find((t) => t.trait === 'grass')?.step === 1);
 // 정령 키우기: every piece evolves twice, with a new name each time.
-check('every spirit has two evolutions', UNITS.every((d) => d.evo && nameAt(d, 2) !== d.name && nameAt(d, 3) !== nameAt(d, 2)) && nameAt(BY_ID.dochi, 3) === '철뾰롱');
+check('every spirit has two evolutions', UNITS.every((d) => d.evo && nameAt(d, 2) !== d.name && nameAt(d, 3) !== nameAt(d, 2)) && nameAt(BY_ID.dochi, 3) === '가시뾰롱');
 // Every theme has items to win and mix.
 check('every theme has items', THEMES.every((T) => (T.items?.length ?? 0) >= 6));
 check('skill numbers are shown', skillNumbers('bonk', 1.6, 2) === '물리 피해 256 · 기절 1.5초', skillNumbers('bonk', 1.6, 2));
