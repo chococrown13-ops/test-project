@@ -5,7 +5,8 @@ import { shared } from './render/materials';
 /** Background music (made in code, starts on the first tap). */
 const bgm = new Bgm();
 import { CELL, Ground, KINDS, Level, LEVEL_NAME, N, Road, SERVICE, Zone } from './sim/defs';
-import { loadLocal, saveLocal } from './sim/save';
+import { deleteSlot, listSlots, loadLocal, saveLocal } from './sim/save';
+import { repayLoan, takeLoan } from './sim/economy';
 import { updateParking } from './sim/parking';
 import { createSim, GAME_PACE, tick, type Sim } from './sim/sim';
 import { plantTrees, TREE_COST, treeCells, addBuilding, altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeRoundabout, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
@@ -241,8 +242,10 @@ for (const id of ['info', 'panel']) {
       renderPanel(true);
       renderCats();
     }
-    if (t.dataset.act === 'save') toast(saveLocal(sim.w) ? '저장했어요.' : '저장하지 못했어요. (브라우저 저장소를 쓸 수 없어요)', 'good');
-    if (t.dataset.act === 'load') { const w = loadLocal(); if (w) { useWorld(w); toast('불러왔어요.', 'good'); } else toast('저장된 도시가 없어요.', 'warn'); }
+    if (t.dataset.act === 'save') { const ok = saveLocal(sim.w); toast(ok ? `${sim.w.name}을(를) 저장했어요. 불러오기에서 다른 도시와 골라 열 수 있어요.` : '저장하지 못했어요. 저장 공간이 모자라면 불러오기에서 안 쓰는 도시를 지워 주세요.', ok ? 'good' : 'warn'); }
+    if (t.dataset.act === 'slots') { closePanel(); openSlots(); }
+    if (t.dataset.loan) { const err = takeLoan(sim.w, Number(t.dataset.loan)); toast(err ?? `${Number(t.dataset.loan) / 10000}억 원을 빌렸어요. 다음 달부터 나눠 갚아요.`, err ? 'warn' : 'good'); renderPanel(true); }
+    if (t.dataset.repay) { const err = repayLoan(sim.w, Number(t.dataset.repay)); toast(err ?? '대출을 다 갚았어요.', err ? 'warn' : 'good'); renderPanel(true); }
     if (t.dataset.act === 'new') { closePanel(); setSpeed(0); running = false; $('start').hidden = false; }
     if (t.dataset.act === 'help') openPanel('help');
     if (t.dataset.act === 'style') {
@@ -638,8 +641,26 @@ function useWorld(w: ReturnType<typeof createWorld>) {
   focusStart();
 }
 
-const saved = loadLocal();
-if (saved) $('loadBtn').hidden = false;
+if (listSlots().length) $('loadBtn').hidden = false;
+
+/** 불러오기: every saved city, newest first, to open or delete. */
+function openSlots() {
+  const list = listSlots();
+  const when = (t: number) => (t ? new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '예전 저장');
+  $('slotList').innerHTML = list.length ? list.map((x) => `<div class="slot"><div><b>${x.name}</b><small>${x.pop ? `인구 ${x.pop.toLocaleString('ko-KR')} · ${Math.floor(x.day / 360) + 1}년차 · ` : ''}${when(x.at)}</small></div><button class="btn primary small" data-open="${x.id}">열기</button><button class="btn small" data-del="${x.id}">지우기</button></div>`).join('') : '<p class="hint">저장한 도시가 없어요.</p>';
+  $('slots').hidden = false;
+}
+$('slots').addEventListener('click', (e) => {
+  const t = (e.target as HTMLElement).closest('button');
+  if (e.target === $('slots') || t?.dataset.closeSlots !== undefined) { $('slots').hidden = true; return; }
+  if (!t) return;
+  if (t.dataset.open) { const w = loadLocal(t.dataset.open); if (w) { useWorld(w); $('slots').hidden = true; begin(); toast(`${w.name}을(를) 불러왔어요.`, 'good'); } else toast('이 저장은 열 수 없어요.', 'warn'); }
+  if (t.dataset.del) {
+    if (t.dataset.sure === undefined) { t.dataset.sure = ''; t.textContent = '정말 지우기'; return; }
+    deleteSlot(t.dataset.del); openSlots();
+    if (!listSlots().length) $('loadBtn').hidden = true;
+  }
+});
 /** The land for the next new city: one of the maps, or 무작위. */
 let mapChoice: MapKind | 'random' = 'random';
 function renderMapChips() {
@@ -724,11 +745,7 @@ $('newBtn').addEventListener('click', async () => {
   begin();
   toast(`${name}에 오신 걸 환영해요, 시장님! 왼쪽 위 목표를 따라가 보세요.`, 'good');
 });
-$('loadBtn').addEventListener('click', () => {
-  const w = loadLocal();
-  if (w) useWorld(w);
-  begin();
-});
+$('loadBtn').addEventListener('click', () => openSlots());
 /* A notice's "어디인지 보기": the map that shows the problem, and the camera on the place. */
 document.addEventListener('city:goto', (e) => {
   const { at, overlay } = (e as CustomEvent<{ at: number; overlay?: string }>).detail;

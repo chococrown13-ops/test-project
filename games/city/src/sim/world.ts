@@ -29,11 +29,14 @@ export interface Building {
   builtDay: number;
 }
 
+/** 지방채: a loan paid back in equal monthly instalments. */
+export interface Loan { left: number; pay: number; months: number; amount: number }
+
 export interface MonthReport {
   month: number;
   /** V: visitors' spending (관광). */
-  income: { R: number; C: number; I: number; T: number; V?: number };
-  expense: { roads: number; facilities: number; services: number; transit: number };
+  income: { R: number; C: number; I: number; T: number; V?: number; G?: number };
+  expense: { roads: number; facilities: number; services: number; transit: number; debt?: number };
   pop: number;
   jobs: number;
 }
@@ -51,6 +54,10 @@ export interface World {
   rng: number;
   day: number;
   money: number;
+  /** Which save slot this city lives in (set when first saved). */
+  slot?: string;
+  /** Loans from the bank: what's left to pay, the monthly payment, and months to go. */
+  loans: Loan[];
   ground: Uint8Array;
   road: Uint8Array;
   /** A second road in the cell, over or under the ground one (type, as in `road`). */
@@ -157,7 +164,7 @@ export function rand(w: World): number {
 export { riverY } from './maps';
 
 export function emptyMonth(month: number): MonthReport {
-  return { month, income: { R: 0, C: 0, I: 0, T: 0, V: 0 }, expense: { roads: 0, facilities: 0, services: 0, transit: 0 }, pop: 0, jobs: 0 };
+  return { month, income: { R: 0, C: 0, I: 0, T: 0, V: 0, G: 0 }, expense: { roads: 0, facilities: 0, services: 0, transit: 0, debt: 0 }, pop: 0, jobs: 0 };
 }
 
 export function createWorld(seed = 20261028, name = '새솔시', map: MapKind = 'river'): World {
@@ -169,6 +176,7 @@ export function createWorld(seed = 20261028, name = '새솔시', map: MapKind = 
     rng: seed >>> 0,
     day: 0,
     money: START_MONEY,
+    loans: [],
     ground: new Uint8Array(size),
     road: new Uint8Array(size),
     roadAlt: new Uint8Array(size),

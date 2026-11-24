@@ -21,6 +21,7 @@ import { TransitLayer } from './transit';
 import { VehicleLayer } from './vehicles';
 import { Fireworks } from './fireworks';
 import { PeopleLayer } from './people';
+import { SignalLayer } from './signals';
 
 const smooth = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 export type Quality = 'high' | 'normal';
@@ -35,6 +36,7 @@ export class CityScene {
   readonly vehicles = new VehicleLayer();
   readonly fireworks = new Fireworks();
   readonly people = new PeopleLayer();
+  readonly signals = new SignalLayer();
   /** Game time per real second right now (0 when paused): people walk at this pace. */
   pace = 0;
   readonly preview = new PreviewLayer();
@@ -70,7 +72,7 @@ export class CityScene {
     this.view = new CityCamera(1);
     this.ground = new GroundLayer(sim.w);
     this.roads = new RoadLayer(this.ground.tex);
-    this.scene.add(this.ground.group, this.roads.group, this.buildings.group, this.vehicles.group, this.transit.group, this.preview.group, this.fireworks.group, this.people.group);
+    this.scene.add(this.ground.group, this.roads.group, this.buildings.group, this.vehicles.group, this.transit.group, this.preview.group, this.fireworks.group, this.people.group, this.signals.group);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.bias = -0.0004;
@@ -232,6 +234,7 @@ export class CityScene {
     this.buildings.heightAt = (x, z) => this.ground.heightAt(x, z);
     this.buildings.update(w, now);
     this.vehicles.update(w, this.sim.tr);
+    this.signals.update(w, this.sim.tr.clock, this.view.dist);
     this.people.update(w, dt, this.pace, shared.uNight.value, this.view.dist);
     this.transit.update(w, w.day * DAY_SECONDS + this.sim.acc, this.draft);
     // Ground repaint: on edits right away, and for live overlays a few times a second.

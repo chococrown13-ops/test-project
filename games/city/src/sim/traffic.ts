@@ -1,3 +1,4 @@
+import { mustStop } from './signals';
 import { noCarTrip } from './attractions';
 import { CELL, KINDS, N, ROAD_CAPACITY, ROAD_SPEED, Zone } from './defs';
 import { network } from './network';
@@ -33,10 +34,12 @@ export interface Traffic {
   routesVer: number;
   tripTime: number;
   trips: number;
+  /** Seconds of driving so far: the traffic lights run on it. */
+  clock: number;
 }
 
 export function createTraffic(): Traffic {
-  return { cars: [], load: new Uint16Array(NN * 2), routes: new Map(), routesVer: -1, tripTime: 0, trips: 0 };
+  return { cars: [], load: new Uint16Array(NN * 2), routes: new Map(), routesVer: -1, tripTime: 0, trips: 0, clock: 0 };
 }
 
 /** Rush hours fill the roads; nights are quiet. */
@@ -96,6 +99,7 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
     }
   }
   // Move.
+  tr.clock += dt;
   tr.load.fill(0);
   for (const c of tr.cars) tr.load[c.path[c.i]]++;
   const keep: Car[] = [];
@@ -110,7 +114,9 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
     const a = cellOf(node), b = cellOf(next);
     const len = a % N !== b % N && ((a / N) | 0) !== ((b / N) | 0) ? Math.SQRT2 : 1;
     const v = (ROAD_SPEED[r] * PACE * slow) / CELL / len;
-    c.t += v * dt;
+    // Red or amber at the junction ahead: wait at the stop line (just short of the junction's edge).
+    if (c.t < 0.5 && mustStop(w, node, next, tr.clock)) c.t = Math.min(0.5, c.t + v * dt);
+    else c.t += v * dt;
     c.age += dt;
     while (c.t >= 1 && c.i < c.path.length - 1) {
       tr.load[c.path[c.i]]--;

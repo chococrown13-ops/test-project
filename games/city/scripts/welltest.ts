@@ -19,7 +19,7 @@ check('정수장 refused on dry land', !!p && p.includes('지하수'), p ?? '');
 check('지하수 관정 allowed', placeFacility(w, 'well', 40, row + 1) === null);
 const s = createSim(w);
 for (let k = 0; k < 40; k++) tick(s, 0.1, 1);
-check('wells supply water', w.stats.waterSupply === 260, String(w.stats.waterSupply));
+check('wells supply water', w.stats.waterSupply === 330, String(w.stats.waterSupply));
 
 // By the river the 정수장 still goes on the bank, and wells work too.
 const r = createWorld(7, 't', 'river');

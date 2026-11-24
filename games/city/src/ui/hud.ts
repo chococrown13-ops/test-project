@@ -2,7 +2,7 @@ import { growthBlock, lotBlock } from '../sim/diagnose';
 import { isPocket, pocketKind, POCKET_NAME } from '../sim/pockets';
 import { MATURE, TIER_POP, tierOpen } from '../sim/growth';
 import { CELL, displayName, Ground, KINDS, LEVEL_NAME, N, Road, SERVICE, ZONE_NAME, Zone } from '../sim/defs';
-import { monthExpense, monthIncome } from '../sim/economy';
+import { grantFor, LOAN_SIZES, MAX_LOANS, monthExpense, monthIncome } from '../sim/economy';
 import { curveInfo } from '../sim/curves';
 import { hasOpenWater } from '../sim/tools';
 import { curbCapacity, LOT_SPACES } from '../sim/parking';
@@ -213,13 +213,16 @@ export function budgetHtml(w: World): string {
   const inc = monthIncome(last), exp = monthExpense(last);
   let h = head('예산');
   h += `<p class="hint">${w.reports.length ? '지난달' : '이번 달(진행 중)'} 기준, 단위는 만 원이에요.</p>`;
-  h += '<h4>수입</h4>' + kv('주거세', won(last.income.R)) + kv('상업세', won(last.income.C)) + kv('산업세', won(last.income.I)) + kv('대중교통 요금', won(last.income.T ?? 0)) + kv('관광', won(last.income.V ?? 0));
-  h += '<h4>지출</h4>' + kv('도로 유지', won(last.expense.roads)) + kv('전기, 상하수도 시설', won(last.expense.facilities)) + kv('공공 서비스', won(last.expense.services)) + kv('대중교통 운영', won(last.expense.transit ?? 0));
+  h += '<h4>수입</h4>' + kv('주거세', won(last.income.R)) + kv('상업세', won(last.income.C)) + kv('산업세', won(last.income.I)) + kv('대중교통 요금', won(last.income.T ?? 0)) + kv('관광', won(last.income.V ?? 0)) + kv('지방교부세 (국비)', won(last.income.G || grantFor(w.stats.pop)));
+  h += '<h4>지출</h4>' + kv('도로 유지', won(last.expense.roads)) + kv('전기, 상하수도 시설', won(last.expense.facilities)) + kv('공공 서비스', won(last.expense.services)) + kv('대중교통 운영', won(last.expense.transit ?? 0)) + (w.loans.length || last.expense.debt ? kv('대출 상환', won(last.expense.debt ?? 0)) : '');
   const net = inc - exp;
   h += `<div class="kv total"><span class="k">월 수지</span>${state(net >= 0 ? 'ok' : 'no', `${net >= 0 ? '+' : '−'}${won(Math.abs(net))}`)}</div>`;
   h += '<h4>세율</h4><p class="hint">높일수록 수입은 늘고 수요는 줄어요.</p>';
   for (const [k, n] of [['R', '주거'], ['C', '상업'], ['I', '산업']] as const)
     h += `<div class="tax"><label for="tax${k}">${n}</label><input id="tax${k}" type="range" min="0" max="20" step="1" value="${w.tax[k]}" data-tax="${k}" /><b>${w.tax[k]}%</b></div>`;
+  h += '<h4>지방채 (대출)</h4><p class="hint">돈이 모자랄 때 빌려 쓰고 5년 동안 매달 나눠 갚아요 (연 3.5%). 도시가 크면 지방교부세도 늘어요.</p>';
+  h += w.loans.map((l, k) => `<div class="kv"><span class="k">${won(l.amount)} · ${l.months}개월 남음</span><span>월 ${won(l.pay)} <button class="btn small" data-repay="${k}">갚기</button></span></div>`).join('');
+  if (w.loans.length < MAX_LOANS) h += `<div class="loan-row">${LOAN_SIZES.map((a) => `<button class="btn small" data-loan="${a}">${a / 10000}억 빌리기</button>`).join('')}</div>`;
   const hist = w.reports.slice(-24);
   if (hist.length > 1) {
     const max = Math.max(1, ...hist.map((r) => Math.abs(monthIncome(r) - monthExpense(r))));
@@ -321,7 +324,7 @@ const STYLE_NAME = { lowpoly: '로우폴리', toon: '툰', pixel: '픽셀' } as 
 export function menuHtml(w: World, quality: 'high' | 'normal', style: keyof typeof STYLE_NAME = 'lowpoly', music = { on: false, volume: 0.6 }): string {
   let h = head('메뉴');
   h += `<p class="hint">${esc(w.name)}, ${dateText(w.day)}</p><div class="menu">`;
-  h += '<button class="btn" data-act="save">저장하기</button><button class="btn" data-act="load">마지막 저장 불러오기</button><button class="btn" data-act="new">새 도시</button><button class="btn" data-act="help">조작법</button>';
+  h += '<button class="btn" data-act="save">저장하기</button><button class="btn" data-act="slots">불러오기 (저장한 도시들)</button><button class="btn" data-act="new">새 도시</button><button class="btn" data-act="help">조작법</button>';
   h += `<button class="btn" data-act="quality" aria-pressed="${quality === 'high'}">그래픽 품질: ${quality === 'high' ? '높음' : '보통'}</button>`;
   h += `<button class="btn" data-act="style">그림체: ${STYLE_NAME[style]}</button>`;
   h += `<button class="btn" data-act="music" aria-pressed="${music.on}">배경음악: ${music.on ? '켜짐' : '꺼짐'}</button>`;

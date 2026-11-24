@@ -8,6 +8,7 @@ import type { World } from '../sim/world';
 import { shared } from './materials';
 import { nodeCentre, roadY } from './roadheight';
 import { onRing } from './ringpath';
+import { laneAt } from './lanepath';
 
 /** `glow` lights a part at night: positive is a warm headlight, negative a red tail light. */
 function tinted(g: THREE.BufferGeometry, k: number, glow = 0) {
@@ -154,9 +155,10 @@ function sample(w: World, car: Car, s: number, out: { x: number; z: number; y: n
   // Past parked cars everyone keeps further in: on an avenue they fill the outer lane.
   const parked = node < NN && w.parked[node] > 0;
   const lane = car.kind === 3 ? (avenue ? (parked ? 3.0 : 4.3) : parked ? 1.1 : 2.9) : avenue ? (car.look > 0.5 && !parked ? 3.75 : 1.25) : parked ? 1.1 : 1.75;
-  // Right of travel direction (dx, dz) with y up is (-dz, dx); diagonals use the unit vector.
-  out.x = p0.x + (p1.x - p0.x) * f - dz * lane;
-  out.z = p0.z + (p1.z - p0.z) * f + dx * lane;
+  // Right of travel direction (dx, dz) with y up is (-dz, dx); corners are rounded from lane to lane
+  // (so a sharp turn at a five-way junction sweeps round instead of jumping or cutting across).
+  void dx; void dz;
+  laneAt((k) => nodeCentre(path[k], w), last, s, lane, 6, false, out);
   const ring = onRing(w, path, s, avenue ? lane : 1.75);
   if (ring) { out.x = ring.x; out.z = ring.z; }
   out.y = roadY(w, n0, n1, f, out.x, out.z);
