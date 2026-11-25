@@ -430,6 +430,8 @@ export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces
     // A camera-facing sprite instead of the figure (mirrored for the other side, so they face each other).
     fig.clear();
     const sticker = style === 'sticker' || style === 'art';
+    // Drawn pieces stand straight on the board: no token under them (the health bar's colour tells the sides apart).
+    if (sticker) { base.visible = false; ring.visible = false; }
     const tex = spriteFor(def, faces);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: sticker ? 0.08 : 0.5 }));
     // Dishes are wide: draw them smaller so they stay inside their square.
