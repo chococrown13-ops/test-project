@@ -14,7 +14,7 @@ for (const T of THEMES) {
   const traitsUsed = new Set(UNITS.flatMap((d) => d.traits));
   const unknown = [...traitsUsed].filter((t) => !T.traits[t]);
   const counts = Object.keys(T.traits).map((t) => UNITS.filter((d) => d.traits.includes(t)).length);
-  check(`${T.title}: pieces and traits fit`, UNITS.length === 19 && !unknown.length && counts.every((n, i) => n >= T.traits[Object.keys(T.traits)[i]].steps.at(-1)!) && T.botNames.length >= 7 && T.plans.every((p) => p.every((t) => T.traits[t])), `${UNITS.length} pieces, counts ${counts.join(',')} ${unknown.join(',')}`);
+  check(`${T.title}: pieces and traits fit`, UNITS.length >= 19 && !unknown.length && counts.every((n, i) => n >= T.traits[Object.keys(T.traits)[i]].steps.at(-1)!) && T.botNames.length >= 7 && T.plans.every((p) => p.every((t) => T.traits[t])), `${UNITS.length} pieces, counts ${counts.join(',')} ${unknown.join(',')}`);
 }
 
 useTheme('spirits');

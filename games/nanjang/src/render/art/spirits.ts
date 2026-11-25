@@ -142,37 +142,52 @@ const bulttong: Draw = (a, s) => {
 
 /** 퐁당이 → 찰랑이 → 출렁이: an axolotl; fins grow on its head, then wing-like fins. */
 const mulbang: Draw = (a, s) => {
-  const skin = s === 3 ? '#4a9ad8' : s === 2 ? '#62b8e8' : '#7fd0f2', belly = '#e6f8ff', gill = s === 3 ? '#9adcff' : '#ff9fbf';
+  const skin = s === 3 ? '#4a9ad8' : s === 2 ? '#5cb0e4' : '#7fd0f2', belly = '#e6f8ff', gill = s === 3 ? '#9adcff' : s === 2 ? '#ff86b0' : '#ff9fbf';
   if (s === 3) wings(a, '#bfe8fa', 140, 74, 'petal', 6);
-  a.part(`M126 190 C166 194 190 172 192 150 C180 160 162 166 140 168Z`, lighter(skin, 0.25));
-  const top = s === 1 ? 134 : 124;
-  a.part(bodyPath(100, top, 216, 48), skin);
+  // Tail: a thin one at first, a big fan fin from the second form.
+  if (s === 1) a.part(`M126 190 C166 194 190 172 192 150 C180 160 162 166 140 168Z`, lighter(skin, 0.25));
+  else a.part(`M120 196 C150 206 170 196 176 180 C186 188 204 180 208 164 C196 166 190 158 196 140 C182 146 172 158 168 168 C156 176 140 178 124 176Z`, lighter(skin, 0.35));
+  const top = s === 1 ? 134 : 120;
+  a.part(bodyPath(100, top, 216, s === 1 ? 48 : 52), skin);
   a.part(E(100, 182, 22, 28), belly, true);
+  if (s >= 2) for (const [x, y] of [[72, 156], [130, 150], [126, 178]]) a.add(`<circle cx="${x}" cy="${y}" r="4" fill="${lighter(skin, 0.45)}"/>`);
   feet(a, skin, 26, 13);
-  if (s >= 2) arms(a, skin, top + 26, 40, 9);
-  const hy = s === 1 ? 98 : 84;
-  for (const sd of [-1, 1]) for (const [dy, l] of [[-24, 30], [-2, 36], [20, 28]] as const) {
-    const x0 = 100 + sd * 52, x1 = x0 + sd * l, y = hy + dy;
-    a.part(`M${x0} ${y + 6} C${x0 + sd * l * 0.5} ${y - 6} ${x1} ${y - 10} ${x1 + sd * 4} ${y - 2} C${x1} ${y + 8} ${x0 + sd * l * 0.4} ${y + 14} ${x0} ${y + 12}Z`, gill);
+  if (s >= 2) arms(a, skin, top + 30, 44, 10, 6);
+  const hy = s === 1 ? 98 : 82;
+  for (const sd of [-1, 1]) {
+    if (s === 1) for (const [dy, l] of [[-24, 30], [-2, 36], [20, 28]] as const) {
+      const x0 = 100 + sd * 52, x1 = x0 + sd * l, y = hy + dy;
+      a.part(`M${x0} ${y + 6} C${x0 + sd * l * 0.5} ${y - 6} ${x1} ${y - 10} ${x1 + sd * 4} ${y - 2} C${x1} ${y + 8} ${x0 + sd * l * 0.4} ${y + 14} ${x0} ${y + 12}Z`, gill);
+    } else {
+      // Two long wavy plumes each side.
+      for (const [dy, l] of [[-22, 50], [6, 44]] as const) {
+        const x0 = 100 + sd * 50, y = hy + dy;
+        a.part(`M${x0} ${y} C${x0 + sd * l * 0.3} ${y - 22} ${x0 + sd * l * 0.7} ${y - 4} ${x0 + sd * l} ${y - 26} C${x0 + sd * l * 0.9} ${y - 2} ${x0 + sd * l * 0.5} ${y + 12} ${x0} ${y + 12}Z`, gill);
+      }
+    }
   }
   a.part(headPath(100, hy, 58, 44), skin, true, { hi: true });
-  if (s >= 2) a.part(`M86 ${hy - 40} C88 ${hy - 64} 100 ${hy - 74} 114 ${hy - 76} C108 ${hy - 62} 112 ${hy - 50} 116 ${hy - 40}Z`, lighter(skin, 0.3));
+  if (s >= 2) a.part(`M76 ${hy - 36} C80 ${hy - 70} 104 ${hy - 86} 128 ${hy - 84} C116 ${hy - 70} 120 ${hy - 52} 126 ${hy - 38}Z`, lighter(skin, 0.3));
   else a.part(`M88 ${hy - 42} C90 ${hy - 52} 98 ${hy - 58} 100 ${hy - 62} C104 ${hy - 56} 112 ${hy - 52} 112 ${hy - 42}Z`, lighter(skin, 0.3));
   a.eyes(70, 130, hy, 7, s === 1 ? 9 : s === 2 ? 3 : 1, '#2a6aa8', skin);
-  a.mouth(100, hy + 18, 20, 'smile').cheeks(58, 142, hy + 16);
+  a.mouth(100, hy + 18, s === 1 ? 20 : 14, s === 2 ? 'open' : 'smile').cheeks(58, 142, hy + 16);
 };
 
 /** 싹싹이 → 쑥쑥이 → 무럭이: a squirrel with a sprout; it flowers, then grows branch antlers. */
 const saessak: Draw = (a, s) => {
-  const fur = s === 3 ? '#8a6a3a' : s === 2 ? '#a8c870' : '#b8d888', belly = '#fff4d6', leafC = s === 3 ? '#4f9442' : '#6cb052';
-  // A big bushy tail of leaves.
-  a.part(`M120 200 C176 206 196 150 176 112 C164 90 136 92 136 116 C150 118 160 140 150 158 C144 172 130 176 116 178Z`, s === 3 ? '#6a9a48' : '#8cc46a');
-  a.part(leaf(170, 98, 30, 0.5), leafC, true, { lw: 2 });
-  const hy = s === 1 ? 98 : 88;
-  a.part(bodyPath(100, s === 1 ? 128 : 122, 216, 50), fur);
+  const fur = s === 3 ? '#8a6a3a' : s === 2 ? '#9cc064' : '#b8d888', belly = '#fff4d6', leafC = s === 3 ? '#4f9442' : '#6cb052';
+  // Tail: leafy and bushy at first, one big leaf in the second form.
+  if (s === 2) a.part(leaf(118, 196, 110, 0.55, 0.38), '#5fa64a', true, { lw: 2.4 });
+  else {
+    a.part(`M120 200 C176 206 196 150 176 112 C164 90 136 92 136 116 C150 118 160 140 150 158 C144 172 130 176 116 178Z`, s === 3 ? '#6a9a48' : '#8cc46a');
+    a.part(leaf(170, 98, 30, 0.5), leafC, true, { lw: 2 });
+  }
+  if (s === 2) a.stroke('M126 190 Q150 150 176 112', 2, '#3f7a2a');
+  const hy = s === 1 ? 98 : 86;
+  a.part(bodyPath(100, s === 1 ? 128 : 120, 216, s === 1 ? 50 : 54), fur);
   a.part(E(100, 178, 24, 28), belly, true);
   feet(a, darker(fur, 0.15), 24, 13);
-  arms(a, fur, s === 1 ? 150 : 146, 38, 10);
+  arms(a, fur, s === 1 ? 150 : 144, 38, 10, s === 2 ? 10 : 0);
   if (s === 3) {
     for (const sd of [-1, 1]) {
       a.part(`M${100 + sd * 26} ${hy - 38} C${100 + sd * 34} ${hy - 70} ${100 + sd * 48} ${hy - 84} ${100 + sd * 64} ${hy - 88} M${100 + sd * 40} ${hy - 66} C${100 + sd * 54} ${hy - 66} ${100 + sd * 64} ${hy - 58} ${100 + sd * 72} ${hy - 50}`, 'none', null, { lw: 7, line: '#6a4a22' });
@@ -180,14 +195,20 @@ const saessak: Draw = (a, s) => {
       a.part(leaf(100 + sd * 72, hy - 50, 18, sd * 1.6), leafC, true, { lw: 1.8 });
     }
   }
-  pointyEars(a, fur, '#f2c8a0', hy - 22, 36, 44, 18);
+  // Ears: pointed fur, or (second form) two big leaves.
+  if (s === 2) for (const sd of [-1, 1]) a.part(leaf(100 + sd * 34, hy - 26, 50, sd * 0.55, 0.36), leafC, true, { lw: 2.2 });
+  else pointyEars(a, fur, '#f2c8a0', hy - 22, 36, 44, 18);
   a.part(headPath(100, hy, 54, 44), fur, true, { hi: true });
   a.part(E(100, hy + 18, 26, 16), belly, null, { lw: 0 });
-  // The sprout.
+  // The sprout (a bud in the second form).
   a.stroke(`M100 ${hy - 44} C100 ${hy - 56} 98 ${hy - 62} 96 ${hy - 66}`, 3.2, '#3f7a2a');
-  a.part(leaf(96, hy - 64, s === 1 ? 26 : 30, -0.9), leafC, true, { lw: 2 });
-  a.part(leaf(98, hy - 64, s === 1 ? 22 : 26, 0.8), lighter(leafC, 0.15), true, { lw: 2 });
-  if (s === 2) { blossom(a, 72, hy - 36, 11); blossom(a, 130, hy - 38, 9, '#fff', '#f2a7c3'); }
+  if (s === 2) {
+    a.part(`M96 ${hy - 64} C80 ${hy - 70} 82 ${hy - 96} 96 ${hy - 104} C110 ${hy - 96} 112 ${hy - 72} 96 ${hy - 64}Z`, '#f27aa8', '#c84a7a', { lw: 2 });
+    a.part(leaf(96, hy - 64, 20, -1.2), leafC, true, { lw: 1.8 }); a.part(leaf(96, hy - 64, 20, 1.2), leafC, true, { lw: 1.8 });
+  } else {
+    a.part(leaf(96, hy - 64, s === 1 ? 26 : 30, -0.9), leafC, true, { lw: 2 });
+    a.part(leaf(98, hy - 64, s === 1 ? 22 : 26, 0.8), lighter(leafC, 0.15), true, { lw: 2 });
+  }
   a.add(`<ellipse cx="100" cy="${hy + 10}" rx="5" ry="3.8" fill="#2b1810"/>`);
   a.eyes(78, 122, hy - 6, 7, s === 1 ? 9 : s === 2 ? 3 : 6, '#3f7a2a', fur);
   a.mouth(100, hy + 18, 6, s === 3 ? 'fang' : 'cat').cheeks(64, 136, hy + 12);
@@ -221,16 +242,21 @@ const somteol: Draw = (a, s) => {
 
 /** 찌릿이 → 찌르릉 → 우르릉: an electric eel coiled upright; its fins grow into storm wings. */
 const beongae: Draw = (a, s) => {
-  const skin = s === 3 ? '#3a3f7a' : s === 2 ? '#e8b830' : '#f6d85a', belly = s === 3 ? '#f2d04a' : '#fff6c8', bolt = s === 3 ? '#ffe14a' : '#ffffff';
+  const skin = s === 3 ? '#3a3f7a' : s === 2 ? '#f2b030' : '#f6d85a', belly = s === 3 ? '#f2d04a' : '#fff6c8', bolt = s === 3 ? '#ffe14a' : '#ffffff';
   if (s === 3) wings(a, '#5a62a8', 128, 88, 'web', 8);
-  // The coil: a fat S from the ground up to the head.
   a.part(`M60 214 C40 214 34 190 52 182 C74 172 140 186 150 166 C160 146 128 132 104 138 C86 142 74 130 84 116 L120 116 C138 126 176 132 178 166 C180 206 120 202 92 202 C80 202 78 210 92 214Z`, skin);
   a.part(`M70 206 C90 196 150 204 162 172`, 'none', null, { lw: 5, line: belly });
-  // A lightning fin down the back.
+  if (s >= 2) for (const [x, y] of [[66, 186], [104, 188], [148, 182], [166, 150], [112, 128]]) a.add(`<path d="M${x - 5} ${y - 7} L${x + 5} ${y + 7}" stroke="${s === 3 ? '#f2d04a' : '#4a2416'}" stroke-width="5" stroke-linecap="round"/>`);
   a.part(`M126 150 L146 128 L140 146 L162 136 L148 166Z`, '#ffe14a', '#e0a81a', { lw: 2 });
-  const hy = 80;
-  if (s >= 2) for (const sd of [-1, 1]) a.part(`M${100 + sd * 40} ${hy - 10} L${100 + sd * 70} ${hy - 36} L${100 + sd * 60} ${hy - 8} L${100 + sd * 78} ${hy - 12} L${100 + sd * 50} ${hy + 14}Z`, '#ffe14a', '#e0a81a', { lw: 2 });
+  const hy = s === 1 ? 80 : 72;
+  // From the second form: a frill of sparks round the neck and two whiskers.
+  if (s >= 2) {
+    let d = '';
+    for (let k = 0; k <= 8; k++) { const an = Math.PI * (1.0 + k / 8), r1 = 46, r2 = k % 2 ? 58 : 74; d += `${k ? 'L' : 'M'}${100 + Math.cos(an) * r1} ${hy + 10 + Math.sin(an) * r1 * 0.9} L${100 + Math.cos(an + Math.PI / 16) * r2} ${hy + 10 + Math.sin(an + Math.PI / 16) * r2 * 0.9} `; }
+    a.part(d + 'Z', s === 3 ? '#f2d04a' : '#ffe98a', '#e0a81a', { lw: 2 });
+  }
   a.part(headPath(100, hy, 46, 40), skin, true, { hi: true });
+  if (s >= 2) for (const sd of [-1, 1]) a.stroke(`M${100 + sd * 20} ${hy + 22} C${100 + sd * 40} ${hy + 30} ${100 + sd * 50} ${hy + 44} ${100 + sd * 46} ${hy + 58}`, 2.6);
   a.part(`M104 ${hy - 40} L88 ${hy - 70} L100 ${hy - 66} L94 ${hy - 92} L118 ${hy - 56} L106 ${hy - 58}Z`, bolt, '#e0a81a', { lw: 2 });
   a.eyes(82, 118, hy - 2, 6.5, s === 1 ? 9 : s === 2 ? 3 : 6, s === 3 ? '#e0a81a' : '#7a5a10', skin);
   a.mouth(100, hy + 18, 7, s === 3 ? 'grin' : 'open');
@@ -255,7 +281,14 @@ const jogak: Draw = (a, s) => {
   if (s >= 2) for (const k of [-2, -1, 0, 1, 2]) a.part(`M${100 + k * 26 - 7} ${92 + Math.abs(k) * 10} L${100 + k * 28} ${70 + Math.abs(k) * 12} L${100 + k * 26 + 7} ${92 + Math.abs(k) * 10}Z`, '#e8e2d4');
   a.part(bodyPath(100, 130, 216, 46), skin);
   feet(a, darker(skin, 0.2), 30, 16);
-  arms(a, skin, 160, 38, 11);
+  if (s === 3) {
+    // Rock fists and boulder shoulders.
+    for (const sd of [-1, 1]) {
+      a.part(E(100 + sd * 52, 132, 22, 18), '#8a8478', '#5a564e');
+      a.part(E(100 + sd * 60, 178, 22, 20), '#9a9488', '#6a665e', { hi: true });
+      a.stroke(`M${100 + sd * 52} 172 l${sd * 10} 6 M${100 + sd * 56} 184 l${sd * 10} 2`, 2);
+    }
+  } else arms(a, skin, 160, 38, 11);
   const hy = 118;
   if (s === 3) for (const sd of [-1, 1]) a.part(`M${100 + sd * 26} ${hy - 30} C${100 + sd * 44} ${hy - 50} ${100 + sd * 58} ${hy - 70} ${100 + sd * 54} ${hy - 90} C${100 + sd * 46} ${hy - 70} ${100 + sd * 36} ${hy - 56} ${100 + sd * 14} ${hy - 40}Z`, '#f2ead8');
   pointyEars(a, skin, '#b89a78', hy - 16, 34, 34, 14);
@@ -301,42 +334,50 @@ const dalpaeng: Draw = (a, s) => {
 /** 쪼르르 → 살금이 → 어스름: a shadow mouse with round ears; a ninja scarf, then a dusk hood. */
 const geurimja: Draw = (a, s) => {
   const fur = s === 3 ? '#3a3450' : s === 2 ? '#5a4f78' : '#7a7a90', inner = s === 1 ? '#f2b8c0' : '#c890d8', face = s === 3 ? '#5a5478' : lighter(fur, 0.3);
-  // A long thin tail curling up.
   a.part(`M120 206 C170 214 192 180 178 150 C170 136 152 140 156 152 C164 168 156 190 118 192Z`, fur);
+  // The second form's tail ends in a blade.
+  if (s === 2) a.part(`M176 150 L170 116 L192 140Z`, '#d8dce6', '#9aa0ae', { lw: 2 });
   if (s === 3) a.part(`M54 110 C30 160 30 200 50 216 L150 216 C170 200 170 160 146 110Z`, '#25222e', '#14121a');
-  a.part(bodyPath(100, 132, 216, 46), fur);
+  a.part(bodyPath(100, s === 2 ? 124 : 132, 216, s === 2 ? 42 : 46), fur);
   a.part(E(100, 182, 22, 24), face, true);
   feet(a, darker(fur, 0.2), 22, 13);
-  arms(a, fur, 156, 34, 9);
-  const hy = s === 1 ? 104 : 98;
+  arms(a, fur, s === 2 ? 150 : 156, 34, 9, s === 2 ? 14 : 0);
+  const hy = s === 1 ? 104 : 94;
   if (s === 3) a.part(`M38 ${hy + 10} C30 ${hy - 50} 70 ${hy - 70} 100 ${hy - 70} C130 ${hy - 70} 170 ${hy - 50} 162 ${hy + 10} L150 ${hy + 34} L50 ${hy + 34}Z`, '#25222e', '#14121a');
-  else roundEars(a, fur, inner, hy - 36, 44, s === 1 ? 26 : 22);
+  else if (s === 2) pointyEars(a, fur, inner, hy - 24, 38, 58, 20);
+  else roundEars(a, fur, inner, hy - 36, 44, 26);
   a.part(headPath(100, hy, 52, 42), face, true, { hi: true });
   if (s === 2) {
-    a.part(`M50 ${hy + 32} C70 ${hy + 46} 130 ${hy + 46} 150 ${hy + 32} L150 ${hy + 44} C130 ${hy + 58} 70 ${hy + 58} 50 ${hy + 44}Z`, '#d8403a');
-    a.part(`M144 ${hy + 40} L172 ${hy + 54} L160 ${hy + 64} L140 ${hy + 48}Z`, '#d8403a');
+    // A ninja mask band across the eyes, and a scarf.
+    a.part(`M48 ${hy - 18} C70 ${hy - 26} 130 ${hy - 26} 152 ${hy - 18} L154 ${hy + 4} C130 ${hy - 2} 70 ${hy - 2} 46 ${hy + 4}Z`, '#2a2438', null, { lw: 2 });
+    a.part(`M150 ${hy - 14} L176 ${hy - 24} L170 ${hy - 8} L184 ${hy - 2} L152 ${hy}Z`, '#2a2438', null, { lw: 2 });
+    a.part(`M54 ${hy + 32} C74 ${hy + 46} 126 ${hy + 46} 146 ${hy + 32} L146 ${hy + 44} C126 ${hy + 58} 74 ${hy + 58} 54 ${hy + 44}Z`, '#d8403a');
   }
   a.add(`<ellipse cx="100" cy="${hy + 14}" rx="5" ry="4" fill="#f2a8b8" stroke="#2b1810" stroke-width="1.6"/>`);
   a.stroke(`M70 ${hy + 16} L44 ${hy + 12} M70 ${hy + 22} L46 ${hy + 26} M130 ${hy + 16} L156 ${hy + 12} M130 ${hy + 22} L154 ${hy + 26}`, 1.6);
-  a.eyes(80, 120, hy - 4, 7, s === 1 ? 9 : s === 2 ? 3 : 6, s === 3 ? '#c890ff' : '#8a6ab8', face);
+  a.eyes(80, 120, hy - 6, 7, s === 1 ? 9 : s === 2 ? 3 : 6, s === 3 ? '#c890ff' : '#8a6ab8', s === 2 ? '#2a2438' : face);
   a.mouth(100, hy + 24, 5, 'cat');
 };
 
 /** 사뿐이 → 꽃사뿐 → 봄사뿐: a spotted fawn; flowers on its head, then a white deer with blossom antlers. */
 const kkotsasum: Draw = (a, s) => {
-  const fur = s === 3 ? '#f6e2d0' : '#d8a07a', cream = '#fff4ea';
-  a.part(bodyPath(100, 132, 216, 46), fur);
-  // Thin legs.
-  for (const x of [80, 120]) a.part(`M${x - 7} 190 L${x - 6} 214 L${x + 6} 214 L${x + 7} 190Z`, darker(fur, 0.1));
-  a.part(E(100, 176, 20, 24), cream, null, { lw: 0 });
-  if (s < 3) for (const [x, y] of [[74, 150], [128, 146], [116, 166], [82, 172]]) a.add(`<circle cx="${x}" cy="${y}" r="4.5" fill="${cream}"/>`);
-  const hy = 96;
+  const fur = s === 3 ? '#f6e2d0' : s === 2 ? '#c88a62' : '#d8a07a', cream = '#fff4ea';
+  const legTop = s === 1 ? 190 : 176;
+  a.part(bodyPath(100, s === 1 ? 132 : 122, s === 1 ? 216 : 196, s === 1 ? 46 : 42), fur);
+  for (const x of [80, 120]) a.part(`M${x - 7} ${legTop} L${x - 6} 214 L${x + 6} 214 L${x + 7} ${legTop}Z`, darker(fur, 0.1));
+  if (s >= 2) a.part(`M132 150 C150 140 156 160 146 168 C140 172 134 166 132 160Z`, cream);
+  a.part(E(100, s === 1 ? 176 : 164, 20, 22), cream, null, { lw: 0 });
+  if (s < 3) for (const [x, y] of [[74, 150], [128, 146], [116, 166], [82, 172]]) a.add(`<circle cx="${x}" cy="${y - (s === 2 ? 8 : 0)}" r="4.5" fill="${cream}"/>`);
+  const hy = s === 1 ? 96 : 86;
   if (s === 3) for (const sd of [-1, 1]) {
     a.part(`M${100 + sd * 22} ${hy - 34} C${100 + sd * 30} ${hy - 64} ${100 + sd * 44} ${hy - 76} ${100 + sd * 60} ${hy - 82} M${100 + sd * 36} ${hy - 60} C${100 + sd * 50} ${hy - 58} ${100 + sd * 62} ${hy - 48} ${100 + sd * 68} ${hy - 40}`, 'none', null, { lw: 6, line: '#a8865a' });
     blossom(a, 100 + sd * 60, hy - 82, 10, '#f27aa8');
     blossom(a, 100 + sd * 68, hy - 40, 8, '#ffffff', '#f27aa8');
   }
-  // Long ears out to the sides.
+  if (s === 2) for (const sd of [-1, 1]) {
+    a.part(`M${100 + sd * 22} ${hy - 34} C${100 + sd * 26} ${hy - 50} ${100 + sd * 34} ${hy - 58} ${100 + sd * 42} ${hy - 62}`, 'none', null, { lw: 6, line: '#a8865a' });
+    a.part(leaf(100 + sd * 42, hy - 62, 18, sd * 0.8), '#6cb052', true, { lw: 1.8 });
+  }
   for (const sd of [-1, 1]) {
     a.part(`M${100 + sd * 36} ${hy - 22} C${100 + sd * 70} ${hy - 40} ${100 + sd * 86} ${hy - 26} ${100 + sd * 84} ${hy - 12} C${100 + sd * 70} ${hy - 4} ${100 + sd * 50} ${hy - 6} ${100 + sd * 40} ${hy - 2}Z`, fur);
     a.add(`<path d="M${100 + sd * 46} ${hy - 16} C${100 + sd * 66} ${hy - 28} ${100 + sd * 76} ${hy - 22} ${100 + sd * 76} ${hy - 14} C${100 + sd * 66} ${hy - 10} ${100 + sd * 54} ${hy - 10} ${100 + sd * 46} ${hy - 8}Z" fill="#f2b8a8"/>`);
@@ -344,31 +385,35 @@ const kkotsasum: Draw = (a, s) => {
   a.part(headPath(100, hy, 46, 44), fur, true, { hi: true });
   a.part(E(100, hy + 22, 20, 14), cream, null, { lw: 0 });
   a.add(`<ellipse cx="100" cy="${hy + 14}" rx="6" ry="4.2" fill="#2b1810"/>`);
-  if (s === 2) { blossom(a, 78, hy - 40, 12); blossom(a, 118, hy - 44, 10, '#ffffff', '#f2a7c3'); blossom(a, 98, hy - 46, 8, '#f2a7c3'); }
+  // The second form: a garland of flowers round the neck.
+  if (s === 2) for (const [k, c] of [[-2, '#f6a8c8'], [-1, '#ffffff'], [0, '#f6a8c8'], [1, '#ffffff'], [2, '#f6a8c8']] as const) blossom(a, 100 + k * 17, hy + 50 + Math.abs(k) * -3, 9, c, c === '#ffffff' ? '#f2a7c3' : '#ffd34a');
   a.eyes(80, 120, hy - 4, 7, s === 1 ? 9 : s === 2 ? 3 : 8, '#8a4a2a', fur);
   a.mouth(100, hy + 24, 5, 'cat').cheeks(66, 134, hy + 14);
 };
 
 /** 뒤뚱이 → 미끄덩 → 꽁꽁대장: a penguin chick; a snow scarf, then an emperor with an ice crown. */
 const eoreum: Draw = (a, s) => {
-  const back = s === 3 ? '#1f2f4a' : s === 2 ? '#3a5a88' : '#4a5a70', front = '#f4f7fa';
-  const top = s === 1 ? 70 : 52;
-  a.part(`M100 ${top} C150 ${top} 168 130 164 176 C160 208 136 218 100 218 C64 218 40 208 36 176 C32 130 50 ${top} 100 ${top}Z`, back, true, { hi: true });
-  a.part(`M100 ${top + 38} C132 ${top + 38} 146 130 144 170 C142 200 126 212 100 212 C74 212 58 200 56 170 C54 130 68 ${top + 38} 100 ${top + 38}Z`, front, '#c8d8e4');
-  // Flippers.
-  for (const sd of [-1, 1]) a.part(`M${100 + sd * 58} 130 C${100 + sd * 82} 146 ${100 + sd * 86} 176 ${100 + sd * 76} 188 C${100 + sd * 66} 182 ${100 + sd * 60} 160 ${100 + sd * 56} 150Z`, back);
+  const back = s === 3 ? '#1f2f4a' : s === 2 ? '#2f5a8a' : '#4a5a70', front = '#f4f7fa';
+  const top = s === 1 ? 70 : 52, half = s === 2 ? 56 : 64;
+  a.part(`M100 ${top} C${100 + half * 0.8} ${top} ${100 + half} 130 ${100 + half * 0.98} 176 C${100 + half * 0.92} 208 136 218 100 218 C64 218 ${100 - half * 0.92} 208 ${100 - half * 0.98} 176 C${100 - half} 130 ${100 - half * 0.8} ${top} 100 ${top}Z`, back, true, { hi: true });
+  a.part(`M100 ${top + 38} C132 ${top + 38} ${100 + half * 0.72} 130 ${100 + half * 0.7} 170 C${100 + half * 0.68} 200 126 212 100 212 C74 212 ${100 - half * 0.68} 200 ${100 - half * 0.7} 170 C${100 - half * 0.72} 130 68 ${top + 38} 100 ${top + 38}Z`, front, '#c8d8e4');
+  // Flippers: longer and swept back in the second form (it slides).
+  for (const sd of [-1, 1]) {
+    if (s === 2) a.part(`M${100 + sd * 50} 124 C${100 + sd * 86} 132 ${100 + sd * 100} 156 ${100 + sd * 96} 176 C${100 + sd * 82} 168 ${100 + sd * 64} 152 ${100 + sd * 52} 148Z`, back);
+    else a.part(`M${100 + sd * 58} 130 C${100 + sd * 82} 146 ${100 + sd * 86} 176 ${100 + sd * 76} 188 C${100 + sd * 66} 182 ${100 + sd * 60} 160 ${100 + sd * 56} 150Z`, back);
+  }
   feet(a, '#ffb43a', 22, 13, 216);
   const ey = top + 60;
   if (s === 3) a.part(`M100 ${top + 40} C112 ${top + 54} 124 ${top + 60} 140 ${top + 60} C130 ${top + 70} 120 ${top + 80} 118 ${top + 96} L82 ${top + 96} C80 ${top + 80} 70 ${top + 70} 60 ${top + 60} C76 ${top + 60} 88 ${top + 54} 100 ${top + 40}Z`, '#ffd34a', '#e0a81a', { lw: 0 });
+  if (s === 2) {
+    // An icy crest swept back, and a scarf.
+    for (const k of [0, 1, 2]) a.part(`M${92 + k * 8} ${top + 6} C${96 + k * 12} ${top - 20} ${112 + k * 14} ${top - 30} ${128 + k * 12} ${top - 30 + k * 8} C${116 + k * 12} ${top - 14} ${110 + k * 8} ${top - 2} ${108 + k * 8} ${top + 10}Z`, '#bfe8fa', '#7ac4ea', { lw: 2 });
+    a.part(`M52 ${top + 100} C70 ${top + 112} 130 ${top + 112} 148 ${top + 100} L148 ${top + 114} C130 ${top + 126} 70 ${top + 126} 52 ${top + 114}Z`, '#e8505a');
+    a.part(`M126 ${top + 112} L146 ${top + 146} L128 ${top + 148} L114 ${top + 116}Z`, '#e8505a');
+  }
   a.eyes(80, 120, ey, 7, s === 1 ? 9 : s === 2 ? 3 : 6, '#2a4a7a', front);
   a.mouth(100, ey + 18, 10, 'beak').cheeks(66, 134, ey + 16);
-  if (s === 2) {
-    a.part(`M52 ${top + 100} C70 ${top + 112} 130 ${top + 112} 148 ${top + 100} L148 ${top + 114} C130 ${top + 126} 70 ${top + 126} 52 ${top + 114}Z`, '#d8eef7');
-    a.part(`M126 ${top + 112} L134 ${top + 148} L118 ${top + 146} L114 ${top + 116}Z`, '#d8eef7');
-  }
-  if (s === 3) {
-    a.part(`M66 ${top + 8} L60 ${top - 26} L78 ${top - 4} L88 ${top - 36} L100 ${top - 6} L112 ${top - 36} L122 ${top - 4} L140 ${top - 26} L134 ${top + 8} C120 ${top} 80 ${top} 66 ${top + 8}Z`, '#bfe8fa', '#7ac4ea');
-  }
+  if (s === 3) a.part(`M66 ${top + 8} L60 ${top - 26} L78 ${top - 4} L88 ${top - 36} L100 ${top - 6} L112 ${top - 36} L122 ${top - 4} L140 ${top - 26} L134 ${top + 8} C120 ${top} 80 ${top} 66 ${top + 8}Z`, '#bfe8fa', '#7ac4ea');
   if (s === 1) a.part(`M92 ${top - 2} C94 ${top - 14} 102 ${top - 18} 106 ${top - 20} C104 ${top - 12} 108 ${top - 6} 108 ${top + 2}Z`, back, null);
 };
 
@@ -383,13 +428,23 @@ const dudeoji: Draw = (a, s) => {
     a.part(`M${100 + sd * 44} 150 C${100 + sd * 70} 132 ${100 + sd * 86} 140 ${100 + sd * 84} 160 C${100 + sd * 82} 176 ${100 + sd * 62} 180 ${100 + sd * 48} 172Z`, paw);
     for (const k of [0, 1, 2]) a.part(`M${100 + sd * (72 + k * 5)} ${140 + k * 9} l${sd * 14} ${-4 + k * 2} l${-sd * 6} 8Z`, '#fff8ec', null, { lw: 1.6 });
   }
+  if (s === 2) {
+    // Work overalls and a pickaxe over the shoulder.
+    a.part('M60 170 C62 200 80 214 100 214 C120 214 138 200 140 170Z', '#4a7ab8', '#2f5a8a', { lw: 2.2 });
+    for (const sd of [-1, 1]) a.part(`M${100 + sd * 22} 172 L${100 + sd * 34} 118 L${100 + sd * 42} 120 L${100 + sd * 30} 172Z`, '#4a7ab8', null, { lw: 2 });
+    a.part('M90 180 L110 180 L110 194 L90 194Z', '#2f5a8a', null, { lw: 1.8 });
+    // A pickaxe over the shoulder.
+    a.part('M150 150 L188 70 L196 74 L158 154Z', '#a8763a', true, { lw: 2.2 });
+    a.part('M166 64 C180 52 204 56 214 70 C200 66 188 68 180 76 C176 72 170 68 166 64Z', '#c8ccd4', '#8a909c', { lw: 2.2 });
+  }
+  if (s === 3) for (const sd of [-1, 1]) a.part(`M${100 + sd * 30} 112 L${100 + sd * 58} 98 L${100 + sd * 66} 120 L${100 + sd * 42} 130Z`, '#8a8478', '#5a564e');
   const hy = 136;
   if (s === 2) {
-    a.part(`M50 ${hy - 50} C50 ${hy - 96} 150 ${hy - 96} 150 ${hy - 50} L160 ${hy - 44} L40 ${hy - 44}Z`, '#f2c14a', '#d89a1a');
-    a.part(E(100, hy - 70, 12, 10), '#fff6c8', null, { lw: 2 });
+    a.part(`M58 ${hy - 18} C56 ${hy - 70} 144 ${hy - 70} 142 ${hy - 18} L156 ${hy - 10} L44 ${hy - 10}Z`, '#f2c14a', '#d89a1a');
+    a.part(E(100, hy - 44, 12, 10), '#fff6c8', null, { lw: 2 });
   }
-  if (s === 3) a.part(`M84 ${hy - 50} L100 ${hy - 112} L116 ${hy - 50}Z`, '#c8ccd4', '#8a909c');
-  if (s === 3) for (const k of [0, 1, 2]) a.stroke(`M${88 + k * 3} ${hy - 62 - k * 18} L${112 - k * 3} ${hy - 70 - k * 18}`, 2.2);
+  if (s === 3) a.part(`M80 ${hy - 26} L100 ${hy - 96} L120 ${hy - 26}Z`, '#c8ccd4', '#8a909c');
+  if (s === 3) for (const k of [0, 1, 2]) a.stroke(`M${86 + k * 4} ${hy - 40 - k * 18} L${114 - k * 4} ${hy - 48 - k * 18}`, 2.2);
   // Snout and face on the body's front.
   a.part(E(100, hy + 10, 18, 13), lighter(fur, 0.3), null, { lw: 2 });
   a.part(E(100, hy + 4, 11, 8), nose, true, { lw: 2 });
@@ -399,24 +454,44 @@ const dudeoji: Draw = (a, s) => {
 
 /** 반짝이 → 초롱이 → 달빛이: a firefly with a glowing tail; a lantern bug, then a moon moth with a halo. */
 const bandi: Draw = (a, s) => {
-  const body = s === 3 ? '#e8e4f8' : s === 2 ? '#6a5a3a' : '#4a4d34', glow = s === 3 ? '#bfe4ff' : '#eef27a';
-  wings(a, s === 3 ? '#ffffff' : '#d8f0f8', 112, s === 3 ? 92 : 66, s === 3 ? 'moth' : 'petal', 10);
+  if (s === 2) {
+    // 초롱이: an amber lantern bug standing up, its tail a ribbed paper lantern, four long wings.
+    const body = '#b8843a';
+    wings(a, '#e8f4fa', 116, 86, 'petal', 22);
+    wings(a, '#d0ecf6', 140, 64, 'petal', -4);
+    a.glow(100, 176, 64, '#ffd08a');
+    a.part(`M70 140 L130 140 L126 148 L74 148Z`, '#e0a81a', true, { lw: 2.2 });
+    a.part(`M74 148 C56 168 58 200 76 210 L124 210 C142 200 144 168 126 148Z`, '#ff7a3a', '#d8481a', { hi: true });
+    for (const k of [-1, 0, 1]) a.stroke(`M${100 + k * 16} 150 Q${100 + k * 22} 180 ${100 + k * 16} 208`, 2, '#a8321a');
+    a.part(`M76 210 L124 210 L120 218 L80 218Z`, '#e0a81a', true, { lw: 2.2 });
+    a.part(E(100, 126, 28, 18), body);
+    arms(a, body, 132, 26, 8, 8);
+    const hy = 88;
+    for (const sd of [-1, 1]) {
+      a.stroke(`M${100 + sd * 14} ${hy - 32} Q${100 + sd * 18} ${hy - 62} ${100 + sd * 40} ${hy - 72}`, 3);
+      a.flame(flamePath(100 + sd * 42, hy - 70, 7, 18), ['#ff8a1f', '#ffd23a', '#fff6c8']);
+    }
+    a.part(headPath(100, hy, 42, 36), body, true, { hi: true });
+    a.eyes(82, 118, hy - 2, 7, 3, '#f2a81a', body);
+    a.mouth(100, hy + 18, 6, 'open').cheeks(68, 132, hy + 14);
+    return;
+  }
+  const body = s === 3 ? '#e8e4f8' : '#4a4d34', glow = s === 3 ? '#bfe4ff' : '#eef27a';
+  wings(a, s === 3 ? '#ffffff' : '#d8f0f8', 112, s === 3 ? 92 : 52, s === 3 ? 'moth' : 'petal', s === 3 ? 10 : -6);
   a.glow(100, 176, 70, glow);
-  // Glowing tail (abdomen).
-  a.part(E(100, 178, 40, 40), glow, s === 3 ? '#8ac4e8' : '#c8d44a', { hi: true });
+  a.part(E(100, 178, s === 3 ? 40 : 44, s === 3 ? 40 : 38), glow, s === 3 ? '#8ac4e8' : '#c8d44a', { hi: true });
   for (const k of [0, 1]) a.stroke(`M66 ${164 + k * 18} Q100 ${172 + k * 18} 134 ${164 + k * 18}`, 2.2, darker(glow, 0.4));
   a.part(E(100, 132, 32, 22), body);
   for (const sd of [-1, 1]) a.stroke(`M${100 + sd * 22} 142 L${100 + sd * 40} 158 M${100 + sd * 26} 134 L${100 + sd * 46} 140`, 3);
   const hy = 92;
   for (const sd of [-1, 1]) {
-    a.stroke(`M${100 + sd * 16} ${hy - 36} Q${100 + sd * 22} ${hy - 62} ${100 + sd * (s === 3 ? 44 : 36)} ${hy - 70}`, 3);
+    a.stroke(`M${100 + sd * 16} ${hy - 36} Q${100 + sd * 22} ${hy - 62} ${100 + sd * (s === 3 ? 44 : 30)} ${hy - (s === 3 ? 70 : 60)}`, 3);
     if (s === 3) a.part(leaf(100 + sd * 44, hy - 70, 20, sd * 0.7, 0.5), '#ffffff', '#c8c4e8', { lw: 1.8 });
-    else a.part(E(100 + sd * 36, hy - 72, 7, 7), s === 2 ? '#f2c14a' : glow, null, { lw: 2 });
+    else a.part(E(100 + sd * 30, hy - 62, 6, 6), glow, null, { lw: 2 });
   }
   if (s === 3) halo(a, 100, hy - 50, 38);
-  a.part(headPath(100, hy, 44, 38), s === 3 ? '#ffffff' : body, true, { hi: true });
-  const sk = s === 3 ? '#ffffff' : body;
-  a.eyes(82, 118, hy - 2, 7, s === 1 ? 9 : s === 2 ? 3 : 8, s === 3 ? '#6a8ad8' : '#c8d44a', sk);
+  a.part(headPath(100, hy, s === 3 ? 44 : 46, s === 3 ? 38 : 40), s === 3 ? '#ffffff' : body, true, { hi: true });
+  a.eyes(82, 118, hy - 2, 7, s === 1 ? 9 : 8, s === 3 ? '#6a8ad8' : '#c8d44a', s === 3 ? '#ffffff' : body);
   a.mouth(100, hy + 18, 6, 'smile');
   if (s === 3) a.cheeks(68, 132, hy + 14);
 };
@@ -429,13 +504,17 @@ const yongamge: Draw = (a, s) => {
   for (const sd of [-1, 1]) for (const k of [0, 1, 2]) a.stroke(`M${100 + sd * 40} ${180 + k * 8} L${100 + sd * (70 + k * 6)} ${196 + k * 6} L${100 + sd * (74 + k * 8)} 218`, 3, claw);
   // Claws up.
   for (const sd of [-1, 1]) {
+    const big = s === 2 && sd === 1;
+    if (big) a.add('<g transform="translate(166 120) scale(1.45) translate(-166 -120)">');
     a.part(`M${100 + sd * 46} 160 C${100 + sd * 66} 150 ${100 + sd * 70} 130 ${100 + sd * 66} 118`, 'none', null, { lw: 9, line: '#4a2416' });
     a.stroke(`M${100 + sd * 46} 160 C${100 + sd * 66} 150 ${100 + sd * 70} 130 ${100 + sd * 66} 118`, 5, claw);
     a.part(`M${100 + sd * 66} 118 C${100 + sd * 44} 112 ${100 + sd * 44} 76 ${100 + sd * 68} 66 C${100 + sd * 70} 84 ${100 + sd * 76} 92 ${100 + sd * 86} 92 C${100 + sd * 92} 70 ${100 + sd * 82} 60 ${100 + sd * 74} 58 C${100 + sd * 100} 56 ${100 + sd * 104} 108 ${100 + sd * 66} 118Z`, claw, true, { hi: true });
+    if (big) a.add('</g>');
   }
   a.part(`M34 168 C34 126 66 110 100 110 C134 110 166 126 166 168 C166 194 134 200 100 200 C66 200 34 194 34 168Z`, shell, true, { hi: true });
   for (const [x, y, r] of [[70, 140, 8], [126, 136, 10], [104, 128, 6], [140, 160, 6]] as const) a.add(`<circle cx="${x}" cy="${y}" r="${r}" fill="${darker(shell, 0.25)}"/>`);
   if (s >= 2) for (const k of [-2, -1, 0, 1, 2]) a.part(`M${100 + k * 24 - 8} ${116 + Math.abs(k) * 6} L${100 + k * 26} ${96 + Math.abs(k) * 8} L${100 + k * 24 + 8} ${116 + Math.abs(k) * 6}Z`, s === 3 ? '#ffb43a' : '#e8d8c8');
+  if (s === 2) for (const [x, y, r] of [[60, 96, 7], [48, 78, 5], [58, 62, 4]]) a.add(`<circle cx="${x}" cy="${y}" r="${r}" fill="#ffffff" opacity=".8" stroke="#c8c8c8" stroke-width="1.4"/>`);
   if (s === 3) { a.flame(flamePath(100, 104, 12, 30)); a.flame(flamePath(70, 116, 9, 22, -0.3)); a.flame(flamePath(130, 116, 9, 22, 0.3)); }
   // Eyes on stalks.
   for (const sd of [-1, 1]) { a.stroke(`M${100 + sd * 16} 140 L${100 + sd * 20} 118`, 5); a.part(E(100 + sd * 20, 112, 13, 14), '#fff8ec', null, { lw: 2.2 }); }
@@ -445,26 +524,30 @@ const yongamge: Draw = (a, s) => {
 
 /** 몽글이 → 뭉게이 → 먹구름: a lamb of cloud; a little bolt, then a storm ram with curled horns. */
 const gureumyang: Draw = (a, s) => {
-  const fleece = s === 3 ? '#8a96a8' : s === 2 ? '#d8dee6' : '#f6f3ea', face = s === 3 ? '#2a2a30' : '#5a5a66';
-  // Legs.
+  const fleece = s === 3 ? '#8a96a8' : s === 2 ? '#b8c8dc' : '#f6f3ea', face = s === 3 ? '#2a2a30' : s === 2 ? '#3a4a66' : '#5a5a66';
   for (const x of [76, 124]) a.part(`M${x - 8} 188 L${x - 7} 214 L${x + 7} 214 L${x + 8} 188Z`, face);
-  // Puffy cloud body: a ring of bumps.
   let d = '';
-  const cx = 100, cy = 150, R = s === 1 ? 60 : 66;
+  const cx = 100, cy = s === 2 ? 144 : 150, R = s === 1 ? 60 : s === 2 ? 72 : 66;
   for (let k = 0; k < 9; k++) { const an = (k / 9) * Math.PI * 2; d += E(cx + Math.cos(an) * R * 0.72, cy + Math.sin(an) * R * 0.62, R * 0.42, R * 0.42); }
   a.part(d, fleece, true, { lw: 2.4 });
   a.part(E(cx, cy, R * 0.8, R * 0.66), fleece, null, { lw: 0 });
-  if (s === 2) a.part(`M150 110 L170 82 L164 102 L186 96 L160 134 L164 114Z`, '#ffe14a', '#e0a81a', { lw: 2 });
+  // The second form rains: drops falling from its fleece, and a little bolt.
+  if (s === 2) {
+    for (const [x, y] of [[50, 200], [150, 196], [36, 176], [166, 172]]) a.part(`M${x} ${y - 10} C${x + 6} ${y - 2} ${x + 6} ${y + 6} ${x} ${y + 6} C${x - 6} ${y + 6} ${x - 6} ${y - 2} ${x} ${y - 10}Z`, '#7ac4ea', '#4a8ac0', { lw: 1.8 });
+    a.part(`M150 104 L170 76 L164 96 L186 90 L160 128 L164 108Z`, '#ffe14a', '#e0a81a', { lw: 2 });
+  }
   if (s === 3) {
     a.part(`M138 130 L156 102 L150 122 L170 116 L146 152 L150 134Z`, '#ffe14a', '#e0a81a', { lw: 2 });
     for (const k of [0, 1, 2]) a.stroke(`M${60 + k * 30} 206 l-6 14`, 3, '#7ac4ea');
   }
-  const hy = 118;
+  const hy = s === 2 ? 110 : 118;
   if (s === 3) for (const sd of [-1, 1]) a.part(`M${100 + sd * 26} ${hy - 26} C${100 + sd * 62} ${hy - 52} ${100 + sd * 82} ${hy - 6} ${100 + sd * 56} ${hy + 12} C${100 + sd * 46} ${hy + 16} ${100 + sd * 40} ${hy + 4} ${100 + sd * 52} ${hy - 4} C${100 + sd * 62} ${hy - 14} ${100 + sd * 48} ${hy - 28} ${100 + sd * 30} ${hy - 12}Z`, '#d8c8a0', '#a8946a');
+  if (s === 2) for (const sd of [-1, 1]) a.part(`M${100 + sd * 20} ${hy - 30} C${100 + sd * 30} ${hy - 48} ${100 + sd * 44} ${hy - 44} ${100 + sd * 40} ${hy - 32} C${100 + sd * 36} ${hy - 26} ${100 + sd * 30} ${hy - 30} ${100 + sd * 28} ${hy - 24}Z`, '#e8dcc0', '#b8a888');
   for (const sd of [-1, 1]) a.part(`M${100 + sd * 30} ${hy - 8} C${100 + sd * 52} ${hy - 12} ${100 + sd * 64} ${hy - 2} ${100 + sd * 62} ${hy + 8} C${100 + sd * 50} ${hy + 10} ${100 + sd * 40} ${hy + 6} ${100 + sd * 30} ${hy + 4}Z`, face);
   a.part(headPath(100, hy, 32, 34), face, true, { hi: true });
-  // A tuft of fleece on top.
-  a.part(E(88, hy - 34, 14, 12) + E(104, hy - 38, 15, 13) + E(116, hy - 30, 12, 10), fleece, true, { lw: 2.2 });
+  // Fleece on top: a tuft, or (second form) a puffy cloud hood round the face.
+  if (s === 2) a.part(E(70, hy - 20, 16, 16) + E(84, hy - 38, 18, 16) + E(104, hy - 44, 19, 17) + E(122, hy - 34, 17, 15) + E(132, hy - 14, 14, 14), fleece, true, { lw: 2.2 });
+  else a.part(E(88, hy - 34, 14, 12) + E(104, hy - 38, 15, 13) + E(116, hy - 30, 12, 10), fleece, true, { lw: 2.2 });
   a.eyes(86, 114, hy + 2, 5.5, s === 1 ? 9 : s === 2 ? 3 : 6, '#e8c84a', face);
   a.mouth(100, hy + 20, 5, 'cat');
   a.cheeks(76, 124, hy + 16, 6);
@@ -473,21 +556,29 @@ const gureumyang: Draw = (a, s) => {
 /** 별냥이 → 별똥냥 → 은하냥: a navy kitten with a star on its brow; a star-trail tail, then a galaxy. */
 const byeolnyang: Draw = (a, s) => {
   const fur = s === 3 ? '#1a1a3a' : s === 2 ? '#2a2f5a' : '#4a4f7a', inner = '#f2b8c8';
-  // Tail, ending in a star (from the second form).
-  a.part(`M118 204 C170 212 186 160 166 124 C160 114 148 118 152 128 C164 154 154 184 116 190Z`, fur);
-  if (s >= 2) { a.part(star(162, 114, 18), '#ffe14a', '#e0a81a', { lw: 2 }); a.stroke('M150 132 l-14 10 M156 140 l-12 14', 2.4, '#ffe14a'); }
-  a.part(bodyPath(100, 130, 216, 46), fur);
+  // Tail(s): one plain tail; two star-tipped tails from the second form.
+  const tails = s === 1 ? [0] : [0, 1];
+  for (const k of tails) {
+    const dx = k * -14, dy = k * -30;
+    a.part(`M${118 + dx} ${204 + dy} C${170 + dx} ${212 + dy} ${186 + dx} ${160 + dy} ${166 + dx} ${124 + dy} C${160 + dx} ${114 + dy} ${148 + dx} ${118 + dy} ${152 + dx} ${128 + dy} C${164 + dx} ${154 + dy} ${154 + dx} ${184 + dy} ${116 + dx} ${190 + dy}Z`, fur);
+    if (s >= 2) a.part(star(162 + dx, 114 + dy, 16), '#ffe14a', '#e0a81a', { lw: 2 });
+  }
+  a.part(bodyPath(100, s === 1 ? 130 : 122, 216, s === 1 ? 46 : 40), fur);
   if (s === 3) for (const [x, y] of [[84, 160], [114, 176], [96, 196], [122, 150]]) a.part(star(x, y, 4.5), '#ffffff', null, { lw: 0 });
+  if (s === 2) for (const [x, y] of [[86, 170], [112, 186], [118, 158]]) a.add(`<circle cx="${x}" cy="${y}" r="3" fill="#ffe14a"/>`);
   feet(a, lighter(fur, 0.2), 22, 13);
-  const hy = 98;
+  const hy = s === 1 ? 98 : 90;
   if (s === 3) halo(a, 100, hy - 56, 40, '#bfe4ff');
-  pointyEars(a, fur, inner, hy - 18, 36, 52, 22);
+  pointyEars(a, fur, inner, hy - 18, 36, s === 2 ? 60 : 52, 22);
+  if (s === 2) for (const sd of [-1, 1]) a.part(`M${100 + sd * 58} ${hy - 72} L${100 + sd * 62} ${hy - 90} L${100 + sd * 66} ${hy - 70}Z`, fur, null, { lw: 2 });
   a.part(headPath(100, hy, 54, 44), fur, true, { hi: true });
+  // The second form wears a crescent-moon collar.
+  if (s === 2) a.part(`M60 ${hy + 46} C76 ${hy + 64} 124 ${hy + 64} 140 ${hy + 46} C128 ${hy + 54} 72 ${hy + 54} 60 ${hy + 46}Z M86 ${hy + 54} C84 ${hy + 76} 116 ${hy + 76} 114 ${hy + 54} C110 ${hy + 66} 92 ${hy + 66} 86 ${hy + 54}Z`, '#ffe14a', '#e0a81a', { lw: 2 });
   a.part(star(100, hy - 26, 10), '#ffe14a', '#e0a81a', { lw: 1.8 });
   a.stroke(`M66 ${hy + 16} L42 ${hy + 10} M66 ${hy + 22} L44 ${hy + 26} M134 ${hy + 16} L158 ${hy + 10} M134 ${hy + 22} L156 ${hy + 26}`, 1.8, '#c8c8e8');
   a.eyes(78, 122, hy, 7.5, s === 3 ? 6 : 8, '#e0b81a', fur);
   a.add(`<path d="M96 ${hy + 14} L104 ${hy + 14} L100 ${hy + 19}Z" fill="#f2a8b8"/>`);
-  a.mouth(100, hy + 21, 6, 'cat');
+  a.mouth(100, hy + 21, 6, s === 2 ? 'fang' : 'cat');
   a.cheeks(64, 136, hy + 16, 7, '#ff9ac0');
 };
 
@@ -514,7 +605,7 @@ const agiyong: Draw = (a, s) => {
 
 /** 엉금이 → 엉금엉금 → 큰산거북: a turtle with a leafy shell; flowers on it, then a little mountain with trees. */
 const geobuk: Draw = (a, s) => {
-  const skin = s === 3 ? '#a8865a' : '#a8cc7a', shell = s === 3 ? '#6a8a4a' : s === 2 ? '#7aa45a' : '#8ab46a';
+  const skin = s === 3 ? '#a8865a' : s === 2 ? '#8ab062' : '#a8cc7a', shell = s === 3 ? '#6a8a4a' : s === 2 ? '#6a8a3e' : '#8ab46a';
   for (const x of [56, 144]) a.part(`M${x - 14} 180 L${x - 14} 214 L${x + 14} 214 L${x + 14} 180Z`, skin);
   a.part(E(100, 194, 56, 16), '#f2e2b0', '#d8c48a');
   if (s === 3) {
@@ -522,16 +613,23 @@ const geobuk: Draw = (a, s) => {
     a.part(`M40 178 L76 96 L96 126 L118 72 L160 178Z`, '#8a8478', '#5a564e');
     a.part(`M106 96 L118 72 L130 98 C122 104 112 104 106 96Z`, '#ffffff', null, { lw: 1.8 });
     for (const [x, y] of [[56, 156], [146, 150], [92, 164]]) { a.part(`M${x - 3} ${y + 14} L${x - 3} ${y} L${x + 3} ${y} L${x + 3} ${y + 14}Z`, '#6a4a22', null, { lw: 1.6 }); a.part(`M${x} ${y - 22} L${x + 12} ${y + 2} L${x - 12} ${y + 2}Z`, '#3f7a3a', '#2a5a2a', { lw: 1.8 }); }
+  } else if (s === 2) {
+    // Bushes on the shell, rock knobs at its rim.
+    a.part(`M26 190 C26 132 56 100 100 100 C144 100 174 132 174 190Z`, shell, true, { hi: true });
+    for (const sd of [-1, 1]) a.part(`M${100 + sd * 74} 176 L${100 + sd * 88} 162 L${100 + sd * 84} 184Z`, '#b8b0a0', '#8a8478', { lw: 2 });
+    a.part(E(70, 104, 26, 22) + E(92, 90, 26, 24), '#4f9442', '#3a7a32', { lw: 2.2 });
+    a.part(E(126, 96, 28, 24) + E(144, 112, 18, 16), '#5fa64a', '#3f8a3a', { lw: 2.2 });
+    blossom(a, 128, 86, 8, '#ffffff', '#f2a7c3');
   } else {
     a.part(`M28 190 C28 130 56 96 100 96 C144 96 172 130 172 190Z`, shell, true, { hi: true });
     for (const [x, y] of [[100, 126], [66, 152], [134, 152], [100, 170]] as const) a.part(`M${x} ${y - 18} L${x + 18} ${y - 8} L${x + 18} ${y + 10} L${x} ${y + 18} L${x - 18} ${y + 10} L${x - 18} ${y - 8}Z`, darker(shell, 0.12), null, { lw: 1.8 });
     a.part(leaf(80, 98, 30, -0.6), '#5fa64a', true, { lw: 2 });
     a.part(leaf(84, 98, 26, 0.7), '#72b856', true, { lw: 2 });
-    if (s === 2) { blossom(a, 132, 108, 11); blossom(a, 60, 128, 9, '#ffffff', '#f2a7c3'); }
   }
-  // Head out at the front.
-  const hy = 150;
-  a.part(headPath(100, hy, 40, 32), skin, true, { hi: true });
+  const hy = s === 2 ? 148 : 150, hr = s === 2 ? 44 : 40;
+  a.part(headPath(100, hy, hr, s === 2 ? 34 : 32), skin, true, { hi: true });
+  // The second form has a strong beaked jaw.
+  if (s === 2) a.part(`M74 ${hy + 12} C86 ${hy + 30} 114 ${hy + 30} 126 ${hy + 12} C116 ${hy + 18} 84 ${hy + 18} 74 ${hy + 12}Z`, '#e8d4a0', '#c4ac78', { lw: 2 });
   a.eyes(84, 116, hy - 4, 6, s === 1 ? 9 : 1, s === 3 ? '#6a4a22' : '#3f6a2a');
   a.mouth(100, hy + 14, 8, 'smile').cheeks(72, 128, hy + 10, 6);
 };
@@ -540,28 +638,160 @@ const geobuk: Draw = (a, s) => {
 const haepari: Draw = (a, s) => {
   const bell = s === 3 ? '#3a2a6a' : s === 2 ? '#8ad0c8' : '#d8b8f0', frill = s === 3 ? '#f2a7e0' : s === 2 ? '#c8f0ea' : '#f0e0fa';
   a.glow(100, 110, 90, s === 3 ? '#9ad6f2' : '#ffffff');
-  // Tentacles.
-  for (const k of [-3, -2, -1, 0, 1, 2, 3]) {
+  if (s === 3) for (const sd of [-1, 1]) {
+    const d = `M${100 + sd * 50} 140 C${100 + sd * 90} 150 ${100 + sd * 100} 190 ${100 + sd * 80} 206 C${100 + sd * 66} 216 ${100 + sd * 60} 196 ${100 + sd * 72} 192`;
+    a.stroke(d, 11, '#4a2416'); a.stroke(d, 7, '#9ad6f2');
+  }
+  if (s === 2) {
+    // Long ribbons in two colours instead of plain tentacles.
+    for (const [k, c] of [[-2, '#f6a8c8'], [-1, '#ffffff'], [0, '#f6a8c8'], [1, '#ffffff'], [2, '#f6a8c8']] as const) {
+      const x = 100 + k * 18;
+      a.part(`M${x - 6} 140 C${x + 18} 164 ${x - 22} 190 ${x + 2} 218 L${x + 12} 216 C${x - 8} 190 ${x + 30} 164 ${x + 6} 140Z`, c, true, { lw: 2 });
+    }
+  } else for (const k of [-3, -2, -1, 0, 1, 2, 3]) {
     const x = 100 + k * 14;
     a.part(`M${x} 140 C${x + 12} 166 ${x - 12} 190 ${x + 4} 216`, 'none', null, { lw: 8, line: '#4a2416' });
     a.stroke(`M${x} 140 C${x + 12} 166 ${x - 12} 190 ${x + 4} 216`, 4.5, frill);
   }
-  // Frilly skirt.
-  let d = 'M34 140 ';
-  for (let k = 0; k <= 8; k++) d += `Q${34 + k * 16.5 + 8} ${156} ${34 + (k + 1) * 16.5} 140 `;
-  a.part(d + 'L166 128 L34 128Z', frill, true, { lw: 2.2 });
+  if (s === 2) {
+    // A brim of petals like an upturned flower.
+    for (let k = 0; k < 7; k++) { const x = 40 + k * 20; a.part(`M${x} 132 C${x - 12} 150 ${x + 2} 164 ${x + 10} 162 C${x + 18} 164 ${x + 32} 150 ${x + 20} 132Z`, k % 2 ? '#ffffff' : '#f6c8dc', true, { lw: 2 }); }
+  } else {
+    let d = 'M34 140 ';
+    for (let k = 0; k <= 8; k++) d += `Q${34 + k * 16.5 + 8} ${156} ${34 + (k + 1) * 16.5} 140 `;
+    a.part(d + 'L166 128 L34 128Z', frill, true, { lw: 2.2 });
+  }
   a.part(`M30 136 C26 70 60 40 100 40 C140 40 174 70 170 136 C140 148 60 148 30 136Z`, bell, true, { hi: true });
   a.add(`<path d="M58 70 C66 56 80 50 92 48" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity=".55"/>`);
-  if (s === 2) for (const x of [70, 130]) blossom(a, x, 58, 10, '#ffffff', '#8ad0c8');
-  if (s === 3) crown(a, 100, 46, 26, '#ffd34a', '#9ad6f2');
+  if (s === 2) { a.part(`M100 44 C86 30 70 34 74 46 C78 56 92 52 100 46 C108 52 122 56 126 46 C130 34 114 30 100 44Z`, '#f27aa8', '#c84a7a', { lw: 2 }); a.add('<circle cx="100" cy="45" r="5" fill="#ffd34a" stroke="#4a2416" stroke-width="1.6"/>'); }
+  if (s === 3) {
+    crown(a, 100, 46, 26, '#ffd34a', '#9ad6f2');
+    for (const [x, y, r] of [[60, 96, 6], [140, 92, 7], [128, 62, 5], [72, 66, 4]]) a.add(`<circle cx="${x}" cy="${y}" r="${r}" fill="#9ad6f2" opacity=".85"/>`);
+  }
   a.eyes(80, 120, 100, 7, s === 1 ? 9 : s === 2 ? 3 : 8, s === 3 ? '#9ad6f2' : '#8a4ab8', bell);
-  a.mouth(100, 120, 6, 'smile').cheeks(64, 136, 116);
+  a.mouth(100, 120, 6, s === 2 ? 'open' : 'smile').cheeks(64, 136, 116);
+};
+
+/** 부엉이 → 부엉부엉 → 달부엉: a fluffy owlet; long ear tufts and spread wings, then a night owl with a moon. */
+const buong: Draw = (a, s) => {
+  const body = s === 3 ? '#3a4072' : s === 2 ? '#8a6a44' : '#a8865a', face = s === 3 ? '#d8d4f0' : '#f2e2c0', belly = s === 3 ? '#8a90c8' : '#f2e2c0';
+  if (s >= 2) wings(a, darker(body, 0.08), 150, s === 3 ? 92 : 76, 'feather', s === 3 ? 30 : 14);
+  else for (const sd of [-1, 1]) a.part(`M${100 + sd * 56} 150 C${100 + sd * 72} 158 ${100 + sd * 72} 184 ${100 + sd * 58} 192 C${100 + sd * 52} 180 ${100 + sd * 50} 164 ${100 + sd * 52} 154Z`, darker(body, 0.1));
+  a.part(`M100 ${s === 1 ? 64 : 56} C150 ${s === 1 ? 64 : 56} 166 116 162 168 C158 206 134 216 100 216 C66 216 42 206 38 168 C34 116 50 ${s === 1 ? 64 : 56} 100 ${s === 1 ? 64 : 56}Z`, body, true, { hi: true });
+  a.part(E(100, 172, 38, 38), belly, true);
+  for (const [x, y] of [[88, 160], [112, 160], [100, 176], [86, 190], [114, 190]]) a.stroke(`M${x - 6} ${y} L${x} ${y + 5} L${x + 6} ${y}`, 2, darker(belly, 0.35));
+  feet(a, '#e0a81a', 22, 12, 216);
+  const hy = s === 1 ? 108 : 100, tuft = s === 1 ? 26 : 48;
+  for (const sd of [-1, 1]) a.part(`M${100 + sd * 30} ${hy - 40} L${100 + sd * 52} ${hy - 40 - tuft} L${100 + sd * 58} ${hy - 30}Z`, body);
+  // A face disc shaped like a heart.
+  a.part(`M100 ${hy - 30} C116 ${hy - 50} 158 ${hy - 44} 152 ${hy - 6} C148 ${hy + 24} 118 ${hy + 34} 100 ${hy + 24} C82 ${hy + 34} 52 ${hy + 24} 48 ${hy - 6} C42 ${hy - 44} 84 ${hy - 50} 100 ${hy - 30}Z`, face, true, { lw: 2.2 });
+  if (s === 3) { a.part(`M92 ${hy - 54} C80 ${hy - 70} 92 ${hy - 90} 110 ${hy - 88} C98 ${hy - 82} 96 ${hy - 66} 110 ${hy - 58} C104 ${hy - 54} 98 ${hy - 52} 92 ${hy - 54}Z`, '#ffe14a', '#e0a81a', { lw: 2 }); }
+  if (s === 2) for (const sd of [-1, 1]) a.stroke(`M${100 + sd * 12} ${hy - 22} L${100 + sd * 42} ${hy - 30}`, 4);
+  a.eyes(78, 122, hy - 6, 8, s === 1 ? 9 : s === 2 ? 3 : 8, s === 3 ? '#ffd34a' : '#e0a81a', face);
+  a.part(`M94 ${hy + 6} L106 ${hy + 6} L100 ${hy + 18}Z`, '#ffb43a', '#e08a1a', { lw: 2 });
+  a.cheeks(62, 138, hy + 12, 7);
+};
+
+/** 뜨거비 → 부글거비 → 용암거비: a fire toad; volcanic vents on its back, then lava-cracked rock. */
+const dukkeobi: Draw = (a, s) => {
+  const skin = s === 3 ? '#4a2a22' : s === 2 ? '#d8482a' : '#f07a3a', belly = s === 3 ? '#f2803a' : '#ffd08a';
+  if (s >= 2) for (const [x, h] of (s === 3 ? [[100, 46], [62, 30], [138, 30]] : [[70, 22], [130, 22]]) as [number, number][]) {
+    a.part(`M${x - 16} 108 L${x - 7} ${108 - h} L${x + 7} ${108 - h} L${x + 16} 108Z`, s === 3 ? '#3a2018' : '#a8321a', true, { lw: 2.2 });
+    if (s === 3) a.flame(flamePath(x, 108 - h, 9, h * 0.8));
+    else for (const k of [0, 1]) a.add(`<circle cx="${x + k * 8 - 4}" cy="${108 - h - 10 - k * 10}" r="${6 - k}" fill="#ffffff" opacity=".75" stroke="#c8c8c8" stroke-width="1.4"/>`);
+  }
+  // A wide squat body that is mostly head.
+  a.part(`M100 92 C160 92 182 140 178 178 C174 208 140 218 100 218 C60 218 26 208 22 178 C18 140 40 92 100 92Z`, skin, true, { hi: true });
+  a.part(`M100 160 C140 160 152 182 148 200 C144 214 122 216 100 216 C78 216 56 214 52 200 C48 182 60 160 100 160Z`, belly, true);
+  if (s === 3) for (const d of ['M40 140 L56 152 L50 170', 'M150 128 L138 146 L152 160', 'M90 104 L98 122 L88 136']) a.stroke(d, 3.2, '#ff8a1a');
+  else for (const [x, y, r] of [[52, 132, 6], [148, 126, 7], [128, 150, 4], [66, 154, 4]]) a.add(`<circle cx="${x}" cy="${y}" r="${r}" fill="${darker(skin, 0.18)}"/>`);
+  // Front legs splayed.
+  for (const sd of [-1, 1]) a.part(`M${100 + sd * 52} 190 C${100 + sd * 70} 196 ${100 + sd * 82} 210 ${100 + sd * 80} 218 L${100 + sd * 50} 218Z`, skin);
+  // Eyes up on bumps.
+  for (const sd of [-1, 1]) a.part(E(100 + sd * 34, 100, 24, 22), skin, true);
+  a.eyes(66, 134, 98, 7.5, s === 1 ? 9 : s === 2 ? 3 : 6, '#f2a81a', skin);
+  a.stroke('M48 142 Q100 176 152 142', 3);
+  if (s === 1) a.part('M86 154 Q100 170 114 154 Q100 160 86 154Z', '#ff7a8a', null, { lw: 2 });
+  if (s === 3) a.add('<path d="M64 148 L70 160 L76 151Z M124 151 L130 160 L136 148Z" fill="#fff" stroke="#4a2416" stroke-width="1.6" stroke-linejoin="round"/>');
+  a.cheeks(40, 160, 132, 9, '#ff6a5a');
+};
+
+/** 콩알이 → 콩깍이 → 완두대포: a pea in a half pod; then pod armour, then a pea cannon on its shoulder. */
+const kongkong: Draw = (a, s) => {
+  const pea = s === 3 ? '#6ab04a' : '#8ac45a', pod = s === 3 ? '#3f7a32' : '#5a9a3e';
+  if (s === 1) {
+    a.part('M20 170 C30 222 170 222 180 170 C150 186 50 186 20 170Z', pod, true, { hi: true });
+    a.part(E(46, 168, 16, 15) + E(154, 168, 16, 15), lighter(pea, 0.1), true, { lw: 2.2 });
+    a.part(E(100, 146, 52, 50), pea, true, { hi: true });
+    a.stroke('M100 96 C100 82 108 74 118 72 C126 70 128 80 120 82', 3, '#3f7a2a');
+    a.part(leaf(100, 98, 28, -0.8), '#6cb052', true, { lw: 2 });
+    a.eyes(82, 118, 140, 7, 9, '#3f6a2a', pea);
+    a.mouth(100, 162, 7, 'cat').cheeks(68, 132, 156);
+    return;
+  }
+  if (s === 3) {
+    // The cannon: a long pod barrel over the right shoulder.
+    a.part('M86 92 L176 38 C188 32 198 48 188 56 L104 124Z', pod, true, { hi: true });
+    a.part(E(184, 46, 12, 14), '#2a4a22', null, { lw: 2.2 });
+    for (const k of [0, 1, 2]) a.add(`<circle cx="${118 + k * 20}" cy="${84 - k * 12}" r="6" fill="${lighter(pea, 0.2)}" stroke="#4a2416" stroke-width="1.6"/>`);
+  }
+  a.part(bodyPath(100, 116, 216, 52), pea);
+  // Pod armour wrapped round the body.
+  a.part('M52 150 C60 120 140 120 148 150 L152 196 C130 210 70 210 48 196Z', pod, true, { lw: 2.4 });
+  for (const x of [76, 100, 124]) a.add(`<circle cx="${x}" cy="172" r="9" fill="${lighter(pea, 0.15)}" stroke="#4a2416" stroke-width="1.8"/>`);
+  feet(a, darker(pea, 0.2), 26, 14);
+  // Tendril arms.
+  for (const sd of [-1, 1]) a.stroke(`M${100 + sd * 50} 150 C${100 + sd * 72} 146 ${100 + sd * 80} 170 ${100 + sd * 68} 178 C${100 + sd * 60} 182 ${100 + sd * 58} 172 ${100 + sd * 64} 170`, 5, '#4f8a32');
+  const hy = 86;
+  // A pod hood over the head.
+  a.part(`M44 ${hy + 16} C40 ${hy - 50} 160 ${hy - 50} 156 ${hy + 16} C150 ${hy - 20} 50 ${hy - 20} 44 ${hy + 16}Z`, pod, true, { lw: 2.4 });
+  a.part(headPath(100, hy + 2, 48, 40), pea, true, { hi: true });
+  a.part(leaf(100, hy - 42, 26, -0.4), '#6cb052', true, { lw: 2 });
+  a.eyes(80, 120, hy, 7, s === 2 ? 3 : 6, '#3f6a2a', pea);
+  a.mouth(100, hy + 20, 7, s === 3 ? 'fang' : 'smile').cheeks(66, 134, hy + 14);
+};
+
+/** 따끔이 → 모래따끔 → 사막대왕: a little sand scorpion; a desert scarf and a long sting, then a crowned king. */
+const jeongal: Draw = (a, s) => {
+  const shell = s === 3 ? '#7a2a18' : s === 2 ? '#c89048' : '#e0b46a', pale = s === 3 ? '#d8783a' : '#f2d8a0';
+  // The tail: one thick arc from behind the body up over the head, banded, the sting at its tip.
+  const tipY = s === 1 ? 70 : 44;
+  const arc = `M120 190 C${s === 1 ? 176 : 184} 184 ${s === 1 ? 182 : 190} ${tipY + 40} 150 ${tipY + 12}`;
+  a.stroke(arc, s === 1 ? 26 : 30, '#4a2416');
+  a.stroke(arc, s === 1 ? 21 : 25, shell);
+  for (const t of [0.25, 0.45, 0.65, 0.85]) {
+    const x = (1 - t) ** 3 * 120 + 3 * (1 - t) ** 2 * t * (s === 1 ? 176 : 184) + 3 * (1 - t) * t * t * (s === 1 ? 182 : 190) + t ** 3 * 150;
+    const y = (1 - t) ** 3 * 190 + 3 * (1 - t) ** 2 * t * 184 + 3 * (1 - t) * t * t * (tipY + 40) + t ** 3 * (tipY + 12);
+    a.add(`<circle cx="${x}" cy="${y}" r="${s === 1 ? 4 : 5}" fill="${darker(shell, 0.25)}"/>`);
+  }
+  a.part(`M156 ${tipY + 18} C132 ${tipY + 16} 118 ${tipY - 4} 124 ${tipY - 20} C132 ${tipY - 6} 146 ${tipY} 160 ${tipY + 4}Z`, s === 3 ? '#ffb43a' : '#4a2a18', s === 3 ? '#e0701a' : '#2a1810', { lw: 2.2 });
+  if (s === 3) a.flame(flamePath(124, tipY - 18, 7, 20, -0.6));
+  // Legs.
+  for (const sd of [-1, 1]) for (const k of [0, 1, 2]) a.stroke(`M${100 + sd * 34} ${178 + k * 9} L${100 + sd * (60 + k * 6)} ${190 + k * 6} L${100 + sd * (66 + k * 8)} 218`, 5, '#4a2416');
+  // Pincers.
+  for (const sd of [-1, 1]) {
+    a.stroke(`M${100 + sd * 40} 166 C${100 + sd * 60} 160 ${100 + sd * 64} 140 ${100 + sd * 60} 128`, 9);
+    a.stroke(`M${100 + sd * 40} 166 C${100 + sd * 60} 160 ${100 + sd * 64} 140 ${100 + sd * 60} 128`, 5, shell);
+    a.part(`M${100 + sd * 60} 128 C${100 + sd * 40} 122 ${100 + sd * 42} 94 ${100 + sd * 62} 88 C${100 + sd * 62} 102 ${100 + sd * 68} 108 ${100 + sd * 76} 106 C${100 + sd * 80} 92 ${100 + sd * 74} 84 ${100 + sd * 68} 82 C${100 + sd * 92} 82 ${100 + sd * 94} 122 ${100 + sd * 60} 128Z`, shell, true, { hi: true });
+  }
+  a.part(`M100 132 C140 132 148 160 146 186 C144 206 124 212 100 212 C76 212 56 206 54 186 C52 160 60 132 100 132Z`, shell, true, { hi: true });
+  for (const k of [0, 1, 2]) a.stroke(`M62 ${160 + k * 16} Q100 ${168 + k * 16} 138 ${160 + k * 16}`, 2.2, darker(shell, 0.3));
+  const hy = 140;
+  a.part(headPath(100, hy, 40, 30), pale, true, { hi: true });
+  if (s === 2) {
+    a.part(`M60 ${hy + 22} C76 ${hy + 34} 124 ${hy + 34} 140 ${hy + 22} L142 ${hy + 34} C124 ${hy + 46} 76 ${hy + 46} 58 ${hy + 34}Z`, '#3a8ab8');
+    a.part(`M60 ${hy - 14} C76 ${hy - 30} 124 ${hy - 30} 140 ${hy - 14} L140 ${hy - 6} C124 ${hy - 20} 76 ${hy - 20} 60 ${hy - 6}Z`, '#3a8ab8');
+  }
+  if (s === 3) crown(a, 100, hy - 26, 22);
+  a.eyes(84, 116, hy - 2, 6, s === 1 ? 9 : s === 2 ? 3 : 6, s === 3 ? '#ffd34a' : '#8a4a1a', pale);
+  a.mouth(100, hy + 16, 6, s === 3 ? 'grin' : 'smile').cheeks(72, 128, hy + 12, 6);
 };
 
 /** By unit id: how to draw each 정령. */
 export const SPIRIT_ART: Record<string, Draw> = {
   dochi, bulttong, mulbang, saessak, somteol, beongae, jogak, dalpaeng, geurimja, kkotsasum,
   eoreum, dudeoji, bandi, yongamge, gureumyang, byeolnyang, agiyong, geobuk, haepari,
+  buong, dukkeobi, kongkong, jeongal,
 };
 
 /** A 정령 as an SVG picture at a number of stars (its form), or null for one without a drawing. */
