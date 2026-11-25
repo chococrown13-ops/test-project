@@ -444,7 +444,9 @@ export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces
     fig.add(sp);
     // A soft round shadow, since sprites cast none.
     const blob = new THREE.Mesh(new THREE.CircleGeometry(0.34, 24), new THREE.MeshBasicMaterial({ color: '#1a1410', transparent: true, opacity: 0.32, depthWrite: false }));
-    blob.rotation.x = -Math.PI / 2; blob.position.y = 0.012; fig.add(blob);
+    blob.rotation.x = -Math.PI / 2; blob.position.y = 0.012;
+    // Drawn pieces go without it (they stand on the board as they are); the pixel ones keep it.
+    if (!sticker) fig.add(blob);
   }
 
   // A bubble for shields, little stars for a stun: shown when needed.
