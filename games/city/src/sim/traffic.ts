@@ -1,8 +1,10 @@
-import { mustStop } from './signals';
+import { drive, laneFor, PACE } from './driving';
+import { linkLen } from './junctions';
 import { noCarTrip } from './attractions';
-import { CELL, KINDS, N, ROAD_CAPACITY, ROAD_SPEED, Zone } from './defs';
+import { KINDS, N, ROAD_CAPACITY, ROAD_SPEED, Zone } from './defs';
 import { network } from './network';
 import { cellOf, forEachNeighbour, NN, roadTypeOf } from './graph';
+
 import { parkedSqueeze } from './parking';
 import { tryTransit } from './transit';
 import { rand, type World } from './world';
@@ -14,6 +16,7 @@ import { rand, type World } from './world';
  */
 export interface Car {
   path: Int32Array;
+  /** On the link from path[i] to path[i + 1], t of the way along (0.5 is the edge between the two cells). */
   i: number;
   t: number;
   kind: 0 | 1 | 2 | 3; // car, bus-ish van, truck, delivery scooter
@@ -21,11 +24,42 @@ export interface Car {
   age: number;
   /** Already went round the block looking for a space once. */
   cruised?: boolean;
+  /** Speed, m/s (sped up), and the lane on an avenue (0 inner, 1 outer). */
+  v: number;
+  lane: 0 | 1;
+  /** The junction it has gone into (-1 none), with the nodes it came in from and goes out to. */
+  jn: number;
+  jf: number;
+  jt: number;
+  /** When it reached the front of the queue at the junction ahead (-1 not yet), and seconds waited there. */
+  at: number;
+  wait: number;
+  /** Seconds without moving, and seconds left squeezing past whatever blocks it. */
+  stuck: number;
+  ghost: number;
+  /** Per step: acceleration, gap ahead, metres to the stop line, whether it may go. */
+  acc: number;
+  gap: number;
+  line: number;
+  ok: boolean;
+  done?: boolean;
+  /** For tests: the car this one is waiting behind or for. */
+  by?: Car | null;
+  held?: Car | null;
+  why?: string;
 }
 
 export const MAX_CARS = 1600;
-/** Visual speed-up: cars cover a city in seconds, not real minutes. */
-const PACE = 4;
+/**
+ * Trips start at `target / TRIP_SPREAD` a second. Game time runs far faster than the cars
+ * (an hour passes in a few seconds), so this is set where a sensibly planned town flows
+ * at rush hour and a town with too few roads jams.
+ */
+const TRIP_SPREAD = 150;
+
+export function newCar(path: Int32Array, kind: Car['kind'], look: number): Car {
+  return { path, i: 0, t: 0, kind, look, age: 0, v: 0, lane: 0, jn: -1, jf: -1, jt: -1, at: -1, wait: 0, stuck: 0, ghost: 0, acc: 0, gap: Infinity, line: Infinity, ok: true };
+}
 
 export interface Traffic {
   cars: Car[];
@@ -36,10 +70,12 @@ export interface Traffic {
   trips: number;
   /** Seconds of driving so far: the traffic lights run on it. */
   clock: number;
+  /** Cars owed to the roads: trips start at a rate, not to fill a quota. */
+  owed: number;
 }
 
 export function createTraffic(): Traffic {
-  return { cars: [], load: new Uint16Array(NN * 2), routes: new Map(), routesVer: -1, tripTime: 0, trips: 0, clock: 0 };
+  return { cars: [], load: new Uint16Array(NN * 2), routes: new Map(), routesVer: -1, tripTime: 0, trips: 0, clock: 0, owed: 0 };
 }
 
 /** Rush hours fill the roads; nights are quiet. */
@@ -51,10 +87,14 @@ export function rushFactor(hour: number): number {
 export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
   const net = network(w);
   if (tr.routesVer !== w.ver.roads) { tr.routes.clear(); tr.routesVer = w.ver.roads; }
-  // Spawn toward a target that follows population and the time of day.
-  const target = Math.min(MAX_CARS, Math.round((w.stats.pop / 9 + w.stats.employed / 20) * rushFactor(hour)));
-  let spawn = Math.min(40, Math.ceil((target - tr.cars.length) * 0.08));
-  if (spawn > 0) {
+  // Trips start at a rate that follows population and the time of day; when the roads jam,
+  // trips take longer and more cars pile up on them.
+  const target = Math.min(MAX_CARS, (w.stats.pop / 9 + w.stats.employed / 20) * rushFactor(hour));
+  tr.owed = Math.min(tr.owed + (target / TRIP_SPREAD) * dt, 40);
+  // A jam doesn't feed itself for ever: past this many on the road, trips wait to start.
+  if (tr.cars.length >= Math.min(MAX_CARS, target + 20)) tr.owed = Math.min(tr.owed, 0);
+  let spawn = Math.min(60, Math.floor(tr.owed * 1.6) + 1);
+  if (tr.owed >= 1) {
     const homes: number[] = [], works: number[] = [], shops: number[] = [];
     w.buildings.forEach((b) => {
       const a = net.access.get(b.id);
@@ -65,7 +105,10 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
       else if (z === Zone.I) works.push(b.id);
     });
     const outside = [...net.outside];
-    while (spawn-- > 0 && homes.length) {
+    // Not onto a link where a car is still pulling away from the start.
+    const busy = new Set<number>();
+    for (const c of tr.cars) if (c.t * linkLen(c.path[c.i], c.path[c.i + 1]) < 9) busy.add(c.path[c.i] * NN * 2 + c.path[c.i + 1]);
+    while (spawn-- > 0 && tr.owed >= 1 && homes.length) {
       const morning = hour < 12;
       const home = homes[(rand(w) * homes.length) | 0];
       const goShop = rand(w) < (hour > 10 && hour < 17 ? 0.5 : 0.2);
@@ -95,52 +138,37 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
       // Shop trips are often 배달 오토바이 bringing chicken and 짜장면.
       // Cars, 1톤 trucks and 배달 오토바이. Buses run only on the lines the player opens (render/transit.ts).
       const kind = goShop && kindRoll < 0.3 ? 3 : kindRoll < 0.08 ? 2 : 0;
-      tr.cars.push({ path, i: 0, t: 0, kind, look: rand(w), age: 0 });
+      const key = path[0] * NN * 2 + path[1];
+      if (busy.has(key)) continue;
+      busy.add(key);
+      const car = newCar(path, kind, rand(w));
+      car.lane = laneFor(w, car, 0);
+      car.v = wantedStart(w, path);
+      tr.cars.push(car);
+      tr.owed--;
     }
   }
   // Move.
-  tr.clock += dt;
-  tr.load.fill(0);
-  for (const c of tr.cars) tr.load[c.path[c.i]]++;
-  const keep: Car[] = [];
-  for (const c of tr.cars) {
-    const node = c.path[c.i];
-    const r = (roadTypeOf(w, node) || 1) as 1 | 2;
-    // Cars parked along the kerb take a share of the road.
-    const over = tr.load[node] / (ROAD_CAPACITY[r] * parkedSqueeze(w, node));
-    const slow = over > 1 ? 1 / (1 + (over - 1) * 1.8) : 1;
-    // A diagonal step is √2 cells long, so it takes longer to cover.
-    const next = c.path[Math.min(c.i + 1, c.path.length - 1)];
-    const a = cellOf(node), b = cellOf(next);
-    const len = a % N !== b % N && ((a / N) | 0) !== ((b / N) | 0) ? Math.SQRT2 : 1;
-    const v = (ROAD_SPEED[r] * PACE * slow) / CELL / len;
-    // Red or amber at the junction ahead: wait at the stop line (just short of the junction's edge).
-    if (c.t < 0.5 && mustStop(w, node, next, tr.clock)) c.t = Math.min(0.5, c.t + v * dt);
-    else c.t += v * dt;
-    c.age += dt;
-    while (c.t >= 1 && c.i < c.path.length - 1) {
-      tr.load[c.path[c.i]]--;
-      c.t -= 1;
-      c.i++;
-      tr.load[c.path[c.i]]++;
-    }
-    if (c.i >= c.path.length - 1 && c.t >= 0.5 && !c.cruised && cruise(w, c)) { keep.push(c); continue; }
-    if (c.i >= c.path.length - 1 && c.t >= 0.5) {
-      tr.tripTime += c.age;
-      tr.trips++;
-      continue;
-    }
-    keep.push(c);
+  for (const c of drive(w, tr, dt)) {
+    if (!c.cruised && cruise(w, c)) { c.done = false; tr.cars.push(c); continue; }
+    tr.tripTime += c.age;
+    tr.trips++;
   }
-  tr.cars = keep;
+  tr.load.fill(0);
+  for (const c of tr.cars) tr.load[c.t < 0.5 ? c.path[c.i] : c.path[c.i + 1]]++;
   // Congestion field: load relative to capacity, smoothed over time.
   const k = Math.min(1, dt * 0.6);
   for (let i = 0; i < N * N; i++) {
     // The busier of the two layers sets the cell's congestion.
     const r = w.road[i] as 0 | 1 | 2, ra = w.roadAlt[i] as 0 | 1 | 2;
-    const lv = Math.max(r ? tr.load[i] / ROAD_CAPACITY[r as 1 | 2] : 0, ra ? tr.load[i + NN] / ROAD_CAPACITY[ra as 1 | 2] : 0);
+    const lv = Math.max(r ? tr.load[i] / (ROAD_CAPACITY[r as 1 | 2] * parkedSqueeze(w, i)) : 0, ra ? tr.load[i + NN] / ROAD_CAPACITY[ra as 1 | 2] : 0);
     w.traffic[i] += (Math.min(2, lv) - w.traffic[i]) * k;
   }
+}
+
+/** Pulling out of a drive: a third of the street's speed. */
+function wantedStart(w: World, path: Int32Array): number {
+  return (ROAD_SPEED[(roadTypeOf(w, path[0]) || 1) as 1 | 2] * PACE) / 3;
 }
 
 /** Fold the day's trips into the commute stat (in game minutes). */
@@ -267,5 +295,8 @@ function cruise(w: World, c: Car): boolean {
   c.i = 0;
   c.t = 0;
   c.cruised = true;
+  c.lane = laneFor(w, c, 0);
+  c.jn = -1;
+  c.at = -1;
   return true;
 }

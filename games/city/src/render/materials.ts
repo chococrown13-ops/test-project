@@ -115,9 +115,14 @@ export function buildingMaterial(): THREE.MeshStandardMaterial {
             } else if (st < 9.5) {
               // 판상형 slab: balconies on the long faces, blank gable ends.
               if (abs(vLN.x) < 0.5) {
-                float c = fract(u / 2.8);
+                float c = fract(u / 2.8), unit = floor(u / 2.8);
                 if (fl < 0.28 && yl > 3.0) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.95), 0.6);
                 win = step(0.32, fl) * step(fl, 0.8) * step(0.1, c) * step(c, 0.9) * step(3.0, yl);
+                // A party wall between every two flats, and a white frame splitting each balcony window.
+                if (mod(unit, 2.0) < 0.5 && c < 0.07 && yl > 3.0) diffuseColor.rgb *= 0.78;
+                if (win > 0.5 && abs(c - 0.5) < 0.03) { win = 0.0; diffuseColor.rgb = vec3(0.93, 0.93, 0.9); }
+                // An air-conditioner cage under some windows.
+                if (fl > 0.06 && fl < 0.26 && c > 0.66 && c < 0.86 && yl > 3.0 && h21(vec2(unit, floor(yl / 3.0))) > 0.6) diffuseColor.rgb = vec3(0.62, 0.63, 0.62);
               }
             } else if (st < 10.5) {
               // 상가주택: a glass front on the ground floor, ordinary windows above.
@@ -135,6 +140,17 @@ export function buildingMaterial(): THREE.MeshStandardMaterial {
           // Apartment brand stripe near the roof.
           if ((abs(st - 1.0) < 0.5 || abs(st - 9.0) < 0.5) && vWP.y > vTop - 2.4 && vWP.y < vTop - 1.2) { diffuseColor.rgb = vSign; win = 0.0; }
           vec3 glass = st > 2.5 && st < 3.5 ? vec3(0.32, 0.45, 0.58) : vec3(0.18, 0.22, 0.28);
+          float pane = h21(vec2(floorIx * 5.3 + vInfo.x * 13.0, colIx * 2.9));
+          if (st > 2.5 && st < 3.5) {
+            // Curtain wall: the sky reflected, brighter toward the top of each pane and varying pane to pane,
+            // and a dark spandrel band at every floor slab.
+            glass = mix(glass, vec3(0.66, 0.77, 0.88), 0.25 * fv + 0.22 * pane);
+            if (fv < 0.1) { diffuseColor.rgb = vec3(0.27, 0.31, 0.36); win = 0.0; }
+          } else {
+            // Ordinary windows: a little sky in the glass, and curtains drawn in some.
+            glass = mix(glass, vec3(0.45, 0.55, 0.66), 0.28 * fv);
+            if (pane > 0.72) glass = mix(glass, vec3(0.86, 0.8, 0.68), 0.45);
+          }
           diffuseColor.rgb = mix(diffuseColor.rgb, glass, win * (1.0 - abandoned * 0.5));
           float on = step(0.42, h21(vec2(floorIx * 7.0 + vInfo.x * 91.0, colIx)));
           lit = win * on * vInfo.y * (1.0 - abandoned);

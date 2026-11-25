@@ -114,6 +114,8 @@ export class StylizePass extends Pass {
   }
 
   set style(s: ArtStyle) { this.uniforms.uStyle.value = STYLE_ID[s]; }
+  /** Where the scene's depth is when another pass drew the scene (the ambient-occlusion pass keeps its own). */
+  depthFrom: THREE.WebGLRenderTarget | null = null;
 
   render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget, readBuffer: THREE.WebGLRenderTarget) {
     // Normal buffer: opaque geometry only, no shadows, no sky, sprites or see-through overlays.
@@ -141,7 +143,7 @@ export class StylizePass extends Pass {
     for (const o of hidden) o.visible = true;
 
     this.uniforms.tDiffuse.value = readBuffer.texture;
-    this.uniforms.tDepth.value = readBuffer.depthTexture;
+    this.uniforms.tDepth.value = this.depthFrom?.depthTexture ?? readBuffer.depthTexture;
     this.uniforms.tNormal.value = this.normals.texture;
     this.uniforms.uNear.value = this.camera.near;
     this.uniforms.uFar.value = this.camera.far;

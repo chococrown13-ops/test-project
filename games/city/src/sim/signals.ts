@@ -11,8 +11,8 @@ import type { World } from './world';
  */
 
 /** One full turn of the lights, in simulation seconds: green, amber, then the other way. */
-export const CYCLE = 14;
-const GREEN = 6, AMBER = 1;
+export const CYCLE = 20;
+const GREEN = 9, AMBER = 1;
 export const enum Light { Green = 0, Amber = 1, Red = 2 }
 
 let cache: { ver: string; at: Uint8Array } | null = null;
@@ -46,6 +46,13 @@ export function lightFor(axis: 0 | 1, clock: number): Light {
   const t = ((clock % CYCLE) + CYCLE) % CYCLE, half = GREEN + AMBER;
   const local = axis === 0 ? t : (t + half) % CYCLE;
   return local < GREEN ? Light.Green : local < half ? Light.Amber : Light.Red;
+}
+
+/** Seconds since the light for an axis turned green, or -1 when it is not green. */
+export function greenAge(axis: 0 | 1, clock: number): number {
+  const t = ((clock % CYCLE) + CYCLE) % CYCLE, half = GREEN + AMBER;
+  const local = axis === 0 ? t : (t + half) % CYCLE;
+  return local < GREEN ? local : -1;
 }
 
 /** Whether a car stepping from `node` to `next` must wait at the stop line now. */

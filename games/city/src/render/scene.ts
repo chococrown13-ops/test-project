@@ -5,6 +5,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { N8AOPass } from 'n8ao';
 import { CELL, N, type BuildingKind } from '../sim/defs';
 import { NN } from '../sim/graph';
 import { calendarMonth, DAY_SECONDS, type Sim } from '../sim/sim';
@@ -45,11 +46,13 @@ export class CityScene {
   /** The line being drawn, if any. */
   draft: { kind: LineKind; stops: number[]; bus?: BusType } | null = null;
   private sun = new THREE.DirectionalLight('#fff4e0', 2.4);
-  private hemi = new THREE.HemisphereLight('#cfe6ff', '#6b7a55', 1.0);
+  private hemi = new THREE.HemisphereLight('#dbe8f2', '#8a7a58', 1.0);
   private atmo = new Atmosphere();
   private composer: EffectComposer;
   private bloom: UnrealBloomPass;
   private grade: ShaderPass;
+  private ao: N8AOPass;
+  private renderPass: RenderPass;
   private stylize: StylizePass;
   quality: Quality = 'high';
   style: ArtStyle = 'lowpoly';
@@ -89,7 +92,19 @@ export class CityScene {
     // The composer's buffers carry depth, which the outline pass reads.
     const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(1, 1) });
     this.composer = new EffectComposer(this.renderer, rt);
-    this.composer.addPass(new RenderPass(this.scene, this.view.cam));
+    this.renderPass = new RenderPass(this.scene, this.view.cam);
+    this.composer.addPass(this.renderPass);
+    // Ambient occlusion (N8AO, read from depth, so it works with the instanced, shader-built buildings):
+    // soft dark where walls meet the ground, between blocks and under eaves. It draws the scene itself,
+    // so it stands in for the render pass when on.
+    this.ao = new N8AOPass(this.scene, this.view.cam, 1, 1);
+    this.ao.configuration.aoRadius = 9;
+    this.ao.configuration.distanceFalloff = 2.5;
+    this.ao.configuration.intensity = 2.2;
+    this.ao.configuration.color = new THREE.Color('#2a1f1a');
+    this.ao.configuration.gammaCorrection = false;
+    this.ao.setQualityMode('Medium');
+    this.composer.addPass(this.ao);
     this.stylize = new StylizePass(this.scene, this.view.cam);
     this.stylize.skip = this.atmo.outlineSkip;
     this.composer.addPass(this.stylize);
@@ -114,6 +129,8 @@ export class CityScene {
         }`,
     });
     this.composer.addPass(this.grade);
+    this.renderPass.enabled = false;
+    this.stylize.depthFrom = this.ao.beautyRenderTarget;
   }
 
   /** High: full pixel ratio, sharp shadows, clouds and night bloom. Normal: lighter for phones. */
@@ -135,6 +152,12 @@ export class CityScene {
       this.sun.shadow.map = null;
     }
     this.atmo.cloudsOn = q === 'high';
+    // Phones: lighter ambient occlusion at half resolution.
+    this.ao.configuration.halfRes = q !== 'high';
+    this.ao.setQualityMode(q === 'high' ? 'Medium' : 'Performance');
+    const ao = this.style !== 'pixel';
+    this.ao.enabled = ao; this.renderPass.enabled = !ao;
+    this.stylize.depthFrom = ao ? this.ao.beautyRenderTarget : null;
     // Phones: no multisampling and a half-size normal buffer for the outlines.
     const samples = q === 'high' && this.style !== 'pixel' ? 4 : 0;
     for (const t of [this.composer.renderTarget1, this.composer.renderTarget2]) if (t.samples !== samples) { t.samples = samples; t.dispose(); }
@@ -224,7 +247,8 @@ export class CityScene {
     this.sun.position.set(t.x + dx * 520, el * 520, t.z + dz * 520);
     this.sun.target.position.copy(t);
     this.sun.intensity = 0.22 + day * 2.4;
-    this.sun.color.setRGB(1, 0.93 - dusk * 0.2, 0.84 - dusk * 0.35);
+    // Warm daylight, warmer still towards evening.
+    this.sun.color.setRGB(1, 0.9 - dusk * 0.18, 0.77 - dusk * 0.32);
     if (day < 0.1) this.sun.color.setRGB(0.6, 0.7, 1);
     this.hemi.intensity = 0.22 + day * 0.6;
     this.scene.environmentIntensity = 0.12 + day * 0.4;
@@ -238,8 +262,9 @@ export class CityScene {
     const cam = this.sun.shadow.camera;
     if (cam.right !== s) { cam.left = -s; cam.right = s; cam.top = s; cam.bottom = -s; cam.near = 10; cam.far = 1600; cam.updateProjectionMatrix(); }
     const f = this.scene.fog as THREE.Fog;
-    f.near = this.view.dist * 1.6;
-    f.far = this.view.dist * 5 + 800;
+    // A light haze: far blocks fade a little towards the sky's colour, so the city has depth.
+    f.near = this.view.dist * 1.25;
+    f.far = this.view.dist * 4.2 + 650;
   }
 
   frame(dt: number, now: number) {
@@ -266,7 +291,7 @@ export class CityScene {
     this.buildings.update(w, now);
     this.vehicles.update(w, this.sim.tr);
     this.signals.update(w, this.sim.tr.clock, this.view.dist);
-    this.people.update(w, dt, this.pace, shared.uNight.value, this.view.dist);
+    this.people.update(w, dt, this.pace, shared.uNight.value, this.view.dist, this.sim.tr.clock);
     this.transit.update(w, w.day * DAY_SECONDS + this.sim.acc, this.draft);
     // Ground repaint: on edits right away, and for live overlays a few times a second.
     const ver = `${w.ver.roads}:${w.ver.zones}:${w.ver.buildings}:${month}`;
