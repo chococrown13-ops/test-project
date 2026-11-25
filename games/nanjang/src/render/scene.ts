@@ -320,7 +320,8 @@ export class Table {
     // Tall screens look down more steeply, so the board fills the height.
     const ar = w / free;
     // Short, wide bands (a phone on its side) look along the table more, so the long board fills the width.
-    const dir = (ar < 0.85 ? new THREE.Vector3(0, 0.93, 0.37) : ar > 2.2 ? new THREE.Vector3(0, 0.6, 0.8) : new THREE.Vector3(0, 0.8, 0.6)).normalize();
+    // A low look along the board, as in the usual auto-battlers (steeper only on tall screens, where it must fit).
+    const dir = (ar < 0.85 ? new THREE.Vector3(0, 0.88, 0.47) : ar > 2.2 ? new THREE.Vector3(0, 0.56, 0.83) : new THREE.Vector3(0, 0.66, 0.75)).normalize();
     const look = new THREE.Vector3(0, 0, 0.8);
     this.camera.zoom = 1;
     const place = (d: number) => { this.camera.position.copy(look).addScaledVector(dir, d); this.camera.lookAt(look); this.camera.updateProjectionMatrix(); this.camera.updateMatrixWorld(); };
@@ -358,7 +359,7 @@ export class Table {
     const label = document.createElement('div');
     label.className = `plabel${enemy ? ' enemy' : ''}`;
     const dots = items.map((it) => { const d = itemDef(it); return `<i class="it${d.base ? '' : ' sauce'}" style="--c:${d.color}" title="${d.name}"></i>`; }).join('');
-    label.innerHTML = `<span class="status"></span><span class="stars s${star}">${'★'.repeat(star)}</span><i class="bar hp"><b></b><u></u></i><i class="bar mp"><b></b></i>${dots ? `<span class="items">${dots}</span>` : ''}`;
+    label.innerHTML = `<span class="status"></span><span class="pbars"><span class="stars s${star}">${'★'.repeat(star)}</span><span class="bars"><i class="bar hp"><b></b><u></u><i class="ticks"></i></i><i class="bar mp"><b></b></i></span></span>${dots ? `<span class="items">${dots}</span>` : ''}`;
     this.labels.appendChild(label);
     const [hp, sh] = [label.querySelector('.hp b') as HTMLElement, label.querySelector('.hp u') as HTMLElement];
     return { obj, label, hp, sh, mp: label.querySelector('.mp b') as HTMLElement, st: label.querySelector('.status') as HTMLElement, stKey: '', x: 0, z: 0, tx: 0, tz: 0, fx0: 0, fz0: 0, mk: 1, md: 0, kick: 0, lunge: 0, lx: 0, lz: 0, dead: 0, side: enemy ? 1 : 0, face: enemy ? 0 : Math.PI };
@@ -714,15 +715,21 @@ export class Table {
       // A melee swing: wind back a touch, then a quick lunge at the target and back.
       if (s.lunge > 0) { const p = 1 - s.lunge; const q = p < 0.25 ? -p * 0.4 : Math.sin(((p - 0.25) / 0.75) * Math.PI) * 0.34; const l = Math.hypot(s.lx, s.lz) || 1; ox = (s.lx / l) * q; oz = (s.lz / l) * q; s.lunge = Math.max(0, s.lunge - dt * 3.2 * this.speed); }
       let squash = 1;
-      if (s.kick > 0) { squash = 1 - Math.sin(s.kick * Math.PI) * 0.12; s.kick = Math.max(0, s.kick - dt * 5 * this.speed); }
+      if (s.kick > 0) { squash = 1 - Math.sin(s.kick * Math.PI) * 0.16; s.kick = Math.max(0, s.kick - dt * 5 * this.speed); }
+      // Alive things breathe; a swing stretches up as it lunges (the width gives back what the height takes).
+      if (s.dead <= 0) squash *= 1 + Math.sin(t * 2.6 + k * 1.3) * 0.035;
+      if (s.lunge > 0) squash *= 1 + Math.sin((1 - s.lunge) * Math.PI) * 0.14;
       const root = s.obj.root;
       root.position.set(s.x + ox, hop, s.z + oz);
       s.obj.figure.scale.y = (s.obj.figure.userData.sy ??= s.obj.figure.scale.y) * squash;
+      const sxz = 1 / Math.sqrt(squash);
+      s.obj.figure.scale.x = (s.obj.figure.userData.sx ??= s.obj.figure.scale.x) * sxz;
+      s.obj.figure.scale.z = (s.obj.figure.userData.sz ??= s.obj.figure.scale.z) * sxz;
       // Turn smoothly to face the way it's fighting.
       const d = ((s.face - root.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
       root.rotation.y += d * Math.min(1, dt * 10);
       // A gentle idle bob.
-      s.obj.figure.position.y = (s.obj.figure.userData.y0 ??= s.obj.figure.position.y) + Math.abs(Math.sin(t * 2 + k)) * 0.03 + (s.obj.glow.visible ? 0.12 : 0);
+      s.obj.figure.position.y = (s.obj.figure.userData.y0 ??= s.obj.figure.position.y) + Math.abs(Math.sin(t * 2 + k)) * 0.05 + (s.obj.glow.visible ? 0.12 : 0);
       if (s.obj.glow.visible) (s.obj.glow.material as THREE.MeshBasicMaterial).opacity = 0.55 + Math.sin(t * 6) * 0.3;
       if (s.dead > 0) {
         s.dead += dt * this.speed;
@@ -748,6 +755,9 @@ export class Table {
         const total = Math.max(f.maxHp, Math.max(0, f.hp) + f.shield);
         const hpW = (Math.max(0, f.hp) / total) * 100;
         s.hp.style.width = `${hpW}%`;
+        // A tick every 300 health, like the usual auto-battler bars (so a big pool reads at a glance).
+        const seg = `${Math.min(100, (300 / total) * 100).toFixed(2)}%`;
+        if (s.label.style.getPropertyValue('--seg') !== seg) s.label.style.setProperty('--seg', seg);
         s.sh.style.left = `${hpW}%`;
         s.sh.style.width = `${(f.shield / total) * 100}%`;
         s.mp.style.width = `${f.maxMana > 500 ? 0 : (f.mana / f.maxMana) * 100}%`;

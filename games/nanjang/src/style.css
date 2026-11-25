@@ -629,3 +629,19 @@ body.dragging .zoom { opacity: 0.3; pointer-events: none; }
 .room-seats em { font-style: normal; font-size: 11px; padding: 0 5px; border-radius: 999px; background: #f2c14a; color: #3a2a10; margin-left: 2px; }
 .room-wait, .lobby-status { margin: 0; font-size: 13px; color: #5a4a3a; text-align: center; min-height: 1em; }
 .pl-friend { font-style: normal; font-size: 10px; padding: 0 4px; border-radius: 999px; background: #7fc4ea; color: #12324a; }
+
+/* Health bars as in the usual auto-battlers: a star badge, a framed green bar ticked every 300, mana under it. */
+.plabel { width: 64px; }
+.plabel .pbars { display: flex; align-items: center; gap: 2px; }
+.plabel .bars { display: grid; gap: 1px; }
+.plabel .pbars .stars { display: grid; place-items: center; min-width: 13px; height: 13px; padding: 0 2px; border-radius: 3px; background: #1d1a24; box-shadow: 0 0 0 1px #4a4458; font-size: 8px; letter-spacing: -2px; text-shadow: none; }
+.plabel .pbars .stars.s3 { font-size: 8px; background: #3a2a10; box-shadow: 0 0 0 1px #f2c14a; }
+.plabel .bar { width: 48px; border-radius: 2px; background: #1d1a24; box-shadow: 0 0 0 1px #0c0a10; }
+.plabel .bar.hp { height: 7px; }
+.plabel .bar.hp b { background: linear-gradient(#7ee36a, #3aa83a); }
+.plabel.enemy .bar.hp b { background: linear-gradient(#ff8a7a, #d8402f); }
+.plabel .bar.mp { height: 3px; }
+.plabel .bar.mp b { background: linear-gradient(#8ad0ff, #3f8ad8); }
+.plabel .bar .ticks { position: absolute; inset: 0; background: repeating-linear-gradient(to right, transparent 0 calc(var(--seg, 100%) - 1px), rgba(12, 10, 16, 0.6) calc(var(--seg, 100%) - 1px) var(--seg, 100%)); pointer-events: none; }
+.plabel.prep .pbars .bars { display: none; }
+@media (max-width: 900px) { .plabel { width: 52px; } .plabel .bar { width: 40px; } .plabel .bar.hp { height: 6px; } }
