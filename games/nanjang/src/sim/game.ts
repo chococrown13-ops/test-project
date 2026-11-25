@@ -73,18 +73,22 @@ export const interest = (gold: number) => Math.min(5, Math.floor(gold / 10));
 
 /* ---------------------------------------------------------------- setup */
 
-export function newGame(seed: number, themeId = 'spirits', name = '나'): Game {
+/** A game with friends: how many seats, and the people in the first ones (the rest are bots). */
+export interface Seats { count: number; humans: string[] }
+
+export function newGame(seed: number, themeId = 'spirits', name = '나', seats?: Seats): Game {
   const T = useTheme(themeId);
   const rng = new Rng(seed);
   const pool: Record<string, number> = {};
   for (const d of UNITS) pool[d.id] = POOL_SIZE[d.tier];
   const plans = rng.shuffle(T.plans.slice());
   const players: Player[] = [];
-  for (let k = 0; k < 8; k++) players.push({
-    idx: k, name: k === 0 ? name : T.botNames[k - 1], bot: k > 0,
+  const count = seats?.count ?? 8, humans = seats?.humans ?? [name];
+  for (let k = 0; k < count; k++) players.push({
+    idx: k, name: k < humans.length ? humans[k] : T.botNames[(k - humans.length) % T.botNames.length], bot: k >= humans.length,
     hp: START_HP, gold: 0, level: 1, xp: 0,
     bench: Array(BENCH).fill(null), board: [], shop: Array(SHOP).fill(null), locked: false,
-    streak: 0, alive: true, place: 0, items: [], plan: k > 0 ? plans[k - 1] : undefined,
+    streak: 0, alive: true, place: 0, items: [], plan: k >= humans.length ? plans[k % plans.length] : undefined,
   });
   const g: Game = { v: 3, theme: T.id, seed, rng: rng.s, round: 1, uid: 1, players, pool, arena: 'yard', season: -1, last: null, over: false };
   // Everyone starts with one piece of the cheapest kind (and, with ingredients, one of those).
@@ -340,6 +344,26 @@ function freeSpot(g: Game, p: Player, pref: 'front' | 'back'): { c: number; r: n
 }
 
 export const worth = (u: Piece) => BY_ID[u.id].tier * 3 ** (u.star - 1) + (u.items?.length ?? 0) * 0.5;
+
+/* ------------------------------------------------------- one action */
+
+/** Everything a player can do between fights, as data (so a friend's browser can send it to the host). */
+export type Act =
+  | { k: 'buy'; slot: number } | { k: 'sell'; uid: number } | { k: 'reroll' } | { k: 'xp' } | { k: 'lock' }
+  | { k: 'move'; uid: number; to: { bench: number } | { c: number; r: number } } | { k: 'equip'; uid: number; item: number };
+
+/** Do one action for a player; an error message when it can't be done. */
+export function applyAct(g: Game, p: Player, a: Act): string | null {
+  switch (a.k) {
+    case 'buy': return buy(g, p, a.slot);
+    case 'sell': return sell(g, p, a.uid);
+    case 'reroll': return reroll(g, p);
+    case 'xp': return buyXp(g, p);
+    case 'lock': p.locked = !p.locked; return null;
+    case 'move': return move(g, p, a.uid, a.to);
+    case 'equip': return equip(g, p, a.uid, a.item);
+  }
+}
 
 /* ---------------------------------------------------------------- fights */
 

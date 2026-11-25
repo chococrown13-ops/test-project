@@ -4,14 +4,15 @@ import './style.css';
 import { ARENAS, SEASON_NAME } from './sim/arena';
 import { type Combat, setup, skillNumbers } from './sim/combat';
 import {
-  autoFill, boardCap, boardTraits, buy, buyXp, clearSave, equip, findPiece, interest, isCreepRound, ITEM_SLOTS, load, type Match, move, newGame,
-  nextRound, owned, type Game, type Player, playRound, reroll, roundName, save, sell, settleRound,
+  autoFill, boardCap, boardTraits, clearSave, findPiece, interest, isCreepRound, ITEM_SLOTS, load, type Match, newGame,
+  nextRound, owned, type Game, type Player, playRound, roundName, save, settleRound, type Act, applyAct,
 } from './sim/game';
 import { BY_ID, itemDef, nameAt, traitsAt, UP_TEXT, ODDS, SKILL_MUL, STAR_MUL, UNITS, sellValue, theme, type Theme, TIER_COST, TRAITS, type Trait, XP_NEXT } from './sim/units';
 import { Bgm } from './audio/bgm';
 import { addRecord, records, type GameRecord } from './records';
 import { THEMES, themeById, useTheme } from './themes';
 import { BENCH_KEY, Table, type DropTarget } from './render/scene';
+import { type Msg, Room } from './net';
 import { type PieceStyle, pieceStyle, setPieceStyle, STYLE_NAME, TIER_COLOR } from './render/pieces';
 import { portrait, setStickerVariant, type StickerVariant } from './render/thumbs';
 import type { Fighter } from './sim/combat';
@@ -23,7 +24,25 @@ const table = new Table($('view') as HTMLCanvasElement, $('labels'));
 
 let g: Game | null = null;
 let mode: 'prep' | 'fight' | 'menu' = 'menu';
-const me = () => g!.players[0];
+/** Which seat is mine (0 alone or as host; a friend's seat when joined). */
+let mySeat = 0;
+/** While an online fight plays, health as it was before it (the state already has the result). */
+let shownHp: Map<number, number> | null = null;
+const me = () => g!.players[mySeat];
+/** The room when playing with friends (null alone). */
+let room: Room | null = null;
+/** Do one thing for me: alone or as host right here; as a friend, sent to the host (its state comes back). */
+function act(a: Act): string | null {
+  if (!g) return null;
+  if (room && !room.isHost) {
+    if (mode !== 'prep' && a.k !== 'move' && a.k !== 'sell') return '싸우는 동안에는 할 수 없어요.';
+    room.send({ t: 'act', a });
+    return null;
+  }
+  const err = applyAct(g, me(), a);
+  if (room?.isHost && !err) pushState();
+  return err;
+}
 
 /** The right particle after a Korean word: 이/가, 을/를, 은/는 by whether it ends in a consonant. */
 function josa(word: string, withBatchim: string, without: string) {
@@ -69,7 +88,7 @@ function renderTop() {
   const p = me();
   $('round').textContent = `${g!.season >= 0 ? `${SEASON_NAME[g!.season]} · ` : ''}${g!.round}라운드 · ${roundName(g!.round)}`;
   $('arenaChip').textContent = ARENAS[g!.arena].name;
-  $('hp').textContent = `${Math.max(0, p.hp)}`;
+  $('hp').textContent = `${Math.max(0, shownHp?.get(p.idx) ?? p.hp)}`;
   $('gold').textContent = `${p.gold}`;
   const st = $('streak');
   st.textContent = Math.abs(p.streak) >= 2 ? `${Math.abs(p.streak)}${p.streak > 0 ? '연승' : '연패'}` : '';
@@ -118,13 +137,14 @@ function renderTraits(p: Player) {
 }
 
 function renderPlayers(hpOf?: (p: Player) => number, highlight = -1) {
+  if (!hpOf && shownHp) { const m = shownHp; hpOf = (p) => m.get(p.idx) ?? p.hp; }
   const list = g!.players.slice().sort((a, b) => (b.alive ? 1 : 0) - (a.alive ? 1 : 0) || (hpOf ? hpOf(b) - hpOf(a) : b.hp - a.hp) || a.place - b.place);
   $('players').innerHTML = list.map((p) => {
     const hp = Math.max(0, hpOf ? hpOf(p) : p.hp);
     const hue = (p.idx * 47 + 10) % 360;
-    return `<div class="pl${p.idx === 0 ? ' me' : ''}${p.alive || (hpOf && hp > 0) ? '' : ' out'}${p.idx === highlight ? ' vs' : ''}">
-      <span class="pl-av" style="--h:${hue}">${(p.idx === 0 ? '나' : p.name).slice(0, 1)}</span>
-      <span class="pl-name">${p.idx === 0 ? '나' : p.name}</span>
+    return `<div class="pl${p.idx === mySeat ? ' me' : ''}${p.alive || (hpOf && hp > 0) ? '' : ' out'}${p.idx === highlight ? ' vs' : ''}">
+      <span class="pl-av" style="--h:${hue}">${(p.idx === mySeat ? '나' : p.name).slice(0, 1)}</span>
+      <span class="pl-name">${p.idx === mySeat ? '나' : p.name}${p.bot || p.idx === mySeat ? '' : ' <em class="pl-friend">친구</em>'}</span>
       <i class="pl-bar"><b style="width:${hp}%"></b></i>
       <span class="pl-hp num">${p.alive || (hpOf && hp > 0) ? hp : `${p.place}등`}</span>
     </div>`;
@@ -233,7 +253,7 @@ $('info').addEventListener('click', (e) => {
   if (!b || !g) return;
   const uid = +b.dataset.sell!;
   const piece = owned(me()).find((o) => o.piece.uid === uid)?.piece;
-  sell(g, me(), uid);
+  act({ k: 'sell', uid });
   if (piece) toast(`${josa(BY_ID[piece.id].name, '을', '를')} 팔았어요. +${sellValue(piece.id, piece.star)}냥`, 'good');
   hideInfo(); renderAll();
 });
@@ -245,7 +265,7 @@ $('shop').addEventListener('click', (e) => {
   if (!b || !g || mode === 'menu') return;
   const slot = +b.dataset.shop!, id = me().shop[slot]!;
   const before = owned(me()).map((o) => `${o.piece.uid}:${o.piece.star}`).join();
-  const err = buy(g, me(), slot);
+  const err = act({ k: 'buy', slot });
   if (err) { toast(err, 'warn'); return; }
   const up = owned(me()).find((o) => o.piece.id === id && o.piece.star > 1 && !before.includes(`${o.piece.uid}:${o.piece.star}`));
   if (up) toast(BY_ID[id].evo ? `${BY_ID[id].name} 셋이 모여 ${josa(nameAt(BY_ID[id], up.piece.star), '으로', '로')} 진화했어요! (별 ${up.piece.star}개)` : `${BY_ID[id].name} 셋이 모여 별 ${up.piece.star}개가 됐어요!`, 'good');
@@ -268,9 +288,9 @@ $('shop').addEventListener('pointerover', (e) => {
 });
 $('shop').addEventListener('pointerout', (e) => { if (!(e.relatedTarget as HTMLElement | null)?.closest?.('[data-shop]') && $('info').classList.contains('peek')) hideInfo(); });
 
-$('xpBtn').addEventListener('click', () => { const lv = me().level; const err = buyXp(g!, me()); if (err) toast(err, 'warn'); else if (me().level > lv) toast(`레벨 ${me().level}! 판에 ${me().level}개까지 올릴 수 있어요.`, 'good'); renderAll(); });
-$('rerollBtn').addEventListener('click', () => { const err = reroll(g!, me()); if (err) toast(err, 'warn'); renderAll(); });
-$('lockBtn').addEventListener('click', () => { me().locked = !me().locked; renderShop(); toast(me().locked ? '다음 라운드에도 지금 장터가 그대로 나와요.' : '잠금을 풀었어요.'); });
+$('xpBtn').addEventListener('click', () => { const lv = me().level; const err = act({ k: 'xp' }); if (err) toast(err, 'warn'); else if (me().level > lv) toast(`레벨 ${me().level}! 판에 ${me().level}개까지 올릴 수 있어요.`, 'good'); renderAll(); });
+$('rerollBtn').addEventListener('click', () => { const err = act({ k: 'reroll' }); if (err) toast(err, 'warn'); renderAll(); });
+$('lockBtn').addEventListener('click', () => { act({ k: 'lock' }); renderShop(); toast(me().locked ? '다음 라운드에도 지금 장터가 그대로 나와요.' : '잠금을 풀었어요.'); });
 
 $('players').addEventListener('click', () => $('players').classList.toggle('open'));
 /* ------------------------------------------------- trait highlight */
@@ -368,7 +388,7 @@ canvas.addEventListener('pointerdown', (e) => {
     if (uid !== null) {
       const name = itemDef(me().items[k]).name;
       const before = (findPiece(me(), uid)?.items ?? []).filter((x) => x.includes('+')).length;
-      const err = equip(g, me(), uid, k);
+      const err = act({ k: 'equip', uid, item: k });
       const piece = findPiece(me(), uid)!;
       const sauces = (piece.items ?? []).filter((x) => x.includes('+'));
       if (err) toast(err, 'warn');
@@ -426,12 +446,12 @@ function endDrag(e: PointerEvent) {
     return;
   }
   if (overShop(e.clientX, e.clientY)) {
-    sell(g, me(), d.uid);
+    act({ k: 'sell', uid: d.uid });
     toast(`${josa(BY_ID[d.id].name, '을', '를')} 팔았어요. +${sellValue(d.id, d.star)}냥`, 'good');
   } else {
     const t: DropTarget = table.targetAt(table.ground(e.clientX, e.clientY));
     if (t && mode === 'fight' && !('bench' in t)) toast('싸우는 동안에는 판에 올릴 수 없어요. 대기석끼리 옮기거나 팔 수는 있어요.', 'warn');
-    else if (t) { const err = move(g, me(), d.uid, t); if (err) toast(err, 'warn'); }
+    else if (t) { const err = act({ k: 'move', uid: d.uid, to: t }); if (err) toast(err, 'warn'); }
   }
   renderAll();
 }
@@ -478,6 +498,7 @@ let fightOpp = -1;
 
 $('fightBtn').addEventListener('click', () => {
   if (!g || mode !== 'prep') return;
+  if (room) { netReady(); return; }
   const p = me();
   const filled = autoFill(g, p);
   if (filled) toast(`빈자리에 대기석 말 ${filled}개를 올렸어요.`);
@@ -548,7 +569,7 @@ function afterFight() {
     nextRound(g!);
     mode = 'prep';
     table.clearPieces();
-    save(g!);
+    if (!room) save(g!);
     renderAll();
     roundNews(prevArena, prevSeason);
   }, mine ? 2600 : 0);
@@ -585,7 +606,7 @@ function finish() {
   $('endKicker').textContent = place === 1 ? '마지막까지 남았어요' : '한 판이 끝났어요';
   $('endTitle').textContent = `${place}등`;
   const winner = g!.players.find((q) => q.place === 1);
-  $('endText').textContent = place === 1 ? `${g!.round}라운드 만에 일곱 상대를 모두 물리쳤어요.` : `${g!.round}라운드에서 떨어졌어요.${winner ? ` 1등은 ${winner.name}이에요.` : ''} 다음 판에는 같은 갈래를 더 모아 보세요.`;
+  $('endText').textContent = place === 1 ? `${g!.round}라운드 만에 상대 ${g!.players.length - 1}명을 모두 물리쳤어요.` : `${g!.round}라운드에서 떨어졌어요.${winner ? ` 1등은 ${winner.name}이에요.` : ''} 다음 판에는 같은 갈래를 더 모아 보세요.`;
   $('end').hidden = false;
 }
 
@@ -599,7 +620,7 @@ function begin(game: Game) {
   table.clearPieces();
   $('start').hidden = true; $('end').hidden = true;
   renderAll();
-  save(g);
+  if (!room) save(g);
 }
 
 /* ------------------------------------------------------------- style */
@@ -726,7 +747,7 @@ $('themes').addEventListener('click', (e) => {
 
 $('newBtn').addEventListener('click', () => { begin(newGame((Math.random() * 2 ** 31) | 0, picked)); toast('대기석의 말을 끌어서 판에 올려 보세요.'); });
 $('contBtn').addEventListener('click', () => { const s = load(picked); if (s) begin(s); });
-$('againBtn').addEventListener('click', () => { $('end').hidden = true; $('start').hidden = false; mode = 'menu'; renderStart(); });
+$('againBtn').addEventListener('click', () => { leaveRoom(); $('end').hidden = true; $('start').hidden = false; mode = 'menu'; renderStart(); });
 $('arenaChip').addEventListener('click', () => { if (g) toast(`${ARENAS[g.arena].name}: ${ARENAS[g.arena].text}`); });
 $('tray').addEventListener('click', (e) => {
   const b = (e.target as HTMLElement).closest('[data-item]') as HTMLElement | null;
@@ -801,9 +822,286 @@ function loop(now: number) {
 }
 requestAnimationFrame(loop);
 
+
+/* ------------------------------------------------------------ friends */
+
+const NET_PREP = 50;
+let readySeats = new Set<number>();
+let doneSeats = new Set<number>();
+let deadline = 0;
+let lastRound = 0;
+
+/** Seats played by people still connected (the host's and the friends'). */
+const humanSeats = () => (g ? g.players.filter((p) => !p.bot && p.alive).map((p) => p.idx) : []);
+
+/** Host: send everyone the game as it is now. */
+function pushState() {
+  if (!room?.isHost || !g) return;
+  room.broadcast({ t: 'state', g: wire(g), ready: [...readySeats], deadline });
+}
+/** The game as sent: without last round's full fight records (big, and the friends get the matches apart). */
+const wire = (game: Game) => ({ ...game, last: null });
+
+/** I'm ready to fight (online): the host starts the round once everyone is, or the clock runs out. */
+function netReady() {
+  if (!g || !room) return;
+  const p = me();
+  const filled = autoFill(g, p);
+  if (filled && room.isHost) toast(`빈자리에 대기석 말 ${filled}개를 올렸어요.`);
+  if (room.isHost) markReady(mySeat);
+  else { room.send({ t: 'act', a: { k: 'ready' } }); readySeats.add(mySeat); renderNetBtn(); }
+}
+
+function markReady(seat: number) {
+  if (!g || !room?.isHost) return;
+  autoFill(g, g.players[seat]);
+  readySeats.add(seat);
+  if (!deadline) deadline = Date.now() + NET_PREP * 1000;
+  pushState();
+  hostCheck();
+  renderNetBtn();
+}
+
+/** Host: start the fights when everyone is ready (or time is up); move on when everyone has watched theirs. */
+function hostCheck() {
+  if (!g || !room?.isHost) return;
+  const people = humanSeats();
+  if (mode === 'prep' && people.length && (people.every((s) => readySeats.has(s)) || (deadline && Date.now() > deadline))) { startOnlineFight(); return; }
+  if (mode !== 'prep' && pendingNet && (people.every((s) => doneSeats.has(s) || !g!.players[s].alive) || Date.now() > pendingNet.until)) hostNextRound();
+}
+
+let pendingNet: { until: number } | null = null;
+
+function startOnlineFight() {
+  if (!g || !room?.isHost) return;
+  for (const p of g.players) if (p.alive) autoFill(g, p);
+  const hpBefore = new Map(g.players.map((q) => [q.idx, q.hp]));
+  const matches = playRound(g, false);
+  settleRound(g, matches);
+  const slim = matches.map((m) => ({ ...m, outcome: { winner: m.outcome.winner, t: m.outcome.t, survivors: [] } }));
+  readySeats = new Set(); doneSeats = new Set(); deadline = 0;
+  pendingNet = { until: Date.now() + 75_000 };
+  room.broadcast({ t: 'fight', g: wire(g), matches: slim });
+  showOnlineFight(slim as Match[], hpBefore);
+}
+
+function hostNextRound() {
+  if (!g || !room?.isHost) return;
+  pendingNet = null;
+  if (!g.over) nextRound(g);
+  readySeats = new Set(); doneSeats = new Set(); deadline = 0;
+  pushState();
+  enterRound();
+}
+
+/** Play my own match from an online round (everyone's were worked out by the host). */
+function showOnlineFight(matches: Match[], hpBefore: Map<number, number>) {
+  if (!g) return;
+  prevArena = g.arena; prevSeason = g.season;
+  shownHp = hpBefore;
+  const mine = matches.find((m) => m.a === mySeat || m.b === mySeat) ?? null;
+  mode = 'fight';
+  hideInfo();
+  pinned = false; lightTrait(null);
+  if (!mine) { finishOnlineFight(null, hpBefore); return; }
+  document.body.classList.add('fighting');
+  $('fightbar').hidden = false;
+  ($('fightBtn') as HTMLButtonElement).disabled = true; $('fightBtn').textContent = '싸우는 중';
+  const flip = mine.b === mySeat;
+  flipView = flip;
+  const oppIdx = mine.creeps ? -1 : flip ? mine.a : mine.b;
+  $('versus').innerHTML = mine.creeps ? `<b>${theme().creepName}</b><span>${theme().creepText} · ${ARENAS[mine.ctx.arena!].name}</span>` : `<b>${g.players[oppIdx].name}</b><span>${mine.ghost ? '(그림자 상대: 이 판의 승패는 나만 받아요)' : `체력 ${hpBefore.get(oppIdx)}`} · ${ARENAS[mine.ctx.arena!].name}</span>`;
+  fightOpp = oppIdx;
+  renderAll();
+  fightCombat = setup(mine.aTeam, mine.bTeam, mine.seed, mine.ctx);
+  table.onFightEnd = () => finishOnlineFight(mine, hpBefore);
+  bgm.setFight(true);
+  table.startFight(fightCombat, flip);
+  table.showBench(me());
+}
+
+function finishOnlineFight(mine: Match | null, hpBefore: Map<number, number>) {
+  if (!g || !room) return;
+  bgm.setFight(false);
+  table.onFightEnd = null;
+  shownHp = null;
+  const p = me();
+  if (mine) {
+    const meSide = mine.a === mySeat ? 0 : 1;
+    const won = mine.outcome.winner === meSide, draw = mine.outcome.winner === -1;
+    history[g.round] = won ? 'w' : draw ? 'd' : 'l';
+    g.log = [...(g.log ?? []), { round: g.round, res: history[g.round], vs: mine.creeps ? theme().creepName : g.players[fightOpp]?.name ?? '', lost: Math.max(0, (hpBefore.get(mySeat) ?? 0) - p.hp), arena: mine.ctx.arena ?? '' }];
+    banner(won ? (mine.creeps ? `${theme().creepName} 승리!` : '이겼어요!') : draw ? '비겼어요' : '졌어요',
+      won ? '다른 사람들이 끝나기를 기다려요' : `체력 -${(hpBefore.get(mySeat) ?? 0) - p.hp}`, won ? 'win' : 'lose');
+  }
+  renderAll();
+  setTimeout(() => {
+    $('banner').hidden = true;
+    if (!p.alive || g!.over) { finish(); }
+    if (room?.isHost) { doneSeats.add(mySeat); hostCheck(); }
+    else room?.send({ t: 'done' });
+  }, mine ? 2400 : 0);
+}
+
+/** A new round has come (host: just made; friend: just received). */
+function enterRound() {
+  if (!g) return;
+  document.body.classList.remove('fighting');
+  $('fightbar').hidden = true; $('shopbar').hidden = false;
+  ($('fightBtn') as HTMLButtonElement).disabled = false;
+  fightOpp = -1;
+  if (g.over || !me().alive) { if (mode !== 'menu') finish(); return; }
+  if (mode === 'menu') return;
+  mode = 'prep';
+  table.clearPieces();
+  renderAll();
+  renderNetBtn();
+  if (lastRound && g.round !== lastRound) roundNews(prevArena, prevSeason);
+  lastRound = g.round;
+}
+
+/** The fight button online: who is ready and how long is left. */
+function renderNetBtn() {
+  if (!room || !g || mode !== 'prep') return;
+  const people = humanSeats(), n = people.filter((s) => readySeats.has(s)).length;
+  const left = deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000)) : 0;
+  const b = $('fightBtn') as HTMLButtonElement;
+  if (readySeats.has(mySeat)) { b.textContent = `기다리는 중 ${n}/${people.length}${left ? ` · ${left}초` : ''}`; b.disabled = true; }
+  else { b.textContent = left ? `싸우기 · ${left}초` : '싸우기'; b.disabled = false; }
+}
+setInterval(() => { if (room) { renderNetBtn(); if (room.isHost) hostCheck(); } }, 1000);
+
+function onNet(m: Msg, from: number) {
+  if (room?.isHost) {
+    if (!g) { if (m.t === 'hello') renderLobby(); return; }
+    if (m.t === 'act') {
+      const a = m.a as Act | { k: 'ready' };
+      if (a.k === 'ready') { if (mode === 'prep') markReady(from); return; }
+      if (mode !== 'prep' && a.k !== 'move' && a.k !== 'sell') return;
+      const err = applyAct(g, g.players[from], a);
+      if (err) room.send({ t: 'err', msg: err }, from);
+      pushState();
+      if (mode === 'prep') renderAll();
+    } else if (m.t === 'done') { doneSeats.add(from); hostCheck(); }
+    return;
+  }
+  // A friend.
+  if (m.t === 'lobby') { netNames = m.names; netCount = m.count; netTheme = m.theme; renderLobby(); return; }
+  if (m.t === 'err') { toast(m.msg, 'warn'); return; }
+  if (m.t === 'left') { toast(`${m.name} 님이 나갔어요. 그 자리는 컴퓨터가 이어서 해요.`); return; }
+  if (m.t === 'state') {
+    const first = !g;
+    const next = m.g as Game;
+    const newRound = !g || next.round !== g.round;
+    g = next;
+    readySeats = new Set(m.ready); deadline = m.deadline;
+    if (first) {
+      useTheme(g.theme); applyTheme(themeById(g.theme));
+      $('lobby').hidden = true; $('start').hidden = true; $('end').hidden = true;
+      mode = 'prep'; table.clearPieces(); lastRound = g.round;
+      renderAll(); renderNetBtn();
+      toast(`${g.players.length}명 대전을 시작해요! 대기석의 말을 판에 올리세요.`, 'good');
+      return;
+    }
+    if (mode === 'fight' && !newRound) return;
+    if (newRound) { enterRound(); return; }
+    if (mode === 'prep') { renderAll(); renderNetBtn(); }
+    return;
+  }
+  if (m.t === 'fight') {
+    if (!g) return;
+    const hpBefore = new Map(g.players.map((q) => [q.idx, q.hp]));
+    g = m.g as Game;
+    showOnlineFight(m.matches as Match[], hpBefore);
+  }
+}
+
+function onNetClose(seat: number) {
+  if (!room) return;
+  if (!room.isHost) {
+    toast('방장과 연결이 끊겼어요. 처음 화면으로 돌아가요.', 'warn');
+    leaveRoom();
+    mode = 'menu'; $('start').hidden = false; $('lobby').hidden = true; renderStart();
+    return;
+  }
+  const name = room.names[seat] ?? '친구';
+  if (!g) { room.names.splice(seat, 1); renderLobby(); return; }
+  const p = g.players[seat];
+  if (p) { p.bot = true; p.plan = theme().plans[seat % theme().plans.length]; }
+  room.broadcast({ t: 'left', seat, name });
+  toast(`${name} 님이 나갔어요. 그 자리는 컴퓨터가 이어서 해요.`);
+  hostCheck();
+  renderAll();
+}
+
+function leaveRoom() { room?.close(); room = null; mySeat = 0; readySeats = new Set(); doneSeats = new Set(); deadline = 0; pendingNet = null; shownHp = null; }
+
+/* ------------------------------------------------------------- lobby */
+
+let netNames: string[] = [];
+let netCount = 4;
+let netTheme = 'spirits';
+const myName = () => (($('netName') as HTMLInputElement).value.trim() || '나').slice(0, 10);
+
+function renderLobby() {
+  const L = $('lobby');
+  const inRoom = !!room;
+  const names = room?.isHost ? room.names : netNames;
+  const count = room?.isHost ? room.count : netCount;
+  $('lobbyPick').hidden = inRoom;
+  $('lobbyRoom').hidden = !inRoom;
+  if (inRoom) {
+    $('roomCode').textContent = room!.code;
+    $('roomSeats').innerHTML = Array.from({ length: count }, (_, k) => `<li class="${k < names.length ? 'on' : ''}">${k < names.length ? `${names[k]}${k === 0 ? ' <em>방장</em>' : ''}${k === mySeat ? ' <em>나</em>' : ''}` : '빈자리 · 컴퓨터'}</li>`).join('');
+    $('roomTheme').textContent = themeById(room?.isHost ? picked : netTheme).title;
+    ($('roomStart') as HTMLButtonElement).hidden = !room!.isHost;
+    $('roomWait').hidden = !!room!.isHost;
+  }
+  L.hidden = false;
+}
+
+function hostLobbyUpdate() { if (room?.isHost) room.broadcast({ t: 'lobby', names: room.names, count: room.count, theme: picked }); renderLobby(); }
+
+$('friendBtn').addEventListener('click', () => { try { ($('netName') as HTMLInputElement).value = localStorage.getItem('nanjang.name') ?? ''; } catch { /* storage blocked */ } renderLobby(); });
+$('lobbyClose').addEventListener('click', () => { if (!g) leaveRoom(); $('lobby').hidden = true; });
+document.querySelectorAll<HTMLButtonElement>('[data-seats]').forEach((b) => b.addEventListener('click', async () => {
+  try { localStorage.setItem('nanjang.name', myName()); } catch { /* storage blocked */ }
+  leaveRoom();
+  room = new Room();
+  room.onMsg = (m, from) => { onNet(m, from); if (room?.isHost && m.t === 'hello') hostLobbyUpdate(); };
+  room.onClose = (seat) => { onNetClose(seat); if (room?.isHost && !g) hostLobbyUpdate(); };
+  $('lobbyStatus').textContent = '방을 여는 중…';
+  try { await room.host(myName(), +b.dataset.seats!); $('lobbyStatus').textContent = ''; mySeat = 0; renderLobby(); }
+  catch (err) { $('lobbyStatus').textContent = (err as Error).message; leaveRoom(); }
+}));
+$('joinBtn').addEventListener('click', async () => {
+  const code = ($('joinCode') as HTMLInputElement).value.trim();
+  if (code.length < 4) { $('lobbyStatus').textContent = '친구에게 받은 방 코드 다섯 글자를 넣어 주세요.'; return; }
+  try { localStorage.setItem('nanjang.name', myName()); } catch { /* storage blocked */ }
+  leaveRoom();
+  room = new Room();
+  room.onMsg = onNet;
+  room.onClose = onNetClose;
+  $('lobbyStatus').textContent = '방에 들어가는 중…';
+  try { mySeat = await room.join(code, myName()); $('lobbyStatus').textContent = ''; renderLobby(); }
+  catch (err) { $('lobbyStatus').textContent = (err as Error).message; leaveRoom(); }
+});
+$('roomStart').addEventListener('click', () => {
+  if (!room?.isHost) return;
+  room.started = true;
+  mySeat = 0;
+  g = newGame((Math.random() * 2 ** 31) | 0, picked, room.names[0], { count: room.count, humans: room.names.slice() });
+  begin(g);
+  lastRound = g.round;
+  $('lobby').hidden = true;
+  pushState();
+  renderNetBtn();
+  toast(`${room.count}명 대전을 시작해요! 친구들도 같은 판에 들어왔어요.`, 'good');
+});
+
 // For checks in a headless browser.
 (window as unknown as { nanjang: unknown }).nanjang = {
-  get game() { return g; }, table, render: () => renderAll(),
+  get game() { return g; }, get room() { return room; }, get mode() { return mode; }, table, render: () => renderAll(),
   variant: (v: StickerVariant) => { setStickerVariant(v); table.clearPieces(); renderAll(); },
   portraits: (st: PieceStyle, th: string, star = 1) => { applyTheme(themeById(th)); setPieceStyle(st); return UNITS.map((d) => ({ name: nameAt(d, star), url: portrait(d.id, theme().faces !== false, star) })); },
   lineup: (st: PieceStyle, th: string) => { applyTheme(themeById(th)); setPieceStyle(st); $('start').hidden = true; table.setArena('yard'); table.showLineup(UNITS.map((d) => d.id)); },
