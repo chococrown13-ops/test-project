@@ -35,7 +35,7 @@ export interface Loan { left: number; pay: number; months: number; amount: numbe
 export interface MonthReport {
   month: number;
   /** V: visitors' spending (관광). */
-  income: { R: number; C: number; I: number; T: number; V?: number; G?: number };
+  income: { R: number; C: number; I: number; T: number; V?: number; G?: number; S?: number };
   expense: { roads: number; facilities: number; services: number; transit: number; debt?: number };
   pop: number;
   jobs: number;
@@ -140,6 +140,8 @@ export interface World {
   milestones: number[];
   /** Goals met so far (they stay met), chapters whose grant was paid, 도전과제 got, and whether a loan was ever taken. */
   goal?: number; chapterPaid?: number; achieved?: string[]; everLoan?: boolean;
+  /** 도시 특화 opened so far (의료, 기술). */
+  specs?: ('med' | 'tech')[];
 }
 
 export const idx = (x: number, y: number) => y * N + x;
@@ -166,7 +168,7 @@ export function rand(w: World): number {
 export { riverY } from './maps';
 
 export function emptyMonth(month: number): MonthReport {
-  return { month, income: { R: 0, C: 0, I: 0, T: 0, V: 0, G: 0 }, expense: { roads: 0, facilities: 0, services: 0, transit: 0, debt: 0 }, pop: 0, jobs: 0 };
+  return { month, income: { R: 0, C: 0, I: 0, T: 0, V: 0, G: 0, S: 0 }, expense: { roads: 0, facilities: 0, services: 0, transit: 0, debt: 0 }, pop: 0, jobs: 0 };
 }
 
 export function createWorld(seed = 20261028, name = '새솔시', map: MapKind = 'river'): World {

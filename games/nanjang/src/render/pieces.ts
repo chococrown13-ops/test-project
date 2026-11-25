@@ -20,12 +20,12 @@ export const TIER_COLOR = ['#888', '#9aa3ab', '#4f9d69', '#3f7cc4', '#9b59b6', '
  *  - carved: 나무 장기알. Faceted, wood-toned figures on octagonal wooden tokens.
  *  - porcelain: 도자기 인형. Smooth glazed figures with a clear-coat shine.
  */
-export type PieceStyle = 'doll' | 'carved' | 'porcelain' | 'pixel' | 'voxel';
+export type PieceStyle = 'art' | 'sticker' | 'doll' | 'carved' | 'porcelain' | 'pixel' | 'voxel';
 /** The styles on offer: 도트 and 인형 (the others are kept for comparing, not offered). */
-export const STYLE_NAME: Partial<Record<PieceStyle, string>> = { pixel: '도트', doll: '인형' };
+export const STYLE_NAME: Partial<Record<PieceStyle, string>> = { art: '그림', pixel: '도트', doll: '인형' };
 /** Styles whose figures use the big-headed doll proportions. */
-const chibi = () => style === 'doll' || style === 'pixel' || style === 'voxel';
-let style: PieceStyle = 'doll';
+const chibi = () => style === 'doll' || style === 'pixel' || style === 'voxel' || style === 'sticker' || style === 'art';
+let style: PieceStyle = 'art';
 export function setPieceStyle(s: PieceStyle) { style = s; }
 export const pieceStyle = () => style;
 /** Whether figures get eyes (한식 대전's dishes don't). */
@@ -57,7 +57,7 @@ function mat(color: string, opts: { emissive?: string; rough?: number } = {}): T
   let m = mats.get(k);
   if (m) return m;
   if (style === 'voxel') m = new THREE.MeshStandardMaterial({ color, roughness: 0.8, emissive: opts.emissive ?? '#000000' });
-  else if (style === 'doll' || style === 'pixel') m = new THREE.MeshToonMaterial({ color, gradientMap: ramp(), emissive: opts.emissive ?? '#000000' });
+  else if (style === 'doll' || style === 'pixel' || style === 'sticker' || style === 'art') m = new THREE.MeshToonMaterial({ color, gradientMap: ramp(), emissive: opts.emissive ?? '#000000' });
   else if (style === 'porcelain') m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.12, emissive: opts.emissive ?? '#000000' });
   else m = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).lerp(WOOD, 0.22), flatShading: true, roughness: 0.88, emissive: opts.emissive ?? '#000000' });
   mats.set(k, m);
@@ -118,9 +118,11 @@ export function evolved(def: UnitDef, star: number): UnitDef {
   return def.evo && star >= 2 ? { ...def, id: `${def.id}@${star}`, look: lookAt(def, star) } : def;
 }
 
-/** 도트 style: a hook (set by thumbs.ts) that draws a piece as a little pixel sprite texture. */
+/** 도트 and 캐릭터 styles: a hook (set by thumbs.ts) that draws a piece as a sprite texture. */
 let spriteFor: ((def: UnitDef, faces: boolean) => THREE.Texture) | null = null;
 export function setSpriteMaker(fn: (def: UnitDef, faces: boolean) => THREE.Texture) { spriteFor = fn; }
+/** Whether this style draws pieces as flat camera-facing pictures. */
+export const spriteStyle = () => style === 'pixel' || style === 'sticker' || style === 'art';
 
 /**
  * `raw` builds the figure from primitives even in the 도트 and 복셀 styles (the sprite maker and the
@@ -424,15 +426,19 @@ export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces
   fig.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
   if (style === 'doll') outline(fig);
   if (!raw && style === 'voxel') voxelise(fig, `${def.id}|${faces}`);
-  if (!raw && style === 'pixel' && spriteFor) {
-    // A camera-facing pixel sprite instead of the figure (mirrored for the other side, so they face each other).
+  if (!raw && spriteStyle() && spriteFor) {
+    // A camera-facing sprite instead of the figure (mirrored for the other side, so they face each other).
     fig.clear();
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteFor(def, faces), transparent: true, alphaTest: 0.5 }));
+    const sticker = style === 'sticker' || style === 'art';
+    const tex = spriteFor(def, faces);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: sticker ? 0.08 : 0.5 }));
     // Dishes are wide: draw them smaller so they stay inside their square.
     const dish = !!L.shape && L.shape !== 'figure' && !CREATURES.includes(L.shape);
-    const k = dish ? 0.8 : 1.15;
+    const k = (dish ? 0.8 : 1.15) * (sticker ? 1.36 : 1);
     sp.scale.set(enemy ? -k : k, k, 1);
     sp.position.y = k * 0.45;
+    // A sticker knows where its feet are in the picture: stand them on the token.
+    if (typeof tex.userData.foot === 'number') { sp.center.set(0.5, tex.userData.foot); sp.position.y = 0.01; }
     fig.add(sp);
     // A soft round shadow, since sprites cast none.
     const blob = new THREE.Mesh(new THREE.CircleGeometry(0.3, 20), new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.22, depthWrite: false }));

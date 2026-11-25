@@ -30,7 +30,8 @@ export type BuildingKind =
   | 'coal' | 'solar' | 'water' | 'well' | 'sewage' | 'park' | 'school' | 'police' | 'fire' | 'clinic' | 'metro'
   | 'market' | 'riverpark' | 'palace' | 'tower'
   | 'parking' | 'parktower'
-  | 'office' | 'post' | 'library' | 'terminal' | 'ktx' | 'bike' | 'trailhead' | 'jjim';
+  | 'office' | 'post' | 'library' | 'terminal' | 'ktx' | 'bike' | 'trailhead' | 'jjim'
+  | 'hospital' | 'medlab' | 'university' | 'techpark';
 
 export interface KindDef {
   name: string;
@@ -82,6 +83,10 @@ export const KINDS: Record<BuildingKind, KindDef> = {
   bike: { name: '공공자전거 대여소', size: 1, power: 0, water: 0, cost: 300, upkeep: 15, floors: [0, 0], desc: '대여소 반경 5칸끼리 가까운 거리는 자전거로 다녀요' },
   trailhead: { name: '등산로 입구', size: 1, power: 1, water: 1, cost: 800, upkeep: 20, floors: [1, 1], desc: '산 바로 앞에만 지어요. 둘레길과 막걸리·파전집 · 관광 수입, 주변 만족도 상승' },
   jjim: { name: '찜질방·목욕탕', size: 2, power: 12, water: 15, cost: 4000, upkeep: 0, floors: [3, 3], desc: '관광 수입 · 주변 만족도 상승' },
+  hospital: { name: '종합병원', size: 2, power: 20, water: 15, cost: 18000, upkeep: 380, floors: [7, 9], desc: '의료 특화 · 반경 22칸 건강, 땅값 상승' },
+  medlab: { name: '바이오메디컬 연구소', size: 2, power: 25, water: 10, cost: 22000, upkeep: 300, floors: [4, 5], desc: '의료 특화 · 특화 단계를 올려요' },
+  university: { name: '대학교', size: 3, power: 20, water: 15, cost: 28000, upkeep: 500, floors: [4, 6], desc: '기술 특화 · 반경 22칸 교육, 땅값 상승' },
+  techpark: { name: '테크노밸리', size: 2, power: 40, water: 10, cost: 24000, upkeep: 320, floors: [10, 16], desc: '기술 특화 · 특화 단계를 올려요' },
   tower: { name: '전망타워', size: 1, power: 0, water: 0, cost: 15000, upkeep: 160, floors: [1, 1], desc: '산 위에만 지어요. 도시 어디서나 보이는 명소예요' },
 };
 
@@ -91,6 +96,8 @@ export const SERVICE: Partial<Record<BuildingKind, { radius: number; key: 'edu' 
   police: { radius: 14, key: 'safety', value: 6 },
   fire: { radius: 14, key: 'fire', value: 4 },
   clinic: { radius: 12, key: 'health', value: 6 },
+  hospital: { radius: 22, key: 'health', value: 14 },
+  university: { radius: 22, key: 'edu', value: 16 },
 };
 
 /** Land value a landmark adds around itself: radius in cells and the bonus at its foot. */
@@ -106,6 +113,8 @@ export const LANDMARK: Partial<Record<BuildingKind, { radius: number; value: num
   ktx: { radius: 16, value: 22 },
   trailhead: { radius: 6, value: 5 },
   jjim: { radius: 6, value: 6 },
+  medlab: { radius: 8, value: 10 },
+  techpark: { radius: 10, value: 12 },
 };
 /** Landmarks a city can only have one of. */
 export const UNIQUE: BuildingKind[] = ['palace', 'tower', 'ktx'];

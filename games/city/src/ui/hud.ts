@@ -1,4 +1,5 @@
 import { growthBlock, lotBlock } from '../sim/diagnose';
+import { isOpen, SPECS, specLevel } from '../sim/special';
 import { isPocket, pocketKind, POCKET_NAME } from '../sim/pockets';
 import { MATURE, TIER_POP, tierOpen } from '../sim/growth';
 import { CELL, displayName, Ground, KINDS, LEVEL_NAME, Road, SERVICE, ZONE_NAME, Zone } from '../sim/defs';
@@ -115,6 +116,17 @@ export function updateGoal(w: World): number {
 }
 
 /** 도전과제: every challenge, got or not, for the 현황 sheet. */
+/** 도시 특화: each with its conditions (ticked as met), or its level and what it gives. */
+export function specsHtml(w: World): string {
+  return '<h4>도시 특화</h4><div class="specs">' + SPECS.map((s) => {
+    const open = isOpen(w, s.id), lv = specLevel(w, s.id);
+    const body = open
+      ? `<p class="spec-lv">${lv ? `${lv}단계 · ${s.levels[lv - 1]}` : `열림 · ${s.buildings.map((k) => KINDS[k].name).join(', ')}을 지으면 1단계가 돼요`}</p><p class="spec-next">${lv < 3 ? `특화 건물 ${[1, 3, 5][lv]}채면 ${lv + 1}단계` : '가장 높은 단계예요'}</p>`
+      : `<ul class="spec-needs">${s.needs.map((n) => { const v = n.have(w), ok = v >= n.goal; return `<li class="${ok ? 'ok' : ''}"><span>${ok ? '✓' : '·'} ${n.text}</span><b>${Math.min(v, n.goal).toLocaleString('ko-KR')} / ${n.goal.toLocaleString('ko-KR')}${n.unit ?? ''}</b></li>`; }).join('')}</ul>`;
+    return `<section class="spec${open ? ' open' : ''}"><b class="spec-name">${s.name}</b><small>${s.blurb}</small>${body}</section>`;
+  }).join('') + '</div>';
+}
+
 function achievementsHtml(w: World): string {
   const got = new Set(w.achieved ?? []);
   return `<h4>도전과제 <small>${got.size}/${ACHIEVEMENTS.length}</small></h4><ul class="achieve">` + ACHIEVEMENTS.map((a) => `<li class="${got.has(a.id) ? 'got' : ''}"><b>${got.has(a.id) ? '🏅' : '·'} ${a.name}</b><span>${a.text}</span></li>`).join('') + '</ul>';
@@ -219,7 +231,7 @@ export function budgetHtml(w: World): string {
   const inc = monthIncome(last), exp = monthExpense(last);
   let h = head('예산');
   h += `<p class="hint">${w.reports.length ? '지난달' : '이번 달(진행 중)'} 기준, 단위는 만 원이에요.</p>`;
-  h += '<h4>수입</h4>' + kv('주거세', won(last.income.R)) + kv('상업세', won(last.income.C)) + kv('산업세', won(last.income.I)) + kv('대중교통 요금', won(last.income.T ?? 0)) + kv('관광', won(last.income.V ?? 0)) + kv('지방교부세 (국비)', won(last.income.G || grantFor(w.stats.pop)));
+  h += '<h4>수입</h4>' + kv('주거세', won(last.income.R)) + kv('상업세', won(last.income.C)) + kv('산업세', won(last.income.I)) + kv('대중교통 요금', won(last.income.T ?? 0)) + kv('관광', won(last.income.V ?? 0)) + kv('특화 (의료관광·기술 수출)', won(last.income.S ?? 0)) + kv('지방교부세 (국비)', won(last.income.G || grantFor(w.stats.pop)));
   h += '<h4>지출</h4>' + kv('도로 유지', won(last.expense.roads)) + kv('전기, 상하수도 시설', won(last.expense.facilities)) + kv('공공 서비스', won(last.expense.services)) + kv('대중교통 운영', won(last.expense.transit ?? 0)) + (w.loans.length || last.expense.debt ? kv('대출 상환', won(last.expense.debt ?? 0)) : '');
   const net = inc - exp;
   h += `<div class="kv total"><span class="k">월 수지</span>${state(net >= 0 ? 'ok' : 'no', `${net >= 0 ? '+' : '−'}${won(Math.abs(net))}`)}</div>`;
@@ -271,6 +283,7 @@ export function statsHtml(w: World, overlay: Overlay): string {
   h += kv('주차 수요', `${num(s.parkDemand)}대`) + kv('갓길 / 주차장', `${num(s.parkCurb)}면 / ${num(lots)}면`);
   h += kv('세울 곳 없는 차', state(s.parkDemand && s.parkUnmet > s.parkDemand * 0.25 ? 'no' : s.parkUnmet > s.parkDemand * 0.1 ? 'meh' : 'ok', `${num(s.parkUnmet)}대`));
   if (w.noAvenueParking) h += kv('대로 주정차', state('meh', '금지 중'));
+  h += specsHtml(w);
   h += achievementsHtml(w);
   return h;
 }

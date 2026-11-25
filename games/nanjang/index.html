@@ -84,8 +84,37 @@
           <button id="newBtn" class="btn primary big">새 판 시작</button>
           <button id="contBtn" class="btn big" hidden>이어하기</button>
         </div>
+        <div class="row"><button id="friendBtn" class="btn big friend">친구와 하기 (4명·8명)</button></div>
         <div class="style-pick" role="radiogroup" aria-label="말 모양"><span>말 모양</span><div class="seg" data-stylepick></div></div>
         <div class="row"><button id="howBtn" class="btn ghost">게임 방법</button><button id="recBtn" class="btn ghost">지난 기록</button></div>
+      </div>
+    </section>
+
+    <section id="lobby" class="overlay" hidden>
+      <div class="panel lobby">
+        <div class="book-head"><h2>친구와 하기</h2><button id="lobbyClose" class="btn small">닫기</button></div>
+        <label class="lobby-name">내 이름 <input id="netName" maxlength="10" placeholder="나" autocomplete="off" /></label>
+        <div id="lobbyPick" class="lobby-pick">
+          <div class="lobby-box">
+            <b>방 만들기</b>
+            <p>방 코드를 친구에게 알려 주세요. 빈자리는 컴퓨터가 채워요.</p>
+            <div class="row"><button class="btn primary" data-seats="4">4명 방</button><button class="btn primary" data-seats="8">8명 방</button></div>
+          </div>
+          <div class="lobby-box">
+            <b>들어가기</b>
+            <p>친구에게 받은 방 코드를 넣으세요.</p>
+            <div class="row"><input id="joinCode" maxlength="5" placeholder="예: K7Q2M" autocomplete="off" autocapitalize="characters" /><button id="joinBtn" class="btn primary">들어가기</button></div>
+          </div>
+        </div>
+        <div id="lobbyRoom" class="lobby-room" hidden>
+          <p class="room-code-label">방 코드</p>
+          <p id="roomCode" class="room-code num">-----</p>
+          <p class="room-theme">테마: <b id="roomTheme"></b></p>
+          <ol id="roomSeats" class="room-seats"></ol>
+          <div class="row"><button id="roomStart" class="btn primary big">시작하기</button></div>
+          <p id="roomWait" class="room-wait">방장이 시작하기를 누르면 바로 시작해요.</p>
+        </div>
+        <p id="lobbyStatus" class="lobby-status" role="status"></p>
       </div>
     </section>
 

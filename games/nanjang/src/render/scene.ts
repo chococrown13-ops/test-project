@@ -3,7 +3,7 @@ import { COLS, type Combat, DT, type Ev, HALF, ROWS, step } from '../sim/combat'
 import type { Piece, Player } from '../sim/game';
 import { BENCH } from '../sim/game';
 import { ARENAS, BUSH, ICE, MUD, ROCK, WATER } from '../sim/arena';
-import { BY_ID, itemDef, type Palette, theme } from '../sim/units';
+import { BY_ID, itemDef, type Palette, theme, TRAITS } from '../sim/units';
 import { buildPiece, type PieceObj } from './pieces';
 
 /**
@@ -135,22 +135,95 @@ export class Table {
   /** Colours of the table for a theme. */
   setPalette(p: Palette) {
     this.palette = p;
-    (this.scene.background as THREE.Color).set(p.bg);
     (this.scene.fog as THREE.Fog).color.set(p.bg);
     (this.tableTop.material as THREE.MeshStandardMaterial).color.set(p.table);
     (this.frameMesh.material as THREE.MeshStandardMaterial).color.set(p.frame);
     (this.river.material as THREE.MeshStandardMaterial).color.set(p.line);
     this.paintTiles();
+    this.setScenery(p);
+    (this.scene.fog as THREE.Fog).near = p.scenery === 'meadow' ? 30 : 22;
+    (this.scene.fog as THREE.Fog).far = p.scenery === 'meadow' ? 70 : 40;
   }
 
   private paintTiles() {
     const p = this.palette;
     if (!p) return;
     this.tiles.forEach((t, i) => {
-      const y = Math.floor(i / COLS);
-      // A very faint wash by half; no checkerboard (the grid shows only when placing).
-      (t.material as THREE.MeshStandardMaterial).color.set(y >= HALF ? p.mine[0] : p.theirs[0]);
+      const y = Math.floor(i / COLS), x = i % COLS;
+      // A faint wash by half; a meadow board gets a soft lawn checker, like a mown pitch.
+      const k = p.scenery === 'meadow' && (x + y) % 2 ? 1 : 0;
+      (t.material as THREE.MeshStandardMaterial).color.set(y >= HALF ? p.mine[k] : p.theirs[k]);
     });
+  }
+
+  private scenery = new THREE.Group();
+  /** A sky behind and a meadow round the table: rounded trees, bushes, flowers, a few clouds. */
+  private setScenery(p: Palette) {
+    this.scene.remove(this.scenery);
+    this.scenery = new THREE.Group();
+    if (p.scenery !== 'meadow') {
+      this.scene.background = new THREE.Color(p.bg);
+      return;
+    }
+    // Sky: a vertical gradient.
+    const c = document.createElement('canvas'); c.width = 4; c.height = 256;
+    const g = c.getContext('2d')!, gr = g.createLinearGradient(0, 0, 0, 256);
+    gr.addColorStop(0, p.sky ?? '#8fcdf0'); gr.addColorStop(0.75, p.bg); gr.addColorStop(1, p.bg);
+    g.fillStyle = gr; g.fillRect(0, 0, 4, 256);
+    const sky = new THREE.CanvasTexture(c); sky.colorSpace = THREE.SRGBColorSpace;
+    this.scene.background = sky;
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const toon = (color: string) => new THREE.MeshToonMaterial({ color });
+    const put = (m: THREE.Object3D, x: number, y: number, z: number) => { m.position.set(x, y, z); m.traverse((o) => { (o as THREE.Mesh).castShadow = true; (o as THREE.Mesh).receiveShadow = true; }); this.scenery.add(m); return m; };
+    // A wide lawn under everything, so the table edge sits in grass.
+    const lawn = new THREE.Mesh(new THREE.CircleGeometry(40, 48), new THREE.MeshToonMaterial({ color: '#8cc46c' }));
+    lawn.rotation.x = -Math.PI / 2; lawn.position.y = -0.53; lawn.receiveShadow = true; this.scenery.add(lawn);
+    const tree = (x: number, z: number, s: number) => {
+      const t = new THREE.Group();
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 1, 7), toon('#8a5a36'));
+      trunk.position.y = 0.5; t.add(trunk);
+      const greens = ['#5fa64a', '#72b856', '#4f9442'];
+      for (let k = 0; k < 3; k++) {
+        const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.62 - k * 0.12, 1), toon(greens[k]));
+        b.position.set((k - 1) * 0.28, 1.25 + k * 0.38, (k % 2) * 0.15);
+        t.add(b);
+      }
+      t.scale.setScalar(s);
+      put(t, x, -0.52, z);
+    };
+    const bush = (x: number, z: number, s: number) => {
+      const b = new THREE.Group();
+      for (let k = 0; k < 3; k++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.32, 1), toon(k === 1 ? '#6cb052' : '#5a9e46')); m.position.set((k - 1) * 0.3, 0.22 + (k === 1 ? 0.08 : 0), 0); b.add(m); }
+      b.scale.setScalar(s);
+      put(b, x, -0.52, z);
+    };
+    const W = COLS / 2 + 3.5, D = ROWS / 2 + 4;
+    // Trees behind and to the sides, bushes along the table's sides.
+    for (let k = 0; k < 9; k++) tree(-W - 2 + (k / 8) * (2 * W + 4) + (rnd() - 0.5), -D - 1.2 - rnd() * 2.5, 1.1 + rnd() * 0.6);
+    for (const sd of [-1, 1]) {
+      for (let k = 0; k < 4; k++) tree(sd * (W + 1.6 + rnd() * 2), -D + k * 3 + rnd(), 0.9 + rnd() * 0.5);
+      for (let k = 0; k < 5; k++) bush(sd * (W + 0.5 + rnd() * 0.6), -D + 1 + k * 2.2, 0.9 + rnd() * 0.4);
+    }
+    // Flowers dotted over the lawn.
+    const petals = ['#ffffff', '#f6d24a', '#f29ab8', '#c9a7f2'];
+    const flowerG = new THREE.SphereGeometry(0.07, 6, 5);
+    for (let k = 0; k < 90; k++) {
+      const a = rnd() * Math.PI * 2, r = 10 + rnd() * 9;
+      const x = Math.cos(a) * r, z = Math.sin(a) * r * 0.8;
+      if (Math.abs(x) < W + 0.4 && Math.abs(z) < D + 1) continue;
+      const f = new THREE.Mesh(flowerG, new THREE.MeshToonMaterial({ color: petals[k % petals.length] }));
+      put(f, x, -0.46, z);
+    }
+    // Clouds far off.
+    for (let k = 0; k < 5; k++) {
+      const cl = new THREE.Group();
+      for (let j = 0; j < 4; j++) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.9 + rnd() * 0.5, 12, 10), new THREE.MeshToonMaterial({ color: '#ffffff' })); m.position.set(j * 1.1 - 1.6, rnd() * 0.4, rnd() * 0.3); cl.add(m); }
+      cl.scale.set(1.6, 0.9, 1);
+      cl.position.set(-22 + k * 11 + rnd() * 3, 7 + rnd() * 3, -26 - rnd() * 4);
+      this.scenery.add(cl);
+    }
+    this.scene.add(this.scenery);
   }
 
   /** The round's ground: water, rocks, bamboo, mud and ice drawn on the squares. */
@@ -501,7 +574,7 @@ export class Table {
     const colour: Record<string, string> = {
       bonk: '#f2c94c', foxfire: '#6ec6ff', snipe: '#f4efe2', drag: '#4fa3b5', guardup: '#cfe8ff', taunt: '#e0a96d', boulder: '#9b8f80', blink: '#b9a7d9',
       wave: '#4fa3b5', heal: '#7ddc8a', roar: '#f29b30', judge: '#ffd84a', ttukttak: '#f2c94c', charm: '#ff8fb1', reap: '#3b3b46', shell: '#9fd3a8',
-      mountain: '#c7f0c2', devour: '#8c9099', beam: '#7fd1d9',
+      mountain: '#c7f0c2', devour: '#8c9099', beam: '#7fd1d9', burst: '#fff2a8',
     };
     const col = colour[e.skill] ?? '#ffffff';
     this.ring(a.x, a.z, col, 0.9);
@@ -664,11 +737,12 @@ export class Table {
         s.obj.stun.rotation.y = t * 4;
         s.obj.stun.scale.setScalar(1.4);
         // Status badges over the bars: only rewritten when they change.
-        const st = !f.alive ? '' : [f.stunT > 0 ? 'stun' : '', f.silenceT > 0 ? 'silence' : '', f.shield > 1 ? 'shield' : '', f.tauntBy >= 0 ? 'taunt' : '', f.asBuffT > 0 ? 'fast' : ''].filter(Boolean).join(' ');
+        const top = f.alive ? f.stk.filter((x) => x.n > 0 && x.st.on !== 'low').sort((a, b) => b.n - a.n)[0] : undefined;
+        const st = !f.alive ? '' : [f.stunT > 0 ? 'stun' : '', f.silenceT > 0 ? 'silence' : '', f.shield > 1 ? 'shield' : '', f.tauntBy >= 0 ? 'taunt' : '', f.asBuffT > 0 ? 'fast' : '', top ? `stk:${TRAITS[top.t].name}:${top.n}` : ''].filter(Boolean).join(' ');
         if (st !== s.stKey) {
           s.stKey = st;
           const NAME: Record<string, string> = { stun: '기절', silence: '침묵', shield: '보호막', taunt: '도발됨', fast: '빨라짐' };
-          s.st.innerHTML = st ? st.split(' ').map((k) => `<b class="${k}">${NAME[k]}</b>`).join('') : '';
+          s.st.innerHTML = st ? st.split(' ').map((k) => k.startsWith('stk:') ? `<b class="stk">${k.split(':')[1]} ×${k.split(':')[2]}</b>` : `<b class="${k}">${NAME[k]}</b>`).join('') : '';
         }
         // The shield sits right after the health left (squeezing the bar when the two pass the maximum).
         const total = Math.max(f.maxHp, Math.max(0, f.hp) + f.shield);

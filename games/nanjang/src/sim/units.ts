@@ -11,8 +11,23 @@ export type Effect =
   | { k: 'double' | 'dodge' | 'ad' | 'as' | 'hp' | 'lifesteal' | 'skill' | 'resist' | 'mana' | 'regen' | 'ramp' | 'teamArmor'; v: number[] }
   | { k: 'crit'; v: number[]; leap: true };
 
+/**
+ * A trait's stacks: something that builds up during a fight (or, for 'round', from fight to fight).
+ *  on: what adds a stack. stat: what each stack gives (v is per stack, by step). max: the most stacks.
+ *  burst: at max, the stacks go off as extra magic damage on the target (v), then start again.
+ *  kin: each stack goes to every ally sharing the trait instead (mana).
+ *  low: once, when health first falls under half, a shield of v.
+ */
+export interface Stack {
+  on: 'attack' | 'hit' | 'cast' | 'kill' | 'dodge' | 'round' | 'low';
+  stat: 'ad' | 'as' | 'resist' | 'skill' | 'hp' | 'mana' | 'burst' | 'shield';
+  v: number[]; max: number; text: string;
+}
+
 export interface TraitDef {
   name: string; kind: 'origin' | 'class'; steps: number[]; text: string; levels: string[]; effect: Effect;
+  /** What builds up while it fights (see Stack). */
+  stack?: Stack;
   /** 사계절 요괴: the season (0 봄 .. 3 겨울) in which this trait counts double. */
   season?: number;
 }
@@ -36,7 +51,28 @@ export interface UnitDef {
   /** 정령 키우기: what it evolves into at two stars and at three (a new name and a change of look). */
   evo?: [Evolution, Evolution];
 }
-export interface Evolution { name: string; look: Partial<Look> }
+export interface Evolution { name: string; look: Partial<Look>;
+  /** What evolving adds to the skill (the last form keeps the one before too). */
+  up?: Up;
+  /** A trait the form gains, as some creatures gain a second type when they evolve. */
+  trait?: Trait }
+
+/** Skill upgrades an evolution brings. */
+export type Up = 'thorns' | 'share' | 'twin' | 'splash' | 'manaback' | 'drain' | 'haste' | 'execute' | 'chill' | 'rally';
+export const UP_TEXT: Record<Up, [string, string]> = {
+  thorns: ['가시', '기술을 쓴 뒤 5초 동안 받은 평타 피해의 30%를 되돌려줘요.'],
+  share: ['나눔', '체력이 가장 낮은 우리 편에게도 보호막을 씌워요.'],
+  twin: ['연쇄', '다른 적 하나에게 기술 피해의 60%를 한 번 더 줘요.'],
+  splash: ['튀김', '기술에 맞은 적 둘레의 적에게도 40% 피해를 줘요.'],
+  manaback: ['여운', '기술을 쓴 뒤 마나 30%를 돌려받아요.'],
+  drain: ['흡수', '기술 피해의 35%만큼 체력을 되찾아요.'],
+  haste: ['신바람', '기술을 쓴 뒤 5초 동안 공격 속도 +35%.'],
+  execute: ['마무리', '체력이 40%보다 적은 적에게 기술 피해 +50%.'],
+  chill: ['얼림', '기술에 맞은 적이 0.8초 동안 멈춰요.'],
+  rally: ['응원', '기술을 쓸 때마다 우리 편 모두 공격력 +8% (이번 싸움 동안 쌓여요).'],
+};
+/** The upgrades a piece's skill has at a number of stars. */
+export const upsAt = (d: UnitDef, star: number): Up[] => (d.evo ? d.evo.slice(0, Math.max(0, star - 1)).map((e) => e.up).filter((u): u is Up => !!u) : []);
 
 /** The name a piece goes by at a number of stars (its evolution, where it has one). */
 export const nameAt = (d: UnitDef, star: number) => (star >= 2 && d.evo ? d.evo[Math.min(3, star) - 2].name : d.name);
@@ -52,7 +88,9 @@ export function lookAt(d: UnitDef, star: number): Look {
 export interface Mods { ad?: number; as?: number; hp?: number; resist?: number; mana?: number; crit?: number; dodge?: number; skill?: number }
 export interface ItemDef { id: string; name: string; text: string; color: string; mods: Mods; base: boolean }
 
-export interface Palette { accent: string; deep: string; bg: string; table: string; frame: string; mine: [string, string]; theirs: [string, string]; line: string }
+export interface Palette { accent: string; deep: string; bg: string; table: string; frame: string; mine: [string, string]; theirs: [string, string]; line: string;
+  /** Around the board: a meadow with trees, flowers and clouds under a sky (else a plain room). */
+  scenery?: 'meadow'; sky?: string }
 
 export interface Theme {
   id: string; title: string; kicker: string; lede: string;
@@ -133,14 +171,20 @@ export function sellValue(id: string, star: number): number {
   return star === 1 ? c : c * 3 ** (star - 1) - (c > 1 ? 1 : 0);
 }
 
-/** Which steps of each trait a set of pieces reaches (counting each kind once). */
-export function traitCounts(ids: string[]): { trait: Trait; n: number; step: number }[] {
-  const seen = new Set<string>(), n: Record<Trait, number> = {};
-  for (const id of ids) {
-    if (seen.has(id)) continue;
-    seen.add(id);
-    for (const t of BY_ID[id].traits) n[t] = (n[t] ?? 0) + 1;
+/** A piece's traits at a number of stars: its own, plus any its evolutions gained. */
+export function traitsAt(d: UnitDef, star = 1): Trait[] {
+  const extra = d.evo ? d.evo.slice(0, Math.max(0, star - 1)).map((e) => e.trait).filter((t): t is Trait => !!t && !d.traits.includes(t)) : [];
+  return extra.length ? [...d.traits, ...extra] : d.traits;
+}
+
+/** Which steps of each trait a set of pieces reaches (counting each kind once, at its best-evolved copy). */
+export function traitCounts(pieces: (string | { id: string; star: number })[]): { trait: Trait; n: number; step: number }[] {
+  const best = new Map<string, number>(), n: Record<Trait, number> = {};
+  for (const p of pieces) {
+    const id = typeof p === 'string' ? p : p.id, star = typeof p === 'string' ? 1 : p.star;
+    best.set(id, Math.max(best.get(id) ?? 0, star));
   }
+  for (const [id, star] of best) for (const t of traitsAt(BY_ID[id], star)) n[t] = (n[t] ?? 0) + 1;
   return Object.keys(n).map((t) => {
     const k = n[t];
     let step = 0;

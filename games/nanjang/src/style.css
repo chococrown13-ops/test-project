@@ -591,3 +591,41 @@ body.dragging .zoom { opacity: 0.3; pointer-events: none; }
   .info .i-traits small { font-size: 11px; }
   .info .i-head .pic { width: 40px; height: 40px; }
 }
+
+/* Evolution upgrades on the info card. */
+.i-ups { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 3px; font-size: 12px; line-height: 1.4; }
+.i-ups li { opacity: 0.55; }
+.i-ups li.on { opacity: 1; }
+.i-ups li b { margin-right: 4px; }
+.i-ups .up { display: inline-block; padding: 0 6px; border-radius: 999px; background: #f2c14a; color: #3a2a10; font-weight: 700; font-size: 11px; }
+.i-ups .up.tr { background: #7fc4ea; color: #12324a; }
+.i-new { font-style: normal; color: #2f7ab8; font-weight: 700; }
+
+/* The drawn pictures leave room round the figure: show it bigger on the cards. */
+.card .c-img { transform: scale(1.32); transform-origin: 50% 88%; }
+
+/* A trait's stacks over a fighter's bars. */
+.plabel .status b.stk { background: #f2c14a; color: #3a2a10; }
+.tc-stack { margin: 6px 0 0; font-size: 12px; line-height: 1.45; }
+.tc-stack b { display: inline-block; padding: 0 6px; margin-right: 4px; border-radius: 999px; background: #f2c14a; color: #3a2a10; font-size: 11px; }
+
+/* Playing with friends. */
+.btn.friend { background: var(--lacquer, #3f7aa8); color: #fff; }
+.lobby { width: min(560px, 94vw); display: grid; gap: 12px; }
+.lobby-name { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.lobby input { font: inherit; padding: 8px 10px; border-radius: 10px; border: 1.5px solid #c8c0b0; background: #fffdf8; min-width: 0; flex: 1; }
+#joinCode { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700; max-width: 150px; }
+.lobby-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 640px) { .lobby-pick { grid-template-columns: 1fr; } }
+.lobby-box { background: #fff8ea; border-radius: 14px; padding: 12px; display: grid; gap: 6px; }
+.lobby-box p { margin: 0; font-size: 13px; color: #5a4a3a; }
+.lobby-room { text-align: center; display: grid; gap: 6px; }
+.room-code-label { margin: 0; font-size: 13px; color: #5a4a3a; }
+.room-code { margin: 0; font-size: 44px; font-weight: 800; letter-spacing: 0.25em; color: #c9553f; user-select: all; }
+.room-theme { margin: 0; font-size: 14px; }
+.room-seats { list-style: none; margin: 4px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+.room-seats li { padding: 8px; border-radius: 10px; background: #efe8da; color: #8a7a68; font-size: 13px; }
+.room-seats li.on { background: #dff0d0; color: #1f3320; font-weight: 700; }
+.room-seats em { font-style: normal; font-size: 11px; padding: 0 5px; border-radius: 999px; background: #f2c14a; color: #3a2a10; margin-left: 2px; }
+.room-wait, .lobby-status { margin: 0; font-size: 13px; color: #5a4a3a; text-align: center; min-height: 1em; }
+.pl-friend { font-style: normal; font-size: 10px; padding: 0 4px; border-radius: 999px; background: #7fc4ea; color: #12324a; }

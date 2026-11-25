@@ -306,6 +306,50 @@ function rawParts(b: Building, w: World): Part[] {
       P('box', -2.5, 0, -4.2, 2.4, 1.6, 1.4, '#e6e1d6');
       break;
     }
+    case 'hospital': {
+      // 종합병원: a tall white ward block with a green cross, a lower wing, and an ambulance bay in front.
+      P('box', 0, 0, 2.5, 15, 24, 9, '#f2f4f4', STYLE.apt, 0, '#2fa35a');
+      P('box', -3, 0, -4, 9, 8, 5, '#e6ebeb', STYLE.office);
+      P('box', 0, 24, 2.5, 4.4, 0.6, 1.4, '#2fa35a');
+      P('box', 0, 24, 2.5, 1.4, 0.6, 4.4, '#2fa35a');
+      P('box', -3, 8, -4, 9.6, 0.4, 5.6, '#2fa35a');
+      P('box', 5, 0, -7, 6, 0.1, 4, '#8a8d91');
+      P('box', 5, 0.1, -7, 3.6, 2.2, 1.8, '#ffffff');
+      P('box', 5, 2.3, -7, 1.2, 0.4, 0.6, '#d9473b');
+      P('cyl', 4.5, 24, 5.5, 3.2, 0.3, 3.2, '#c9ced4');
+      break;
+    }
+    case 'medlab': {
+      // 바이오메디컬 연구소: a glass lab with a curved roof, a DNA-helix sculpture out front.
+      P('box', 0, 0, 2, 16, 12, 10, '#9fc8d8', STYLE.office);
+      P('cyl', 0, 12, 2, 15, 1.6, 9, '#e7ebee');
+      P('box', -5, 0, -5, 5, 6, 4, '#e8eef2', STYLE.office);
+      for (let k = 0; k < 6; k++) { const a = k * 1.05; P('box', 4 + Math.cos(a) * 0.8, k * 1.1, -6 + Math.sin(a) * 0.8, 0.5, 0.5, 0.5, k % 2 ? '#4fb3d9' : '#f29bb8'); }
+      P('cyl', 4, 0, -6, 0.15, 6.6, 0.15, '#d8dde2');
+      break;
+    }
+    case 'university': {
+      // 대학교: a stone main hall with a clock tower, two wings, and a green quad.
+      P('box', 0, 0, 8, 26, 9, 8, '#d8cdb8', STYLE.house);
+      P('gable', 0, 9, 8, 26.6, 3, 8.6, '#7a4a3a');
+      P('box', 0, 0, 7, 5, 22, 5, '#d0c4ac', STYLE.house);
+      P('box', 0, 17, 4.4, 2.4, 2.4, 0.2, '#f4f1ea');
+      P('gable', 0, 22, 7, 5.4, 4, 5.4, '#7a4a3a');
+      for (const sx of [-10, 10]) { P('box', sx, 0, -3, 6, 7, 14, '#ddd3c0', STYLE.house); P('gable', sx, 7, -3, 6.6, 2.4, 14.6, '#7a4a3a'); }
+      P('box', 0, 0, -6, 12, 0.1, 10, '#7fae55');
+      for (const tx of [-4, 4]) { P('box', tx, 0, -9, 0.3, 1.6, 0.3, '#6b5440'); P('tree', tx, 1.3, -9, 3, 3, 3, '#5e8f45'); }
+      break;
+    }
+    case 'techpark': {
+      // 테크노밸리: two glass towers on a podium, linked by a sky bridge, a rooftop antenna.
+      P('box', 0, 0, 0, 18, 5, 16, '#cfd6dc', STYLE.office);
+      P('box', -4.5, 5, 2.5, 7, 30, 7, '#6fa3c8', STYLE.office);
+      P('box', 4.5, 5, -2.5, 7, 22, 7, '#8ab8d6', STYLE.office);
+      P('box', 0, 20, 0, 3, 2, 2, '#e7ebee', STYLE.office);
+      P('cyl', -4.5, 35, 2.5, 0.25, 7, 0.25, '#d8dde2');
+      P('box', 0, 5.2, -7.6, 8, 1, 0.3, '#2f6db3', STYLE.sign);
+      break;
+    }
     case 'library': {
       // 공공도서관: a long low hall with a glass reading room, a sloping roof, and a reading garden.
       P('box', 0, 0, 2.5, 17, 7, 11, '#d9cdb5', STYLE.house);

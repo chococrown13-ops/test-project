@@ -4,6 +4,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { CELL, N, type BuildingKind } from '../sim/defs';
 import { NN } from '../sim/graph';
 import { calendarMonth, DAY_SECONDS, type Sim } from '../sim/sim';
@@ -48,6 +49,7 @@ export class CityScene {
   private atmo = new Atmosphere();
   private composer: EffectComposer;
   private bloom: UnrealBloomPass;
+  private grade: ShaderPass;
   private stylize: StylizePass;
   quality: Quality = 'high';
   style: ArtStyle = 'lowpoly';
@@ -94,6 +96,24 @@ export class CityScene {
     this.bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0, 0.35, 0.9);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
+    // A gentle grade after tone mapping: a little more colour and contrast, the corners a touch darker.
+    this.grade = new ShaderPass({
+      uniforms: { tDiffuse: { value: null }, uSat: { value: 1.05 }, uContrast: { value: 1.08 }, uVignette: { value: 0.22 } },
+      vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform sampler2D tDiffuse; uniform float uSat; uniform float uContrast; uniform float uVignette; varying vec2 vUv;
+        void main() {
+          vec4 c = texture2D(tDiffuse, vUv);
+          float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+          vec3 col = mix(vec3(l), c.rgb, uSat);
+          col = (col - 0.5) * uContrast + 0.5;
+          // A touch warmer, like late-afternoon light on a model city.
+          col *= vec3(1.025, 1.0, 0.965);
+          vec2 d = vUv - 0.5;
+          col *= 1.0 - uVignette * smoothstep(0.35, 0.85, length(d * vec2(1.25, 1.0)));
+          gl_FragColor = vec4(clamp(col, 0.0, 1.0), c.a);
+        }`,
+    });
+    this.composer.addPass(this.grade);
   }
 
   /** High: full pixel ratio, sharp shadows, clouds and night bloom. Normal: lighter for phones. */

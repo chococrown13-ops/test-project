@@ -63,6 +63,7 @@ export const CATEGORIES: Category[] = [
     fac('bike'), fac('terminal'), fac('ktx'),
   ] },
   { id: 'park', name: '공원', key: 'M', tools: [fac('park'), fac('riverpark')] },
+  { id: 'special', name: '특화', key: 'K', tools: [fac('hospital'), fac('medlab'), fac('university'), fac('techpark')] },
   { id: 'landmark', name: '명소', key: 'L', tools: [fac('market'), fac('palace'), fac('tower'), fac('trailhead'), fac('jjim')] },
   { id: 'bulldoze', name: '철거', key: 'Delete', tools: [{ id: 'bulldoze', name: '철거', price: '' }] },
 ];

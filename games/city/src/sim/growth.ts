@@ -1,4 +1,5 @@
 import { Ground, KINDS, LANDMARK, N, SERVICE, Zone, type BuildingKind } from './defs';
+import { specDemand, specHappy } from './special';
 import { findAccess, network, occRatio, reachesOutside } from './network';
 import { addBuilding, demolish, footprint } from './tools';
 import { transitLandBonus } from './transit';
@@ -141,9 +142,10 @@ export function updateDemand(w: World) {
   const C = ((pop * 0.22 - capC) / Math.max(25, pop * 0.22)) * 85 + taxAdj(w.tax.C) + Math.min(20, early) + hubDemand(w);
   const I = ((workers * 0.55 - capI) / Math.max(25, workers * 0.55)) * 85 + taxAdj(w.tax.I) + Math.min(25, early);
   const ease = (o: number, n: number) => o + (clamp(n, -100, 100) - o) * 0.25;
-  w.demand.R = ease(w.demand.R, R);
-  w.demand.C = ease(w.demand.C, C);
-  w.demand.I = ease(w.demand.I, I);
+  const sp = specDemand(w);
+  w.demand.R = ease(w.demand.R, R + sp.R);
+  w.demand.C = ease(w.demand.C, C + sp.C);
+  w.demand.I = ease(w.demand.I, I + sp.I);
   s.workers = workers;
   s.jobs = jobsCap;
   s.employed = jobsC + jobsI;
@@ -307,6 +309,7 @@ export function updateBuildings(w: World) {
       h += w.safety[i] ? 4 : -2;
       h += w.health[i] ? 4 : -2;
       h += w.fire[i] ? 2 : -1;
+      h += specHappy(w);
       h += w.transit[i] === 2 ? 4 : w.transit[i] ? 2 : 0;
       h -= Math.max(0, s.commute - 35) * 0.6;
     }
