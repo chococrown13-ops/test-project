@@ -70,7 +70,25 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       PROJECT: test-project-games
     steps:
-      - uses: actions/download-artifact@v4
+      # The build's artifact can take a few seconds to show up after the build job
+      # uploads it, so wait a moment, and if it still isn't there, wait and try once more.
+      - name: Give the uploaded build a moment
+        run: sleep 10
+
+      - name: Download the build
+        id: dl
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+
+      - name: Wait before trying again
+        if: steps.dl.outcome == 'failure'
+        run: sleep 30
+
+      - name: Download the build (second try)
+        if: steps.dl.outcome == 'failure'
+        uses: actions/download-artifact@v4
         with:
           name: github-pages
 
