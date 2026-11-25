@@ -434,7 +434,7 @@ export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: sticker ? 0.08 : 0.5 }));
     // Dishes are wide: draw them smaller so they stay inside their square.
     const dish = !!L.shape && L.shape !== 'figure' && !CREATURES.includes(L.shape);
-    const k = (dish ? 0.8 : 1.15) * (sticker ? 1.2 : 1);
+    const k = (dish ? 0.8 : 1.15) * (sticker ? 1.08 : 1);
     sp.scale.set(enemy ? -k : k, k, 1);
     sp.position.y = k * 0.45;
     // A sticker knows where its feet are in the picture: stand them on the token.
