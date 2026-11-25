@@ -321,7 +321,7 @@ export class Table {
     const ar = w / free;
     // Short, wide bands (a phone on its side) look along the table more, so the long board fills the width.
     // A low look along the board, as in the usual auto-battlers (steeper only on tall screens, where it must fit).
-    const dir = (ar < 0.85 ? new THREE.Vector3(0, 0.88, 0.47) : ar > 2.2 ? new THREE.Vector3(0, 0.56, 0.83) : new THREE.Vector3(0, 0.66, 0.75)).normalize();
+    const dir = (ar < 0.85 ? new THREE.Vector3(0, 0.9, 0.43) : ar > 2.2 ? new THREE.Vector3(0, 0.6, 0.8) : new THREE.Vector3(0, 0.73, 0.68)).normalize();
     const look = new THREE.Vector3(0, 0, 0.8);
     this.camera.zoom = 1;
     const place = (d: number) => { this.camera.position.copy(look).addScaledVector(dir, d); this.camera.lookAt(look); this.camera.updateProjectionMatrix(); this.camera.updateMatrixWorld(); };
