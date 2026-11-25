@@ -431,7 +431,7 @@ const dudeoji: Draw = (a, s) => {
   if (s === 2) {
     // Work overalls and a pickaxe over the shoulder.
     a.part('M60 170 C62 200 80 214 100 214 C120 214 138 200 140 170Z', '#4a7ab8', '#2f5a8a', { lw: 2.2 });
-    for (const sd of [-1, 1]) a.part(`M${100 + sd * 22} 172 L${100 + sd * 34} 118 L${100 + sd * 42} 120 L${100 + sd * 30} 172Z`, '#4a7ab8', null, { lw: 2 });
+    for (const sd of [-1, 1]) a.part(`M${100 + sd * 22} 172 L${100 + sd * 40} 146 L${100 + sd * 48} 150 L${100 + sd * 30} 172Z`, '#4a7ab8', null, { lw: 2 });
     a.part('M90 180 L110 180 L110 194 L90 194Z', '#2f5a8a', null, { lw: 1.8 });
     // A pickaxe over the shoulder.
     a.part('M150 150 L188 70 L196 74 L158 154Z', '#a8763a', true, { lw: 2.2 });
@@ -440,8 +440,8 @@ const dudeoji: Draw = (a, s) => {
   if (s === 3) for (const sd of [-1, 1]) a.part(`M${100 + sd * 30} 112 L${100 + sd * 58} 98 L${100 + sd * 66} 120 L${100 + sd * 42} 130Z`, '#8a8478', '#5a564e');
   const hy = 136;
   if (s === 2) {
-    a.part(`M58 ${hy - 18} C56 ${hy - 70} 144 ${hy - 70} 142 ${hy - 18} L156 ${hy - 10} L44 ${hy - 10}Z`, '#f2c14a', '#d89a1a');
-    a.part(E(100, hy - 44, 12, 10), '#fff6c8', null, { lw: 2 });
+    a.part(`M60 ${hy - 40} C58 ${hy - 90} 142 ${hy - 90} 140 ${hy - 40} L156 ${hy - 31} L44 ${hy - 31}Z`, '#f2c14a', '#d89a1a');
+    a.part(E(100, hy - 62, 11, 9), '#fff6c8', null, { lw: 2 });
   }
   if (s === 3) a.part(`M80 ${hy - 26} L100 ${hy - 96} L120 ${hy - 26}Z`, '#c8ccd4', '#8a909c');
   if (s === 3) for (const k of [0, 1, 2]) a.stroke(`M${86 + k * 4} ${hy - 40 - k * 18} L${114 - k * 4} ${hy - 48 - k * 18}`, 2.2);
