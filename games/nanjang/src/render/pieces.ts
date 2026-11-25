@@ -434,14 +434,14 @@ export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: sticker ? 0.08 : 0.5 }));
     // Dishes are wide: draw them smaller so they stay inside their square.
     const dish = !!L.shape && L.shape !== 'figure' && !CREATURES.includes(L.shape);
-    const k = (dish ? 0.8 : 1.15) * (sticker ? 1.36 : 1);
+    const k = (dish ? 0.8 : 1.15) * (sticker ? 1.08 : 1);
     sp.scale.set(enemy ? -k : k, k, 1);
     sp.position.y = k * 0.45;
     // A sticker knows where its feet are in the picture: stand them on the token.
     if (typeof tex.userData.foot === 'number') { sp.center.set(0.5, tex.userData.foot); sp.position.y = 0.01; }
     fig.add(sp);
     // A soft round shadow, since sprites cast none.
-    const blob = new THREE.Mesh(new THREE.CircleGeometry(0.3, 20), new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.22, depthWrite: false }));
+    const blob = new THREE.Mesh(new THREE.CircleGeometry(0.34, 24), new THREE.MeshBasicMaterial({ color: '#1a1410', transparent: true, opacity: 0.32, depthWrite: false }));
     blob.rotation.x = -Math.PI / 2; blob.position.y = 0.012; fig.add(blob);
   }
 
