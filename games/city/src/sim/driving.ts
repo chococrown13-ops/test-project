@@ -33,8 +33,8 @@ const T = 0.28, S0 = 1.8;
 const SQ = 2 * Math.sqrt(A * B);
 /** Car, bus, truck, scooter: metres long. */
 export const LENGTH = [4.3, 10.5, 5.0, 1.8];
-/** Seconds after green that turning cars wait for walkers. */
-const PED = 1;
+/** Seconds after green that turning cars wait for walkers (render/people.ts: they step out within 1 s and hurry across). */
+const PED = 2;
 /** Seconds at the line before a car stops giving way to cars arriving at the same time. */
 const YIELD_WAIT = 6;
 /** Seconds without moving before a car squeezes past, and how long that lasts. */

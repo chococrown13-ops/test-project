@@ -3,7 +3,10 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { CELL, KINDS, N, Zone } from '../sim/defs';
 import { HALF_WIDTH, KERB_W } from '../sim/curves';
 import { forEachNeighbour, NN } from '../sim/graph';
-import { axisOf, Light, lightFor, signalCells } from '../sim/signals';
+import { axisOf, greenAge, Light, lightFor, signalCells } from '../sim/signals';
+
+/** Walkers step out onto a crossing only this soon after the green man comes on (seconds), and cross this much faster. */
+const START = 1, HURRY = 2;
 import type { World } from '../sim/world';
 import { nodeCentre } from './roadheight';
 import { laneAt } from './lanepath';
@@ -20,7 +23,8 @@ const MAX = 900;
 const WALK = 3.2;
 const SW = 0.32;
 
-interface Walker { path: number[]; i: number; t: number; side: number; speed: number; look: number }
+/** `hurry`: out on a crossing, walking briskly to be off it before the turning cars go. */
+interface Walker { path: number[]; i: number; t: number; side: number; speed: number; look: number; hurry?: boolean }
 
 const SHIRTS = ['#d9473b', '#2f6db3', '#f2f2f0', '#1b1c1e', '#e2a92b', '#3d9a62', '#8e9599', '#c2457e', '#5b4232', '#7cc6fe'];
 
@@ -113,7 +117,9 @@ export class PeopleLayer {
     // Distance left to the junction's middle; stop just before stepping onto the crossing.
     const left = (1 - wk.t) * L, kerb = HALF_WIDTH[st] + 2.9;
     if (left > kerb + 1.2 || left < kerb - 0.3) return false;
-    return lightFor(axisOf(pa, pc), clock) !== Light.Green;
+    // Not once the green man has been on a while: the turning cars go soon (sim/driving.ts waits 2 s for walkers).
+    const ax = axisOf(pa, pc);
+    return lightFor(ax, clock) !== Light.Green || greenAge(ax, clock) > START;
   }
 
   update(w: World, dt: number, pace: number, night: number, camDist: number, clock = 0) {
@@ -135,7 +141,7 @@ export class PeopleLayer {
       // At a junction with lights, wait at the kerb for the green man before crossing the side street
       // (walkers along a street cross with the traffic going their way, while the side street has red).
       const hold = this.mustWait(w, wk, clock, L);
-      if (!hold) wk.t += (dt * pace * wk.speed) / L;
+      if (!hold) wk.t += (dt * pace * wk.speed * (wk.hurry ? HURRY : 1)) / L;
       if (wk.t >= 1) {
         wk.t -= 1; wk.i++;
         if (wk.i >= wk.path.length - 1) { const fresh = this.spawn(w); if (fresh) this.walkers[k] = fresh; else wk.i = 0; continue; }
@@ -145,6 +151,7 @@ export class PeopleLayer {
       const t = (w.road[cell] || 1) as 1 | 2;
       let off = wk.side * (HALF_WIDTH[t] + KERB_W[t] * 0.5) + (wk.look - 0.5) * 0.5;
       // Going straight past a side street: step out to its zebra (painted just beyond the junction's edge) to cross.
+      wk.hurry = false;
       const j = Math.round(wk.i + wk.t);
       if (j > 0 && j < wk.path.length - 1) {
         const pa = wk.path[j - 1], pc = wk.path[j], pb = wk.path[j + 1];
@@ -158,6 +165,7 @@ export class PeopleLayer {
             const dist = Math.abs(wk.i + wk.t - j) * CELL;
             const k = Math.max(0, Math.min(1, (HALF_WIDTH[st] + 2.5 - dist) / 2));
             off += Math.sign(off) * (zebra - Math.abs(off)) * k;
+            wk.hurry = k > 0 && !!signalCells(w)[pc];
           }
         }
       }
