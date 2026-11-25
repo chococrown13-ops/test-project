@@ -139,8 +139,8 @@ export const ZONE_NAME = ['', '주거', '상업', '산업'] as const;
 export const VARIANTS: Partial<Record<BuildingKind, string[]>> = {
   // The variant decides the model too (render/buildings.ts), so the name always matches the look.
   r1: ['단독주택', '양옥집', '한옥', '작은 빌라', '작은 빌라'],
-  r2: ['빌라', '다세대 주택', '저층 아파트', '저층 아파트'],
-  r3: ['아파트 단지', '아파트 단지', '주상복합'],
+  r2: ['빌라', '다세대 주택', '저층 아파트', '저층 아파트', '필로티 빌라', '필로티 아파트'],
+  r3: ['아파트 단지', '아파트 단지', '주상복합', '필로티 아파트 단지'],
   c1: ['편의점', '치킨집', '카페', 'PC방', '노래방', '부동산', '분식집'],
   c2: ['근린생활 빌딩', '학원 빌딩', '병원 빌딩', '교회가 있는 빌딩'],
   c3: ['오피스 타워', '오피스 타워', '대형마트'],
