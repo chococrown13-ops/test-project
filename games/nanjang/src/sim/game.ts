@@ -499,7 +499,7 @@ export function arrange(g: Game, p: Player) {
 
 /* ------------------------------------------------------------- helpers */
 
-export function boardTraits(p: Player) { return traitCounts(p.board.map((u) => u.id)); }
+export function boardTraits(p: Player) { return traitCounts(p.board.map((u) => ({ id: u.id, star: u.star }))); }
 
 /** Every copy of every piece, wherever it is: the pool plus all hands and shops. Should never change. */
 export function census(g: Game): Record<string, number> {

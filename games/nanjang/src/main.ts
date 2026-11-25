@@ -7,7 +7,7 @@ import {
   autoFill, boardCap, boardTraits, buy, buyXp, clearSave, equip, findPiece, interest, isCreepRound, ITEM_SLOTS, load, type Match, move, newGame,
   nextRound, owned, type Game, type Player, playRound, reroll, roundName, save, sell, settleRound,
 } from './sim/game';
-import { BY_ID, itemDef, nameAt, ODDS, SKILL_MUL, STAR_MUL, UNITS, sellValue, theme, type Theme, TIER_COST, TRAITS, type Trait, XP_NEXT } from './sim/units';
+import { BY_ID, itemDef, nameAt, traitsAt, UP_TEXT, ODDS, SKILL_MUL, STAR_MUL, UNITS, sellValue, theme, type Theme, TIER_COST, TRAITS, type Trait, XP_NEXT } from './sim/units';
 import { Bgm } from './audio/bgm';
 import { addRecord, records, type GameRecord } from './records';
 import { THEMES, themeById, useTheme } from './themes';
@@ -196,7 +196,7 @@ function showInfo(id: string, star: number, at: { x: number; y: number } | null,
     <div class="i-head" style="--tier:${TIER_COLOR[d.tier]}">${pic(id, 'pic', star)}<div><b>${name}</b><span class="stars s${star}">${'★'.repeat(star)}</span>${live ? `<span class="i-side ${live.side === (flipView ? 1 : 0) ? 'mine' : 'theirs'}">${live.side === (flipView ? 1 : 0) ? '우리 편' : '상대 편'}</span>` : ''}</div><span class="i-cost">${creep ? theme().creepName : `${TIER_COST[d.tier]}냥`}</span>${uid !== undefined && (mode === 'prep' || (mode === 'fight' && !!me().bench.find((u) => u?.uid === uid))) ? `<button class="btn small sell" data-sell="${uid}">팔기 +${sellValue(id, star)}냥</button>` : ''}</div>
     ${d.evo ? `<div class="i-evo">${[d.name, d.evo[0].name, d.evo[1].name].map((n, i) => `<span class="${i + 1 === star ? 'on' : ''}">${n}</span>`).join('<i>›</i>')}</div>` : ''}
     ${live ? `<div class="i-live"><span>체력 <b class="num">${Math.max(0, Math.round(live.hp))}</b>/${Math.round(live.maxHp)}</span>${live.shield > 1 ? `<span>보호막 <b class="num">${Math.round(live.shield)}</b></span>` : ''}<span>마나 <b class="num">${Math.round(live.mana)}</b>/${live.maxMana > 500 ? '-' : live.maxMana}</span><span>준 피해 <b class="num">${Math.round(live.dealt)}</b></span>${live.alive ? '' : '<span class="dead">쓰러짐</span>'}</div>` : ''}
-    <div class="i-traits">${d.traits.map((t) => `<span class="chip ${TRAITS[t].kind}">${TRAITS[t].name}</span><small>${TRAITS[t].text}</small>`).join('')}</div>
+    <div class="i-traits">${traitsAt(d, star).map((t) => `<span class="chip ${TRAITS[t].kind}">${TRAITS[t].name}</span><small>${TRAITS[t].text}${d.traits.includes(t) ? '' : ' <em class="i-new">진화로 얻음</em>'}</small>`).join('')}</div>
     <dl class="i-stats">
       ${stat('체력', `${Math.round(hp)}`, '', !!f && Math.round(hp) > Math.round(d.hp * m))}
       ${stat('공격력', `${Math.round(ad)}`, '평타 한 번의 물리 피해', !!f && Math.round(ad) > Math.round(d.ad * m))}
@@ -211,6 +211,10 @@ function showInfo(id: string, star: number, at: { x: number; y: number } | null,
       ${extra.join('')}
     </dl>
     ${creep ? '' : `<p class="i-skill"><b>기술</b> ${d.skillText}${nums ? `<span class="i-nums">${nums}</span>` : ''}${!f && !live ? `<small>별 둘이면 ×${SKILL_MUL[2]}, 별 셋이면 ×${SKILL_MUL[3]}</small>` : ''}</p>`}
+    ${d.evo ? `<ul class="i-ups">${d.evo.map((e, i) => {
+      const have = star >= i + 2, u = e.up ? UP_TEXT[e.up] : null;
+      return `<li class="${have ? 'on' : ''}"><b>${e.name}</b>${u ? ` <span class="up">${u[0]}</span> ${u[1]}` : ''}${e.trait ? ` <span class="up tr">+${TRAITS[e.trait].name}</span> 특성을 얻어요.` : ''}</li>`;
+    }).join('')}</ul>` : ''}
     ${(() => { const its = live ? live.items : uid !== undefined && g ? findPiece(me(), uid)?.items ?? [] : []; return its.length ? `<div class="i-items">${its.map((i) => { const it = itemDef(i); return `<span><i style="--c:${it.color}"></i><b>${it.name}</b> ${it.text}</span>`; }).join('')}</div>` : ''; })()}
 `;
   el.hidden = false;

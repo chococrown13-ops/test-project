@@ -1,6 +1,6 @@
 import { blocks, BUSH, COLS, HALF, ICE, MUD, ROWS, terrain } from './arena';
 import { Rng } from './rng';
-import { BY_ID, itemDef, SKILL_MUL, STAR_MUL, TRAITS, traitCounts, type Trait, type UnitDef } from './units';
+import { BY_ID, itemDef, SKILL_MUL, STAR_MUL, TRAITS, traitCounts, traitsAt, type Trait, type UnitDef, type Up, upsAt } from './units';
 
 /**
  * The fight: two teams on a 12 x 8 board, fought out in steps of a tenth of a
@@ -28,6 +28,8 @@ export interface Fighter {
   alive: boolean;
   dodge: number; double: number; lifesteal: number; crit: number; leap: boolean; skillMul: number; manaRegen: number; regen: number; ramp: number;
   dealt: number;
+  /** Skill upgrades from evolving, and the thorns one leaves on (reflect share, seconds left). */
+  ups: Up[]; thorns: number; thornsT: number;
   /** About to step into mud (it waits a moment first). */
   wade?: boolean;
 }
@@ -45,7 +47,9 @@ export type Ev =
   | { k: 'silence'; b: number; t: number }
   | { k: 'die'; a: number };
 
-export interface Combat { t: number; f: Fighter[]; grid: Int16Array; rng: Rng; over: boolean; winner: 0 | 1 | -1; arena: string; season: number }
+export interface Combat { t: number; f: Fighter[]; grid: Int16Array; rng: Rng; over: boolean; winner: 0 | 1 | -1; arena: string; season: number;
+  /** While a skill is going off: who it hit and how hard (for the evolution upgrades). */
+  casting?: { by: Fighter; hits: { f: Fighter; v: number }[] } }
 
 const cheb = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 const cell = (x: number, y: number) => y * COLS + x;
@@ -60,7 +64,7 @@ export function setup(a: Placed[], b: Placed[], seed: number, ctx: Ctx = {}): Co
   const c: Combat = { t: 0, f: [], grid: new Int16Array(COLS * ROWS).fill(-1), rng: new Rng(seed), over: false, winner: -1, arena: ctx.arena ?? 'yard', season: ctx.season ?? -1 };
   ([a, b] as Placed[][]).forEach((team, s) => {
     const side = s as 0 | 1;
-    const tr = traitCounts(team.map((p) => p.id));
+    const tr = traitCounts(team.map((p) => ({ id: p.id, star: p.star })));
     const val = (t: Trait, step: number) => {
       const d = TRAITS[t];
       return d.effect.v[step - 1] * (d.season !== undefined && d.season === c.season ? 2 : 1);
@@ -78,9 +82,10 @@ export function setup(a: Placed[], b: Placed[], seed: number, ctx: Ctx = {}): Co
         mana: def.manaStart, maxMana: def.mana,
         shield: 0, shieldT: 0, stunT: 0, silenceT: 0, atkT: 0.2, moveT: 0, target: -1, tauntBy: -1, tauntT: 0, asBuff: 0, asBuffT: 0,
         alive: true, dodge: 0, double: 0, lifesteal: 0, crit: 0, leap: false, skillMul: SKILL_MUL[p.star], manaRegen: 0, regen: 0, ramp: 0, dealt: 0,
+        ups: upsAt(def, p.star), thorns: 0, thornsT: 0,
       };
       let adK = 1, asK = 1, hpK = 1;
-      for (const t of def.traits) {
+      for (const t of traitsAt(def, p.star)) {
         const step = tr.find((q) => q.trait === t)?.step ?? 0;
         if (!step) continue;
         const e = TRAITS[t].effect, v = val(t, step);
@@ -152,6 +157,8 @@ function place(c: Combat, f: Fighter, x: number, y: number) {
 
 function deal(c: Combat, ev: Ev[], src: Fighter, dst: Fighter, amount: number, magic: boolean, crit = false): number {
   if (!dst.alive) return 0;
+  const sk = c.casting?.by === src ? c.casting : null;
+  if (sk && src.ups.includes('execute') && dst.hp < dst.maxHp * 0.4) amount *= 1.5;
   let v = amount * (100 / (100 + Math.max(0, magic ? dst.mr : dst.armor)));
   if (dst.shield > 0) { const s = Math.min(dst.shield, v); dst.shield -= s; v -= s; }
   const done = Math.min(dst.hp, v);
@@ -160,6 +167,7 @@ function deal(c: Combat, ev: Ev[], src: Fighter, dst: Fighter, amount: number, m
   dst.mana = Math.min(dst.maxMana, dst.mana + Math.min(12, 2 + v * 0.03));
   ev.push({ k: 'hit', a: src.key, b: dst.key, v: Math.round(amount * (100 / (100 + Math.max(0, magic ? dst.mr : dst.armor)))), magic, crit });
   if (src.lifesteal && done > 0) heal(c, ev, src, src, done * src.lifesteal, false);
+  if (sk) sk.hits.push({ f: dst, v: amount });
   if (dst.hp <= 0) kill(c, ev, dst);
   return done;
 }
@@ -245,6 +253,47 @@ export function skillNumbers(skill: string, mul: number, star: number): string {
 }
 
 function cast(c: Combat, ev: Ev[], f: Fighter, t: Fighter) {
+  c.casting = { by: f, hits: [] };
+  castSkill(c, ev, f, t);
+  const hits = c.casting.hits;
+  c.casting = undefined;
+  if (f.ups.length) upgrades(c, ev, f, t, hits);
+}
+
+/** What an evolved piece's skill does on top: the upgrades of its forms. */
+function upgrades(c: Combat, ev: Ev[], f: Fighter, t: Fighter, hits: { f: Fighter; v: number }[]) {
+  const total = hits.reduce((a, h) => a + h.v, 0);
+  const hit = new Set(hits.map((h) => h.f.key));
+  for (const u of f.ups) switch (u) {
+    case 'thorns': f.thorns = 0.3; f.thornsT = 5; break;
+    case 'share': {
+      const v = friends(c, f).filter((o) => o !== f).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp || a.key - b.key)[0];
+      if (v) shield(ev, f, v, 200 * f.skillMul, 4);
+      break;
+    }
+    case 'twin': {
+      if (!total) break;
+      const from = hits[0]?.f ?? t;
+      const o = foes(c, f).filter((x) => !hit.has(x.key)).sort((a, b) => cheb(a, from) - cheb(b, from) || a.key - b.key)[0];
+      if (o) { ev.push({ k: 'cast', a: f.key, skill: f.def.skill, b: o.key }); deal(c, ev, f, o, Math.max(...hits.map((h) => h.v)) * 0.6, true); }
+      break;
+    }
+    case 'splash': {
+      const near = new Set<Fighter>();
+      for (const h of hits) for (const o of around(c, h.f.x, h.f.y, 1, f.side)) if (!hit.has(o.key)) near.add(o);
+      for (const o of near) deal(c, ev, f, o, (total / Math.max(1, hits.length)) * 0.4, true);
+      break;
+    }
+    case 'manaback': f.mana = Math.max(f.mana, f.maxMana * 0.3); break;
+    case 'drain': if (total) heal(c, ev, f, f, total * 0.35); break;
+    case 'haste': f.asBuff = Math.max(f.asBuff, 0.35); f.asBuffT = Math.max(f.asBuffT, 5); break;
+    case 'chill': for (const h of hits) if (h.f.alive) stun(ev, h.f, 0.8); break;
+    case 'rally': for (const o of friends(c, f)) o.ad *= 1.08; break;
+    case 'execute': break; // applied as the skill lands (see deal)
+  }
+}
+
+function castSkill(c: Combat, ev: Ev[], f: Fighter, t: Fighter) {
   const s = f.skillMul;
   const lowestFoe = () => foes(c, f).sort((a, b) => a.hp - b.hp || a.key - b.key)[0];
   const lowestFriend = () => friends(c, f).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp || a.key - b.key)[0];
@@ -391,6 +440,7 @@ export function step(c: Combat): Ev[] {
     if (f.shieldT > 0 && (f.shieldT -= DT) <= 0) f.shield = 0;
     if (f.tauntT > 0 && (f.tauntT -= DT) <= 0) f.tauntBy = -1;
     if (f.asBuffT > 0 && (f.asBuffT -= DT) <= 0) f.asBuff = 0;
+    if (f.thornsT > 0 && (f.thornsT -= DT) <= 0) f.thorns = 0;
     if (f.manaRegen) f.mana = Math.min(f.maxMana, f.mana + f.manaRegen * DT);
     if (f.regen) f.hp = Math.min(f.maxHp, f.hp + f.maxHp * f.regen * DT);
     if (f.ramp) f.ad *= 1 + f.ramp * DT / 2;
@@ -414,7 +464,8 @@ export function step(c: Combat): Ev[] {
         const dodge = t.dodge + (terrain(c.arena, t.x, t.y) === BUSH ? 0.2 : 0);
         if (dodge && c.rng.next() < dodge) { ev.push({ k: 'miss', a: f.key, b: t.key }); continue; }
         const crit = f.crit > 0 && c.rng.next() < f.crit;
-        deal(c, ev, f, t, f.ad * (crit ? 2 : 1), false, crit);
+        const done = deal(c, ev, f, t, f.ad * (crit ? 2 : 1), false, crit);
+        if (t.thorns && done > 0 && f.alive) deal(c, ev, t, f, done * t.thorns, true);
       }
       f.mana = Math.min(f.maxMana, f.mana + 10);
     } else {
