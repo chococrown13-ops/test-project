@@ -861,6 +861,48 @@ function complex(b: Building): Part[] {
       for (const [a, c] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) Q('box', mu + a * 1.1, v - 0.3 + c * 1.1, 0.5, 0.18, 1.9, 0.18, '#7a3b2e');
     }
   };
+  // 대단지 (a plot of six cells or more): the cars go underground, so where a smaller 단지 has its
+  // surface car park there are gardens and the 부대시설 instead, by turns: the 커뮤니티센터
+  // (gym, 독서실, 경로당), a 분수 광장, an 어린이집, a lawn with 운동기구. Vents from the car park
+  // below stand in the lawns, and the ramp down is by the gate.
+  const big = bw(b) * bh(b) >= 6 && variantOf('r3', b.look) !== 3;
+  let nth = 0;
+  const vent = (u: number, v: number) => {
+    Q('box', u, v, 0.1, 1.1, 1.3, 1.1, '#bdb7aa');
+    Q('box', u, v, 1.4, 1.3, 0.15, 1.3, '#8d8a83');
+  };
+  const garden = (u0: number, u1: number, v: number, w: number) => {
+    const mu = (u0 + u1) / 2, len = u1 - u0, k = nth++ % 4;
+    Q('box', mu, v, 0.05, len, 0.08, w, '#7fae55');
+    // 산책로 down the middle.
+    Q('box', mu, v, 0.13, len - 1, 0.03, 1.2, '#e3d6bc');
+    for (let u = u0 + 1.6; u < u1 - 1; u += 4.6) for (const sv of [-1, 1]) Q('tree', u, v + sv * (w / 2 - 0.9), 0.1, 2.2, 3, 2.2, pick(LEAF, r()));
+    if (k === 0 && len > 9) {
+      // 커뮤니티센터: low and glassy under a green roof, its name on the front.
+      Q('box', mu, v, 0.1, Math.min(10, len - 3), 3.6, Math.min(4.4, w - 1), '#dfe6e8', STYLE.office);
+      Q('box', mu, v, 3.7, Math.min(10.4, len - 2.6), 0.3, Math.min(4.8, w - 0.6), '#6f9a55');
+      Q('box', mu, v - Math.min(4.4, w - 1) / 2 - 0.1, 2.6, 3, 0.6, 0.2, brand, STYLE.sign);
+    } else if (k === 1) {
+      // 분수 광장: paving, a round pool and its jet, benches.
+      Q('box', mu, v, 0.1, Math.min(8, len - 2), 0.06, Math.min(5, w - 0.6), '#d9d2c3');
+      Q('cyl', mu, v, 0.16, 3.2, 0.45, 3.2, '#cfc9bd');
+      Q('cyl', mu, v, 0.2, 2.8, 0.42, 2.8, '#6fa8d6');
+      Q('cyl', mu, v, 0.6, 0.35, 1.2, 0.35, '#d7ecf7');
+      for (const su of [-1, 1]) Q('box', mu + su * 3, v, 0.15, 1.6, 0.45, 0.5, '#8a6a4a');
+    } else if (k === 2 && len > 7) {
+      // 어린이집: a small block with a bright roof, a fenced yard beside it.
+      Q('box', mu - 1.5, v, 0.1, 4.4, 3, Math.min(4, w - 1), '#f3ead8', STYLE.house);
+      Q('box', mu - 1.5, v, 3.1, 4.7, 0.35, Math.min(4.3, w - 0.7), pick(['#f1c40f', '#e67e22', '#3498db'], r()));
+      Q('box', mu + 2.4, v, 0.12, 3, 0.05, Math.min(3.6, w - 1.2), '#e2c48a');
+      Q('prism', mu + 2.4, v, 0.17, 0.9, 1.4, 2, '#e74c3c');
+    } else {
+      // Lawn with 운동기구 and a 정자 bench.
+      for (let t = 0; t < 3; t++) Q('box', mu - 2 + t * 2, v - 0.6, 0.13, 0.15, 1.5, 0.9, '#3f7fb5');
+      Q('box', mu + 3, v + 0.4, 0.15, 1.6, 0.45, 0.5, '#8a6a4a');
+    }
+    if (len > 6) vent(u0 + 1.2, v + (w / 2 - 1.2) * (r() < 0.5 ? 1 : -1));
+  };
+  const lot = big ? garden : parking;
   // The 단지 itself: paved, a hedge round it, the gate (문주) and 경비실 at a corner.
   Q('box', 0, 0, 0, long - 0.6, 0.04, short - 0.6, '#cbc5b8');
   for (const sv of [-1, 1]) Q('box', 2.2, sv * (short / 2 - 0.5), 0, long - 5.4, 0.8, 0.5, '#5f8f45');
@@ -870,6 +912,15 @@ function complex(b: Building): Part[] {
   Q('box', gu, gv + 2.6, 0, 0.7, 3.6, 0.7, '#cfc8ba');
   Q('box', gu + 1.6, gv + 1.6, 1.2, 1.9, 2.4, 1.9, '#d9d2c3', STYLE.house);
   Q('box', gu + 2.6, gv, 3.6, 1.2, 0.8, 0.9, brand, STYLE.sign);
+  if (big) {
+    // 지하주차장 입구 along the front edge by the gate: the ramp going down under a glass canopy.
+    const ru = gu + 8, rv = -short / 2 + 1.4;
+    Q('box', ru, rv, 0.02, 6, 0.06, 2.2, '#2a2c2f');
+    for (const sv of [-1, 1]) Q('box', ru, rv + sv * 1.2, 0, 6, 0.9, 0.2, '#cfc8ba');
+    for (const su of [-1, 1]) Q('box', ru + su * 2.8, rv, 0, 0.2, 2.6, 2.4, '#9aa0a6');
+    Q('box', ru, rv, 2.6, 6.2, 0.15, 2.8, '#9fc3cf');
+    Q('box', ru - 3.4, rv, 2, 0.6, 0.6, 0.15, '#2f6db3', STYLE.sign);
+  }
   // 필로티 아파트 단지: 판상형 slabs raised on columns, cars parked under them. Otherwise the
   // layout (판상형 or 탑상형) comes from where the look falls within its variant.
   const pil = variantOf('r3', b.look) === 3;
@@ -911,9 +962,9 @@ function complex(b: Building): Part[] {
       const gv2 = v + pitch / 2;
       if (rows === 2) {
         // Only one gap: cars on most of it, the 놀이터 at the end.
-        parking(-long / 2 + 1, long * 0.18, gv2, gw);
+        lot(-long / 2 + 1, long * 0.18, gv2, gw);
         park(long * 0.18, long / 2 - 1, gv2, gw, true);
-      } else if (i % 2 === 0) parking(-long / 2 + 1, long / 2 - 1, gv2, gw);
+      } else if (i % 2 === 0) lot(-long / 2 + 1, long / 2 - 1, gv2, gw);
       else park(-long / 2 + 1, long / 2 - 1, gv2, gw, i % 4 === 1);
     }
   } else {
@@ -927,7 +978,7 @@ function complex(b: Building): Part[] {
         const h = H - Math.floor(r() * 3) * 6;
         Q('box', u, v, 0, 8, h, 8, col, STYLE.apt, brand);
         Q('box', u, v, h, 5, 2.4, 5, brand);
-      } else if (n++ % 2 === 0) parking(u - su / 2 + 0.8, u + su / 2 - 0.8, v, sv - 2);
+      } else if (n++ % 2 === 0) lot(u - su / 2 + 0.8, u + su / 2 - 0.8, v, sv - 2);
       else park(u - su / 2 + 0.8, u + su / 2 - 0.8, v, sv - 2, n % 4 === 1);
     }
   }
