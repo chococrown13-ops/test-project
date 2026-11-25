@@ -13,7 +13,8 @@ import type { World } from './world';
  *
  * - lights: green goes, red stops, amber stops if it still can;
  *   turning cars let the people on the crossing go first as the light turns green;
- * - a turn left on green gives way to oncoming traffic going straight on or right;
+ * - a turn left on green gives way to oncoming traffic going straight on or right, and
+ *   if no gap came, goes as the light turns amber;
  * - no lights: the avenue goes first, otherwise first come first served;
  * - never onto a way across the junction that another car is on;
  * - not into the junction when there's no room to get out the other side.
@@ -245,8 +246,12 @@ function mayEnter(w: World, tr: Traffic, nd: Nodes, sc: Scene, c: Car, d: number
     // Already over the line (a trip that starts there): carry on.
     if (light === Light.Red) { why.red++; c.why = 'red'; return d < 0; }
     // Amber: stop if it still can.
-    if (light === Light.Amber) { why.amber++; c.why = 'amber'; return d < (c.v * c.v) / (2 * B); }
-    if (to >= 0 && axisOf(j, cellOf(to)) !== ax && greenAge(ax, tr.clock) < PED && c.wait < YIELD_WAIT) { why.ped++; c.why = 'ped'; return false; }
+    if (light === Light.Amber) {
+      // A left turn that waited at the line all through the green for a gap goes as the light changes.
+      const sneak = c.wait > 1 && d < 1.5 && turnOf(a, j, to) < 0;
+      if (!sneak) { why.amber++; c.why = 'amber'; return d < (c.v * c.v) / (2 * B); }
+    }
+    if (light === Light.Green && to >= 0 && axisOf(j, cellOf(to)) !== ax && greenAge(ax, tr.clock) < PED && c.wait < YIELD_WAIT) { why.ped++; c.why = 'ped'; return false; }
   }
   // Someone already on a way that crosses this one.
   const os = sc.occ.get(j);

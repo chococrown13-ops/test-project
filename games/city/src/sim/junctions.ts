@@ -84,6 +84,20 @@ export function clearOf(w: World, j: number): number {
 }
 
 const TAU = Math.PI * 2;
+
+/** Angle of the arm toward node n, seen from the middle of j. */
+const armAngle = (j: number, n: number) => Math.atan2(cy(n) - cy(j), cx(n) - cx(j));
+
+/**
+ * Round a 회전교차로 (anticlockwise on screen, so the angle decreases): whether a car that came in
+ * from `f` and leaves toward `t` passes the mouth where a car from `g` comes in.
+ */
+function onRingPath(f: number, j: number, t: number, g: number): boolean {
+  const ef = armAngle(j, f), eg = armAngle(j, g);
+  const span = t >= 0 ? wrap(ef - armAngle(j, t)) || TAU : TAU;
+  const at = wrap(ef - eg);
+  return at > 1e-6 && at < span;
+}
 const wrap = (a: number) => ((a % TAU) + TAU) % TAU;
 
 /** Angle round junction `j` where a car coming from `a` enters it (keeping right). */
@@ -108,7 +122,7 @@ function exitAngle(j: number, b: number): number {
 export function conflicts(nd: Nodes, j: number, af: number, at: number, bf: number, bt: number): boolean {
   if (af === bf) return false;
   if (at >= 0 && at === bt) return true;
-  if (nd.ring[j]) return true;
+  if (nd.ring[j]) return onRingPath(af, j, at, bf) || onRingPath(bf, j, bt, af);
   // A ramp onto the raised road (same cell, other layer) has no direction: keep it simple and let it merge.
   if (cellOf(af) === cellOf(j) || cellOf(bf) === cellOf(j)) return at === bt;
   const p1 = entryAngle(af, j), q1 = at >= 0 ? exitAngle(j, at) : entryAngle(af, j) + Math.PI;

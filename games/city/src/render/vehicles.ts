@@ -43,9 +43,6 @@ const BUS_COLORS = ['#2e9e4f', '#2f6db5', '#2e9e4f', '#d9483b'];
 const TRUCK_COLORS = ['#2f5fa8', '#2f5fa8', '#f2f2f0'];
 const SCOOTER_COLORS = ['#e0a400', '#d9483b', '#2e9e4f', '#2f6db5', '#f2f2f0'];
 
-/** How long (simulation seconds) a driver takes to move off after the car ahead does. */
-const REACTION = 0.35;
-
 export class VehicleLayer {
   readonly group = new THREE.Group();
   private meshes: THREE.InstancedMesh[];
@@ -92,7 +89,7 @@ export class VehicleLayer {
       if (!k || !w.road[i]) continue;
       const x = i % N, y = (i / N) | 0;
       const horiz = (x > 0 && !!w.road[i - 1]) || (x < N - 1 && !!w.road[i + 1]);
-      const off = w.road[i] === 2 ? 4.2 : 2.55;
+      const off = w.road[i] === 2 ? 4.35 : 2.55;
       const mx = x * CELL + CELL / 2, mz = y * CELL + CELL / 2;
       // Alternate sides so a half-full street has cars on both kerbs.
       const slots = [[1, -2.4], [-1, 2.4], [-1, -2.4], [1, 2.4]];
@@ -113,51 +110,28 @@ export class VehicleLayer {
     if (this.parked.instanceColor) this.parked.instanceColor.needsUpdate = true;
   }
 
-  /** Where each car is drawn along its path, and whether it is standing in a queue waiting to move off. */
-  private drawn = new WeakMap<Car, { s: number; last: number; held: boolean; go: number }>();
+  /** How far right of the centre line each car is drawn: eased, so a change of lane is a smooth move across. */
+  private side = new WeakMap<Car, number>();
+  private lastClock = 0;
 
   update(w: World, tr: Traffic) {
     this.updateParked(w);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), pitch = new THREE.Quaternion(), fwdZ = new THREE.Vector3(0, 0, 1), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
     const n = [0, 0, 0, 0];
     const a = { x: 0, z: 0, y: 0 }, b = { x: 0, z: 0, y: 0 };
-    // Drawn a car's length apart in each lane (the simulation lets a busy cell hold several at once,
-    // and a red light stops them all at the same line).
-    const lanes = new Map<string, Car[]>();
-    for (const car of tr.cars) {
-      if (car.i >= car.path.length - 1) continue;
-      const node = car.path[car.i], k = `${node}>${car.path[car.i + 1]}>${roadTypeOf(w, node) === Road.Avenue && car.look > 0.5 ? 1 : 0}`;
-      let l = lanes.get(k); if (!l) lanes.set(k, (l = []));
-      l.push(car);
-    }
-    const shown = new Map<Car, number>();
-    for (const l of lanes.values()) {
-      l.sort((p, q) => q.t - p.t);
-      let ahead = Infinity;
-      for (const car of l) {
-        // Where the car may be drawn: no closer than a car's length behind the one ahead (as drawn).
-        const target = car.i + Math.min(car.t, ahead);
-        // A queue moves off one car at a time: each driver waits a moment after the car ahead
-        // pulls away (when the light goes green), then picks up speed, instead of all at once.
-        let e = this.drawn.get(car);
-        if (!e) { e = { s: target, last: target, held: false, go: 0 }; this.drawn.set(car, e); }
-        const moving = target - e.last > 1e-5;
-        e.last = target;
-        if (target <= e.s) { e.s = target; e.held = !moving; e.go = 0; }
-        else if (e.held) {
-          if (!e.go) e.go = tr.clock + REACTION;
-          if (tr.clock >= e.go) { e.held = false; e.go = 0; }
-        }
-        if (!e.held && target > e.s) e.s += (target - e.s) * 0.3;
-        shown.set(car, e.s - car.i);
-        ahead = e.s - car.i - (car.kind === 1 || car.kind === 2 ? 0.75 : car.kind === 3 ? 0.3 : 0.55);
-      }
-    }
+    const dt = Math.max(0, Math.min(0.5, tr.clock - this.lastClock));
+    this.lastClock = tr.clock;
+    const ease = 1 - Math.exp(-dt * 6);
     for (const car of tr.cars) {
       // Average two points along the path so cars round the corners.
-      const st = car.i + (shown.get(car) ?? car.t);
-      sample(w, car, st - 0.3, a);
-      sample(w, car, st + 0.3, b);
+      // Cars are drawn where the simulation has them: it keeps them apart and in their lanes.
+      const st = car.i + car.t;
+      const want = laneOff(w, car, st);
+      let off = this.side.get(car);
+      off = off === undefined ? want : off + (want - off) * ease;
+      this.side.set(car, off);
+      sample(w, car, st - 0.3, off, a);
+      sample(w, car, st + 0.3, off, b);
       const dx = b.x - a.x, dz = b.z - a.z;
       if (dx * dx + dz * dz < 1e-4) continue;
       const k = car.kind, i = n[k]++;
@@ -178,27 +152,32 @@ export class VehicleLayer {
   }
 }
 
-/** Position at path parameter s (cell index + fraction), in the right-hand lane. */
-function sample(w: World, car: Car, s: number, out: { x: number; z: number; y: number }) {
+/** How far right of the centre line a car belongs at path parameter s, metres. */
+function laneOff(w: World, car: Car, s: number): number {
+  const path = car.path, last = path.length - 1;
+  s = Math.max(0, Math.min(last, s));
+  const i = Math.min(last - 1, Math.floor(s)), f = s - i;
+  const node = path[f < 0.5 ? i : i + 1];
+  // Avenue lanes 2.5 m wide at 1.25 and 3.75 m (kerb at 5 m), squeezed in a little past parked cars;
+  // the street lane at 1.75 m (kerb at 3.5 m), further in past parked cars. Scooters keep to the kerb side.
+  const avenue = roadTypeOf(w, node) === Road.Avenue;
+  const parked = node < NN && w.parked[node] > 0;
+  if (avenue) {
+    if (car.kind === 3) return car.lane ? (parked ? 3.0 : 4.1) : 1.6;
+    return car.lane ? (parked ? 2.6 : 3.75) : parked ? 0.85 : 1.25;
+  }
+  return car.kind === 3 ? (parked ? 1.1 : 2.9) : parked ? 1.1 : 1.75;
+}
+
+/** Position at path parameter s (cell index + fraction), `lane` metres right of the centre line. */
+function sample(w: World, car: Car, s: number, lane: number, out: { x: number; z: number; y: number }) {
   const path = car.path, last = path.length - 1;
   s = Math.max(0, Math.min(last, s));
   const i = Math.min(last - 1, Math.floor(s)), f = s - i;
   const n0 = path[Math.max(0, i)], n1 = path[Math.min(last, i + 1)];
-  const p0 = nodeCentre(n0, w), p1 = nodeCentre(n1, w);
-  let dx = p1.x - p0.x, dz = p1.z - p0.z;
-  const len = Math.hypot(dx, dz) || 1;
-  dx /= len; dz /= len;
-  const node = f < 0.5 ? n0 : n1;
-  // Lane centres: avenue lanes 2.5 m wide at 1.25 and 3.75 m (kerb at 5 m), the street lane at 1.75 m (kerb at 3.5 m).
-  const avenue = roadTypeOf(w, node) === Road.Avenue;
-  // Past parked cars everyone keeps further in: on an avenue they fill the outer lane.
-  const parked = node < NN && w.parked[node] > 0;
-  const lane = car.kind === 3 ? (avenue ? (parked ? 3.0 : 4.3) : parked ? 1.1 : 2.9) : avenue ? (car.look > 0.5 && !parked ? 3.75 : 1.25) : parked ? 1.1 : 1.75;
-  // Right of travel direction (dx, dz) with y up is (-dz, dx); corners are rounded from lane to lane
-  // (so a sharp turn at a five-way junction sweeps round instead of jumping or cutting across).
-  void dx; void dz;
+  // Corners are rounded from lane to lane (so a sharp turn at a five-way junction sweeps round instead of jumping or cutting across).
   laneAt((k) => nodeCentre(path[k], w), last, s, lane, 6, false, out);
-  const ring = onRing(w, path, s, avenue ? lane : 1.75);
+  const ring = onRing(w, path, s, lane);
   if (ring) { out.x = ring.x; out.z = ring.z; }
   out.y = roadY(w, n0, n1, f, out.x, out.z);
 }
