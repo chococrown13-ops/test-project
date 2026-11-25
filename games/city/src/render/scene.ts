@@ -291,7 +291,7 @@ export class CityScene {
     this.buildings.update(w, now);
     this.vehicles.update(w, this.sim.tr);
     this.signals.update(w, this.sim.tr.clock, this.view.dist);
-    this.people.update(w, dt, this.pace, shared.uNight.value, this.view.dist);
+    this.people.update(w, dt, this.pace, shared.uNight.value, this.view.dist, this.sim.tr.clock);
     this.transit.update(w, w.day * DAY_SECONDS + this.sim.acc, this.draft);
     // Ground repaint: on edits right away, and for live overlays a few times a second.
     const ver = `${w.ver.roads}:${w.ver.zones}:${w.ver.buildings}:${month}`;

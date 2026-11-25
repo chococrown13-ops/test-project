@@ -219,6 +219,9 @@ function rawParts(b: Building, w: World): Part[] {
       let top = H;
       if (r() < 0.5) { P('box', 0, H, 0, tw * 0.7, 6, td * 0.7, glass, STYLE.office); top += 6; }
       P('box', 0, top, 0, 3, 2.5, 3, '#c9cbcc');
+      // Roof plant: chillers in a row, and on some towers a helipad.
+      for (let k = 0; k < 3; k++) P('box', -tw * 0.3 + k * 1.6, top, td * 0.3, 1.2, 1.1, 1.6, '#b4b8bc');
+      if (r() < 0.35) { P('cyl', tw * 0.15, top, -td * 0.15, 5.2, 0.15, 5.2, '#4a4f55'); P('box', tw * 0.15, top + 0.16, -td * 0.15, 2.4, 0.02, 0.4, '#f2c14a'); }
       break;
     }
     case 'i1': {
@@ -819,6 +822,10 @@ function complex(b: Building): Part[] {
         const h = H - Math.floor(r() * 3) * 3;
         Q('box', u, v, 0, len, h, 4.6, col, STYLE.slab, brand);
         Q('box', u, v, h, Math.min(4, len * 0.3), 2.2, 3.2, col);
+        // On the roof: a low parapet, a water tank and a mast.
+        for (const sv of [-1, 1]) Q('box', u, v + sv * 2.2, h, len, 0.7, 0.2, col);
+        Q('cyl', u + len * 0.3, v, h, 1.6, 1.4, 1.6, '#d8d4cc');
+        if (r() < 0.6) Q('cyl', u - len * 0.32, v, h, 0.12, 4, 0.12, '#9aa0a6');
       }
       if (i === rows - 1) break;
       const gv2 = v + pitch / 2;

@@ -43,6 +43,9 @@ const BUS_COLORS = ['#2e9e4f', '#2f6db5', '#2e9e4f', '#d9483b'];
 const TRUCK_COLORS = ['#2f5fa8', '#2f5fa8', '#f2f2f0'];
 const SCOOTER_COLORS = ['#e0a400', '#d9483b', '#2e9e4f', '#2f6db5', '#f2f2f0'];
 
+/** How long (simulation seconds) a driver takes to move off after the car ahead does. */
+const REACTION = 0.35;
+
 export class VehicleLayer {
   readonly group = new THREE.Group();
   private meshes: THREE.InstancedMesh[];
@@ -110,6 +113,9 @@ export class VehicleLayer {
     if (this.parked.instanceColor) this.parked.instanceColor.needsUpdate = true;
   }
 
+  /** Where each car is drawn along its path, and whether it is standing in a queue waiting to move off. */
+  private drawn = new WeakMap<Car, { s: number; last: number; held: boolean; go: number }>();
+
   update(w: World, tr: Traffic) {
     this.updateParked(w);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), pitch = new THREE.Quaternion(), fwdZ = new THREE.Vector3(0, 0, 1), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
@@ -129,9 +135,22 @@ export class VehicleLayer {
       l.sort((p, q) => q.t - p.t);
       let ahead = Infinity;
       for (const car of l) {
-        const t = Math.min(car.t, ahead);
-        shown.set(car, t);
-        ahead = t - (car.kind === 1 || car.kind === 2 ? 0.75 : car.kind === 3 ? 0.3 : 0.55);
+        // Where the car may be drawn: no closer than a car's length behind the one ahead (as drawn).
+        const target = car.i + Math.min(car.t, ahead);
+        // A queue moves off one car at a time: each driver waits a moment after the car ahead
+        // pulls away (when the light goes green), then picks up speed, instead of all at once.
+        let e = this.drawn.get(car);
+        if (!e) { e = { s: target, last: target, held: false, go: 0 }; this.drawn.set(car, e); }
+        const moving = target - e.last > 1e-5;
+        e.last = target;
+        if (target <= e.s) { e.s = target; e.held = !moving; e.go = 0; }
+        else if (e.held) {
+          if (!e.go) e.go = tr.clock + REACTION;
+          if (tr.clock >= e.go) { e.held = false; e.go = 0; }
+        }
+        if (!e.held && target > e.s) e.s += (target - e.s) * 0.3;
+        shown.set(car, e.s - car.i);
+        ahead = e.s - car.i - (car.kind === 1 || car.kind === 2 ? 0.75 : car.kind === 3 ? 0.3 : 0.55);
       }
     }
     for (const car of tr.cars) {
