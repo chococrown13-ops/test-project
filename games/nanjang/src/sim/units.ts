@@ -52,7 +52,9 @@ export function lookAt(d: UnitDef, star: number): Look {
 export interface Mods { ad?: number; as?: number; hp?: number; resist?: number; mana?: number; crit?: number; dodge?: number; skill?: number }
 export interface ItemDef { id: string; name: string; text: string; color: string; mods: Mods; base: boolean }
 
-export interface Palette { accent: string; deep: string; bg: string; table: string; frame: string; mine: [string, string]; theirs: [string, string]; line: string }
+export interface Palette { accent: string; deep: string; bg: string; table: string; frame: string; mine: [string, string]; theirs: [string, string]; line: string;
+  /** Around the board: a meadow with trees, flowers and clouds under a sky (else a plain room). */
+  scenery?: 'meadow'; sky?: string }
 
 export interface Theme {
   id: string; title: string; kicker: string; lede: string;

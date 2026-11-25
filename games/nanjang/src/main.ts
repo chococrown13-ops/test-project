@@ -13,7 +13,7 @@ import { addRecord, records, type GameRecord } from './records';
 import { THEMES, themeById, useTheme } from './themes';
 import { BENCH_KEY, Table, type DropTarget } from './render/scene';
 import { type PieceStyle, pieceStyle, setPieceStyle, STYLE_NAME, TIER_COLOR } from './render/pieces';
-import { portrait } from './render/thumbs';
+import { portrait, setStickerVariant, type StickerVariant } from './render/thumbs';
 import type { Fighter } from './sim/combat';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -597,8 +597,8 @@ function begin(game: Game) {
 
 /* ------------------------------------------------------------- style */
 
-let chosenStyle: PieceStyle = 'pixel';
-try { const v = localStorage.getItem('nanjang.style') as PieceStyle | null; if (v && v in STYLE_NAME) chosenStyle = v; } catch { /* storage blocked */ }
+let chosenStyle: PieceStyle = 'sticker';
+try { const v = localStorage.getItem('nanjang.style2') as PieceStyle | null; if (v && v in STYLE_NAME) chosenStyle = v; } catch { /* storage blocked */ }
 setPieceStyle(chosenStyle);
 function renderStylePick() {
   document.querySelectorAll<HTMLElement>('[data-stylepick]').forEach((el) => {
@@ -609,7 +609,7 @@ document.addEventListener('click', (e) => {
   const b = (e.target as HTMLElement).closest('[data-style]') as HTMLElement | null;
   if (!b) return;
   setPieceStyle(b.dataset.style as PieceStyle);
-  try { localStorage.setItem('nanjang.style', b.dataset.style!); } catch { /* storage blocked */ }
+  try { localStorage.setItem('nanjang.style2', b.dataset.style!); } catch { /* storage blocked */ }
   renderStylePick();
   if (mode === 'prep' && $('start').hidden) { table.clearPieces(); renderAll(); }
   if (!$('book').hidden) renderBook();
@@ -797,6 +797,7 @@ requestAnimationFrame(loop);
 // For checks in a headless browser.
 (window as unknown as { nanjang: unknown }).nanjang = {
   get game() { return g; }, table, render: () => renderAll(),
+  variant: (v: StickerVariant) => { setStickerVariant(v); table.clearPieces(); renderAll(); },
   portraits: (st: PieceStyle, th: string, star = 1) => { applyTheme(themeById(th)); setPieceStyle(st); return UNITS.map((d) => ({ name: nameAt(d, star), url: portrait(d.id, theme().faces !== false, star) })); },
   lineup: (st: PieceStyle, th: string) => { applyTheme(themeById(th)); setPieceStyle(st); $('start').hidden = true; table.setArena('yard'); table.showLineup(UNITS.map((d) => d.id)); },
 };

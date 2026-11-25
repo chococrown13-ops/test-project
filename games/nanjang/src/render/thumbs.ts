@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { BY_ID } from '../sim/units';
 import type { UnitDef } from '../sim/units';
 import { beginEyeCapture, buildPiece, CREATURES, endEyeCapture, evolved, pieceStyle, setSpriteMaker } from './pieces';
+import type { EyeMark } from './pieces';
 
 /**
  * Little portraits of the pieces for the shop cards, the info card and the
@@ -35,6 +36,11 @@ export function portrait(id: string, faces: boolean, star = 1): string {
   if (!renderer) setup();
   // An evolved form gets its own picture.
   const def = evolved(BY_ID[id], star);
+  if (pieceStyle() === 'sticker') {
+    const url = stickerCanvas(def, faces).canvas.toDataURL('image/png');
+    cache.set(key, url);
+    return url;
+  }
   if (pieceStyle() === 'pixel') {
     // The pixel sprite itself, blown up with hard edges.
     const src = pixelCanvas(def, faces), big = document.createElement('canvas');
@@ -176,8 +182,16 @@ function pixelCanvas(def: UnitDef, faces: boolean): HTMLCanvasElement {
 }
 
 setSpriteMaker((def, faces) => {
-  const key = `${def.id}|${faces}`;
+  const key = `${pieceStyle()}|${def.id}|${faces}`;
   let t = texCache.get(key);
+  if (!t && pieceStyle() === 'sticker') {
+    const st = stickerCanvas(def, faces);
+    t = new THREE.CanvasTexture(st.canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 4;
+    t.userData.foot = st.foot;
+    texCache.set(key, t);
+  }
   if (!t) {
     t = new THREE.CanvasTexture(pixelCanvas(def, faces));
     t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
@@ -186,3 +200,158 @@ setSpriteMaker((def, faces) => {
   }
   return t;
 });
+
+/* ------------------------------------------------------------ 캐릭터 */
+
+const ST = 256;
+/** Candidate looks for the 캐릭터 style: anime (big glossy eyes, ink line, white border), poke (simple eyes, bold line), soft (no line, pastel, white border). */
+export type StickerVariant = 'anime' | 'poke' | 'soft';
+let variant: StickerVariant = 'anime';
+export function setStickerVariant(v: StickerVariant) { variant = v; cache.clear(); texCache.clear(); }
+let stRenderer: THREE.WebGLRenderer | null = null;
+const stCache = new Map<string, { canvas: HTMLCanvasElement; foot: number }>();
+const INK = '#2a1d17';
+
+/** Grow a silhouette by `r` pixels in one colour (stamped round a circle), onto `g`. */
+function stamp(g: CanvasRenderingContext2D, sil: HTMLCanvasElement, r: number) {
+  const n = Math.max(12, Math.round(r * 4));
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2;
+    g.drawImage(sil, Math.cos(a) * r, Math.sin(a) * r);
+  }
+  g.drawImage(sil, 0, 0);
+}
+
+function tinted(src: HTMLCanvasElement, color: string): HTMLCanvasElement {
+  const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+  const g = c.getContext('2d')!;
+  g.drawImage(src, 0, 0);
+  g.globalCompositeOperation = 'source-in';
+  g.fillStyle = color; g.fillRect(0, 0, c.width, c.height);
+  return c;
+}
+
+/** Anime eyes: a dark rim, a tall iris shading down to a colour, a pupil and two glints; cheeks below. */
+function animeEye(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, iris: string, dark: boolean) {
+  g.save();
+  g.translate(x, y);
+  // Rim and upper lash line.
+  g.fillStyle = dark ? '#fff3c4' : INK;
+  g.beginPath(); g.ellipse(0, 0, w + 1.6, h + 1.6, 0, 0, Math.PI * 2); g.fill();
+  const grad = g.createLinearGradient(0, -h, 0, h);
+  grad.addColorStop(0, dark ? '#fff8dc' : '#241a33');
+  grad.addColorStop(0.55, iris);
+  grad.addColorStop(1, dark ? '#ffe680' : '#cfe9ff');
+  g.fillStyle = grad;
+  g.beginPath(); g.ellipse(0, 0, w, h, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = dark ? '#3a2a10' : '#120c1c';
+  g.beginPath(); g.ellipse(0, h * 0.08, w * 0.5, h * 0.55, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#ffffff';
+  g.beginPath(); g.ellipse(-w * 0.32, -h * 0.38, w * 0.38, h * 0.3, -0.5, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.arc(w * 0.35, h * 0.42, Math.max(1, w * 0.18), 0, Math.PI * 2); g.fill();
+  g.restore();
+}
+
+/** Iris colour from the body: its hue, a little brighter, so each one's eyes match it. */
+function irisFor(def: UnitDef): string {
+  const c = new THREE.Color(def.look.extra ?? def.look.body);
+  const hsl = { h: 0, s: 0, l: 0 }; c.getHSL(hsl);
+  return `hsl(${Math.round(hsl.h * 360)}, ${Math.round(Math.max(45, hsl.s * 100))}%, 48%)`;
+}
+
+/**
+ * A piece as a chibi character sticker: the toon-shaded figure drawn large and smooth, big anime
+ * eyes painted on, then an ink line and a thick white border all round with a soft shadow, like a
+ * sticker cut out of a sheet. `foot` is how far up the picture the feet stand (0 bottom, 1 top).
+ */
+export function stickerCanvas(def: UnitDef, faces: boolean): { canvas: HTMLCanvasElement; foot: number } {
+  const key = `${variant}|${def.id}|${faces}`;
+  const hit = stCache.get(key);
+  if (hit) return hit;
+  if (!renderer) setup();
+  if (!stRenderer) {
+    const c = document.createElement('canvas'); c.width = c.height = ST;
+    stRenderer = new THREE.WebGLRenderer({ canvas: c, antialias: true, alpha: true, preserveDrawingBuffer: true });
+    stRenderer.setSize(ST, ST, false);
+    stRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+    stRenderer.toneMappingExposure = 1.12;
+  }
+  beginEyeCapture();
+  const obj = buildPiece(def, 1, false, faces, true);
+  const marks: EyeMark[] = endEyeCapture();
+  obj.base.visible = false; obj.ring.visible = false;
+  const shape = def.look.shape;
+  const dish = !!shape && shape !== 'figure' && !CREATURES.includes(shape);
+  if (shape === 'fish') obj.root.rotation.y = -Math.PI / 2;
+  else if (shape === 'crab') obj.root.rotation.y = -0.5;
+  else if (!dish) obj.root.rotation.y = -0.22;
+  obj.root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(obj.figure);
+  const size = box.getSize(new THREE.Vector3());
+  const h = Math.max(0.45, size.y, Math.max(size.x, size.z) * (dish ? 0.8 : 0.95)), cy = (box.max.y + box.min.y) / 2;
+  // Leave a margin for the border.
+  const d = h * 2.35 + 0.3;
+  camera.position.set(0, cy + d * (dish ? 0.62 : 0.22), d * (dish ? 0.8 : 0.97));
+  camera.lookAt(0, cy, 0);
+  scene.add(obj.root);
+  stRenderer.render(scene, camera);
+  const proj = (v: THREE.Vector3) => { const p = v.project(camera); return { x: ((p.x + 1) / 2) * ST, y: ((1 - p.y) / 2) * ST }; };
+  const eyesAt = marks.map((m) => ({
+    m,
+    l: proj(obj.figure.localToWorld(new THREE.Vector3(m.x - m.spread, m.y, m.z))),
+    r: proj(obj.figure.localToWorld(new THREE.Vector3(m.x + m.spread, m.y, m.z))),
+  }));
+  const footY = proj(obj.figure.localToWorld(new THREE.Vector3(0, box.min.y - obj.figure.position.y, 0))).y;
+  scene.remove(obj.root);
+
+  const fig = document.createElement('canvas'); fig.width = fig.height = ST;
+  const fg = fig.getContext('2d')!;
+  fg.drawImage(stRenderer.domElement, 0, 0);
+  // Eyes and cheeks.
+  const iris = irisFor(def);
+  for (const { m, l, r } of eyesAt) {
+    const span = Math.hypot(r.x - l.x, r.y - l.y);
+    const at = fg.getImageData(Math.round((l.x + r.x) / 2), Math.round((l.y + r.y) / 2) + 2, 1, 1).data;
+    const dark = 0.3 * at[0] + 0.59 * at[1] + 0.11 * at[2] < 80;
+    if (variant !== 'anime') {
+      // Simple eyes: a dark oval with one glint (poke), or small dots (soft).
+      const pts = m.one ? [{ x: (l.x + r.x) / 2, y: (l.y + r.y) / 2 }] : [l, r];
+      const w = m.one ? span * 0.35 : Math.max(2.2, span * (variant === 'poke' ? 0.2 : 0.15)), hh = w * (variant === 'poke' ? 1.35 : 1.15);
+      for (const p of pts) {
+        fg.fillStyle = dark ? '#fff3c4' : '#1a1420';
+        fg.beginPath(); fg.ellipse(p.x, p.y, w, hh, 0, 0, Math.PI * 2); fg.fill();
+        fg.fillStyle = '#ffffff';
+        fg.beginPath(); fg.arc(p.x - w * 0.3, p.y - hh * 0.4, Math.max(1, w * 0.38), 0, Math.PI * 2); fg.fill();
+      }
+      if (m.cute && !dark) {
+        fg.fillStyle = variant === 'soft' ? 'rgba(244, 120, 140, 0.6)' : 'rgba(232, 96, 96, 0.5)';
+        for (const [p, sd] of [[l, -1], [r, 1]] as const) { fg.beginPath(); fg.ellipse(p.x + sd * w * 1.6, p.y + hh * 1.5, w * 1.0, w * 0.55, 0, 0, Math.PI * 2); fg.fill(); }
+      }
+      continue;
+    }
+    if (m.one) { animeEye(fg, (l.x + r.x) / 2, (l.y + r.y) / 2, span * 0.42, span * 0.5, iris, dark); continue; }
+    const w = Math.max(2.6, span * (m.cute ? 0.3 : 0.24)), hh = w * (m.cute ? 1.4 : 1.2);
+    for (const p of [l, r]) animeEye(fg, p.x, p.y, w, hh, iris, dark);
+    if (m.cute && !dark) {
+      fg.fillStyle = 'rgba(244, 130, 140, 0.55)';
+      for (const [p, sd] of [[l, -1], [r, 1]] as const) { fg.beginPath(); fg.ellipse(p.x + sd * w * 1.1, p.y + hh * 1.35, w * 0.9, w * 0.5, 0, 0, Math.PI * 2); fg.fill(); }
+    }
+  }
+  // Ink line, then the white border with a soft shadow under it.
+  const out = document.createElement('canvas'); out.width = out.height = ST;
+  const g = out.getContext('2d')!;
+  const white = tinted(fig, '#fffdf6'), ink = tinted(fig, INK);
+  const bw = Math.round(ST * 0.034), iw = Math.max(2, Math.round(ST * 0.011));
+  g.save();
+  g.shadowColor = 'rgba(30, 20, 40, 0.35)'; g.shadowBlur = 6; g.shadowOffsetY = 3;
+  if (variant === 'poke') stamp(g, ink, Math.round(iw * 1.7));
+  else stamp(g, white, variant === 'soft' ? Math.round(bw * 1.2) : bw);
+  g.restore();
+  if (variant === 'anime') stamp(g, ink, iw);
+  if (variant === 'soft') g.filter = 'brightness(1.08) saturate(0.88)';
+  g.drawImage(fig, 0, 0);
+  g.filter = 'none';
+  const res = { canvas: out, foot: Math.min(0.45, Math.max(0, 1 - (footY + bw * 0.6) / ST)) };
+  stCache.set(key, res);
+  return res;
+}

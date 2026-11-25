@@ -72,7 +72,7 @@ export const SPIRITS: Theme = {
   ],
   botNames: ['숲지기', '등대지기', '약초꾼', '별지기', '대장장이', '뱃사공', '꼬마 탐험가'],
   plans: [['fire', 'mage'], ['water', 'shooter'], ['grass', 'guard'], ['earth', 'brawler'], ['wind', 'sneak'], ['light', 'mage'], ['water', 'mage'], ['fire', 'guard'], ['earth', 'guard'], ['light', 'sneak']],
-  palette: { accent: '#f2c14a', deep: '#22324a', bg: '#e6eef0', table: '#5f7f6a', frame: '#33463c', mine: ['#eef4ea', '#dfe8d8'], theirs: ['#e8ecef', '#d6dde3'], line: '#3f7aa8' },
+  palette: { accent: '#f2c14a', deep: '#22324a', bg: '#dff0f6', table: '#5e9a48', frame: '#7a5636', mine: ['#8fc468', '#80b85a'], theirs: ['#9ccb78', '#8ec06a'], line: '#3f7aa8', scenery: 'meadow', sky: '#8fcdf0' },
   itemWord: '열매', mixWord: '비약',
   items: [
     { id: 'ember', name: '불꽃 열매', text: '공격력 +15%', color: '#e2643a', mods: { ad: 0.15 }, base: true },
