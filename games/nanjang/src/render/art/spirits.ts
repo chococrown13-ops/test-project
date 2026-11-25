@@ -440,15 +440,16 @@ const dudeoji: Draw = (a, s) => {
   if (s === 3) for (const sd of [-1, 1]) a.part(`M${100 + sd * 30} 112 L${100 + sd * 58} 98 L${100 + sd * 66} 120 L${100 + sd * 42} 130Z`, '#8a8478', '#5a564e');
   const hy = 136;
   if (s === 2) {
-    a.part(`M60 ${hy - 40} C58 ${hy - 90} 142 ${hy - 90} 140 ${hy - 40} L156 ${hy - 31} L44 ${hy - 31}Z`, '#f2c14a', '#d89a1a');
-    a.part(E(100, hy - 62, 11, 9), '#fff6c8', null, { lw: 2 });
+    // It sits down over the crown of the head: the dome hugs the head, the brim sticks out over the brow.
+    a.part(`M64 ${hy - 24} C62 ${hy - 70} 138 ${hy - 70} 136 ${hy - 24} C150 ${hy - 22} 158 ${hy - 18} 156 ${hy - 14} C130 ${hy - 20} 70 ${hy - 20} 44 ${hy - 14} C42 ${hy - 18} 50 ${hy - 22} 64 ${hy - 24}Z`, '#f2c14a', '#d89a1a');
+    a.part(E(100, hy - 46, 10, 8), '#fff6c8', null, { lw: 2 });
   }
   if (s === 3) a.part(`M80 ${hy - 26} L100 ${hy - 96} L120 ${hy - 26}Z`, '#c8ccd4', '#8a909c');
   if (s === 3) for (const k of [0, 1, 2]) a.stroke(`M${86 + k * 4} ${hy - 40 - k * 18} L${114 - k * 4} ${hy - 48 - k * 18}`, 2.2);
   // Snout and face on the body's front.
   a.part(E(100, hy + 10, 18, 13), lighter(fur, 0.3), null, { lw: 2 });
   a.part(E(100, hy + 4, 11, 8), nose, true, { lw: 2 });
-  a.eyes(76, 124, hy - 18, s === 1 ? 5.5 : 6, s === 1 ? 9 : s === 2 ? 3 : 6, '#3a2a20', fur);
+  a.eyes(76, 124, s === 2 ? hy - 4 : hy - 18, s === 1 ? 5.5 : 6, s === 1 ? 9 : s === 2 ? 3 : 6, '#3a2a20', fur);
   a.mouth(100, hy + 26, 7, s === 3 ? 'grin' : 'smile').cheeks(62, 138, hy + 6);
 };
 
