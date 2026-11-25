@@ -48,6 +48,8 @@ export class GroundLayer {
   readonly tex: THREE.DataTexture;
   private data: Uint8Array;
   private trees: THREE.InstancedMesh;
+  /** Round-crowned broadleaf trees (the cone ones are the pines). */
+  private rounds: THREE.InstancedMesh;
   private treeVer = '';
   private geo: THREE.PlaneGeometry;
   private field: Float32Array;
@@ -93,7 +95,7 @@ export class GroundLayer {
         float hh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(hh(i), hh(i + vec2(1, 0)), f.x), mix(hh(i + vec2(0, 1)), hh(i + vec2(1, 1)), f.x), f.y); }`)
-        .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= 0.9 + 0.14 * vn(vGP / 46.0) + 0.06 * vn(vGP / 9.0);\n// Snow settles everywhere in deep winter, and first on the peaks.\nfloat snow = uSnow * (0.55 + 0.45 * smoothstep(8.0, 45.0, vGY)) * (0.75 + 0.25 * vn(vGP / 6.0));\nif (vGY > -0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.95, 0.97), clamp(snow, 0.0, 0.92));');
+        .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= 0.9 + 0.14 * vn(vGP / 46.0) + 0.06 * vn(vGP / 9.0);\n// Open grass: sun-dried, straw-coloured stretches and darker lush ones, plus a fine speckle of tufts.\nfloat greenness = clamp((diffuseColor.g - max(diffuseColor.r, diffuseColor.b)) * 6.0, 0.0, 1.0);\nfloat dry = smoothstep(0.5, 0.85, vn(vGP / 130.0 + 7.3));\ndiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.16, 1.02, 0.7), dry * 0.45 * greenness);\ndiffuseColor.rgb *= 1.0 - greenness * 0.08 * smoothstep(0.55, 0.9, vn(vGP / 22.0 + 3.1));\ndiffuseColor.rgb *= 1.0 + greenness * (vn(vGP / 1.6) - 0.5) * 0.09;\n// Snow settles everywhere in deep winter, and first on the peaks.\nfloat snow = uSnow * (0.55 + 0.45 * smoothstep(8.0, 45.0, vGY)) * (0.75 + 0.25 * vn(vGP / 6.0));\nif (vGY > -0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.95, 0.97), clamp(snow, 0.0, 0.92));');
     };
     landMat.customProgramCacheKey = () => 'city-land';
     const land = new THREE.Mesh(geo, landMat);
@@ -170,6 +172,18 @@ export class GroundLayer {
     this.trees.count = 0;
     this.trees.frustumCulled = false;
     this.group.add(this.trees);
+    // Broadleaf trees: a trunk and a lumpy round crown of three blobs.
+    const trunk2 = new THREE.CylinderGeometry(0.28, 0.36, 2.6, 5).translate(0, 1.3, 0).toNonIndexed();
+    const b1 = new THREE.IcosahedronGeometry(2.2, 0).translate(0, 3.9, 0);
+    const b2 = new THREE.IcosahedronGeometry(1.55, 0).translate(1.1, 4.9, 0.5);
+    const b3 = new THREE.IcosahedronGeometry(1.4, 0).translate(-0.9, 4.6, -0.7);
+    const round = mergeGeometries([paint(trunk2, '#6b4a33'), paint(b1, '#ffffff'), paint(b2, '#f2f2f2'), paint(b3, '#e6e6e6')])!;
+    this.rounds = new THREE.InstancedMesh(round, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true }), MAX_TREES);
+    this.rounds.castShadow = true;
+    this.rounds.receiveShadow = true;
+    this.rounds.count = 0;
+    this.rounds.frustumCulled = false;
+    this.group.add(this.rounds);
   }
 
   /**
@@ -293,21 +307,23 @@ export class GroundLayer {
     const up = new THREE.Vector3(0, 1, 0);
     const season = seasonOf(this.month);
     const cover = curveInfo(w).cover;
-    let n = 0;
+    let n = 0, n2 = 0;
     // Gather every tree first, then thin evenly if there are more than the cap, so a densely
     // wooded real map loses a few trees everywhere instead of all of them past some row.
     const want: [number, number, number, number, number][] = [];
     const put = (wx: number, wz: number, k: number, seed: number, cherry = 0) => { want.push([wx, wz, k, seed, cherry]); };
     const plant = (wx: number, wz: number, k: number, seed: number, cherry: number) => {
-      if (n >= MAX_TREES) return;
+      if (n >= MAX_TREES || n2 >= MAX_TREES) return;
       q.setFromAxisAngle(up, seed * 6.28);
       s.setScalar(k);
-      p.set(wx, this.heightAt(wx, wz) - 0.2, wz);
+      const y = this.heightAt(wx, wz);
+      p.set(wx, y - 0.2, wz);
       m.compose(p, q, s);
-      this.trees.setMatrixAt(n, m);
       c.set(treeColour(season, seed, cherry));
-      this.trees.setColorAt(n, c);
-      n++;
+      // Pines on the hills, mostly round broadleaf trees on the low ground and in parks (and every cherry).
+      const broad = y < 2 ? (seed * 5.37) % 1 < 0.65 || cherry > 0.5 : (seed * 5.37) % 1 < 0.15;
+      if (broad) { this.rounds.setMatrixAt(n2, m); this.rounds.setColorAt(n2, c); n2++; }
+      else { this.trees.setMatrixAt(n, m); this.trees.setColorAt(n, c); n++; }
     };
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const i = idx(x, y);
@@ -344,6 +360,9 @@ export class GroundLayer {
     this.trees.count = n;
     this.trees.instanceMatrix.needsUpdate = true;
     if (this.trees.instanceColor) this.trees.instanceColor.needsUpdate = true;
+    this.rounds.count = n2;
+    this.rounds.instanceMatrix.needsUpdate = true;
+    if (this.rounds.instanceColor) this.rounds.instanceColor.needsUpdate = true;
   }
 }
 
