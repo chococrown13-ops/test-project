@@ -20,12 +20,12 @@ export const TIER_COLOR = ['#888', '#9aa3ab', '#4f9d69', '#3f7cc4', '#9b59b6', '
  *  - carved: 나무 장기알. Faceted, wood-toned figures on octagonal wooden tokens.
  *  - porcelain: 도자기 인형. Smooth glazed figures with a clear-coat shine.
  */
-export type PieceStyle = 'sticker' | 'doll' | 'carved' | 'porcelain' | 'pixel' | 'voxel';
+export type PieceStyle = 'art' | 'sticker' | 'doll' | 'carved' | 'porcelain' | 'pixel' | 'voxel';
 /** The styles on offer: 도트 and 인형 (the others are kept for comparing, not offered). */
-export const STYLE_NAME: Partial<Record<PieceStyle, string>> = { sticker: '캐릭터', pixel: '도트', doll: '인형' };
+export const STYLE_NAME: Partial<Record<PieceStyle, string>> = { art: '그림', pixel: '도트', doll: '인형' };
 /** Styles whose figures use the big-headed doll proportions. */
-const chibi = () => style === 'doll' || style === 'pixel' || style === 'voxel' || style === 'sticker';
-let style: PieceStyle = 'sticker';
+const chibi = () => style === 'doll' || style === 'pixel' || style === 'voxel' || style === 'sticker' || style === 'art';
+let style: PieceStyle = 'art';
 export function setPieceStyle(s: PieceStyle) { style = s; }
 export const pieceStyle = () => style;
 /** Whether figures get eyes (한식 대전's dishes don't). */
@@ -57,7 +57,7 @@ function mat(color: string, opts: { emissive?: string; rough?: number } = {}): T
   let m = mats.get(k);
   if (m) return m;
   if (style === 'voxel') m = new THREE.MeshStandardMaterial({ color, roughness: 0.8, emissive: opts.emissive ?? '#000000' });
-  else if (style === 'doll' || style === 'pixel' || style === 'sticker') m = new THREE.MeshToonMaterial({ color, gradientMap: ramp(), emissive: opts.emissive ?? '#000000' });
+  else if (style === 'doll' || style === 'pixel' || style === 'sticker' || style === 'art') m = new THREE.MeshToonMaterial({ color, gradientMap: ramp(), emissive: opts.emissive ?? '#000000' });
   else if (style === 'porcelain') m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.12, emissive: opts.emissive ?? '#000000' });
   else m = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).lerp(WOOD, 0.22), flatShading: true, roughness: 0.88, emissive: opts.emissive ?? '#000000' });
   mats.set(k, m);
@@ -122,7 +122,7 @@ export function evolved(def: UnitDef, star: number): UnitDef {
 let spriteFor: ((def: UnitDef, faces: boolean) => THREE.Texture) | null = null;
 export function setSpriteMaker(fn: (def: UnitDef, faces: boolean) => THREE.Texture) { spriteFor = fn; }
 /** Whether this style draws pieces as flat camera-facing pictures. */
-export const spriteStyle = () => style === 'pixel' || style === 'sticker';
+export const spriteStyle = () => style === 'pixel' || style === 'sticker' || style === 'art';
 
 /**
  * `raw` builds the figure from primitives even in the 도트 and 복셀 styles (the sprite maker and the
@@ -429,7 +429,7 @@ export function buildPiece(def0: UnitDef, star: number, enemy = false, withFaces
   if (!raw && spriteStyle() && spriteFor) {
     // A camera-facing sprite instead of the figure (mirrored for the other side, so they face each other).
     fig.clear();
-    const sticker = style === 'sticker';
+    const sticker = style === 'sticker' || style === 'art';
     const tex = spriteFor(def, faces);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: sticker ? 0.08 : 0.5 }));
     // Dishes are wide: draw them smaller so they stay inside their square.

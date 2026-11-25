@@ -3,6 +3,8 @@ import { BY_ID } from '../sim/units';
 import type { UnitDef } from '../sim/units';
 import { beginEyeCapture, buildPiece, CREATURES, endEyeCapture, evolved, pieceStyle, setSpriteMaker } from './pieces';
 import type { EyeMark } from './pieces';
+import { spiritSvg } from './art/spirits';
+import { VIEW } from './art/kit';
 
 /**
  * Little portraits of the pieces for the shop cards, the info card and the
@@ -36,7 +38,10 @@ export function portrait(id: string, faces: boolean, star = 1): string {
   if (!renderer) setup();
   // An evolved form gets its own picture.
   const def = evolved(BY_ID[id], star);
-  if (pieceStyle() === 'sticker') {
+  // 그림 style: the hand-drawn picture where there is one.
+  const drawn = pieceStyle() === 'art' ? artUrl(id, star, true) : null;
+  if (drawn) { cache.set(key, drawn); return drawn; }
+  if (pieceStyle() === 'sticker' || pieceStyle() === 'art') {
     const url = stickerCanvas(def, faces).canvas.toDataURL('image/png');
     cache.set(key, url);
     return url;
@@ -181,10 +186,37 @@ function pixelCanvas(def: UnitDef, faces: boolean): HTMLCanvasElement {
   return out;
 }
 
+/** A hand-drawn picture as an image URL (or null when the piece has none). */
+function artUrl(id: string, star: number, shadow: boolean): string | null {
+  const svg = spiritSvg(id, star, shadow);
+  return svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` : null;
+}
+
+/** A hand-drawn picture as a texture: drawn onto a canvas once the image has loaded. */
+function artTexture(id: string, star: number): THREE.Texture | null {
+  const url = artUrl(id, star, false);
+  if (!url) return null;
+  const W = 300, H = Math.round((W * VIEW.h) / VIEW.w);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  t.userData.foot = (VIEW.y + VIEW.h - VIEW.ground) / VIEW.h;
+  const img = new Image();
+  img.onload = () => { c.getContext('2d')!.drawImage(img, 0, 0, W, H); t.needsUpdate = true; };
+  img.src = url;
+  return t;
+}
+
 setSpriteMaker((def, faces) => {
   const key = `${pieceStyle()}|${def.id}|${faces}`;
   let t = texCache.get(key);
-  if (!t && pieceStyle() === 'sticker') {
+  if (!t && pieceStyle() === 'art') {
+    // An evolved form's id is `kind@star`.
+    const [base, st] = def.id.split('@');
+    const tex = artTexture(base, +(st ?? 1));
+    if (tex) { t = tex; texCache.set(key, t); }
+  }
+  if (!t && (pieceStyle() === 'sticker' || pieceStyle() === 'art')) {
     const st = stickerCanvas(def, faces);
     t = new THREE.CanvasTexture(st.canvas);
     t.colorSpace = THREE.SRGBColorSpace;

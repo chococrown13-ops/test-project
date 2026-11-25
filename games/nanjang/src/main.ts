@@ -601,8 +601,8 @@ function begin(game: Game) {
 
 /* ------------------------------------------------------------- style */
 
-let chosenStyle: PieceStyle = 'sticker';
-try { const v = localStorage.getItem('nanjang.style2') as PieceStyle | null; if (v && v in STYLE_NAME) chosenStyle = v; } catch { /* storage blocked */ }
+let chosenStyle: PieceStyle = 'art';
+try { const v = localStorage.getItem('nanjang.style3') as PieceStyle | null; if (v && v in STYLE_NAME) chosenStyle = v; } catch { /* storage blocked */ }
 setPieceStyle(chosenStyle);
 function renderStylePick() {
   document.querySelectorAll<HTMLElement>('[data-stylepick]').forEach((el) => {
@@ -613,7 +613,7 @@ document.addEventListener('click', (e) => {
   const b = (e.target as HTMLElement).closest('[data-style]') as HTMLElement | null;
   if (!b) return;
   setPieceStyle(b.dataset.style as PieceStyle);
-  try { localStorage.setItem('nanjang.style2', b.dataset.style!); } catch { /* storage blocked */ }
+  try { localStorage.setItem('nanjang.style3', b.dataset.style!); } catch { /* storage blocked */ }
   renderStylePick();
   if (mode === 'prep' && $('start').hidden) { table.clearPieces(); renderAll(); }
   if (!$('book').hidden) renderBook();
