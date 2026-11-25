@@ -1,4 +1,5 @@
 import { checkAchievements } from './goals';
+import { checkSpecs } from './special';
 import { stalledZones } from './diagnose';
 import { calendarMonthOf } from './calendar';
 import { closeMobilityMonth, updateFestivals } from './attractions';
@@ -63,6 +64,7 @@ export function stepDay(s: Sim) {
     notify(w, `${text} 국비 지원 ${grant.toLocaleString('ko-KR')}만 원`, 'good');
   }
   checkAchievements(w);
+  checkSpecs(w);
   if (w.day % 15 === 0) warnings(w);
   if (w.day % 30 === 0) seasonNotice(w);
 }
