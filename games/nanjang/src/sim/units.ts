@@ -11,8 +11,23 @@ export type Effect =
   | { k: 'double' | 'dodge' | 'ad' | 'as' | 'hp' | 'lifesteal' | 'skill' | 'resist' | 'mana' | 'regen' | 'ramp' | 'teamArmor'; v: number[] }
   | { k: 'crit'; v: number[]; leap: true };
 
+/**
+ * A trait's stacks: something that builds up during a fight (or, for 'round', from fight to fight).
+ *  on: what adds a stack. stat: what each stack gives (v is per stack, by step). max: the most stacks.
+ *  burst: at max, the stacks go off as extra magic damage on the target (v), then start again.
+ *  kin: each stack goes to every ally sharing the trait instead (mana).
+ *  low: once, when health first falls under half, a shield of v.
+ */
+export interface Stack {
+  on: 'attack' | 'hit' | 'cast' | 'kill' | 'dodge' | 'round' | 'low';
+  stat: 'ad' | 'as' | 'resist' | 'skill' | 'hp' | 'mana' | 'burst' | 'shield';
+  v: number[]; max: number; text: string;
+}
+
 export interface TraitDef {
   name: string; kind: 'origin' | 'class'; steps: number[]; text: string; levels: string[]; effect: Effect;
+  /** What builds up while it fights (see Stack). */
+  stack?: Stack;
   /** 사계절 요괴: the season (0 봄 .. 3 겨울) in which this trait counts double. */
   season?: number;
 }

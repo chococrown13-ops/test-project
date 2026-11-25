@@ -3,7 +3,7 @@ import { COLS, type Combat, DT, type Ev, HALF, ROWS, step } from '../sim/combat'
 import type { Piece, Player } from '../sim/game';
 import { BENCH } from '../sim/game';
 import { ARENAS, BUSH, ICE, MUD, ROCK, WATER } from '../sim/arena';
-import { BY_ID, itemDef, type Palette, theme } from '../sim/units';
+import { BY_ID, itemDef, type Palette, theme, TRAITS } from '../sim/units';
 import { buildPiece, type PieceObj } from './pieces';
 
 /**
@@ -574,7 +574,7 @@ export class Table {
     const colour: Record<string, string> = {
       bonk: '#f2c94c', foxfire: '#6ec6ff', snipe: '#f4efe2', drag: '#4fa3b5', guardup: '#cfe8ff', taunt: '#e0a96d', boulder: '#9b8f80', blink: '#b9a7d9',
       wave: '#4fa3b5', heal: '#7ddc8a', roar: '#f29b30', judge: '#ffd84a', ttukttak: '#f2c94c', charm: '#ff8fb1', reap: '#3b3b46', shell: '#9fd3a8',
-      mountain: '#c7f0c2', devour: '#8c9099', beam: '#7fd1d9',
+      mountain: '#c7f0c2', devour: '#8c9099', beam: '#7fd1d9', burst: '#fff2a8',
     };
     const col = colour[e.skill] ?? '#ffffff';
     this.ring(a.x, a.z, col, 0.9);
@@ -737,11 +737,12 @@ export class Table {
         s.obj.stun.rotation.y = t * 4;
         s.obj.stun.scale.setScalar(1.4);
         // Status badges over the bars: only rewritten when they change.
-        const st = !f.alive ? '' : [f.stunT > 0 ? 'stun' : '', f.silenceT > 0 ? 'silence' : '', f.shield > 1 ? 'shield' : '', f.tauntBy >= 0 ? 'taunt' : '', f.asBuffT > 0 ? 'fast' : ''].filter(Boolean).join(' ');
+        const top = f.alive ? f.stk.filter((x) => x.n > 0 && x.st.on !== 'low').sort((a, b) => b.n - a.n)[0] : undefined;
+        const st = !f.alive ? '' : [f.stunT > 0 ? 'stun' : '', f.silenceT > 0 ? 'silence' : '', f.shield > 1 ? 'shield' : '', f.tauntBy >= 0 ? 'taunt' : '', f.asBuffT > 0 ? 'fast' : '', top ? `stk:${TRAITS[top.t].name}:${top.n}` : ''].filter(Boolean).join(' ');
         if (st !== s.stKey) {
           s.stKey = st;
           const NAME: Record<string, string> = { stun: '기절', silence: '침묵', shield: '보호막', taunt: '도발됨', fast: '빨라짐' };
-          s.st.innerHTML = st ? st.split(' ').map((k) => `<b class="${k}">${NAME[k]}</b>`).join('') : '';
+          s.st.innerHTML = st ? st.split(' ').map((k) => k.startsWith('stk:') ? `<b class="stk">${k.split(':')[1]} ×${k.split(':')[2]}</b>` : `<b class="${k}">${NAME[k]}</b>`).join('') : '';
         }
         // The shield sits right after the health left (squeezing the bar when the two pass the maximum).
         const total = Math.max(f.maxHp, Math.max(0, f.hp) + f.shield);

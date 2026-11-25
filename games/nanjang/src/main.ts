@@ -166,9 +166,9 @@ function fighterFor(uid: number | undefined): Fighter | null {
   if (uid === undefined || !g) return null;
   const p = me(), ctx = { arena: g.arena, season: g.season };
   const bi = p.board.findIndex((u) => u.uid === uid);
-  if (bi >= 0) return setup(p.board.map((u) => ({ id: u.id, star: u.star, c: u.c, r: u.r, items: u.items })), [], 0, ctx).f[bi] ?? null;
+  if (bi >= 0) return setup(p.board.map((u) => ({ id: u.id, star: u.star, c: u.c, r: u.r, items: u.items, grow: u.grow })), [], 0, ctx).f[bi] ?? null;
   const piece = findPiece(p, uid);
-  return piece ? setup([{ id: piece.id, star: piece.star, c: 0, r: 0, items: piece.items }], [], 0, ctx).f[0] : null;
+  return piece ? setup([{ id: piece.id, star: piece.star, c: 0, r: 0, items: piece.items, grow: piece.grow }], [], 0, ctx).f[0] : null;
 }
 
 function showInfo(id: string, star: number, at: { x: number; y: number } | null, uid?: number, peek = false, live?: Fighter) {
@@ -190,6 +190,8 @@ function showInfo(id: string, star: number, at: { x: number; y: number } | null,
   if (f?.double) extra.push(stat('연타', pct(f.double), '평타를 한 번 더 칠 확률', true));
   if (f?.lifesteal) extra.push(stat('흡혈', pct(f.lifesteal), '준 피해만큼 체력을 되찾는 비율', true));
   if (f?.manaRegen) extra.push(stat('마나 회복', `초당 ${f.manaRegen}`, '', true));
+  const grown = uid !== undefined && g ? findPiece(me(), uid)?.grow ?? 0 : 0;
+  if (grown) extra.push(stat('자람', `${grown}번`, '풀 정령이 판에서 싸울 때마다 쌓이는 체력 (팔면 사라져요)', true));
   const nums = creep ? '' : skillNumbers(d.skill, power, star);
   const name = nameAt(d, star);
   el.innerHTML = `
@@ -295,6 +297,7 @@ function lightTrait(t: Trait | null, from?: HTMLElement) {
     <div class="tc-head"><span class="chip ${d.kind}">${d.kind === 'origin' ? '출신' : '싸움법'}</span><b>${d.name}</b><span class="tc-n num">${n} / ${d.steps.at(-1)}</span></div>
     <p>${d.text}</p>
     <ol class="tc-steps">${d.steps.map((st, i) => `<li class="${n >= st ? 'on' : ''}"><b>${st}</b> ${d.levels[i]}</li>`).join('')}</ol>
+    ${d.stack ? `<p class="tc-stack"><b>쌓기</b> ${d.stack.text}</p>` : ''}
     <div class="tc-units">${units.map((u) => `<span class="tc-u${onBoard.has(u.id) ? ' on' : have.has(u.id) ? ' have' : ''}" style="--tier:${TIER_COLOR[u.tier]}">${pic(u.id)}<i>${u.name}</i><small>${u.tier}냥</small></span>`).join('')}</div>
     <small class="tc-hint">빛나는 말이 ${d.name}이에요. 판 위 말 = 진한 테두리, 대기석 = 점선${pinned ? ' · 다시 누르면 닫혀요' : ''}</small>`;
   card.hidden = false;
@@ -629,7 +632,7 @@ function renderBook() {
   $('bookTraits').innerHTML = `<button class="${bookTrait ? '' : 'on'}" data-booktrait="">전체</button>` + Object.entries(TRAITS).map(([k, d]) => `<button class="chip-btn ${d.kind}${bookTrait === k ? ' on' : ''}" data-booktrait="${k}">${d.name} <small>${d.steps.join('/')}</small></button>`).join('');
   const list = UNITS.filter((u) => !bookTrait || u.traits.includes(bookTrait)).sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name));
   const bt = bookTrait ? TRAITS[bookTrait] : null;
-  $('bookList').innerHTML = (bt ? `<p class="book-trait"><b>${bt.name}</b> ${bt.text} ${bt.steps.map((st, i) => `${st}개: ${bt.levels[i]}`).join(' · ')}</p>` : '') + list.map((u) => `
+  $('bookList').innerHTML = (bt ? `<p class="book-trait"><b>${bt.name}</b> ${bt.text} ${bt.steps.map((st, i) => `${st}개: ${bt.levels[i]}`).join(' · ')}${bt.stack ? ` · 쌓기: ${bt.stack.text}` : ''}</p>` : '') + list.map((u) => `
     <article class="book-u" style="--tier:${TIER_COLOR[u.tier]}">
       ${pic(u.id)}
       <div><b>${u.name}</b><span class="num">${u.tier}냥</span></div>

@@ -603,3 +603,8 @@ body.dragging .zoom { opacity: 0.3; pointer-events: none; }
 
 /* The drawn pictures leave room round the figure: show it bigger on the cards. */
 .card .c-img { transform: scale(1.32); transform-origin: 50% 88%; }
+
+/* A trait's stacks over a fighter's bars. */
+.plabel .status b.stk { background: #f2c14a; color: #3a2a10; }
+.tc-stack { margin: 6px 0 0; font-size: 12px; line-height: 1.45; }
+.tc-stack b { display: inline-block; padding: 0 6px; margin-right: 4px; border-radius: 999px; background: #f2c14a; color: #3a2a10; font-size: 11px; }

@@ -1,7 +1,7 @@
 import { ARENA_ROTATION, SEASON_ARENA, standable } from './arena';
 import { COLS, type Ctx, fight, HALF, type Outcome, type Placed } from './combat';
 import { Rng } from './rng';
-import { BY_ID, comboId, itemDef, ODDS, POOL_SIZE, sellValue, theme, TIER_COST, type Trait, traitCounts, UNITS, XP_NEXT } from './units';
+import { BY_ID, comboId, itemDef, ODDS, POOL_SIZE, sellValue, theme, TIER_COST, type Trait, traitCounts, traitsAt, TRAITS, UNITS, XP_NEXT } from './units';
 import { useTheme } from '../themes';
 
 /**
@@ -18,7 +18,9 @@ export const XP_COST = 4;
 export const ITEM_SLOTS = 3;
 export const TRAY = 10;
 
-export interface Piece { uid: number; id: string; star: number; items?: string[] }
+export interface Piece { uid: number; id: string; star: number; items?: string[];
+  /** 풀 and the like: stacks it has grown, fight after fight (kept until it is sold). */
+  grow?: number }
 export interface OnBoard extends Piece { c: number; r: number }
 
 export interface Player {
@@ -167,7 +169,7 @@ function nearestSpot(g: Game, p: Player, c0: number, r0: number): { c: number; r
   return best;
 }
 
-const strip = (u: OnBoard): Piece => ({ uid: u.uid, id: u.id, star: u.star, items: u.items });
+const strip = (u: OnBoard): Piece => ({ uid: u.uid, id: u.id, star: u.star, items: u.items, grow: u.grow });
 
 /* -------------------------------------------------------------- actions */
 
@@ -241,6 +243,7 @@ export function merge(_g: Game, p: Player): Piece | null {
       keep.piece.star++;
       made = keep.piece;
       for (const x of three.slice(1)) {
+        if (x.piece.grow) keep.piece.grow = Math.min(20, (keep.piece.grow ?? 0) + x.piece.grow);
         for (const it of x.piece.items ?? []) {
           const list = keep.piece.items ?? (keep.piece.items = []);
           if (list.length < ITEM_SLOTS) list.push(it); else if (p.items.length < TRAY) p.items.push(it);
@@ -340,7 +343,7 @@ export const worth = (u: Piece) => BY_ID[u.id].tier * 3 ** (u.star - 1) + (u.ite
 
 /* ---------------------------------------------------------------- fights */
 
-const team = (p: Player): Placed[] => p.board.map((u) => ({ id: u.id, star: u.star, c: u.c, r: u.r, items: u.items }));
+const team = (p: Player): Placed[] => p.board.map((u) => ({ id: u.id, star: u.star, c: u.c, r: u.r, items: u.items, grow: u.grow }));
 
 /**
  * Everyone fights; returns the matches (yours first). With `advance` the game moves straight on to
@@ -396,12 +399,23 @@ export function settleRound(g: Game, matches: Match[]) {
     else if (w === 1) { hit(pa); if (!m.ghost) win(pb!); }
     else { hit(pa); if (!m.ghost) hit(pb!); }
   }
+  // Growing traits (풀): every piece on a board with the trait on grows a stack.
+  for (const p of alive) grow(p);
   // Knocked out: places count up from the bottom.
   const out = g.players.filter((p) => p.alive && p.hp <= 0).sort((a, b) => a.hp - b.hp);
   let left = alive.length;
   for (const p of out) { p.alive = false; p.place = left--; returnAll(g, p); }
   const still = g.players.filter((p) => p.alive);
   if (still.length <= 1) { g.over = true; if (still[0]) still[0].place = 1; }
+}
+
+/** Pieces whose trait grows from fight to fight gain a stack. */
+export function grow(p: Player) {
+  const on = boardTraits(p).filter((t) => t.step && TRAITS[t.trait].stack?.on === 'round');
+  for (const t of on) {
+    const max = TRAITS[t.trait].stack!.max;
+    for (const u of p.board) if (traitsAt(BY_ID[u.id], u.star).includes(t.trait)) u.grow = Math.min(max, (u.grow ?? 0) + 1);
+  }
 }
 
 /** After the fights: the next round's pay, shops and bots. */
@@ -490,7 +504,7 @@ export function arrange(g: Game, p: Player) {
   const rest = all.slice(boardCap(p));
   p.board = [];
   p.bench = Array(BENCH).fill(null);
-  rest.slice(0, BENCH).forEach((u, i) => { p.bench[i] = { uid: u.uid, id: u.id, star: u.star, items: u.items }; });
+  rest.slice(0, BENCH).forEach((u, i) => { p.bench[i] = { uid: u.uid, id: u.id, star: u.star, items: u.items, grow: u.grow }; });
   const front = chosen.filter((u) => BY_ID[u.id].range === 1 && !BY_ID[u.id].traits.some((t) => theme().traits[t].effect.k === 'crit'));
   const back = chosen.filter((u) => !front.includes(u));
   for (const u of front) { const s = freeSpot(g, p, 'front'); if (s) p.board.push({ ...u, ...s }); }
@@ -518,7 +532,7 @@ function migrate(g: Game) {
     const keep = p.board.filter((u) => u.r < HALF && u.c < COLS && standable(g.arena, u.c, u.r));
     const moved = p.board.filter((u) => !keep.includes(u));
     p.board = keep;
-    for (const u of moved) { const s = freeSpot(g, p, 'back'); if (s) p.board.push({ ...u, ...s }); else { const i = benchFree(p); if (i >= 0) p.bench[i] = { uid: u.uid, id: u.id, star: u.star, items: u.items }; } }
+    for (const u of moved) { const s = freeSpot(g, p, 'back'); if (s) p.board.push({ ...u, ...s }); else { const i = benchFree(p); if (i >= 0) p.bench[i] = { uid: u.uid, id: u.id, star: u.star, items: u.items, grow: u.grow }; } }
   }
 }
 
