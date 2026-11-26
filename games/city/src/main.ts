@@ -1,3 +1,4 @@
+import { sfx, type Sfx } from './audio/sfx';
 import './style.css';
 import { Bgm } from './audio/bgm';
 import { shared } from './render/materials';
@@ -36,11 +37,20 @@ const undoStack: string[] = [];
 const UNDO_MAX = 10;
 const changeSig = () => { const w = sim.w; return `${JSON.stringify(w.ver)}:${w.money}:${w.buildings.size}:${w.lines.length}:${w.roundabouts.length}:${w.noAvenueParking}:${w.transferDiscount}`; };
 /** Run a change; if it changed the city, it can be taken back. */
-function undoable<T>(fn: () => T): T {
+function undoable<T>(fn: () => T, sound?: Sfx): T {
   const before = changeSig(), snap = serialize(sim.w);
   const r = fn();
-  if (changeSig() !== before) { undoStack.push(snap); if (undoStack.length > UNDO_MAX) undoStack.shift(); renderCats(); }
+  if (changeSig() !== before) { undoStack.push(snap); if (undoStack.length > UNDO_MAX) undoStack.shift(); renderCats(); sfx.play(sound ?? soundOfTool()); }
   return r;
+}
+/** The sound of what the current tool just did. */
+function soundOfTool(): Sfx {
+  const d = TOOLS[tool];
+  if (!d) return 'build';
+  if (tool === 'bulldoze' || d.zone === Zone.None) return 'demolish';
+  if (d.road !== undefined || d.level || d.roundabout) return 'road';
+  if (d.zone !== undefined || d.trees) return 'zone';
+  return 'build';
 }
 /** 되돌리기: back to just before the last change (its cost comes back too). */
 function undoLast() {
@@ -50,7 +60,8 @@ function undoLast() {
   scene.setSim(sim);
   closeInfo();
   draft = null; bend = null; scene.preview.clear();
-  toast('방금 한 공사를 되돌렸어요.', 'good');
+  toast('방금 한 공사를 되돌렸어요.');
+  sfx.play('undo');
   renderCats();
 }
 const scene = new CityScene(canvas, sim);
@@ -242,7 +253,7 @@ function renderPanel(force = false) {
   const stamp = panel === 'budget' ? `${w.reports.length}:${w.tax.R}${w.tax.C}${w.tax.I}` : panel === 'stats' ? `${w.day}:${scene.overlay}` : panel === 'lines' ? `${w.ver.transit}:${w.reports.length}:${confirmLine}` : panel === 'notices' ? `${w.notices.length}:${w.notices[0]?.text}` : panel;
   if (!force && stamp === panelStamp) return;
   panelStamp = stamp;
-  $('panel').innerHTML = panel === 'budget' ? budgetHtml(w) : panel === 'stats' ? statsHtml(w, scene.overlay) : panel === 'menu' ? menuHtml(w, scene.quality, scene.style, { on: bgm.on, volume: bgm.volume }, scene.dayLock) : panel === 'lines' ? linesHtml(w, confirmLine) : panel === 'notices' ? noticesHtml(w) : HELP;
+  $('panel').innerHTML = panel === 'budget' ? budgetHtml(w) : panel === 'stats' ? statsHtml(w, scene.overlay) : panel === 'menu' ? menuHtml(w, scene.quality, scene.style, { on: bgm.on, volume: bgm.volume }, scene.dayLock, sfx.on) : panel === 'lines' ? linesHtml(w, confirmLine) : panel === 'notices' ? noticesHtml(w) : HELP;
 }
 function openInfo(x: number, y: number) {
   infoCell = { x, y };
@@ -261,7 +272,7 @@ for (const id of ['info', 'panel']) {
     if (!t) return;
     if (t.dataset.close !== undefined) { if (id === 'info') closeInfo(); else closePanel(); }
     if (t.dataset.demolish) {
-      undoable(() => bulldoze(sim.w, (() => { const b = sim.w.buildings.get(Number(t.dataset.demolish)); return b ? [idx(b.x, b.y)] : []; })()));
+      undoable(() => bulldoze(sim.w, (() => { const b = sim.w.buildings.get(Number(t.dataset.demolish)); return b ? [idx(b.x, b.y)] : []; })()), 'demolish');
       closeInfo();
     }
     if (t.dataset.ov) { scene.setOverlay(t.dataset.ov as Overlay); scene.transit.showRoutes = t.dataset.ov === 'transit' || !!draft; renderPanel(true); }
@@ -289,8 +300,10 @@ for (const id of ['info', 'panel']) {
       return;
     }
     if (t.dataset.act === 'music') { setMusic(!bgm.on); renderPanel(true); return; }
+    if (t.dataset.act === 'sfx') { sfx.on = !sfx.on; sfx.wake(); try { localStorage.setItem('city.sfx', sfx.on ? 'on' : 'off'); } catch { /* storage blocked */ } renderPanel(true); return; }
     if (t.dataset.act === 'vol-' || t.dataset.act === 'vol+') {
       bgm.setVolume(Math.round((bgm.volume + (t.dataset.act === 'vol+' ? 0.1 : -0.1)) * 10) / 10);
+      sfx.volume = bgm.volume;
       try { localStorage.setItem('city.volume', String(bgm.volume)); } catch { /* storage blocked */ }
       renderPanel(true);
       return;
@@ -815,7 +828,9 @@ let last = performance.now();
 /* ------------------------------------------------------------ music */
 
 let musicWanted = true;
-try { musicWanted = localStorage.getItem('city.music') !== 'off'; const v = localStorage.getItem('city.volume'); if (v) bgm.setVolume(Number(v)); } catch { /* storage blocked */ }
+try { musicWanted = localStorage.getItem('city.music') !== 'off'; const v = localStorage.getItem('city.volume'); if (v) bgm.setVolume(Number(v)); sfx.on = localStorage.getItem('city.sfx') !== 'off'; } catch { /* storage blocked */ }
+sfx.volume = bgm.volume;
+scene.buildings.onBorn = (b) => { if (KINDS[b.kind].zone) sfx.play('grow'); };
 function setMusic(on: boolean) {
   musicWanted = on;
   if (on) bgm.start(); else bgm.stop();
@@ -825,7 +840,7 @@ function setMusic(on: boolean) {
 }
 $('musicBtn').addEventListener('click', (e) => { e.stopPropagation(); setMusic(!bgm.on); });
 // Browsers allow sound only after the first tap or key: start then, if wanted.
-const firstGesture = () => { if (musicWanted && !bgm.on) setMusic(true); window.removeEventListener('pointerdown', firstGesture); window.removeEventListener('keydown', firstGesture); };
+const firstGesture = () => { sfx.wake(); if (musicWanted && !bgm.on) setMusic(true); window.removeEventListener('pointerdown', firstGesture); window.removeEventListener('keydown', firstGesture); };
 window.addEventListener('pointerdown', firstGesture);
 window.addEventListener('keydown', firstGesture);
 

@@ -1225,6 +1225,8 @@ export class BuildingLayer {
   private slots = {} as Record<Shape, Slot>;
   private mats: Record<Shape, THREE.Material>;
   private born = new Map<number, number>();
+  /** A building has just gone up (not when a city is first drawn). */
+  onBorn?: (b: Building) => void;
   private first = true;
   private cache = new Map<number, { key: string; parts: Part[] }>();
   private icons: THREE.Sprite[] = [];
@@ -1298,7 +1300,7 @@ export class BuildingLayer {
     const live = new Set<number>();
     w.buildings.forEach((b) => {
       live.add(b.id);
-      if (!this.born.has(b.id)) this.born.set(b.id, this.first ? -99 : now);
+      if (!this.born.has(b.id)) { this.born.set(b.id, this.first ? -99 : now); if (!this.first) this.onBorn?.(b); }
       const key = `${b.kind}:${b.floors}:${w.ver.roads}`;
       let e = this.cache.get(b.id);
       if (!e || e.key !== key) { e = { key, parts: parts(b, w) }; this.cache.set(b.id, e); }

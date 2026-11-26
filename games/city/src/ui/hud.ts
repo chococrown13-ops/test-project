@@ -1,3 +1,4 @@
+import { sfx } from '../audio/sfx';
 import { growthBlock, lotBlock } from '../sim/diagnose';
 import { isOpen, SPECS, specLevel } from '../sim/special';
 import { isPocket, pocketKind, POCKET_NAME } from '../sim/pockets';
@@ -86,6 +87,7 @@ export function noticesHtml(w: World): string {
 
 /** A toast; with `place`, it carries a button that takes the camera there (main.ts listens for city:goto). */
 export function toast(text: string, tone: 'info' | 'warn' | 'good' = 'info', place?: { at: number; overlay?: string }) {
+  if (tone !== 'info') sfx.play(tone);
   const box = $('toasts');
   const el = document.createElement('div');
   el.className = `toast ${tone}`;
@@ -351,7 +353,7 @@ export function draftHtml(w: World, kind: LineKind, stops: number[], bus: BusTyp
 
 const STYLE_NAME = { lowpoly: '로우폴리', toon: '툰', pixel: '픽셀' } as const;
 
-export function menuHtml(w: World, quality: 'high' | 'normal', style: keyof typeof STYLE_NAME = 'lowpoly', music = { on: false, volume: 0.6 }, dayLock = false): string {
+export function menuHtml(w: World, quality: 'high' | 'normal', style: keyof typeof STYLE_NAME = 'lowpoly', music = { on: false, volume: 0.6 }, dayLock = false, effects = true): string {
   let h = head('메뉴');
   h += `<p class="hint">${esc(w.name)}, ${dateText(w.day)}</p><div class="menu">`;
   h += '<button class="btn" data-act="save">저장하기</button><button class="btn" data-act="slots">불러오기 (저장한 도시들)</button><button class="btn" data-act="new">새 도시</button><button class="btn" data-act="help">조작법</button>';
@@ -359,6 +361,7 @@ export function menuHtml(w: World, quality: 'high' | 'normal', style: keyof type
   h += `<button class="btn" data-act="style">그림체: ${STYLE_NAME[style]}</button>`;
   h += `<button class="btn" data-act="daylock" aria-pressed="${dayLock}">시간: ${dayLock ? '낮 고정' : '밤낮 바뀜'}</button>`;
   h += `<button class="btn" data-act="music" aria-pressed="${music.on}">배경음악: ${music.on ? '켜짐' : '꺼짐'}</button>`;
+  h += `<button class="btn" data-act="sfx" aria-pressed="${effects}">효과음: ${effects ? '켜짐' : '꺼짐'}</button>`;
   h += `<div class="vol"><span>음량</span><button class="btn small" data-act="vol-" aria-label="음량 줄이기">−</button><b>${Math.round(music.volume * 10)}</b><button class="btn small" data-act="vol+" aria-label="음량 키우기">+</button></div></div>`;
   h += '<h4>최근 소식</h4><ol class="log">' + w.notices.slice(0, 20).map((n) => `<li><span>${dateText(n.day)}</span>${esc(n.text)}</li>`).join('') + '</ol>';
   return h;
