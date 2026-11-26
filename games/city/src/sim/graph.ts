@@ -21,8 +21,8 @@ export const cellOf = (node: number) => (node >= NN ? node - NN : node);
 export const isAlt = (node: number) => node >= NN;
 
 /** Road type of a node: 0 none, 1 street, 2 avenue. */
-export function roadTypeOf(w: World, node: number): 0 | 1 | 2 {
-  return (node >= NN ? w.roadAlt[node - NN] : w.road[node]) as 0 | 1 | 2;
+export function roadTypeOf(w: World, node: number): 0 | 1 | 2 | 3 {
+  return (node >= NN ? w.roadAlt[node - NN] : w.road[node]) as 0 | 1 | 2 | 3;
 }
 
 function orth(c: number, out: number[]) {
@@ -82,6 +82,13 @@ function pairGap(w: World, a: number, b: number): boolean {
   return !ok(beyondB) && !ok(beforeA);
 }
 
+/** A 고속도로 joins ordinary roads only at a 나들목; highways meet each other freely (a 분기점). */
+export function highwayLinkOk(w: World, a: number, b: number): boolean {
+  const ha = w.road[a] === 3, hb = w.road[b] === 3;
+  if (ha === hb) return true;
+  return ha ? (w.hwy[a] & 1) !== 0 : (w.hwy[b] & 1) !== 0;
+}
+
 /** Whether traffic may drive from ground cell a to its neighbour b, given the one-way roads. */
 export function driveOk(w: World, a: number, b: number): boolean {
   if (a >= NN || b >= NN) return true;
@@ -110,7 +117,7 @@ export function forEachNeighbour(w: World, node: number, fn: (n: number, len: nu
     if (!w.road[c]) return;
     const nb = orth(c, []);
     // Beside a curve only the links it really makes count (no shortcuts across the verge).
-    for (const n of nb) if (w.road[n] && curveLinkOk(w, c, n) && !pairGap(w, c, n)) fn(n, 1);
+    for (const n of nb) if (w.road[n] && curveLinkOk(w, c, n) && !pairGap(w, c, n) && highwayLinkOk(w, c, n)) fn(n, 1);
     const d = w.diag[c];
     if (d) {
       const x = c % N, y = (c / N) | 0;

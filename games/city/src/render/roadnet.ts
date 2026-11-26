@@ -22,8 +22,9 @@ import { type Kind, Network, type RoadType } from '../../../shared/roads/network
 export const CITY_TYPES: Record<Kind, RoadType> = {
   street: { half: HALF_WIDTH[Road.Street], kerb: KERB_W[Road.Street], lanes: 1 },
   avenue: { half: HALF_WIDTH[Road.Avenue], kerb: KERB_W[Road.Avenue], lanes: 2 },
+  highway: { half: HALF_WIDTH[Road.Highway], kerb: KERB_W[Road.Highway], lanes: 2 },
 };
-const KIND: Record<number, Kind> = { [Road.Street]: 'street', [Road.Avenue]: 'avenue' };
+const KIND: Record<number, Kind> = { [Road.Street]: 'street', [Road.Avenue]: 'avenue', [Road.Highway]: 'highway' };
 
 const centre = (i: number): V => ({ x: (i % N) * CELL + CELL / 2, z: ((i / N) | 0) * CELL + CELL / 2 });
 

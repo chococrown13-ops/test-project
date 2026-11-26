@@ -1,4 +1,4 @@
-import { KINDS, N, ROAD_UPKEEP, Zone } from './defs';
+import { KINDS, N, ROAD_UPKEEP, Zone, TOLL_FEE } from './defs';
 import { fareIncome, lineUpkeep } from './transit';
 import { accrueTourism } from './attractions';
 import { specIncomeDay } from './special';
@@ -67,6 +67,9 @@ export function repayLoan(w: World, k: number): string | null {
 export function closeMonth(w: World) {
   const m = w.month;
   m.income.T = fareIncome(w);
+  // 고속도로 통행료: every car through a 톨게이트 this month.
+  m.income.H = Math.round(w.tollPass * TOLL_FEE);
+  w.tollPass = 0;
   m.income.G = grantFor(w.stats.pop);
   m.expense.debt = 0;
   for (const l of w.loans) { const p = Math.min(l.left, l.pay); m.expense.debt += p; l.left -= p; l.months--; }
@@ -84,5 +87,5 @@ export function closeMonth(w: World) {
 }
 
 // Saves from before transit have no T or transit fields.
-export const monthIncome = (r: MonthReport) => r.income.R + r.income.C + r.income.I + (r.income.T ?? 0) + (r.income.V ?? 0) + (r.income.G ?? 0) + (r.income.S ?? 0);
+export const monthIncome = (r: MonthReport) => r.income.R + r.income.C + r.income.I + (r.income.T ?? 0) + (r.income.V ?? 0) + (r.income.G ?? 0) + (r.income.S ?? 0) + (r.income.H ?? 0);
 export const monthExpense = (r: MonthReport) => r.expense.roads + r.expense.facilities + r.expense.services + (r.expense.transit ?? 0) + (r.expense.debt ?? 0);

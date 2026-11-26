@@ -242,7 +242,7 @@ export function budgetHtml(w: World): string {
   const inc = monthIncome(last), exp = monthExpense(last);
   let h = head('예산');
   h += `<p class="hint">${w.reports.length ? '지난달' : '이번 달(진행 중)'} 기준, 단위는 만 원이에요.</p>`;
-  h += '<h4>수입</h4>' + kv('주거세', won(last.income.R)) + kv('상업세', won(last.income.C)) + kv('산업세', won(last.income.I)) + kv('대중교통 요금', won(last.income.T ?? 0)) + kv('관광', won(last.income.V ?? 0)) + kv('특화 (의료관광·기술 수출)', won(last.income.S ?? 0)) + kv('지방교부세 (국비)', won(last.income.G || grantFor(w.stats.pop)));
+  h += '<h4>수입</h4>' + kv('주거세', won(last.income.R)) + kv('상업세', won(last.income.C)) + kv('산업세', won(last.income.I)) + kv('대중교통 요금', won(last.income.T ?? 0)) + kv('관광', won(last.income.V ?? 0)) + kv('특화 (의료관광·기술 수출)', won(last.income.S ?? 0)) + kv('고속도로 통행료', won(last.income.H ?? 0)) + kv('지방교부세 (국비)', won(last.income.G || grantFor(w.stats.pop)));
   h += '<h4>지출</h4>' + kv('도로 유지', won(last.expense.roads)) + kv('전기, 상하수도 시설', won(last.expense.facilities)) + kv('공공 서비스', won(last.expense.services)) + kv('대중교통 운영', won(last.expense.transit ?? 0)) + (w.loans.length || last.expense.debt ? kv('대출 상환', won(last.expense.debt ?? 0)) : '');
   const net = inc - exp;
   h += `<div class="kv total"><span class="k">월 수지</span>${state(net >= 0 ? 'ok' : 'no', `${net >= 0 ? '+' : '−'}${won(Math.abs(net))}`)}</div>`;

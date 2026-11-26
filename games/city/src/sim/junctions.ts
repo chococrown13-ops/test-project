@@ -55,7 +55,8 @@ export function linkLen(a: number, b: number): number {
  * street, and two on a one-way street (the whole width goes one way).
  */
 export function laneCount(w: World, a: number, b: number): 1 | 2 {
-  if (roadTypeOf(w, a) === Road.Avenue && roadTypeOf(w, b) === Road.Avenue) return 2;
+  const ra = roadTypeOf(w, a), rb = roadTypeOf(w, b);
+  if (ra >= Road.Avenue && rb >= Road.Avenue) return 2;
   return isOneWay(w, a) && isOneWay(w, b) ? 2 : 1;
 }
 

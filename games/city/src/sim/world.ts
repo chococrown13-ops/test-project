@@ -35,7 +35,7 @@ export interface Loan { left: number; pay: number; months: number; amount: numbe
 export interface MonthReport {
   month: number;
   /** V: visitors' spending (관광). */
-  income: { R: number; C: number; I: number; T: number; V?: number; G?: number; S?: number };
+  income: { R: number; C: number; I: number; T: number; V?: number; G?: number; S?: number; H?: number };
   expense: { roads: number; facilities: number; services: number; transit: number; debt?: number };
   pop: number;
   jobs: number;
@@ -68,6 +68,10 @@ export interface World {
   diag: Uint8Array;
   /** 일방통행: the one way traffic may go along a grid road cell (0 both ways; 1 east, 2 south, 3 west, 4 north). */
   oneway: Uint8Array;
+  /** 고속도로 cells: 1 a 나들목 (joins the ordinary road beside it), 2 a 톨게이트. */
+  hwy: Uint8Array;
+  /** Cars through a 톨게이트 this month. */
+  tollPass: number;
   /** Curved roads drawn over their chains of road cells (see curves.ts). */
   curves: Curve[];
   /** 회전교차로 (see roundabout.ts). */
@@ -189,6 +193,8 @@ export function createWorld(seed = 20261028, name = '새솔시', map: MapKind = 
     altLevel: new Uint8Array(size),
     diag: new Uint8Array(size),
     oneway: new Uint8Array(size),
+    hwy: new Uint8Array(size),
+    tollPass: 0,
     curves: [],
     roundabouts: [],
     parked: new Uint8Array(size),

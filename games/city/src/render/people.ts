@@ -72,7 +72,7 @@ export class PeopleLayer {
       for (let y = b.y - 1; y <= b.y + (b.sy ?? b.size); y++) for (let x = b.x - 1; x <= b.x + (b.sx ?? b.size); x++) {
         if (x < 0 || y < 0 || x >= N || y >= N) continue;
         const i = y * N + x;
-        if (w.road[i] && !w.roadAlt[i] && w.ground[i] === 0) for (let k = 0; k < weight; k++) starts.push(i);
+        if (w.road[i] && w.road[i] !== 3 && !w.roadAlt[i] && w.ground[i] === 0) for (let k = 0; k < weight; k++) starts.push(i);
       }
     });
     this.starts = starts;
@@ -92,7 +92,7 @@ export class PeopleLayer {
       const next: number[] = [];
       const dx = prev >= 0 ? (cur % N) - (prev % N) : 0, dy = prev >= 0 ? ((cur / N) | 0) - ((prev / N) | 0) : 0;
       forEachNeighbour(w, cur, (n) => {
-        if (n >= NN || n === prev || w.ground[n] !== 0 || w.roadAlt[n]) return;
+        if (n >= NN || n === prev || w.ground[n] !== 0 || w.roadAlt[n] || w.road[n] === 3) return;
         if (prev >= 0) {
           const ex = (n % N) - (cur % N), ez = ((n / N) | 0) - ((cur / N) | 0);
           const turn = dx * ez - dy * ex; // > 0 a right turn (screen z points south)

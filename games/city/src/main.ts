@@ -10,7 +10,7 @@ import { deleteSlot, deserialize, listSlots, loadLocal, saveLocal, serialize } f
 import { repayLoan, takeLoan } from './sim/economy';
 import { updateParking } from './sim/parking';
 import { createSim, GAME_PACE, tick, type Sim } from './sim/sim';
-import { ONEWAY_COST, setOneWay, widenRoad, plantTrees, TREE_COST, treeCells, addBuilding, altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeRoundabout, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
+import { ONEWAY_COST, placeHighwayPart, setOneWay, widenRoad, plantTrees, TREE_COST, treeCells, addBuilding, altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeRoundabout, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
 import { buildCityNetwork, buildElevatedNetwork } from './render/roadnet';
 import { findAccess, network } from './sim/network';
 import { hasOpenWater } from './sim/tools';
@@ -48,7 +48,7 @@ function soundOfTool(): Sfx {
   const d = TOOLS[tool];
   if (!d) return 'build';
   if (tool === 'bulldoze' || d.zone === Zone.None) return 'demolish';
-  if (d.road !== undefined || d.level || d.roundabout || d.widen || d.oneway) return 'road';
+  if (d.road !== undefined || d.level || d.roundabout || d.widen || d.oneway || d.hwyPart) return 'road';
   if (d.zone !== undefined || d.trees) return 'zone';
   return 'build';
 }
@@ -416,7 +416,7 @@ function preview() {
   if (!hover || tool === 'select' || !def) { p.clear(); hideTip(); return; }
   const a = drag ? { x: drag.sx, y: drag.sy } : hover;
   const b = hover;
-  const doom = tool === 'bulldoze' || def.trees || def.line || def.level || def.oneway || def.widen || (def.road !== undefined && roadMode === 'curve' && !bend) ? null : doomedBy(cellsUnder(def, a, b));
+  const doom = tool === 'bulldoze' || def.trees || def.line || def.level || def.oneway || def.widen || def.hwyPart || (def.road !== undefined && roadMode === 'curve' && !bend) ? null : doomedBy(cellsUnder(def, a, b));
   demolishNote = doom && doom.n ? `${doomText(doom)}${armed === actionKey(a, b) ? '. 한 번 더 누르면 진행해요' : ''}` : '';
   if (def.trees) {
     const ok = treeCells(w, rectCells(a.x, a.y, b.x, b.y));
@@ -426,6 +426,13 @@ function preview() {
     const cost = todo.length * TREE_COST;
     p.show(ok, todo.length ? (cost > w.money ? '#ff5a5a' : '#7cf0a6') : '#ffb347');
     showTip(b.px, b.py, todo.length ? (cost > w.money ? `예산이 부족해요, ${won(cost)} 필요` : `가로수 ${todo.length}칸, ${won(cost)} · 땅값이 조금 오르고 먼지가 줄어요`) : `가로수 뽑기 ${ok.length}칸`, cost > w.money);
+    return;
+  }
+  if (def.hwyPart) {
+    const i = idx(b.x, b.y), ok = w.road[i] === Road.Highway;
+    p.path([], 0, '');
+    p.show([i], ok ? '#8fd0ff' : '#ff5a5a');
+    showTip(b.px, b.py, def.hwyPart === 'ic' ? '나들목: 일반 도로와 붙은 고속도로 칸을 눌러 이어 주세요. 고속도로는 나들목에서만 다른 길과 이어져요' : '톨게이트: 곧은 고속도로 칸을 누르세요. 지나가는 차마다 통행료가 들어오지만 차가 느려져요', !ok);
     return;
   }
   if (def.widen || def.oneway) {
@@ -554,7 +561,7 @@ function commit() {
   const a = { x: drag.sx, y: drag.sy }, b = { x: drag.cx, y: drag.cy };
   let err: string | null = null;
   // Building over homes and shops (or rezoning them) knocks them down: say so, and go ahead only on a second press.
-  if (tool !== 'bulldoze' && !(def.road !== undefined && roadMode === 'curve') && !def.line && !def.trees && !def.level && !def.oneway && !def.widen
+  if (tool !== 'bulldoze' && !(def.road !== undefined && roadMode === 'curve') && !def.line && !def.trees && !def.level && !def.oneway && !def.widen && !def.hwyPart
     && !confirmDemolish(cellsUnder(def, a, b), actionKey(a, b))) return;
   if (def.roundabout) { err = placeRoundabout(w, idx(b.x, b.y)); if (err) toast(err, 'warn'); return; }
   if (def.trees) {
@@ -563,6 +570,7 @@ function commit() {
     else toast(r.planted ? `가로수 ${r.planted}칸을 심었어요.` : `가로수 ${r.removed}칸을 뽑았어요.`, 'good');
     return;
   }
+  if (def.hwyPart) { err = placeHighwayPart(w, idx(b.x, b.y), def.hwyPart); if (err) toast(err, 'warn'); return; }
   if (def.widen || def.oneway) {
     const cells = roadPath(a.x, a.y, b.x, b.y);
     err = def.widen ? widenRoad(w, cells) : setOneWay(w, cells);

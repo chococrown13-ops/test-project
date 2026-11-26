@@ -36,6 +36,7 @@ export function curbCapacity(w: World, i: number): number {
   const t = w.road[i];
   if (!t || w.ground[i] !== Ground.Land || w.diag[i] || w.roadAlt[i]) return 0;
   if (t === Road.Avenue && w.noAvenueParking) return 0;
+  if (t === Road.Highway) return 0;
   // No kerb parking anywhere along a curve: the cars would sit square to a bending road.
   if (curveInfo(w).chain[i]) return 0;
   // Nor on a roundabout.

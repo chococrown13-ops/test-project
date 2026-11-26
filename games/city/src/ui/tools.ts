@@ -1,11 +1,11 @@
-import { KINDS, Level, LEVEL_COST, Road, ROAD_COST, Zone, type BuildingKind } from '../sim/defs';
+import { IC_COST, KINDS, Level, LEVEL_COST, Road, ROAD_COST, TOLL_COST, Zone, type BuildingKind } from '../sim/defs';
 import { BUS_TYPES, type BusType, TRANSIT_COST } from '../sim/transit';
 import { ROUNDABOUT_COST } from '../sim/roundabout';
 import { ONEWAY_COST, TREE_COST } from '../sim/tools';
 
 export type ToolId =
   | 'select' | 'street' | 'avenue' | 'elevated' | 'underpass' | 'tunnel' | 'zoneR' | 'zoneC' | 'zoneI' | 'dezone' | 'bulldoze' | 'bus' | 'metro'
-  | 'busVillage' | 'busTrunk' | 'busExpress' | 'roundabout' | 'trees' | 'widen' | 'oneway'
+  | 'busVillage' | 'busTrunk' | 'busExpress' | 'roundabout' | 'trees' | 'widen' | 'oneway' | 'highway' | 'ic' | 'toll'
   | `build:${BuildingKind}`;
 
 export interface ToolDef {
@@ -30,6 +30,8 @@ export interface ToolDef {
   widen?: boolean;
   /** Makes a road one-way in the direction dragged (or two-way again). */
   oneway?: boolean;
+  /** A 나들목 or a 톨게이트 on a 고속도로 cell. */
+  hwyPart?: 'ic' | 'toll';
 }
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}만`;
@@ -45,6 +47,9 @@ export const CATEGORIES: Category[] = [
     { id: 'widen', name: '대로로 넓히기', price: `칸당 ${won(ROAD_COST[Road.Avenue] - ROAD_COST[Road.Street])}`, widen: true },
     { id: 'oneway', name: '일방통행', price: `칸당 ${won(ONEWAY_COST)}`, oneway: true },
     { id: 'roundabout', name: '회전교차로', price: won(ROUNDABOUT_COST[Road.Street]), roundabout: true },
+    { id: 'highway', name: '고속도로', price: `칸당 ${won(ROAD_COST[Road.Highway])}`, road: Road.Highway },
+    { id: 'ic', name: '나들목', price: won(IC_COST), hwyPart: 'ic' },
+    { id: 'toll', name: '톨게이트', price: won(TOLL_COST), hwyPart: 'toll' },
     { id: 'trees', name: '가로수', price: `칸당 ${won(TREE_COST)}`, trees: true, swatch: '#5e8f45' },
     { id: 'elevated', name: '고가도로', price: `칸당 ${won(ROAD_COST[Road.Avenue] * LEVEL_COST[Level.Elevated])}`, level: Level.Elevated },
     { id: 'underpass', name: '지하차도', price: `칸당 ${won(ROAD_COST[Road.Avenue] * LEVEL_COST[Level.Underpass])}`, level: Level.Underpass },

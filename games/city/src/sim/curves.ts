@@ -37,8 +37,8 @@ export interface Curve {
  * cell: 10 m of asphalt (four lanes) and the same 1.5 m pavements, spilling
  * 1.5 m into the lots either side (buildings there stand back to make room).
  */
-export const HALF_WIDTH = { [Road.Street]: 3.5, [Road.Avenue]: 5 } as const;
-export const KERB_W = { [Road.Street]: 1.5, [Road.Avenue]: 1.5 } as const;
+export const HALF_WIDTH = { [Road.Street]: 3.5, [Road.Avenue]: 5, [Road.Highway]: 6.2 } as const;
+export const KERB_W = { [Road.Street]: 1.5, [Road.Avenue]: 1.5, [Road.Highway]: 0.8 } as const;
 /** How far an avenue's pavement reaches past its own cell. */
 export const AVENUE_SPILL = HALF_WIDTH[Road.Avenue] + KERB_W[Road.Avenue] - 5;
 
@@ -72,7 +72,7 @@ export function bezTan(c: Ends, u: number) {
 export function bezLength(c: Ends): number { return curvePath(c).len; }
 
 /** Tightest bend each road type takes: wide enough that the inner kerb never folds over. */
-export const MIN_RADIUS = { [Road.Street]: 12, [Road.Avenue]: 18 } as const;
+export const MIN_RADIUS = { [Road.Street]: 12, [Road.Avenue]: 18, [Road.Highway]: 30 } as const;
 
 const cellAt = (x: number, z: number) => {
   const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);

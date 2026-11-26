@@ -96,7 +96,7 @@ class Builder {
   }
 }
 
-const ASPHALT = { [Road.Street]: 0x5a5d61, [Road.Avenue]: 0x4b4e53 } as const;
+const ASPHALT = { [Road.Street]: 0x5a5d61, [Road.Avenue]: 0x4b4e53, [Road.Highway]: 0x45484d } as const;
 const WALK = 0xbdb7ab;
 const WHITE = 0xeeeeea;
 const YELLOW = 0xf2c53d;
@@ -203,7 +203,7 @@ export class RoadLayer {
       zebra: 2.2,
       // Roads leaving the map's west edge run on, no cap there.
       capAt: (p) => p.x > 0 && !rampFeet.has(cellAt(p.x, p.z)),
-      colours: { asphalt: hex(ASPHALT[Road.Street]), avenue: hex(ASPHALT[Road.Avenue]), pavement: hex(WALK), yellow: hex(YELLOW), white: hex(WHITE) },
+      colours: { asphalt: hex(ASPHALT[Road.Street]), avenue: hex(ASPHALT[Road.Avenue]), highway: hex(ASPHALT[Road.Highway]), pavement: hex(WALK), yellow: hex(YELLOW), white: hex(WHITE) },
       busAt: (x, z) => { const i = cellAt(x, z); return i >= 0 && bus.cells.has(i) && !water(x, z); },
       materials: { asphalt: this.material, pavement: this.material, paint: this.paintMat },
       plain: (e) => e.tag === RING,
@@ -234,7 +234,7 @@ export class RoadLayer {
       heights: { asphalt: 0.12, kerb: 0.32, paint: 0.14 },
       zebra: 2.2,
       capAt: () => false,
-      colours: { asphalt: hex(ASPHALT[Road.Street]), avenue: hex(ASPHALT[Road.Avenue]), pavement: hex(CONCRETE), yellow: hex(YELLOW), white: hex(WHITE) },
+      colours: { asphalt: hex(ASPHALT[Road.Street]), avenue: hex(ASPHALT[Road.Avenue]), highway: hex(ASPHALT[Road.Highway]), pavement: hex(CONCRETE), yellow: hex(YELLOW), white: hex(WHITE) },
       materials: { asphalt: this.material, pavement: this.material, paint: this.paintMat },
     }, flyGeo);
     decks(b, w, fly.net, flyGeo, fly.heightAt);

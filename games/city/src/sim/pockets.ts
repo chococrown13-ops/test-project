@@ -14,7 +14,7 @@ export function onRoad(w: World, i: number): boolean {
   const x = i % N, y = (i / N) | 0;
   for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
     const nx = x + dx, ny = y + dy;
-    if (inside(nx, ny) && w.road[idx(nx, ny)]) return true;
+    if (inside(nx, ny) && w.road[idx(nx, ny)] && w.road[idx(nx, ny)] !== 3) return true;
   }
   return false;
 }

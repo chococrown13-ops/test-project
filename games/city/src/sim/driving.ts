@@ -94,8 +94,10 @@ const laneAhead = (w: World, c: Car, j: number): 0 | 1 => { const l = laneWant(w
 /** The speed a driver wants on a link, m/s (sped up). */
 function wanted(w: World, c: Car, a: number, b: number): number {
   const ra = roadTypeOf(w, a) || Road.Street, rb = roadTypeOf(w, b) || Road.Street;
-  const r = ra === Road.Avenue && rb === Road.Avenue ? Road.Avenue : Road.Street;
+  const r = ra === Road.Highway && rb === Road.Highway ? Road.Highway : ra !== Road.Street && rb !== Road.Street ? Road.Avenue : Road.Street;
   let v = ROAD_SPEED[r] * PACE * (0.92 + c.look * 0.16);
+  // Through a 톨게이트, slowly.
+  if ((a < NN && w.hwy[a] & 2) || (b < NN && w.hwy[b] & 2)) v = Math.min(v, ROAD_SPEED[Road.Street] * PACE * 0.45);
   if (c.kind === 1 || c.kind === 2) v *= 0.85;
   // Past cars parked along a street, a bit slower.
   if (r === Road.Street && a < NN && w.parked[a] > 0) v *= 0.85;
@@ -234,6 +236,7 @@ function step(w: World, tr: Traffic, nd: Nodes, h: number, done: Car[]) {
       x -= L;
       c.i++;
       a = p[c.i]; b = p[c.i + 1]; L = linkLen(a, b);
+      if (a < NN && w.hwy[a] & 2) w.tollPass++;
       c.lane = pickLane(w, groups, c);
     }
     c.t = finished ? 1 : x / L;

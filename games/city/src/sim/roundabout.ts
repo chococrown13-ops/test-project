@@ -59,6 +59,7 @@ export function roundaboutType(w: World, cell: number): Road {
 }
 
 export function roundaboutProblem(w: World, cell: number): string | null {
+  if (w.road[cell] === Road.Highway) return '고속도로에는 회전교차로를 둘 수 없어요.';
   if (cell < 0 || cell >= NN) return '지도 밖이에요.';
   if (!w.road[cell]) return '회전교차로는 도로 위에 놓아 주세요. 교차로 한가운데가 좋아요.';
   if (w.ground[cell] !== Ground.Land) return '다리 위에는 놓을 수 없어요.';

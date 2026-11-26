@@ -24,7 +24,8 @@ export function signalCells(w: World): Uint8Array {
   const at = new Uint8Array(NN);
   const rings = new Set(w.roundabouts.map((r) => r.cell));
   for (let c = 0; c < NN; c++) {
-    if (!w.road[c] || rings.has(c)) continue;
+    // No lights on a 고속도로 (its junctions are 분기점 and 나들목).
+    if (!w.road[c] || rings.has(c) || w.road[c] === 3) continue;
     let n = 0, avenue = w.road[c] === Road.Avenue;
     forEachNeighbour(w, c, (m) => { if (m < NN) { n++; if (w.road[m] === Road.Avenue) avenue = true; } });
     if (n >= 4 || (n >= 3 && avenue)) at[c] = 1;

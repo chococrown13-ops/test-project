@@ -186,10 +186,15 @@ export function closeDay(w: World, tr: Traffic) {
   w.stats.congestion = n ? sum / n : 0;
 }
 
+/** A road cell on the map's edge in this road network, where trips leave town: any of them, 고속도로 ends twice as often. */
 function edgeCellOf(w: World, comp: Int32Array, id: number): number {
-  for (let y = 0; y < N; y++) { const i = y * N; if (w.road[i] && comp[i] === id) return i; }
-  for (let x = 0; x < N; x++) { if (w.road[x] && comp[x] === id) return x; }
-  return -1;
+  const ends: number[] = [];
+  for (let k = 0; k < N; k++) for (const i of [k * N, k * N + N - 1, k, (N - 1) * N + k]) {
+    if (!w.road[i] || comp[i] !== id) continue;
+    ends.push(i);
+    if (w.road[i] === 3) ends.push(i);
+  }
+  return ends.length ? ends[Math.floor(rand(w) * ends.length)] : -1;
 }
 
 /* ---------------------------------------------------------------- routing */
