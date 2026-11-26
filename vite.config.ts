@@ -15,7 +15,8 @@ export default defineConfig({
         main: 'index.html',
         merge: 'games/merge/index.html',
         sudoku: 'games/sudoku/index.html',
-        city: 'games/city/index.html',
+        // 내 도시 더 크게: the Unity build is the main page (public/games/city); the web version stays as web.html.
+        cityweb: 'games/city/web.html',
         keep: 'games/keep/index.html',
         roadlab: 'games/roadlab/index.html',
         nanjang: 'games/nanjang/index.html',

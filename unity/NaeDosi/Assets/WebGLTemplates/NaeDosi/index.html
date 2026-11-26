@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f3e6">
+  <meta name="description" content="강가, 바닷가, 산골의 빈 땅에 도로, 구역, 전기와 수도, 버스와 지하철을 놓아 키우는 로우폴리 한국 도시 건설 게임">
+  <title>내 도시 더 크게</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23f2d53c'/><rect x='6' y='14' width='6' height='12' fill='%231f2733'/><rect x='13' y='8' width='6' height='18' fill='%231f2733'/><rect x='20' y='17' width='6' height='9' fill='%231f2733'/></svg>">
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #f7f3e6; }
+    #unity-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: #cde3ef; touch-action: none; }
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; font: 600 16px/1.5 "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #12161c; background: #f7f3e6; }
+    #loading .box { width: min(320px, 80vw); text-align: center; }
+    #loading h1 { font-size: 34px; margin: 0 0 16px; }
+    #loading .bar { height: 10px; border-radius: 5px; background: #e6e1d1; overflow: hidden; }
+    #loading .bar i { display: block; height: 100%; width: 0; background: #f7d21a; transition: width .2s; }
+    #loading p { margin: 10px 0 0; color: #565b63; font-size: 13px; }
+    #loading a { color: #0064be; }
+  </style>
+</head>
+<body>
+  <canvas id="unity-canvas" tabindex="-1"></canvas>
+  <div id="loading"><div class="box"><h1>내 도시 더 크게</h1><div class="bar"><i id="bar"></i></div><p id="msg">도시를 불러오는 중이에요…</p><p><a href="web.html">예전 웹판으로 하기</a></p></div></div>
+  <script src="Build/{{{ LOADER_FILENAME }}}"></script>
+  <script>
+    var canvas = document.getElementById('unity-canvas');
+    canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    createUnityInstance(canvas, {
+      dataUrl: "Build/{{{ DATA_FILENAME }}}",
+      frameworkUrl: "Build/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_WASM
+      codeUrl: "Build/{{{ CODE_FILENAME }}}",
+#endif
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+      productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+      productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+      matchWebGLToCanvasSize: true,
+      devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+    }, function (p) { document.getElementById('bar').style.width = Math.round(p * 100) + '%'; })
+      .then(function (u) { window.unityInstance = u; document.getElementById('loading').remove(); canvas.focus(); })
+      .catch(function (e) { document.getElementById('msg').textContent = '불러오지 못했어요: ' + e; });
+  </script>
+</body>
+</html>

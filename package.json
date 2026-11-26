@@ -12,13 +12,23 @@
     "typecheck": "tsc -b --noEmit false --emitDeclarationOnly false"
   },
   "dependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@recast-navigation/three": "^0.44.0",
     "clipper2-js": "^1.2.4",
+    "fastnoise-lite": "^1.1.1",
+    "jolt-physics": "^1.1.2",
     "matter-js": "^0.20.0",
+    "meshoptimizer": "^1.3.0",
     "n8ao": "^1.10.1",
     "peerjs": "^1.5.4",
+    "postprocessing": "^6.39.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "recast-navigation": "^0.44.0",
     "three": "^0.180.0",
+    "three.quarks": "^0.16.0",
+    "troika-three-text": "^0.54.0",
+    "yuka": "^0.7.8",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
