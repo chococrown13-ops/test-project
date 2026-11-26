@@ -16,6 +16,14 @@ import type { Overlay } from '../render/ground';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const won = (n: number) => `${Math.round(n).toLocaleString('ko-KR')}만`;
+/** 자금 in the top bar: 만 below 1억, then 억, then 조, so the number stays short. */
+export function shortWon(n: number): string {
+  const a = Math.abs(n), sign = n < 0 ? '-' : '';
+  const fix = (v: number, d: number) => Number(v.toFixed(d)).toLocaleString('ko-KR', { maximumFractionDigits: d });
+  if (a >= 1e8) { const v = a / 1e8; return `${sign}${fix(v, v < 10 ? 2 : v < 100 ? 1 : 0)}조`; }
+  if (a >= 1e4) { const v = a / 1e4; return `${sign}${fix(v, v < 100 ? 1 : 0)}억`; }
+  return `${sign}${Math.round(a).toLocaleString('ko-KR')}만`;
+}
 const num = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
@@ -40,7 +48,8 @@ export function updateTop(w: World) {
     $('tier').title = `인구 ${num(goal)}명이 되면 ${next === 2 ? '빌라·저층 아파트, 근린 상가, 제조 공장' : '고층 아파트, 오피스 타워, 지식산업센터'}이 들어설 수 있어요.`;
   }
   const m = $('money');
-  m.textContent = won(w.money);
+  m.textContent = shortWon(w.money);
+  m.title = won(w.money) + ' 원';
   m.classList.toggle('neg', w.money < 0);
   $('happy').textContent = w.stats.pop ? `${Math.round(w.stats.happy)}%` : '없음';
   for (const k of ['R', 'C', 'I'] as const) {
@@ -358,7 +367,7 @@ const STYLE_NAME = { lowpoly: '로우폴리', toon: '툰', pixel: '픽셀' } as 
 export function menuHtml(w: World, quality: 'high' | 'normal', style: keyof typeof STYLE_NAME = 'lowpoly', music = { on: false, volume: 0.6 }, dayLock = false, effects = true, hazards = true): string {
   let h = head('메뉴');
   h += `<p class="hint">${esc(w.name)}, ${dateText(w.day)}</p><div class="menu">`;
-  h += '<button class="btn" data-act="save">저장하기</button><button class="btn" data-act="slots">불러오기 (저장한 도시들)</button><button class="btn" data-act="new">새 도시</button><button class="btn" data-act="help">조작법</button>';
+  h += '<button class="btn" data-act="save">저장하기</button><button class="btn" data-act="slots">불러오기 (저장한 도시들)</button><button class="btn" data-act="visit">도시 구경 (친구 도시 보기·내 도시 보여주기)</button><button class="btn" data-act="new">새 도시</button><button class="btn" data-act="help">조작법</button>';
   h += `<button class="btn" data-act="quality" aria-pressed="${quality === 'high'}">그래픽 품질: ${quality === 'high' ? '높음' : '보통'}</button>`;
   h += `<button class="btn" data-act="style">그림체: ${STYLE_NAME[style]}</button>`;
   h += `<button class="btn" data-act="daylock" aria-pressed="${dayLock}">시간: ${dayLock ? '낮 고정' : '밤낮 바뀜'}</button>`;

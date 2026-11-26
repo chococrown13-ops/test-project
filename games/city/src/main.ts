@@ -7,7 +7,8 @@ import { shared } from './render/materials';
 /** Background music (made in code, starts on the first tap). */
 const bgm = new Bgm();
 import { CELL, Ground, KINDS, Level, LEVEL_NAME, N, Road, SERVICE, Zone } from './sim/defs';
-import { deleteSlot, deserialize, listSlots, loadLocal, saveLocal, serialize } from './sim/save';
+import { deleteSlot, deserialize, listSlots, loadLocal, pack, saveLocal, serialize, unpack } from './sim/save';
+import { Showcase, visit } from './net/visit';
 import { repayLoan, takeLoan } from './sim/economy';
 import { updateParking } from './sim/parking';
 import { createSim, GAME_PACE, tick, type Sim } from './sim/sim';
@@ -39,6 +40,7 @@ const UNDO_MAX = 10;
 const changeSig = () => { const w = sim.w; return `${JSON.stringify(w.ver)}:${w.money}:${w.buildings.size}:${w.lines.length}:${w.roundabouts.length}:${w.noAvenueParking}:${w.transferDiscount}`; };
 /** Run a change; if it changed the city, it can be taken back. */
 function undoable<T>(fn: () => T, sound?: Sfx): T {
+  if (visiting) { toast('구경 중에는 지을 수 없어요. 돌아가기를 누르면 내 도시로 가요.', 'info'); return undefined as T; }
   const before = changeSig(), snap = serialize(sim.w);
   const r = fn();
   if (changeSig() !== before) { undoStack.push(snap); if (undoStack.length > UNDO_MAX) undoStack.shift(); renderCats(); sfx.play(sound ?? soundOfTool()); }
@@ -83,6 +85,10 @@ let speed = 0;
 let running = false;
 let tool: ToolId = 'select';
 let cat: string | null = null;
+/** Looking round someone else's city: my own waits here until I go back (null if I had none open). */
+let visiting: { stop: (() => void) | null; home: ReturnType<typeof createWorld> | null; homeRunning: boolean } | null = null;
+let showcase: Showcase | null = null;
+let showSig = '', showClock = 0;
 /** The bus or subway line being drawn: stops picked so far. */
 let draft: { kind: LineKind; stops: number[]; bus?: BusType } | null = null;
 /** How road tools lay a drag: an L of straight runs, a 45° run first, or a curve bent after the drag. */
@@ -145,6 +151,7 @@ function finishDraft() {
 }
 
 function setTool(t: ToolId) {
+  if (visiting && t !== 'select') { toast('구경 중에는 지을 수 없어요. 돌아가기를 누르면 내 도시로 가요.', 'info'); t = 'select'; }
   tool = t;
   drag = null;
   bend = null;
@@ -284,7 +291,9 @@ for (const id of ['info', 'panel']) {
       renderPanel(true);
       renderCats();
     }
-    if (t.dataset.act === 'save') { const ok = saveLocal(sim.w); toast(ok ? `${sim.w.name}을(를) 저장했어요. 불러오기에서 다른 도시와 골라 열 수 있어요.` : '저장하지 못했어요. 저장 공간이 모자라면 불러오기에서 안 쓰는 도시를 지워 주세요.', ok ? 'good' : 'warn'); }
+    if (t.dataset.act === 'visit') { closePanel(); openVisit(); }
+    if (t.dataset.act === 'save' && visiting) toast('구경 중인 도시는 저장하지 않아요.', 'info');
+    else if (t.dataset.act === 'save') { const ok = saveLocal(sim.w); toast(ok ? `${sim.w.name}을(를) 저장했어요. 불러오기에서 다른 도시와 골라 열 수 있어요.` : '저장하지 못했어요. 저장 공간이 모자라면 불러오기에서 안 쓰는 도시를 지워 주세요.', ok ? 'good' : 'warn'); }
     if (t.dataset.act === 'slots') { closePanel(); openSlots(); }
     if (t.dataset.notice) { const n = sim.w.notices[Number(t.dataset.notice)]; if (n?.at !== undefined) document.dispatchEvent(new CustomEvent('city:goto', { detail: { at: n.at, overlay: n.overlay } })); }
     if (t.dataset.taxstep) { const [k, d] = t.dataset.taxstep.split(':'); const key = k as 'R' | 'C' | 'I'; sim.w.tax[key] = Math.max(0, Math.min(20, sim.w.tax[key] + Number(d))); renderPanel(true); }
@@ -900,11 +909,110 @@ function frame(t: number) {
     if (draft && draft.stops.length >= 2) renderDraft();
     renderPanel();
     // Autosave at the start of every month.
-    if (running && w.day >= saveDay + 30) { saveDay = w.day; saveLocal(w); }
+    if (running && !visiting && w.day >= saveDay + 30) { saveDay = w.day; saveLocal(w); }
+    showTick(w);
   }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+/* ------------------------------------------------------- 도시 구경 */
+
+
+function openVisit() {
+  renderShow();
+  $('showBox').hidden = !running || !!visiting;
+  ($('exportBtn') as HTMLButtonElement).hidden = !running || !!visiting;
+  $('visit').hidden = false;
+}
+function renderShow() {
+  const n = showcase?.viewers ?? 0;
+  $('showState').innerHTML = showcase?.code
+    ? `<div class="visit-row"><span class="show-code">${showcase.code}</span><span class="hint">${n ? `${n}명 구경 중` : '친구를 기다리는 중'}</span></div><div class="visit-row"><button class="btn" data-visit="copy">코드 복사</button><button class="btn danger" data-visit="unshow">그만 보여주기</button></div>`
+    : '<div class="visit-row"><button class="btn primary" data-visit="show">코드 만들기</button></div>';
+}
+/** While showing: send the city again every so often if it changed. */
+function showTick(w: ReturnType<typeof createWorld>) {
+  if (!showcase?.viewers || visiting) return;
+  showClock += 0.25;
+  if (showClock < 12) return;
+  const sig = `${JSON.stringify(w.ver)}:${w.day >> 3}`;
+  if (sig === showSig) return;
+  showClock = 0; showSig = sig;
+  showcase.push();
+}
+/** Swap the visited copy in, keeping the camera where it is after the first look. */
+function enterVisit(z: string, from: string, stop: (() => void) | null) {
+  const w = unpack(z);
+  if (!w) { toast('이 도시는 열 수 없어요.', 'warn'); return false; }
+  const first = !visiting;
+  if (first) visiting = { stop, home: running ? sim.w : null, homeRunning: running };
+  else if (stop) visiting!.stop = stop;
+  if (first) { useWorld(w); if (!running) begin(); else setSpeed(1); }
+  else { sim = createSim(w); scene.setSim(sim); resetToasts(w); }
+  setTool('select'); cat = null; renderCats();
+  $('visitText').textContent = `${w.name} 구경 중${from ? ` · ${from}` : ''} · 인구 ${w.stats.pop.toLocaleString('ko-KR')}`;
+  $('visitBar').hidden = false;
+  return true;
+}
+function leaveVisit(why?: string) {
+  if (!visiting) return;
+  const v = visiting;
+  visiting = null;
+  v.stop?.();
+  $('visitBar').hidden = true;
+  if (v.home) { useWorld(v.home); toast(why ?? '내 도시로 돌아왔어요.', 'info'); }
+  else { setSpeed(0); running = false; $('start').hidden = false; if (why) toast(why, 'info'); }
+}
+$('visitHome').addEventListener('click', () => leaveVisit());
+$('visitBtn').addEventListener('click', () => openVisit());
+$('visit').addEventListener('click', async (e) => {
+  const t = (e.target as HTMLElement).closest('button');
+  if (e.target === $('visit') || t?.dataset.visit === 'close') { $('visit').hidden = true; return; }
+  if (!t) return;
+  const act = t.dataset.visit;
+  if (act === 'go') {
+    const code = ($('visitCode') as HTMLInputElement).value.trim().toUpperCase();
+    if (code.length !== 5) { toast('코드 다섯 자리를 넣어 주세요.', 'warn'); return; }
+    if (showcase) { showcase.close(); showcase = null; }
+    t.textContent = '연결 중…'; (t as HTMLButtonElement).disabled = true;
+    try {
+      const stop = await visit(code, (z) => enterVisit(z, `코드 ${code}`, null), (why) => leaveVisit(why));
+      if (visiting) visiting.stop = stop; else stop();
+      $('visit').hidden = true;
+    } catch (err) { toast((err as Error).message, 'warn'); }
+    t.textContent = '구경하기'; (t as HTMLButtonElement).disabled = false;
+  }
+  if (act === 'show') {
+    showcase = new Showcase(() => ({ z: pack(sim.w), host: sim.w.name }));
+    showcase.onCount = (n) => { renderShow(); if (n) toast(`친구 ${n}명이 내 도시를 구경하고 있어요.`, 'good'); };
+    t.textContent = '만드는 중…'; (t as HTMLButtonElement).disabled = true;
+    try { await showcase.open(); } catch (err) { toast((err as Error).message, 'warn'); showcase = null; }
+    renderShow();
+  }
+  if (act === 'unshow') { showcase?.close(); showcase = null; renderShow(); }
+  if (act === 'copy' && showcase) {
+    try { await navigator.clipboard.writeText(showcase.code); toast('코드를 복사했어요.', 'good'); } catch { toast(`코드: ${showcase.code}`, 'info'); }
+  }
+  if (act === 'export') {
+    const blob = new Blob([pack(sim.w)], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${sim.w.name}.city`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast('도시 파일을 내보냈어요. 친구에게 보내 주세요.', 'good');
+  }
+});
+$('visitFile').addEventListener('change', async () => {
+  const input = $('visitFile') as HTMLInputElement, f = input.files?.[0];
+  input.value = '';
+  if (!f) return;
+  try {
+    if (enterVisit((await f.text()).trim(), '파일', null)) $('visit').hidden = true;
+  } catch { toast('이 파일은 도시 파일이 아니에요.', 'warn'); }
+});
+window.addEventListener('beforeunload', () => showcase?.close());
 
 // Debug/test hook.
 (window as unknown as { city: unknown }).city = { get sim() { return sim; }, scene, bgm, setTool, setSpeed, tools: { plantTrees, addBuilding, placeRoundabout, placeRoad, placeCurve, curveOf, roadPath, paintZone, rectCells, placeFacility, createLine, placeAltRoad }, roadnet: () => buildCityNetwork(sim.w), flynet: () => buildElevatedNetwork(sim.w),
