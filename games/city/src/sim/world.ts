@@ -66,6 +66,8 @@ export interface World {
   altLevel: Uint8Array;
   /** Diagonal links of the ground road: 1 NE, 2 SE, 4 SW, 8 NW. */
   diag: Uint8Array;
+  /** 일방통행: the one way traffic may go along a grid road cell (0 both ways; 1 east, 2 south, 3 west, 4 north). */
+  oneway: Uint8Array;
   /** Curved roads drawn over their chains of road cells (see curves.ts). */
   curves: Curve[];
   /** 회전교차로 (see roundabout.ts). */
@@ -186,6 +188,7 @@ export function createWorld(seed = 20261028, name = '새솔시', map: MapKind = 
     roadAlt: new Uint8Array(size),
     altLevel: new Uint8Array(size),
     diag: new Uint8Array(size),
+    oneway: new Uint8Array(size),
     curves: [],
     roundabouts: [],
     parked: new Uint8Array(size),

@@ -162,6 +162,12 @@ function laneOff(w: World, car: Car, s: number): number {
   // the street lane at 1.75 m (kerb at 3.5 m), further in past parked cars. Scooters keep to the kerb side.
   const avenue = roadTypeOf(w, node) === Road.Avenue;
   const parked = node < NN && w.parked[node] > 0;
+  // One-way: the whole road goes one way, two lanes either side of the middle.
+  if (node < NN && w.oneway[node]) {
+    const half = avenue ? 2.4 : 1.3;
+    if (car.kind === 3) return car.lane ? half + 0.6 : -half + 0.4;
+    return car.lane ? half : -half + (parked ? 0.6 : 0);
+  }
   if (avenue) {
     if (car.kind === 3) return car.lane ? (parked ? 3.0 : 4.1) : 1.6;
     return car.lane ? (parked ? 2.6 : 3.75) : parked ? 0.85 : 1.25;

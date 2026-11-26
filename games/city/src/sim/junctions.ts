@@ -50,10 +50,17 @@ export function linkLen(a: number, b: number): number {
   return dx && dy ? CELL * Math.SQRT2 : CELL;
 }
 
-/** Lanes each way on a link: two along an avenue (a little narrower past parked cars), one on a street. */
+/**
+ * Lanes each way on a link: two along an avenue (a little narrower past parked cars), one on a
+ * street, and two on a one-way street (the whole width goes one way).
+ */
 export function laneCount(w: World, a: number, b: number): 1 | 2 {
-  return roadTypeOf(w, a) === Road.Avenue && roadTypeOf(w, b) === Road.Avenue ? 2 : 1;
+  if (roadTypeOf(w, a) === Road.Avenue && roadTypeOf(w, b) === Road.Avenue) return 2;
+  return isOneWay(w, a) && isOneWay(w, b) ? 2 : 1;
 }
+
+/** Whether a node is on a one-way road. */
+export const isOneWay = (w: World, n: number) => n < NN && w.oneway[n] !== 0;
 
 /** Which way a car turns at `j` going from `a` to `b`: 1 right, -1 left, 0 straight on (or no turn to make). */
 export function turnOf(a: number, j: number, b: number): -1 | 0 | 1 {

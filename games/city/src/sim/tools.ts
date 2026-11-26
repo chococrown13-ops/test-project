@@ -77,6 +77,90 @@ export function placeRoad(w: World, cells: number[], type: Road, grid = true): s
     w.diag[a] |= bit;
     w.diag[b] |= oppositeDiag(bit);
   }
+  if (type === Road.Street) pairCarriageways(w, cells);
+  w.ver.roads++;
+  w.ver.zones++;
+  invalidateNetwork();
+  return null;
+}
+
+/** Whether a grid road cell runs straight along an axis (0 east-west, 1 north-south): its two neighbours on it are road. */
+function runsAlong(w: World, i: number, axis: 0 | 1): boolean {
+  const x = i % N, y = (i / N) | 0;
+  if (!w.road[i] || w.road[i] !== Road.Street) return false;
+  return axis === 0 ? x > 0 && x < N - 1 && !!w.road[i - 1] && !!w.road[i + 1] : y > 0 && y < N - 1 && !!w.road[i - N] && !!w.road[i + N];
+}
+
+/**
+ * Two streets laid right next to each other become one 왕복 4차선: each turns one-way, in
+ * opposite directions, traffic keeping right (east on the southern one, west on the northern;
+ * south on the western, north on the eastern).
+ */
+export function pairCarriageways(w: World, cells: number[]) {
+  for (const i of cells) {
+    for (const axis of [0, 1] as const) {
+      if (!runsAlong(w, i, axis)) continue;
+      for (const side of [-1, 1]) {
+        const j = axis === 0 ? i + side * N : i + side;
+        if (j < 0 || j >= N * N || (axis === 1 && ((j % N) - (i % N)) !== side) || !runsAlong(w, j, axis)) continue;
+        const [lo, hi] = side > 0 ? [i, j] : [j, i];
+        // lo is north (or west) of hi.
+        if (axis === 0) { w.oneway[lo] = 3; w.oneway[hi] = 1; } else { w.oneway[lo] = 2; w.oneway[hi] = 4; }
+      }
+    }
+  }
+}
+
+/** Cost of making grid road cells one-way: just the signs and paint. */
+export const ONEWAY_COST = 20;
+
+/**
+ * 일방통행: a drag along a road makes it one-way in the direction dragged (a drag again over a
+ * road already one-way that way makes it two-way again). Only straight grid road counts.
+ */
+export function setOneWay(w: World, cells: number[]): string | null {
+  if (cells.length < 2) return '도로를 따라 두 칸 이상 끌어 주세요.';
+  const a = cells[0], b = cells[cells.length - 1];
+  const dx = Math.sign((b % N) - (a % N)), dy = Math.sign(((b / N) | 0) - ((a / N) | 0));
+  if (dx && dy) return '일방통행은 곧은 길에만 정할 수 있어요.';
+  const code = dx > 0 ? 1 : dx < 0 ? 3 : dy > 0 ? 2 : 4;
+  const on = cells.filter((i) => w.road[i] && !w.roadAlt[i]);
+  if (!on.length) return '도로 위로 끌어 주세요.';
+  const undo = on.every((i) => w.oneway[i] === code);
+  const cost = undo ? 0 : on.length * ONEWAY_COST;
+  if (cost > w.money) return `예산이 부족해요. (${cost.toLocaleString('ko-KR')}만 원 필요)`;
+  w.money -= cost;
+  for (const i of on) w.oneway[i] = undo ? 0 : code;
+  w.ver.roads++;
+  invalidateNetwork();
+  return null;
+}
+
+/**
+ * 도로 넓히기: streets under a drag become avenues (paying the difference); a curved street the
+ * drag touches widens as a whole. Lots the wider road now covers are cleared.
+ */
+export function widenRoad(w: World, cells: number[]): string | null {
+  const grid = cells.filter((i) => w.road[i] === Road.Street);
+  const touched = w.curves.filter((c) => c.t === Road.Street && c.cells.some((i) => cells.includes(i)));
+  const all = new Set<number>(grid);
+  for (const c of touched) for (const i of c.cells) if (w.road[i] === Road.Street) all.add(i);
+  if (!all.size) return '넓힐 일반 도로가 없어요. 일반 도로 위로 끌어 주세요.';
+  const list = [...all];
+  if (list.some((i) => w.ground[i] === Ground.Mountain)) return '산 속 길은 넓힐 수 없어요.';
+  const cost = roadCost(w, list, Road.Avenue);
+  if (cost > w.money) return `예산이 부족해요. (${cost.toLocaleString('ko-KR')}만 원 필요)`;
+  w.money -= cost;
+  for (const i of list) { w.road[i] = Road.Avenue; w.oneway[i] = 0; }
+  for (const c of touched) {
+    c.t = Road.Avenue;
+    for (const i of coverCells(c)) {
+      if (w.road[i]) continue;
+      const id = w.bld[i];
+      if (id >= 0 && KINDS[w.buildings.get(id)!.kind].zone) demolish(w, id);
+      w.zone[i] = Zone.None;
+    }
+  }
   w.ver.roads++;
   w.ver.zones++;
   invalidateNetwork();
@@ -156,6 +240,7 @@ export function placeAltRoad(w: World, drag: number[], level: Level): string | n
       const x = i % N, y = (i / N) | 0;
       for (const [dx, dy, bit] of DIAG) if (w.diag[i] & bit && inside(x + dx, y + dy)) w.diag[idx(x + dx, y + dy)] &= ~oppositeDiag(bit);
       w.diag[i] = 0;
+      w.oneway[i] = 0;
     }
     w.roadAlt[i] = Road.Avenue;
     w.altLevel[i] = level;
@@ -312,6 +397,7 @@ export function bulldoze(w: World, cells: number[]): number {
           w.diag[idx(x + dx, y + dy)] &= ~oppositeDiag(bit);
         }
         w.diag[i] = 0;
+        w.oneway[i] = 0;
         roads++;
       }
     }

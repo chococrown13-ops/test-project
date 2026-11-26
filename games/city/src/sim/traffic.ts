@@ -3,7 +3,7 @@ import { linkLen } from './junctions';
 import { noCarTrip } from './attractions';
 import { KINDS, N, ROAD_CAPACITY, ROAD_SPEED, Zone } from './defs';
 import { network } from './network';
-import { cellOf, forEachNeighbour, NN, roadTypeOf } from './graph';
+import { cellOf, forEachDriveStep, NN, roadTypeOf } from './graph';
 
 import { parkedSqueeze } from './parking';
 import { tryTransit } from './transit';
@@ -215,7 +215,7 @@ function astar(w: World, from: number, to: number): Int32Array | null {
     const c = heap.pop();
     if (c === to) break;
     const gc = g.get(c)!;
-    forEachNeighbour(w, c, (n, len) => {
+    forEachDriveStep(w, c, (n, len) => {
       const cost = gc + len / ROAD_SPEED[roadTypeOf(w, n) as 1 | 2];
       if (cost < (g.get(n) ?? Infinity)) {
         g.set(n, cost);
@@ -284,7 +284,7 @@ function cruise(w: World, c: Car): boolean {
   const steps = 3 + Math.floor(rand(w) * 4);
   for (let k = 0; k < steps; k++) {
     const nb: number[] = [];
-    forEachNeighbour(w, cur, (n) => { if (n < NN && n !== prev) nb.push(n); });
+    forEachDriveStep(w, cur, (n) => { if (n < NN && n !== prev) nb.push(n); });
     if (!nb.length) break;
     prev = cur;
     cur = nb[Math.floor(rand(w) * nb.length)];

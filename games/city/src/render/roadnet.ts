@@ -191,6 +191,8 @@ export function buildCityNetwork(w: World): Network {
     // A change of road type makes a node, except next to a curve: the curve's junction is the node there.
     const curveish = (c: number) => own[c] === 1 || pos.has(c);
     if ((w.road[l[0]] !== w.road[i] && !curveish(l[0])) || (w.road[l[1]] !== w.road[i] && !curveish(l[1]))) return true;
+    // So does the start or end of a one-way stretch.
+    if (w.oneway[l[0]] !== w.oneway[i] || w.oneway[l[1]] !== w.oneway[i]) return true;
     // A bridge starts and ends at a node, so its deck lines up with the run.
     return (w.ground[l[0]] === Ground.Water) !== (w.ground[i] === Ground.Water) || (w.ground[l[1]] === Ground.Water) !== (w.ground[i] === Ground.Water);
   };
@@ -210,7 +212,9 @@ export function buildCityNetwork(w: World): Network {
       const a = node(i), b = node(cur);
       if (a === b) continue;
       const kind = KIND[Math.min(w.road[i], w.road[first]) as 1 | 2] ?? 'street';
-      net.addEdge(a, b, [{ kind: 'line', a: net.nodes.get(a)!.p, b: net.nodes.get(b)!.p }], kind);
+      // A one-way run carries its direction (east, south, west, north) for the arrows and lines.
+      const ow = w.oneway[first] && (w.oneway[i] === w.oneway[first] || isNode(i)) && (w.oneway[cur] === w.oneway[first] || isNode(cur)) ? w.oneway[first] : 0;
+      net.addEdge(a, b, [{ kind: 'line', a: net.nodes.get(a)!.p, b: net.nodes.get(b)!.p }], kind, ow ? `${ONEWAY_TAG}${ow}` : undefined);
     }
     // Roads running off the west edge of the map lead on toward the next town.
     if (i % N === 0 && !own[i]) {
@@ -222,6 +226,9 @@ export function buildCityNetwork(w: World): Network {
   if (w.roundabouts.length) { addRoundabouts(net, w); net.simplify(); }
   return net;
 }
+
+/** Edge tag of a one-way road, followed by its direction code (1 east, 2 south, 3 west, 4 north). */
+export const ONEWAY_TAG = 'ow:';
 
 /** Edge tag of a roundabout's ring. */
 export const RING = 'ring';

@@ -10,7 +10,7 @@ import { deleteSlot, deserialize, listSlots, loadLocal, saveLocal, serialize } f
 import { repayLoan, takeLoan } from './sim/economy';
 import { updateParking } from './sim/parking';
 import { createSim, GAME_PACE, tick, type Sim } from './sim/sim';
-import { plantTrees, TREE_COST, treeCells, addBuilding, altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeRoundabout, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
+import { ONEWAY_COST, setOneWay, widenRoad, plantTrees, TREE_COST, treeCells, addBuilding, altCells, altCost, altProblem, bulldoze, curveCost, curveOf, diagonalPath, paintZone, placeAltRoad, placeCurve, placeFacility, placeRoundabout, placeProblem, placeRoad, rectCells, roadBlocked, roadCost, roadPath, zoneable } from './sim/tools';
 import { buildCityNetwork, buildElevatedNetwork } from './render/roadnet';
 import { findAccess, network } from './sim/network';
 import { hasOpenWater } from './sim/tools';
@@ -48,7 +48,7 @@ function soundOfTool(): Sfx {
   const d = TOOLS[tool];
   if (!d) return 'build';
   if (tool === 'bulldoze' || d.zone === Zone.None) return 'demolish';
-  if (d.road !== undefined || d.level || d.roundabout) return 'road';
+  if (d.road !== undefined || d.level || d.roundabout || d.widen || d.oneway) return 'road';
   if (d.zone !== undefined || d.trees) return 'zone';
   return 'build';
 }
@@ -416,7 +416,7 @@ function preview() {
   if (!hover || tool === 'select' || !def) { p.clear(); hideTip(); return; }
   const a = drag ? { x: drag.sx, y: drag.sy } : hover;
   const b = hover;
-  const doom = tool === 'bulldoze' || def.trees || def.line || def.level || (def.road !== undefined && roadMode === 'curve' && !bend) ? null : doomedBy(cellsUnder(def, a, b));
+  const doom = tool === 'bulldoze' || def.trees || def.line || def.level || def.oneway || def.widen || (def.road !== undefined && roadMode === 'curve' && !bend) ? null : doomedBy(cellsUnder(def, a, b));
   demolishNote = doom && doom.n ? `${doomText(doom)}${armed === actionKey(a, b) ? '. 한 번 더 누르면 진행해요' : ''}` : '';
   if (def.trees) {
     const ok = treeCells(w, rectCells(a.x, a.y, b.x, b.y));
@@ -426,6 +426,26 @@ function preview() {
     const cost = todo.length * TREE_COST;
     p.show(ok, todo.length ? (cost > w.money ? '#ff5a5a' : '#7cf0a6') : '#ffb347');
     showTip(b.px, b.py, todo.length ? (cost > w.money ? `예산이 부족해요, ${won(cost)} 필요` : `가로수 ${todo.length}칸, ${won(cost)} · 땅값이 조금 오르고 먼지가 줄어요`) : `가로수 뽑기 ${ok.length}칸`, cost > w.money);
+    return;
+  }
+  if (def.widen || def.oneway) {
+    const cells = roadPath(a.x, a.y, b.x, b.y);
+    p.path([], 0, '');
+    if (def.widen) {
+      const streets = cells.filter((i) => w.road[i] === Road.Street);
+      const curvy = w.curves.filter((c) => c.t === Road.Street && c.cells.some((i) => cells.includes(i)));
+      const all = new Set(streets); for (const c of curvy) for (const i of c.cells) if (w.road[i] === Road.Street) all.add(i);
+      const cost = roadCost(w, [...all], Road.Avenue);
+      p.show([...all].length ? [...all] : cells, !all.size || cost > w.money ? '#ff5a5a' : '#8fd0ff');
+      showTip(b.px, b.py, !drag ? '대로로 넓히기: 일반 도로 위를 끌어 주세요. 곡선 도로는 통째로 넓어져요' : !all.size ? '넓힐 일반 도로가 없어요' : cost > w.money ? `예산이 부족해요, ${won(cost)} 필요` : `${all.size}칸을 4차선 대로로, ${won(cost)}`, !all.size || cost > w.money);
+    } else {
+      const on = cells.filter((i) => w.road[i] && !w.roadAlt[i]);
+      const dx = Math.sign(b.x - a.x), dy = Math.sign(b.y - a.y);
+      const bent = dx !== 0 && dy !== 0;
+      const arrow = dx > 0 ? '→ 동쪽' : dx < 0 ? '← 서쪽' : dy > 0 ? '↓ 남쪽' : '↑ 북쪽';
+      p.show(on.length ? on : cells, bent || !on.length ? '#ff5a5a' : '#ffd36b');
+      showTip(b.px, b.py, !drag ? '일방통행: 차가 다닐 방향으로 도로를 따라 끌어 주세요. 같은 방향으로 다시 끌면 양방향으로 돌아가요. 일반 도로 두 줄을 나란히 붙이면 저절로 왕복 4차선이 돼요' : bent ? '곧은 길로만 끌어 주세요' : `${on.length}칸 ${arrow}으로 일방통행, ${won(on.length * ONEWAY_COST)}`, bent || !on.length);
+    }
     return;
   }
   if (def.roundabout) {
@@ -534,13 +554,19 @@ function commit() {
   const a = { x: drag.sx, y: drag.sy }, b = { x: drag.cx, y: drag.cy };
   let err: string | null = null;
   // Building over homes and shops (or rezoning them) knocks them down: say so, and go ahead only on a second press.
-  if (tool !== 'bulldoze' && !(def.road !== undefined && roadMode === 'curve') && !def.line && !def.trees && !def.level
+  if (tool !== 'bulldoze' && !(def.road !== undefined && roadMode === 'curve') && !def.line && !def.trees && !def.level && !def.oneway && !def.widen
     && !confirmDemolish(cellsUnder(def, a, b), actionKey(a, b))) return;
   if (def.roundabout) { err = placeRoundabout(w, idx(b.x, b.y)); if (err) toast(err, 'warn'); return; }
   if (def.trees) {
     const r = plantTrees(w, rectCells(a.x, a.y, b.x, b.y));
     if (typeof r === 'string') toast(r, 'warn');
     else toast(r.planted ? `가로수 ${r.planted}칸을 심었어요.` : `가로수 ${r.removed}칸을 뽑았어요.`, 'good');
+    return;
+  }
+  if (def.widen || def.oneway) {
+    const cells = roadPath(a.x, a.y, b.x, b.y);
+    err = def.widen ? widenRoad(w, cells) : setOneWay(w, cells);
+    if (err) toast(err, 'warn');
     return;
   }
   if (def.road !== undefined && roadMode === 'free') {

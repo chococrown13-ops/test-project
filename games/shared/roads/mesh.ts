@@ -10,6 +10,9 @@ import { buildGeometry, type Geometry, type Network } from './network';
  * streets, stop lines and zebra crossings where roads meet.
  */
 
+/** Direction of a one-way tag code: 1 east (+x), 2 south (+z), 3 west, 4 north. */
+const ONEWAY_DIR: Record<number, [number, number]> = { 1: [1, 0], 2: [0, 1], 3: [-1, 0], 4: [0, -1] };
+
 export interface RoadColours { asphalt: string; avenue: string; pavement: string; yellow: string; white: string }
 export const COLOURS: RoadColours = { asphalt: '#8d8a84', avenue: '#6c6d71', pavement: '#d9d1c1', yellow: '#e9bf3a', white: '#f3f1ea' };
 
@@ -158,6 +161,40 @@ export function buildRoadMeshes(net: Network, opts: RoadMeshOptions = {}, geo: G
       if (plain) {
         // One-way ring: on an avenue-sized ring, a dashed line between its two lanes.
         if (r.kind === 'avenue') for (let a = t0 + 2; a < t1 - 1; a += 8) line(-0.075, 0.075, W, a, Math.min(a + 3, t1));
+        continue;
+      }
+      // One-way (tag "ow:<1 east, 2 south, 3 west, 4 north>"): white lane dashes down the middle instead of
+      // the yellow centre line, an arrow every so often, and one stop line across the whole width where it comes in.
+      const ow = e.tag?.startsWith('ow:') ? ONEWAY_DIR[Number(e.tag.slice(3))] : undefined;
+      if (ow) {
+        const mid = pathAt(e.path, (t0 + t1) / 2);
+        const fwd = mid.d.x * ow[0] + mid.d.z * ow[1] >= 0 ? 1 : -1;
+        for (let a = t0 + 2; a < t1 - 1; a += 8) line(-0.075, 0.075, W, a, Math.min(a + 3, t1));
+        if (r.kind === 'avenue') for (const sg of [1, -1]) for (let a = t0 + 2; a < t1 - 1; a += 8) line(sg * T.half * 0.5 - 0.075, sg * T.half * 0.5 + 0.075, W, a, Math.min(a + 3, t1));
+        const lanesAt = r.kind === 'avenue' ? [-T.half * 0.75, -T.half * 0.25, T.half * 0.25, T.half * 0.75] : [-T.half * 0.5, T.half * 0.5];
+        for (let a = t0 + 6; a < t1 - 4; a += 22) {
+          const q = pathAt(e.path, a);
+          for (const o of lanesAt) {
+            const along = (k: number) => mul(q.d, k * fwd);
+            const c = offsetPoint(q, o);
+            const tail = add(c, along(-1.6)), neck = add(c, along(0.6)), tip = add(c, along(1.8));
+            const side = (p: V, k: number) => offsetPoint({ p, d: q.d } as typeof q, k);
+            paint.quad(side(tail, -0.12), side(tail, 0.12), side(neck, 0.12), side(neck, -0.12), PAINT, W);
+            paint.quad(side(neck, -0.5), side(neck, 0.5), tip, tip, PAINT, W);
+          }
+        }
+        for (const [atA, j] of [[true, ja], [false, jb]] as [boolean, boolean][]) {
+          if (!j) continue;
+          const tEdge = atA ? r.t0 : r.t1, dir = atA ? 1 : -1;
+          const zs = tEdge + dir * 0.5, ze = tEdge + dir * (ZD + 0.5);
+          for (let o = -T.half + 0.4; o < T.half - 0.4; o += 0.9) line(o, o + 0.45, W, Math.min(zs, ze), Math.max(zs, ze));
+          // Traffic arrives at end A when it runs against the path, at end B when with it.
+          if ((atA && fwd < 0) || (!atA && fwd > 0)) {
+            const q = pathAt(e.path, tEdge + dir * (ZD + 1.5));
+            const a0 = offsetPoint(q, -T.half + 0.2), a1 = offsetPoint(q, T.half - 0.2), along = mul(q.d, 0.4);
+            paint.quad(a0, a1, add(a1, along), add(a0, along), PAINT, W);
+          }
+        }
         continue;
       }
       if (r.kind === 'avenue') {
