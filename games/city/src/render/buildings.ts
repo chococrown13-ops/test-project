@@ -567,6 +567,15 @@ function rawParts(b: Building, w: World): Part[] {
       box(0, 0, 3.8, 6, 4, 0.6, '#b03a2e');
       box(-3, 7.5, -2.5, 2.2, 6, 2.2, '#efe9e1');
       break;
+    case 'snowbase':
+      // 제설기지: a salt dome and an orange plough truck in front of a low shed.
+      box(-2, 0, -2, 5.5, 3.2, 5, '#e3ded2', STYLE.plain);
+      shape('cyl', 2.6, 0, 1.4, 3.6, 2.6, 3.6, '#b9b4a8');
+      shape('cyl', 2.6, 2.6, 1.4, 2.4, 1.0, 2.4, '#f2f2ee');
+      box(-2.2, 0, 3.2, 2, 1.6, 3.4, '#e8812b');
+      box(-2.2, 1.6, 2.4, 1.9, 0.9, 1.4, '#2c2f33');
+      box(-2.2, 0, 5.1, 2.8, 0.7, 0.3, '#f3c623');
+      break;
     case 'metro':
       // A Korean subway exit: a glass canopy over the stairs and a lit station sign.
       box(0, 0, 0, 5.2, 0.4, 7.4, '#5b6066');

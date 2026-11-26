@@ -9,7 +9,16 @@ export const shared = {
   uTime: { value: 0 },
   /** 0..1: how much snow lies on the ground and roofs (winter months). */
   uSnow: { value: 0 },
+  /** Snow lying on each road cell (R channel, 0..1), from World.snow. */
+  uRoadSnow: { value: roadSnowTex() },
 };
+
+function roadSnowTex(): THREE.DataTexture {
+  const t = new THREE.DataTexture(new Uint8Array(256 * 256), 256, 256, THREE.RedFormat, THREE.UnsignedByteType);
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
+  return t;
+}
 
 /**
  * Building material. Windows, shop signs and green rooftops are drawn in the

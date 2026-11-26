@@ -27,7 +27,7 @@ export type BuildingKind =
   | 'r1' | 'r2' | 'r3'
   | 'c1' | 'c2' | 'c3'
   | 'i1' | 'i2' | 'i3'
-  | 'coal' | 'solar' | 'water' | 'well' | 'sewage' | 'park' | 'school' | 'police' | 'fire' | 'clinic' | 'metro'
+  | 'coal' | 'solar' | 'water' | 'well' | 'sewage' | 'park' | 'school' | 'police' | 'fire' | 'clinic' | 'snowbase' | 'metro'
   | 'market' | 'riverpark' | 'palace' | 'tower'
   | 'parking' | 'parktower'
   | 'office' | 'post' | 'library' | 'terminal' | 'ktx' | 'bike' | 'trailhead' | 'jjim'
@@ -67,6 +67,7 @@ export const KINDS: Record<BuildingKind, KindDef> = {
   school: { name: '초등학교', size: 2, power: 8, water: 6, cost: 4500, upkeep: 220, floors: [3, 4], desc: '반경 내 교육 · 땅값 상승' },
   police: { name: '경찰서', size: 1, power: 4, water: 2, cost: 2500, upkeep: 150, floors: [3, 3], desc: '반경 내 치안' },
   fire: { name: '소방서', size: 1, power: 4, water: 3, cost: 2500, upkeep: 150, floors: [2, 2], desc: '반경 내 화재 안전' },
+  snowbase: { name: '제설기지', size: 1, power: 3, water: 1, cost: 2000, upkeep: 80, floors: [1, 1], desc: '한파 때 반경 18칸 도로의 눈을 치워요 · 염화칼슘 비용은 쓴 만큼' },
   clinic: { name: '보건소', size: 1, power: 5, water: 4, cost: 3000, upkeep: 170, floors: [3, 3], desc: '반경 내 건강' },
   // Built and paid for through its subway line (transit.ts).
   metro: { name: '지하철역', size: 1, power: 6, water: 2, floors: [1, 1], desc: '역 주변 땅값 상승 (역세권)' },

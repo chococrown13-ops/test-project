@@ -2,6 +2,7 @@ import { Road, ROAD_SPEED } from './defs';
 import { HALF_WIDTH, KERB_W } from './curves';
 import { cellOf, NN, roadTypeOf } from './graph';
 import { clearOf, conflicts, isJunction, laneCount, linkLen, nodes, stopBack, turnCos, turnOf, type Nodes } from './junctions';
+import { snowSlow } from './hazards';
 import { axisOf, greenAge, Light, lightFor } from './signals';
 import type { Car, Traffic } from './traffic';
 import type { World } from './world';
@@ -99,6 +100,8 @@ function wanted(w: World, c: Car, a: number, b: number): number {
   // Through a 톨게이트, slowly.
   if ((a < NN && w.hwy[a] & 2) || (b < NN && w.hwy[b] & 2)) v = Math.min(v, ROAD_SPEED[Road.Street] * PACE * 0.45);
   if (c.kind === 1 || c.kind === 2) v *= 0.85;
+  // On snow, carefully.
+  v *= snowSlow(w, cellOf(a));
   // Past cars parked along a street, a bit slower.
   if (r === Road.Street && a < NN && w.parked[a] > 0) v *= 0.85;
   return v;

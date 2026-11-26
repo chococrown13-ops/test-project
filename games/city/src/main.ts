@@ -1,3 +1,4 @@
+import { SNOW_RADIUS } from './sim/hazards';
 import { sfx, type Sfx } from './audio/sfx';
 import './style.css';
 import { Bgm } from './audio/bgm';
@@ -253,7 +254,7 @@ function renderPanel(force = false) {
   const stamp = panel === 'budget' ? `${w.reports.length}:${w.tax.R}${w.tax.C}${w.tax.I}` : panel === 'stats' ? `${w.day}:${scene.overlay}` : panel === 'lines' ? `${w.ver.transit}:${w.reports.length}:${confirmLine}` : panel === 'notices' ? `${w.notices.length}:${w.notices[0]?.text}` : panel;
   if (!force && stamp === panelStamp) return;
   panelStamp = stamp;
-  $('panel').innerHTML = panel === 'budget' ? budgetHtml(w) : panel === 'stats' ? statsHtml(w, scene.overlay) : panel === 'menu' ? menuHtml(w, scene.quality, scene.style, { on: bgm.on, volume: bgm.volume }, scene.dayLock, sfx.on) : panel === 'lines' ? linesHtml(w, confirmLine) : panel === 'notices' ? noticesHtml(w) : HELP;
+  $('panel').innerHTML = panel === 'budget' ? budgetHtml(w) : panel === 'stats' ? statsHtml(w, scene.overlay) : panel === 'menu' ? menuHtml(w, scene.quality, scene.style, { on: bgm.on, volume: bgm.volume }, scene.dayLock, sfx.on, !w.noHazards) : panel === 'lines' ? linesHtml(w, confirmLine) : panel === 'notices' ? noticesHtml(w) : HELP;
 }
 function openInfo(x: number, y: number) {
   infoCell = { x, y };
@@ -308,6 +309,7 @@ for (const id of ['info', 'panel']) {
       renderPanel(true);
       return;
     }
+    if (t.dataset.act === 'hazards') { sim.w.noHazards = !sim.w.noHazards; if (sim.w.noHazards) sim.w.cold = null; renderPanel(true); return; }
     if (t.dataset.act === 'daylock') {
       scene.dayLock = !scene.dayLock;
       try { localStorage.setItem(DKEY, scene.dayLock ? '1' : ''); } catch { /* storage blocked */ }
@@ -517,7 +519,7 @@ function preview() {
     const off = !why && def.kind !== 'tower' && findAccess(w, { x: f.x, y: f.y, size: f.s }) < 0;
     p.show(rectCells(f.x, f.y, f.x + f.s - 1, f.y + f.s - 1), why ? '#ff5a5a' : off ? '#ffb347' : '#7cf0a6', 3);
     const svc = SERVICE[def.kind];
-    p.ringAt((f.x + f.s / 2) * CELL, (f.y + f.s / 2) * CELL, svc ? svc.radius * CELL : 0);
+    p.ringAt((f.x + f.s / 2) * CELL, (f.y + f.s / 2) * CELL, svc ? svc.radius * CELL : def.kind === 'snowbase' ? SNOW_RADIUS * CELL : 0);
     const price = `${def.name}, ${won(KINDS[def.kind].cost ?? 0)}, 유지비 월 ${won(KINDS[def.kind].upkeep ?? 0)}`;
     showTip(b.px, b.py, why ?? (off ? `도로에 닿지 않아요. 여기 지으면 도로를 이어 줄 때까지 작동하지 않아요 · ${price}` : price), !!why || off);
   }

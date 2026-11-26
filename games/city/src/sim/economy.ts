@@ -15,7 +15,7 @@ export function accrueDay(w: World) {
     if (d.zone && !b.abandoned) {
       const key = d.zone === Zone.R ? 'R' : d.zone === Zone.C ? 'C' : 'I';
       // Unhappy households and cut-off businesses pay less.
-      const pay = b.powered && b.watered ? 1 : 0.4;
+      const pay = b.burn ? 0 : b.powered && b.watered ? 1 : 0.4;
       m.income[key] += (b.occ * TAX_BASE[key] * (w.tax[key] / 10) * pay) / 30;
     }
     if (d.upkeep) {
@@ -88,4 +88,4 @@ export function closeMonth(w: World) {
 
 // Saves from before transit have no T or transit fields.
 export const monthIncome = (r: MonthReport) => r.income.R + r.income.C + r.income.I + (r.income.T ?? 0) + (r.income.V ?? 0) + (r.income.G ?? 0) + (r.income.S ?? 0) + (r.income.H ?? 0);
-export const monthExpense = (r: MonthReport) => r.expense.roads + r.expense.facilities + r.expense.services + (r.expense.transit ?? 0) + (r.expense.debt ?? 0);
+export const monthExpense = (r: MonthReport) => r.expense.roads + r.expense.facilities + r.expense.services + (r.expense.transit ?? 0) + (r.expense.debt ?? 0) + (r.expense.snow ?? 0);

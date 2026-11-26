@@ -1,4 +1,5 @@
 import { sfx } from '../audio/sfx';
+import { SNOW_RADIUS } from '../sim/hazards';
 import { growthBlock, lotBlock } from '../sim/diagnose';
 import { isOpen, SPECS, specLevel } from '../sim/special';
 import { isPocket, pocketKind, POCKET_NAME } from '../sim/pockets';
@@ -197,6 +198,7 @@ export function infoHtml(w: World, x: number, y: number): string {
       h += kv('유지비', `월 ${won(d.upkeep ?? 0)}`);
       const s = SERVICE[b.kind];
       if (s) h += kv('범위', `${s.radius * 10}m`);
+      if (b.kind === 'snowbase') h += kv('범위', `${SNOW_RADIUS * 10}m`);
       h += `<button class="btn danger" data-demolish="${b.id}">철거하기</button>`;
     }
     return h;
@@ -243,7 +245,7 @@ export function budgetHtml(w: World): string {
   let h = head('예산');
   h += `<p class="hint">${w.reports.length ? '지난달' : '이번 달(진행 중)'} 기준, 단위는 만 원이에요.</p>`;
   h += '<h4>수입</h4>' + kv('주거세', won(last.income.R)) + kv('상업세', won(last.income.C)) + kv('산업세', won(last.income.I)) + kv('대중교통 요금', won(last.income.T ?? 0)) + kv('관광', won(last.income.V ?? 0)) + kv('특화 (의료관광·기술 수출)', won(last.income.S ?? 0)) + kv('고속도로 통행료', won(last.income.H ?? 0)) + kv('지방교부세 (국비)', won(last.income.G || grantFor(w.stats.pop)));
-  h += '<h4>지출</h4>' + kv('도로 유지', won(last.expense.roads)) + kv('전기, 상하수도 시설', won(last.expense.facilities)) + kv('공공 서비스', won(last.expense.services)) + kv('대중교통 운영', won(last.expense.transit ?? 0)) + (w.loans.length || last.expense.debt ? kv('대출 상환', won(last.expense.debt ?? 0)) : '');
+  h += '<h4>지출</h4>' + kv('도로 유지', won(last.expense.roads)) + kv('전기, 상하수도 시설', won(last.expense.facilities)) + kv('공공 서비스', won(last.expense.services)) + kv('대중교통 운영', won(last.expense.transit ?? 0)) + (last.expense.snow ? kv('제설 (염화칼슘)', won(last.expense.snow)) : '') + (w.loans.length || last.expense.debt ? kv('대출 상환', won(last.expense.debt ?? 0)) : '');
   const net = inc - exp;
   h += `<div class="kv total"><span class="k">월 수지</span>${state(net >= 0 ? 'ok' : 'no', `${net >= 0 ? '+' : '−'}${won(Math.abs(net))}`)}</div>`;
   h += '<h4>세율</h4><p class="hint">높일수록 수입은 늘고 이사 오려는 사람과 가게는 줄어요. 보통 9~12%가 알맞고, 15%를 넘으면 수요가 크게 줄어요.</p>';
@@ -353,13 +355,14 @@ export function draftHtml(w: World, kind: LineKind, stops: number[], bus: BusTyp
 
 const STYLE_NAME = { lowpoly: '로우폴리', toon: '툰', pixel: '픽셀' } as const;
 
-export function menuHtml(w: World, quality: 'high' | 'normal', style: keyof typeof STYLE_NAME = 'lowpoly', music = { on: false, volume: 0.6 }, dayLock = false, effects = true): string {
+export function menuHtml(w: World, quality: 'high' | 'normal', style: keyof typeof STYLE_NAME = 'lowpoly', music = { on: false, volume: 0.6 }, dayLock = false, effects = true, hazards = true): string {
   let h = head('메뉴');
   h += `<p class="hint">${esc(w.name)}, ${dateText(w.day)}</p><div class="menu">`;
   h += '<button class="btn" data-act="save">저장하기</button><button class="btn" data-act="slots">불러오기 (저장한 도시들)</button><button class="btn" data-act="new">새 도시</button><button class="btn" data-act="help">조작법</button>';
   h += `<button class="btn" data-act="quality" aria-pressed="${quality === 'high'}">그래픽 품질: ${quality === 'high' ? '높음' : '보통'}</button>`;
   h += `<button class="btn" data-act="style">그림체: ${STYLE_NAME[style]}</button>`;
   h += `<button class="btn" data-act="daylock" aria-pressed="${dayLock}">시간: ${dayLock ? '낮 고정' : '밤낮 바뀜'}</button>`;
+  h += `<button class="btn" data-act="hazards" aria-pressed="${hazards}">재해 (화재·한파): ${hazards ? '켜짐' : '꺼짐'}</button>`;
   h += `<button class="btn" data-act="music" aria-pressed="${music.on}">배경음악: ${music.on ? '켜짐' : '꺼짐'}</button>`;
   h += `<button class="btn" data-act="sfx" aria-pressed="${effects}">효과음: ${effects ? '켜짐' : '꺼짐'}</button>`;
   h += `<div class="vol"><span>음량</span><button class="btn small" data-act="vol-" aria-label="음량 줄이기">−</button><b>${Math.round(music.volume * 10)}</b><button class="btn small" data-act="vol+" aria-label="음량 키우기">+</button></div></div>`;
@@ -373,7 +376,7 @@ ${kv('이동', 'WASD, 방향키, 가운데 버튼 드래그')}${kv('회전', '�
 <h4>건설</h4>
 ${kv('도로', '드래그해서 직선이나 ㄱ자, 대각선은 45도')}${kv('고가와 터널', '도로 끝에서 끝까지 끌면 양 끝이 진입로가 돼요')}${kv('주차', '주차장이 모자라면 갓길에 세우고, 그래도 없으면 주변을 돌아요. 공영주차장, 주차타워, 지하철역이 주차난을 덜어요')}${kv('구역', '드래그해서 사각형으로 칠하기')}${kv('시설', '탭하거나 클릭해서 배치')}${kv('노선', '정류장을 차례로 찍고 완성')}${kv('취소', 'Esc 또는 우클릭')}
 <h4>건물 위 표시</h4>
-${kv('빨간 번개', '전기가 끊겼어요')}${kv('파란 물방울', '수돗물이 끊겼어요')}${kv('주황 도로', '도로에 연결되지 않았어요')}${kv('회색 집', '사람이 떠난 빈집이에요. 전기와 수도가 돌아오고 살기 좋아지면 다시 들어와요')}${kv('파란 P', '차를 세울 곳이 크게 모자라요. 근처에 공영주차장이나 주차타워를 지으세요. 현황의 주차 지도에서는 모자란 건물이 모두 보여요')}${kv('노란 느낌표', '칠해 둔 구역이 비어 있어요. 일자리나 수요가 모자라거나 도로가 바깥과 이어지지 않았어요. 빈 땅을 누르면 이유가 나와요')}${kv('빨간 자동차', '길이 심하게 막혀요. 도로를 넓히거나 우회로, 대중교통을 만들어 보세요. 풀리면 사라져요')}
+${kv('빨간 번개', '전기가 끊겼어요')}${kv('파란 물방울', '수돗물이 끊겼어요')}${kv('주황 도로', '도로에 연결되지 않았어요')}${kv('회색 집', '사람이 떠난 빈집이에요. 전기와 수도가 돌아오고 살기 좋아지면 다시 들어와요')}${kv('파란 P', '차를 세울 곳이 크게 모자라요. 근처에 공영주차장이나 주차타워를 지으세요. 현황의 주차 지도에서는 모자란 건물이 모두 보여요')}${kv('노란 느낌표', '칠해 둔 구역이 비어 있어요. 일자리나 수요가 모자라거나 도로가 바깥과 이어지지 않았어요. 빈 땅을 누르면 이유가 나와요')}${kv('빨간 자동차', '길이 심하게 막혀요. 도로를 넓히거나 우회로, 대중교통을 만들어 보세요. 풀리면 사라져요')}${kv('불꽃과 연기', '화재가 났어요. 소방서 범위 안이면 하루 만에 꺼지고, 밖이면 번지다가 건물이 타 버려요')}${kv('하얀 도로', '한파로 눈이 쌓였어요. 차가 느려져요. 제설기지(공공)를 지으면 반경 안 도로를 치워요. 메뉴에서 재해를 끌 수 있어요')}
 <h4>단축키</h4>
 ${kv('도구', 'Z 도로, X 구역, C 전기, V 상하수도, B 공공, N 대중교통, M 공원, L 명소')}${kv('직각, 대각선', 'T')}${kv('속도', 'Space 멈춤, 1, 2, 3')}
 <p class="hint">전기와 수도는 도로 밑으로 흘러요. 발전소와 정수장이 도로망에 붙어 있어야 해요. 화력 발전소, 하수처리장, 공장은 오염을 내니 주거지와 떨어뜨리세요.</p>`;

@@ -25,6 +25,7 @@ import { Fireworks } from './fireworks';
 import { PeopleLayer } from './people';
 import { SignalLayer } from './signals';
 import { HighwayLayer } from './highway';
+import { HazardLayer } from './hazards';
 
 const smooth = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 export type Quality = 'high' | 'normal';
@@ -41,6 +42,7 @@ export class CityScene {
   readonly people = new PeopleLayer();
   readonly signals = new SignalLayer();
   readonly highway = new HighwayLayer();
+  readonly hazards = new HazardLayer();
   /** Game time per real second right now (0 when paused): people walk at this pace. */
   pace = 0;
   /** Always day: no night, the light stays at early afternoon. */
@@ -82,7 +84,7 @@ export class CityScene {
     this.view = new CityCamera(1);
     this.ground = new GroundLayer(sim.w);
     this.roads = new RoadLayer(this.ground.tex);
-    this.scene.add(this.ground.group, this.roads.group, this.buildings.group, this.vehicles.group, this.transit.group, this.preview.group, this.fireworks.group, this.people.group, this.signals.group, this.highway.group);
+    this.scene.add(this.ground.group, this.roads.group, this.buildings.group, this.vehicles.group, this.transit.group, this.preview.group, this.fireworks.group, this.people.group, this.signals.group, this.highway.group, this.hazards.group);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.bias = -0.0004;
@@ -305,6 +307,8 @@ export class CityScene {
     this.vehicles.update(w, this.sim.tr);
     this.signals.update(w, this.sim.tr.clock, this.view.dist);
     this.highway.update(w);
+    this.hazards.heightAt = (x, z) => this.ground.heightAt(x, z);
+    this.hazards.update(w, dt, this.view.target);
     this.people.crossings = this.sim.tr.crossings;
     this.people.update(w, dt, this.pace, shared.uNight.value, this.view.dist, this.sim.tr.clock, this.vehicles);
     this.transit.update(w, w.day * DAY_SECONDS + this.sim.acc, this.draft);

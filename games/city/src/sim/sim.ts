@@ -4,6 +4,7 @@ import { stalledZones } from './diagnose';
 import { calendarMonthOf } from './calendar';
 import { closeMobilityMonth, updateFestivals } from './attractions';
 import { closeMonth, accrueDay } from './economy';
+import { stepHazards } from './hazards';
 import { grow, updateBuildings, updateDemand, updateLand } from './growth';
 import { updateUtilities } from './network';
 import { updateParking } from './parking';
@@ -54,6 +55,7 @@ export function stepDay(s: Sim) {
   if (w.day % 2 === 0) updateParking(w);
   updateDemand(w);
   grow(w);
+  stepHazards(w);
   accrueDay(w);
   closeDay(w, s.tr);
   if (w.day % 30 === 0) { closeMonth(w); closeTransitMonth(w); closeMobilityMonth(w); }

@@ -27,6 +27,8 @@ export interface Building {
   outage: number;
   abandoned: boolean;
   builtDay: number;
+  /** Days on fire (0 or missing: not burning). */
+  burn?: number;
 }
 
 /** 지방채: a loan paid back in equal monthly instalments. */
@@ -36,7 +38,7 @@ export interface MonthReport {
   month: number;
   /** V: visitors' spending (관광). */
   income: { R: number; C: number; I: number; T: number; V?: number; G?: number; S?: number; H?: number };
-  expense: { roads: number; facilities: number; services: number; transit: number; debt?: number };
+  expense: { roads: number; facilities: number; services: number; transit: number; debt?: number; snow?: number };
   pop: number;
   jobs: number;
 }
@@ -72,6 +74,14 @@ export interface World {
   hwy: Uint8Array;
   /** Cars through a 톨게이트 this month. */
   tollPass: number;
+  /** Snow lying on each road cell, 0-100 (see hazards.ts). */
+  snow: Uint8Array;
+  /** The 한파 forecast or under way: snow falls from day `start` until `end`. */
+  cold?: { start: number; end: number } | null;
+  /** The day the last 한파 began. */
+  coldLast?: number;
+  /** Setting: no fires or cold snaps. */
+  noHazards?: boolean;
   /** Curved roads drawn over their chains of road cells (see curves.ts). */
   curves: Curve[];
   /** 회전교차로 (see roundabout.ts). */
@@ -195,6 +205,7 @@ export function createWorld(seed = 20261028, name = '새솔시', map: MapKind = 
     oneway: new Uint8Array(size),
     hwy: new Uint8Array(size),
     tollPass: 0,
+    snow: new Uint8Array(size),
     curves: [],
     roundabouts: [],
     parked: new Uint8Array(size),
