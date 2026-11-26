@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { CELL, KINDS, N, Zone } from '../sim/defs';
 import { HALF_WIDTH, KERB_W } from '../sim/curves';
 import { forEachNeighbour, NN } from '../sim/graph';
+import { isJunction, nodes } from '../sim/junctions';
 import { ringMask } from '../sim/roundabout';
 import { axisOf, greenAge, Light, lightFor, signalCells } from '../sim/signals';
 
@@ -113,6 +114,15 @@ export class PeopleLayer {
       const n = ahead !== undefined && Math.random() < 0.75 ? ahead : next[(Math.random() * next.length) | 0];
       prev = cur; cur = n; path.push(n);
     }
+    // Not across a junction on the slant (there is no crossing that way: walk up to it and stop), and
+    // never starting or ending in the middle of a junction.
+    const nd = nodes(w);
+    const slant = (a: number, b: number) => (a % N) !== (b % N) && ((a / N) | 0) !== ((b / N) | 0);
+    for (let j = 1; j < path.length - 1; j++) {
+      if (isJunction(nd, path[j]) && (slant(path[j - 1], path[j]) || slant(path[j], path[j + 1]))) { path.length = j; break; }
+    }
+    while (path.length && isJunction(nd, path[path.length - 1])) path.pop();
+    while (path.length && isJunction(nd, path[0])) path.shift();
     if (path.length < 2) return null;
     return { path, i: 0, t: Math.random(), side, speed: WALK * (0.8 + Math.random() * 0.4), look: Math.random() };
   }
@@ -183,7 +193,8 @@ export class PeopleLayer {
       }
       const dx = (b.x - a.x) / L, dz = (b.z - a.z) / L;
       const cell = wk.path[wk.i];
-      const t = (w.road[cell] || 1) as 1 | 2;
+      // The wider of the two roads this step joins: round the corner of an avenue on its pavement, not its kerb.
+      const t = Math.max(w.road[cell] || 1, w.road[wk.path[wk.i + 1]] || 1) as 1 | 2;
       let off = wk.side * (HALF_WIDTH[t] + KERB_W[t] * 0.5) + (wk.look - 0.5) * 0.5;
       // Going straight past a side street: step out to its zebra (painted just beyond the junction's edge) to cross.
       wk.hurry = false;
