@@ -446,7 +446,7 @@ namespace NaeDosi.Ui
                 case "daylock": G.dayLock = !G.dayLock; PlayerPrefs.SetInt("city.daylock", G.dayLock ? 1 : 0); RenderPanel(true); break;
                 case "quality": G.SetQuality(!G.quality); PlayerPrefs.SetInt("city.quality", G.quality ? 1 : 0); RenderPanel(true); break;
                 case "newCity": NewCity(); break;
-                case "style": G.artStyle = 1 - G.artStyle; PlayerPrefs.SetInt("city.style", G.artStyle); RenderPanel(true); break;
+                case "style": G.artStyle = (G.artStyle + 1) % 3; PlayerPrefs.SetInt("city.style", G.artStyle); RenderPanel(true); break;
                 case "tilt": G.tiltShift = !G.tiltShift; PlayerPrefs.SetInt("city.tilt", G.tiltShift ? 1 : 0); RenderPanel(true); break;
                 case "visitHome": LeaveVisit(); break;
             }

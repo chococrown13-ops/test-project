@@ -222,7 +222,8 @@ namespace NaeDosi.Render
             bloom.intensity.Override(night * 0.45f * 2f);
             Shader.SetGlobalFloat(NIGHT, night);
             Shader.SetGlobalVector("_Fade", new Vector4((float)(view.dist * 1.1), (float)(view.dist * 3.6), 0, 0));
-            Shader.SetGlobalFloat("_InkStrength", (artStyle == 1 ? 0.9f : 0.55f) - night * 0.2f);
+            Shader.SetGlobalFloat("_InkStrength", artStyle == 2 ? 0.12f : (artStyle == 1 ? 0.9f : 0.55f) - night * 0.2f);
+            Shader.SetGlobalFloat("_Real", artStyle == 2 ? 1 : 0);
             Shader.SetGlobalFloat("_ArtStyle", artStyle);
             Shader.SetGlobalFloat("_TiltShift", tiltShift ? 1 : 0);
             Shader.SetGlobalFloat("_TiltFocus", 0.47f);

@@ -33,7 +33,7 @@ Shader "NaeDosi/City"
         TEXTURE2D(_RoadSnow); SAMPLER(sampler_RoadSnow);
         TEXTURE2D(_WaterMap); SAMPLER(sampler_WaterMap);
         float4 _SkyTopC, _SkyHorizonC; float _WaterAmb;
-        float _Night, _Snow, _Time0;
+        float _Night, _Snow, _Time0, _Real;
         // World-space scale of the map: positions are in metres, the web map's z runs the other way.
         float _MapSize;
         UNITY_INSTANCING_BUFFER_START(Props)
@@ -84,9 +84,12 @@ Shader "NaeDosi/City"
             float h21(float2 p) { return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
             float vn(float2 p) { float2 i = floor(p), f = frac(p); f = f * f * (3.0 - 2.0 * f);
                 return lerp(lerp(h21(i), h21(i + float2(1, 0)), f.x), lerp(h21(i + float2(0, 1)), h21(i + float2(1, 1)), f.x), f.y); }
+            float fbm(float2 p) { return (vn(p) * 0.5 + vn(p * 2.03 + 5.1) * 0.25 + vn(p * 4.07 + 9.7) * 0.125 + vn(p * 8.13 + 2.3) * 0.0625) / 0.9375; }
+            // Fades fine detail out before it shimmers: 1 when a cell of noise at this scale covers many pixels, 0 when under one.
+            float detail(float2 p) { float w = max(fwidth(p.x), fwidth(p.y)); return 1.0 - smoothstep(0.35, 1.0, w); }
 
             // Facade: walls, windows, signs, balconies (render/materials.ts buildingMaterial).
-            void facade(V2F i, inout float3 col, inout float3 emit)
+            void facade(V2F i, inout float3 col, inout float3 emit, inout float glassAmt)
             {
                 float st = floor(i.info.x + 0.5);
                 // Worked in the web map's coordinates (z south), so windows fall exactly where they do there.
@@ -101,6 +104,7 @@ Shader "NaeDosi/City"
                 {
                     if (st < 0.5 || abs(st - 2.0) < 0.5) col = float3(0.36, 0.55, 0.42);
                     else col *= 0.78;
+                    if (_Real > 0.5) { col *= 0.82 + 0.3 * fbm(wp.xz * 1.3 + i.info.y * 17.0) * (0.5 + 0.5 * detail(wp.xz * 5.0)); col *= 0.92 + 0.12 * vn(wp.xz * 9.0) * detail(wp.xz * 9.0); }
                     col = lerp(col, float3(0.94, 0.96, 0.98), _Snow * 0.85);
                 }
                 else
@@ -176,7 +180,19 @@ Shader "NaeDosi/City"
                         glass = lerp(glass, float3(0.45, 0.55, 0.66), 0.28 * fv);
                         if (pane > 0.72) glass = lerp(glass, float3(0.86, 0.8, 0.68), 0.45);
                     }
+                    if (_Real > 0.5)
+                    {
+                        // 실사: plaster with blotches, rain streaks running down from the windows, grime near the ground.
+                        float2 wall = float2(u, wp.y);
+                        col *= 0.9 + 0.2 * fbm(wall * 0.6 + i.info.y * 31.0) * (0.6 + 0.4 * detail(wall * 2.0));
+                        col *= 0.96 + 0.08 * vn(wall * 7.0) * detail(wall * 7.0);
+                        float streak = vn(float2(u * 2.4 + i.info.y * 7.0, wp.y * 0.12));
+                        col *= 1.0 - 0.16 * smoothstep(0.55, 0.95, streak) * (1.0 - win);
+                        col *= lerp(0.78, 1.0, smoothstep(0.0, 1.8, wp.y));
+                        glass *= 0.55;
+                    }
                     col = lerp(col, glass, win * (1.0 - abandoned * 0.5));
+                    glassAmt = win * (1.0 - abandoned * 0.5);
                     float on = step(0.42, h21(float2(floorIx * 7.0 + i.info.y * 91.0, colIx)));
                     lit = win * on * i.info.z * (1.0 - abandoned);
                     if (abs(st - 2.0) < 0.5 && fy < 3.0 && fv > 0.85) lit = i.info.z * 0.8;
@@ -198,7 +214,7 @@ Shader "NaeDosi/City"
                 float3 emit = _Emit.rgb;
                 float smooth = _Smooth;
                 float2 gp = float2(i.ws.x, -i.ws.z); // the web map's ground coordinates
-                float waterFresnel = 0;
+                float waterFresnel = 0, glassAmt = 0, metal = _Metal;
                 if (_Mode < 0.5)
                 {
                     col = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv0).rgb;
@@ -229,7 +245,7 @@ Shader "NaeDosi/City"
                         }
                     }
                 }
-                else if (_Mode < 2.5) facade(i, col, emit);
+                else if (_Mode < 2.5) facade(i, col, emit, glassAmt);
                 else if (_Mode > 5.5)
                 {
                     // Buses and trains: windows and signs glow at night.
@@ -258,8 +274,68 @@ Shader "NaeDosi/City"
                     float froth = vn(gp * 0.9 + float2(_Time0 * 0.4, -_Time0 * 0.3));
                     float foam = band * smoothstep(0.35, 0.65, froth + 0.25 * sin(shore * 60.0 - _Time0 * 2.0));
                     col = lerp(col, float3(0.9, 0.94, 0.95), foam * 0.85);
+                    if (_Real > 0.5) col *= 0.75;
                     waterFresnel = (1 - foam) * pow(1.0 - saturate(dot(normalize(GetWorldSpaceNormalizeViewDir(i.ws)), n)), 5.0);
                 }
+
+                if (_Real > 0.5 && (_Mode < 2.5 || _Mode > 3.5))
+                {
+                    float lum0 = dot(col, float3(0.299, 0.587, 0.114));
+                    float sat = max(col.r, max(col.g, col.b)) - min(col.r, min(col.g, col.b));
+                    float green = saturate((col.g - max(col.r, col.b)) * 5.0);
+                    if (_Mode < 0.5)
+                    {
+                        // Grass: duller and deeper, clumps and blades, bare soil showing through here and there.
+                        float3 g = lerp(lum0.xxx, col, 0.9) * float3(0.6, 0.66, 0.4);
+                        float clump = fbm(gp * 0.45);
+                        g *= 0.72 + 0.5 * clump;
+                        g *= 1.0 + (vn(gp * 6.0) - 0.5) * 0.35 * detail(gp * 6.0);
+                        g *= 1.0 + (vn(gp * 22.0) - 0.5) * 0.3 * detail(gp * 22.0);
+                        float soil = smoothstep(0.62, 0.78, fbm(gp * 0.07 + 3.7)) * smoothstep(0.35, 0.6, vn(gp * 0.9));
+                        g = lerp(g, float3(0.3, 0.24, 0.16) * (0.8 + 0.4 * vn(gp * 3.0)), soil * 0.7);
+                        col = lerp(col * (0.9 + 0.2 * fbm(gp * 0.8)), g, green);
+                        // A little bumpiness so the sun picks out the clumps.
+                        float2 e = float2(0.15, 0);
+                        float hx = fbm(gp * 0.45 + e.xy) - clump, hz = fbm(gp * 0.45 + e.yx) - clump;
+                        n = normalize(n + float3(-hx, 0, hz) * 1.6 * green);
+                    }
+                    else if (_Mode < 1.5)
+                    {
+                        float flat = step(0.85, n.y);
+                        float grey = 1.0 - saturate(sat * 5.0);
+                        if (grey > 0.5 && flat > 0.5 && lum0 < 0.55)
+                        {
+                            // Asphalt: darker, grainy, patched and cracked, worn paler in the wheel tracks.
+                            col *= 0.72;
+                            col *= 0.84 + 0.32 * vn(gp * 35.0) * detail(gp * 35.0) + 0.08;
+                            col *= 0.9 + 0.2 * fbm(gp * 0.25);
+                            float patch = smoothstep(0.66, 0.7, fbm(gp * 0.12 + 11.0));
+                            col = lerp(col, col * 0.72, patch * 0.8);
+                            float crack = 1.0 - smoothstep(0.0, 0.018, abs(fbm(gp * 0.35 + 4.0) - 0.5));
+                            col *= 1.0 - crack * 0.35 * detail(gp * 2.0);
+                            smooth = 0.12 + 0.25 * _Snow;
+                        }
+                        else if (lum0 > 0.7 && flat > 0.5)
+                        {
+                            // Road paint, scuffed.
+                            col *= 0.82 + 0.18 * vn(gp * 5.0);
+                        }
+                        else if (green > 0.25)
+                        {
+                            // Leaves: darker, every tree a little different, light and shade within the crown.
+                            col = lerp(lum0.xxx, col, 0.8) * float3(0.8, 0.82, 0.62);
+                            col *= 0.7 + 0.55 * vn(i.ws.xz * 0.37 + i.ws.y * 0.11);
+                            col *= 0.85 + 0.3 * vn(i.ws.xz * 4.0 + i.ws.y * 3.0) * detail(i.ws.xz * 4.0);
+                            n = normalize(n + (float3(vn(i.ws.xz * 3.0), 0, vn(i.ws.zy * 3.0)) - 0.5) * 0.9);
+                            smooth = 0.05;
+                        }
+                        else col *= 0.92 + 0.12 * vn(i.ws.xz * 2.0 + i.ws.y);
+                    }
+                    else if (_Mode > 3.5 && _Mode < 4.5) { smooth = 0.75; metal = 0.25; }
+                    else if (_Mode > 5.5) { smooth = 0.6; metal = 0.2; }
+                    col = lerp(dot(col, float3(0.299, 0.587, 0.114)).xxx, col, 0.94);
+                }
+                if (glassAmt > 0 && _Real > 0.5) { smooth = lerp(smooth, 0.92, glassAmt); waterFresnel = glassAmt * (0.25 + pow(1.0 - saturate(dot(GetWorldSpaceNormalizeViewDir(i.ws), n)), 3.0)); }
 
                 InputData d = (InputData)0;
                 d.positionWS = i.ws;
@@ -274,16 +350,16 @@ Shader "NaeDosi/City"
                 d.shadowMask = half4(1, 1, 1, 1);
                 SurfaceData s = (SurfaceData)0;
                 s.albedo = col;
-                s.metallic = _Metal;
+                s.metallic = metal;
                 s.smoothness = smooth;
                 // Water: little of the bright sky-and-studio ambient soaks into it, so it stays a deep blue as on the web.
-                s.occlusion = _Mode > 2.5 && _Mode < 3.5 ? _WaterAmb : 1;
+                s.occlusion = _Mode > 2.5 && _Mode < 3.5 ? _WaterAmb : (_Real > 0.5 ? 0.72 : 1);
                 s.emission = emit;
                 s.alpha = 1;
                 s.normalTS = float3(0, 0, 1);
                 half4 c = UniversalFragmentPBR(d, s);
                 // Water mirrors the sky at a glancing angle.
-                if (waterFresnel > 0) { float3 r = reflect(-d.viewDirectionWS, n); float3 sky = lerp(_SkyHorizonC.rgb, _SkyTopC.rgb, pow(saturate(r.y), 0.55)); c.rgb = lerp(c.rgb, sky * 0.85, saturate(waterFresnel) * 0.3); }
+                if (waterFresnel > 0) { float3 r = reflect(-d.viewDirectionWS, n); float3 sky = lerp(_SkyHorizonC.rgb, _SkyTopC.rgb, pow(saturate(r.y), 0.55)); c.rgb = lerp(c.rgb, sky * 0.85, saturate(waterFresnel) * (_Real > 0.5 ? 0.6 : 0.3)); }
                 c.rgb = MixFog(c.rgb, fogF);
                 return c;
             }

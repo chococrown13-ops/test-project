@@ -76,7 +76,7 @@ Shader "NaeDosi/Post"
                     float normalEdge = smoothstep(0.35, 0.9, nd);
                     float edge = max(depthEdge, normalEdge * 0.75);
                     float fade = 1.0 - smoothstep(_Fade.x, _Fade.y, d0);
-                    if (_ArtStyle > 0.5)
+                    if (abs(_ArtStyle - 1.0) < 0.5)
                     {
                         // 툰: three or four flat bands of light, bolder ink that reaches further.
                         float l0 = max(dot(col, float3(0.2126, 0.7152, 0.0722)), 1e-4);
@@ -86,20 +86,20 @@ Shader "NaeDosi/Post"
                         edge = smoothstep(0.15, 0.6, edge);
                         fade = 1.0 - smoothstep(_Fade.x * 1.6, _Fade.y * 1.6, d0);
                     }
-                    float3 ink = col * (_ArtStyle > 0.5 ? float3(0.26, 0.22, 0.2) : float3(0.5, 0.44, 0.4));
+                    float3 ink = col * (abs(_ArtStyle - 1.0) < 0.5 ? float3(0.26, 0.22, 0.2) : float3(0.5, 0.44, 0.4));
                     col = lerp(col, ink, edge * fade * _InkStrength);
                 }
                 float lum = dot(col, float3(0.2126, 0.7152, 0.0722));
-                col = lerp(lum.xxx, col, _ArtStyle > 0.5 ? 1.2 : 1.08);
+                col = lerp(lum.xxx, col, _ArtStyle > 1.5 ? 1.06 : _ArtStyle > 0.5 ? 1.2 : 1.08);
                 if (_TiltShift > 0.5) col = lerp(lum.xxx, col, 1.12);
-                col *= lerp(float3(1.035, 1.0, 0.955), float3(0.98, 0.99, 1.03), _Night);
+                col *= lerp(_ArtStyle > 1.5 ? float3(1.01, 1.0, 0.985) : float3(1.035, 1.0, 0.955), float3(0.98, 0.99, 1.03), _Night);
                 float2 c = uv - 0.5;
                 col *= 1.0 - 0.12 * smoothstep(0.45, 0.95, length(c * float2(1.25, 1.0)));
 
                 col = toSrgb(acesThree(max(col, 0)));
                 float l = dot(col, float3(0.2126, 0.7152, 0.0722));
                 col = lerp(l.xxx, col, 1.05);
-                col = (col - 0.5) * 1.08 + 0.5;
+                col = (col - 0.5) * (_ArtStyle > 1.5 ? 1.16 : 1.08) + 0.5;
                 col *= float3(1.025, 1.0, 0.965);
                 col *= 1.0 - 0.22 * smoothstep(0.35, 0.85, length(c * float2(1.25, 1.0)));
                 return half4(toLin(saturate(col)), 1);
