@@ -1,0 +1,8 @@
+{
+    "name": "PlayerAuthentication",
+    "references": [
+        "Unity.Services.Core",
+        "Unity.Services.Authentication"
+    ],
+    "autoReferenced": true
+}
