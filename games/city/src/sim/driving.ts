@@ -1,4 +1,5 @@
 import { Road, ROAD_SPEED } from './defs';
+import { HALF_WIDTH, KERB_W } from './curves';
 import { cellOf, NN, roadTypeOf } from './graph';
 import { clearOf, conflicts, isJunction, laneCount, linkLen, nodes, stopBack, turnCos, turnOf, type Nodes } from './junctions';
 import { axisOf, greenAge, Light, lightFor } from './signals';
@@ -182,6 +183,19 @@ function step(w: World, tr: Traffic, nd: Nodes, h: number, done: Car[]) {
         }
         c.line = d;
       } else c.line = Infinity;
+      // People on a zebra beside a junction: stop short of it (coming in, or turning out).
+      if (c.ghost <= 0 && tr.crossings.size) {
+        // The zebra's middle, metres out from the junction's centre (as the walkers draw it: render/people.ts).
+        const zebra = (j: number) => { const t = (roadTypeOf(w, j) || 1) as 1 | 2; return HALF_WIDTH[t] + KERB_W[t] + 1.6; };
+        // Coming in: the zebra lies on the cell just before the junction, which may be the next link or this one.
+        let d = Infinity;
+        const front = x + len / 2;
+        if (tr.crossings.get(a) === b) d = L - front - (zebra(b) + 1.6);
+        else if (i + 2 < p.length && tr.crossings.get(b) === p[i + 2]) d = L - front + linkLen(b, p[i + 2]) - (zebra(p[i + 2]) + 1.6);
+        // Turning out of the junction across it.
+        else if (tr.crossings.get(b) === a) d = zebra(a) - 1.6 - front;
+        if (d > -0.5 && d < s) { s = Math.max(0.1, d); vl = 0; }
+      }
       c.gap = s;
       // Intelligent driver model.
       let acc = A * (1 - (c.v / v0) ** 4);

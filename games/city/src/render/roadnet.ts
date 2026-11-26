@@ -1,6 +1,6 @@
 import { CELL, Ground, Level, N, Road } from '../sim/defs';
 import { curveInfo, curvePath, HALF_WIDTH, KERB_W } from '../sim/curves';
-import { altNeighbours, forEachNeighbour, NN } from '../sim/graph';
+import { altNeighbours, forEachNeighbour, NN, rampExit } from '../sim/graph';
 import { deckHeightAt } from './roadheight';
 import { ringOf } from '../sim/roundabout';
 import type { World } from '../sim/world';
@@ -221,6 +221,17 @@ export function buildCityNetwork(w: World): Network {
       const p = centre(i), off = net.node({ x: -CELL * 1.5, z: p.z });
       net.addEdge(node(i), off.id, [{ kind: 'line', a: net.nodes.get(node(i))!.p, b: off.p }], KIND[w.road[i]] ?? 'street');
     }
+  }
+  // Where a ramp rises from the ground road, the road runs on to the ramp's foot (the edge of its
+  // cell) so the asphalt meets the ramp with no gap of grass between.
+  for (let r = 0; r < N * N; r++) {
+    if (!w.roadAlt[r]) continue;
+    const e = rampExit(w, r);
+    if (e < 0 || !w.road[e] || own[e]) continue;
+    const p = centre(e), q = centre(r);
+    const foot = { x: p.x + (q.x - p.x) * 0.499, z: p.z + (q.z - p.z) * 0.499 };
+    const end = net.node(foot);
+    net.addEdge(node(e), end.id, [{ kind: 'line', a: net.nodes.get(node(e))!.p, b: end.p }], 'avenue');
   }
   net.simplify();
   if (w.roundabouts.length) { addRoundabouts(net, w); net.simplify(); }

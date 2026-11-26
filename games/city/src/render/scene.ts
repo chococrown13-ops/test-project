@@ -293,9 +293,17 @@ export class CityScene {
     shared.uSnow.value += (snow - shared.uSnow.value) * Math.min(1, dt * 0.8);
     this.buildings.heightAt = (x, z) => this.ground.heightAt(x, z);
     this.buildings.update(w, now);
+    // Laying out a bus or subway line (or looking at the transit map): the buildings sink flat so the
+    // streets, stops and routes underneath can be seen.
+    const flat = !!this.draft || this.overlay === 'transit';
+    const sy = this.buildings.group.scale.y, want = flat ? 0.04 : 1;
+    if (Math.abs(sy - want) > 0.001) this.buildings.group.scale.y = sy + (want - sy) * Math.min(1, dt * 8);
+    // Their badges would squash with them: hide those meanwhile.
+    if (flat) for (const o of this.buildings.group.children) if ((o as THREE.Sprite).isSprite) o.visible = false;
     this.vehicles.update(w, this.sim.tr);
     this.signals.update(w, this.sim.tr.clock, this.view.dist);
-    this.people.update(w, dt, this.pace, shared.uNight.value, this.view.dist, this.sim.tr.clock);
+    this.people.crossings = this.sim.tr.crossings;
+    this.people.update(w, dt, this.pace, shared.uNight.value, this.view.dist, this.sim.tr.clock, this.vehicles);
     this.transit.update(w, w.day * DAY_SECONDS + this.sim.acc, this.draft);
     // Ground repaint: on edits right away, and for live overlays a few times a second.
     const ver = `${w.ver.roads}:${w.ver.zones}:${w.ver.buildings}:${month}`;

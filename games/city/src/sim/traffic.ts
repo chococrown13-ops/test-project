@@ -70,12 +70,14 @@ export interface Traffic {
   trips: number;
   /** Seconds of driving so far: the traffic lights run on it. */
   clock: number;
+  /** Zebras people are on right now (zebra cell → the junction beside it): cars stop short of them. Filled by the walkers drawn on screen. */
+  crossings: Map<number, number>;
   /** Cars owed to the roads: trips start at a rate, not to fill a quota. */
   owed: number;
 }
 
 export function createTraffic(): Traffic {
-  return { cars: [], load: new Uint16Array(NN * 2), routes: new Map(), routesVer: -1, tripTime: 0, trips: 0, clock: 0, owed: 0 };
+  return { cars: [], load: new Uint16Array(NN * 2), routes: new Map(), routesVer: -1, tripTime: 0, trips: 0, clock: 0, owed: 0, crossings: new Map() };
 }
 
 /** Rush hours fill the roads; nights are quiet. */

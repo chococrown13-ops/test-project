@@ -112,6 +112,9 @@ export class VehicleLayer {
 
   /** How far right of the centre line each car is drawn: eased, so a change of lane is a smooth move across. */
   private side = new WeakMap<Car, number>();
+  /** Where every moving car is drawn this frame (x, z pairs; not those standing at a stop line), for the walkers to look out for. */
+  readonly spots = new Float32Array(MAX_CARS * 2);
+  nSpots = 0;
   private lastClock = 0;
 
   update(w: World, tr: Traffic) {
@@ -122,6 +125,7 @@ export class VehicleLayer {
     const dt = Math.max(0, Math.min(0.5, tr.clock - this.lastClock));
     this.lastClock = tr.clock;
     const ease = 1 - Math.exp(-dt * 6);
+    let spots = 0;
     for (const car of tr.cars) {
       // Average two points along the path so cars round the corners.
       // Cars are drawn where the simulation has them: it keeps them apart and in their lanes.
@@ -138,12 +142,14 @@ export class VehicleLayer {
       // Heading, then the nose up or down the slope (ramps).
       q.setFromAxisAngle(up, Math.atan2(-dz, dx)).multiply(pitch.setFromAxisAngle(fwdZ, Math.atan2(b.y - a.y, Math.hypot(dx, dz))));
       p.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+      if (car.v > 1 && spots < MAX_CARS) { this.spots[spots * 2] = p.x; this.spots[spots * 2 + 1] = p.z; spots++; }
       m.compose(p, q, one);
       this.meshes[k].setMatrixAt(i, m);
       const pal = k === 0 ? CAR_COLORS : k === 1 ? BUS_COLORS : k === 2 ? TRUCK_COLORS : SCOOTER_COLORS;
       c.set(pal[Math.floor(car.look * 997) % pal.length]);
       this.meshes[k].setColorAt(i, c);
     }
+    this.nSpots = spots;
     this.meshes.forEach((mesh, k) => {
       mesh.count = n[k];
       mesh.instanceMatrix.needsUpdate = true;

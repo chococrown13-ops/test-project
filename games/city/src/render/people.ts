@@ -84,30 +84,42 @@ export class PeopleLayer {
     let cur = this.starts[(Math.random() * this.starts.length) | 0];
     const path = [cur];
     const len = 4 + ((Math.random() * 10) | 0);
+    // Which pavement they walk on (right of travel +1, left -1). At a junction they go straight on or
+    // round the corner on their own side, never across the middle to the far pavement (through the cars).
+    const side = Math.random() < 0.5 ? 1 : -1;
     let prev = -1;
     for (let k = 0; k < len; k++) {
       const next: number[] = [];
-      forEachNeighbour(w, cur, (n) => { if (n < NN && n !== prev && w.ground[n] === 0 && !w.roadAlt[n]) next.push(n); });
+      const dx = prev >= 0 ? (cur % N) - (prev % N) : 0, dy = prev >= 0 ? ((cur / N) | 0) - ((prev / N) | 0) : 0;
+      forEachNeighbour(w, cur, (n) => {
+        if (n >= NN || n === prev || w.ground[n] !== 0 || w.roadAlt[n]) return;
+        if (prev >= 0) {
+          const ex = (n % N) - (cur % N), ez = ((n / N) | 0) - ((cur / N) | 0);
+          const turn = dx * ez - dy * ex; // > 0 a right turn (screen z points south)
+          if (turn !== 0 && Math.sign(turn) !== side) return;
+        }
+        next.push(n);
+      });
       if (!next.length) break;
       // Mostly straight on.
-      const dx = prev >= 0 ? (cur % N) - (prev % N) : 0, dy = prev >= 0 ? ((cur / N) | 0) - ((prev / N) | 0) : 0;
       const ahead = next.find((n) => (n % N) - (cur % N) === dx && ((n / N) | 0) - ((cur / N) | 0) === dy);
       const n = ahead !== undefined && Math.random() < 0.75 ? ahead : next[(Math.random() * next.length) | 0];
       prev = cur; cur = n; path.push(n);
     }
     if (path.length < 2) return null;
-    return { path, i: 0, t: Math.random(), side: Math.random() < 0.5 ? 1 : -1, speed: WALK * (0.8 + Math.random() * 0.4), look: Math.random() };
+    return { path, i: 0, t: Math.random(), side, speed: WALK * (0.8 + Math.random() * 0.4), look: Math.random() };
   }
 
   /**
-   * Whether a walker should stand at the kerb now: heading straight across a signal-controlled junction,
-   * close to where the zebra starts, with the light for its way not green.
+   * Whether a walker should stand at the kerb now, about to cross a side street at a junction: at
+   * lights, until the green man (and not once it has been on a while); anywhere, while a car is on
+   * or near the crossing, so people and cars never walk through each other.
    */
-  private mustWait(w: World, wk: Walker, clock: number, L: number): boolean {
+  private mustWait(w: World, wk: Walker, clock: number, L: number, cars?: { spots: Float32Array; nSpots: number }): boolean {
     const j = wk.i + 1;
     if (j >= wk.path.length - 1 || wk.t > 0.9) return false;
     const pa = wk.path[j - 1], pc = wk.path[j], pb = wk.path[j + 1];
-    if (pc >= NN || !signalCells(w)[pc] || pc - pa !== pb - pc) return false;
+    if (pc >= NN || pc - pa !== pb - pc) return false;
     const dx = Math.sign((pb % N) - (pa % N)), dy = Math.sign(((pb / N) | 0) - ((pa / N) | 0));
     if ((dx === 0) === (dy === 0)) return false;
     // The side street being crossed, on the walker's side.
@@ -117,12 +129,28 @@ export class PeopleLayer {
     // Distance left to the junction's middle; stop just before stepping onto the crossing.
     const left = (1 - wk.t) * L, kerb = HALF_WIDTH[st] + 2.9;
     if (left > kerb + 1.2 || left < kerb - 0.3) return false;
-    // Not once the green man has been on a while: the turning cars go soon (sim/driving.ts waits 2 s for walkers).
-    const ax = axisOf(pa, pc);
-    return lightFor(ax, clock) !== Light.Green || greenAge(ax, clock) > START;
+    if (signalCells(w)[pc]) {
+      // Not once the green man has been on a while: the turning cars go soon (sim/driving.ts waits 2 s for walkers).
+      const ax = axisOf(pa, pc);
+      if (lightFor(ax, clock) !== Light.Green || greenAge(ax, clock) > START) return true;
+    }
+    if (!cars) return false;
+    // The crossing: across the side street, just beyond the junction's edge.
+    const t = (w.road[pc] || 1) as 1 | 2;
+    const cx = (pc % N) * CELL + CELL / 2 - dy * wk.side * (HALF_WIDTH[t] + 1.6), cz = ((pc / N) | 0) * CELL + CELL / 2 + dx * wk.side * (HALF_WIDTH[t] + 1.6);
+    const r2 = (HALF_WIDTH[st] + 2.5) ** 2;
+    for (let k = 0; k < cars.nSpots; k++) {
+      const ex = cars.spots[k * 2] - cx, ez = cars.spots[k * 2 + 1] - cz;
+      if (ex * ex + ez * ez < r2) return true;
+    }
+    return false;
   }
 
-  update(w: World, dt: number, pace: number, night: number, camDist: number, clock = 0) {
+  /** Zebras walkers are on this frame (the traffic's map, filled here). */
+  crossings: Map<number, number> | null = null;
+
+  update(w: World, dt: number, pace: number, night: number, camDist: number, clock = 0, cars?: { spots: Float32Array; nSpots: number }) {
+    this.crossings?.clear();
     this.mesh.visible = camDist < 450;
     if (!this.mesh.visible) return;
     this.findStarts(w);
@@ -140,7 +168,7 @@ export class PeopleLayer {
       const L = Math.hypot(b.x - a.x, b.z - a.z) || 1;
       // At a junction with lights, wait at the kerb for the green man before crossing the side street
       // (walkers along a street cross with the traffic going their way, while the side street has red).
-      const hold = this.mustWait(w, wk, clock, L);
+      const hold = this.mustWait(w, wk, clock, L, cars);
       if (!hold) wk.t += (dt * pace * wk.speed * (wk.hurry ? HURRY : 1)) / L;
       if (wk.t >= 1) {
         wk.t -= 1; wk.i++;
@@ -165,7 +193,8 @@ export class PeopleLayer {
             const dist = Math.abs(wk.i + wk.t - j) * CELL;
             const k = Math.max(0, Math.min(1, (HALF_WIDTH[st] + 2.5 - dist) / 2));
             off += Math.sign(off) * (zebra - Math.abs(off)) * k;
-            wk.hurry = k > 0 && !!signalCells(w)[pc];
+            wk.hurry = k > 0;
+            if (k > 0 && this.crossings) this.crossings.set(sc, pc);
           }
         }
       }
