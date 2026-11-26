@@ -29,6 +29,12 @@ namespace NaeDosi.Render
         Shader ghost;
         float iconTimer, stallTimer;
         public bool dayLock;
+        /// <summary>그림체: 0 로우폴리, 1 툰. 미니어처: the tilt-shift blur.</summary>
+        public int artStyle;
+        public bool tiltShift;
+        Instances clouds;
+        readonly List<(float x, float z, float y, float s, float r)> cloudSeeds = new List<(float, float, float, float, float)>();
+        Texture2D waterMap;
         public static float envGain = 1f, reflGain = 1f, upGain = 3.0f;
         Cubemap reflCube; float lastEnv = -1;
         /// <summary>Game speed: 0 paused, 1, 2, 3.</summary>
@@ -113,6 +119,9 @@ namespace NaeDosi.Render
 
             world = new GameObject("World").transform;
             dayLock = PlayerPrefs.GetInt("city.daylock", 0) == 1;
+            artStyle = PlayerPrefs.GetInt("city.style", 0);
+            tiltShift = PlayerPrefs.GetInt("city.tilt", 0) == 1;
+            MakeClouds();
             quality = PlayerPrefs.GetInt("city.quality", 1) == 1;
             SetWorld(WorldOps.createWorld());
             SetQuality(quality);
@@ -137,6 +146,7 @@ namespace NaeDosi.Render
             iconTimer = 0; stallTimer = 0;
             paintVer = ""; busKey = "";
             ground.overlay = overlay;
+            WaterMap(w);
         }
 
         /// <summary>A transit line is being drawn: buildings sink flat so the streets show.</summary>
@@ -212,7 +222,11 @@ namespace NaeDosi.Render
             bloom.intensity.Override(night * 0.45f * 2f);
             Shader.SetGlobalFloat(NIGHT, night);
             Shader.SetGlobalVector("_Fade", new Vector4((float)(view.dist * 1.1), (float)(view.dist * 3.6), 0, 0));
-            Shader.SetGlobalFloat("_InkStrength", 0.55f - night * 0.2f);
+            Shader.SetGlobalFloat("_InkStrength", (artStyle == 1 ? 0.9f : 0.55f) - night * 0.2f);
+            Shader.SetGlobalFloat("_ArtStyle", artStyle);
+            Shader.SetGlobalFloat("_TiltShift", tiltShift ? 1 : 0);
+            Shader.SetGlobalFloat("_TiltFocus", 0.47f);
+            Shader.SetGlobalVector("_SkyTopC", (Vector4)top); Shader.SetGlobalVector("_SkyHorizonC", (Vector4)hor);
             if (UniversalRenderPipeline.asset != null) UniversalRenderPipeline.asset.shadowDistance = (float)Math.Min(1600, Math.Max(300, view.dist * 2.6));
         }
 
@@ -286,6 +300,58 @@ namespace NaeDosi.Render
             transit.Draw();
             effects.Draw();
             badges.Draw();
+            if (quality) { UpdateClouds(); clouds.Draw(); }
+        }
+
+        /// <summary>
+        /// Clouds that only cast shadows (render/atmosphere.ts): seen from above a city they read as boulders, so only
+        /// their shade drifts across the town.
+        /// </summary>
+        void MakeClouds()
+        {
+            var sh = new MeshKit.Shape();
+            foreach (var (x, y, z, r) in new[] { (0f, 0f, 0f, 22f), (20f, -3f, 4f, 16f), (-18f, -4f, -3f, 15f), (6f, 6f, -8f, 13f), (-6f, 3f, 10f, 12f) })
+                sh.Ico(r, new Vector3(x, y, -z), Color.white, new Vector3(1, 0.55f, 1));
+            var m = new Material(shader) { enableInstancing = true }; m.SetFloat("_Mode", 1);
+            clouds = new Instances(sh.ToMesh("cloud"), m) { shadowsOnly = true };
+            long seed = 7;
+            double rnd() { seed = seed * 16807 % 2147483647; return seed / 2147483647.0; }
+            float S = N * CELL;
+            for (int i = 0; i < 14; i++) cloudSeeds.Add(((float)(rnd() * S * 1.6 - S * 0.3), (float)(rnd() * S), (float)(210 + rnd() * 70), (float)(0.8 + rnd() * 1.1), (float)(rnd() * 6.28)));
+        }
+
+        void UpdateClouds()
+        {
+            float S = N * CELL, span = S * 1.8f, t = Time.time;
+            var mats = new List<Matrix4x4>();
+            foreach (var c in cloudSeeds)
+            {
+                float x = ((c.x + t * 6) % span + span) % span - S * 0.4f;
+                mats.Add(Matrix4x4.TRS(MeshKit.P(x, c.y, c.z), Quaternion.Euler(0, -c.r * Mathf.Rad2Deg, 0), Vector3.one * c.s));
+            }
+            clouds.Set(mats, null);
+        }
+
+        /// <summary>How far each water cell is from the shore (in cells, up to 8): the water shader's depth and foam.</summary>
+        void WaterMap(World w)
+        {
+            if (waterMap == null) { waterMap = new Texture2D(N, N, TextureFormat.R8, false, true) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp }; Shader.SetGlobalTexture("_WaterMap", waterMap); }
+            var d = new int[N * N]; var q = new Queue<int>();
+            for (int i = 0; i < N * N; i++) { if (w.ground[i] == Ground.Water) d[i] = 99; else { d[i] = 0; q.Enqueue(i); } }
+            while (q.Count > 0)
+            {
+                int i = q.Dequeue(), x = i % N, y = i / N;
+                foreach (var (dx, dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+                {
+                    int nx = x + dx, ny = y + dy;
+                    if (nx < 0 || ny < 0 || nx >= N || ny >= N) continue;
+                    int j = ny * N + nx;
+                    if (d[j] > d[i] + 1) { d[j] = d[i] + 1; q.Enqueue(j); }
+                }
+            }
+            var px = waterMap.GetPixelData<byte>(0);
+            for (int i = 0; i < N * N; i++) px[i] = (byte)(Math.Min(8, d[i]) * 255 / 8);
+            waterMap.Apply(false);
         }
 
         /// <summary>Put the camera straight on a view (for comparison shots).</summary>

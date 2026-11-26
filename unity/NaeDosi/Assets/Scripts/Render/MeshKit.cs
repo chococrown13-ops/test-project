@@ -115,6 +115,8 @@ namespace NaeDosi.Render
         public Mesh mesh;
         public Material mat;
         public bool shadows = true;
+        /// <summary>Cast shadows but never draw (the web's colorWrite:false clouds).</summary>
+        public bool shadowsOnly;
         readonly List<Matrix4x4[]> mats = new List<Matrix4x4[]>();
         readonly List<MaterialPropertyBlock> blocks = new List<MaterialPropertyBlock>();
         readonly List<int> counts = new List<int>();
@@ -141,7 +143,7 @@ namespace NaeDosi.Render
             if (mesh == null) return;
             for (int i = 0; i < mats.Count; i++)
             {
-                var rp = new RenderParams(mat) { matProps = blocks[i], shadowCastingMode = shadows ? ShadowCastingMode.On : ShadowCastingMode.Off, receiveShadows = true, worldBounds = new Bounds(new Vector3(1280, 0, -1280), new Vector3(8000, 400, 8000)) };
+                var rp = new RenderParams(mat) { matProps = blocks[i], shadowCastingMode = shadowsOnly ? ShadowCastingMode.ShadowsOnly : shadows ? ShadowCastingMode.On : ShadowCastingMode.Off, receiveShadows = true, worldBounds = new Bounds(new Vector3(1280, 0, -1280), new Vector3(8000, 400, 8000)) };
                 Graphics.RenderMeshInstanced(rp, mesh, 0, mats[i], counts[i]);
             }
         }

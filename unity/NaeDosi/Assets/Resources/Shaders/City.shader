@@ -31,6 +31,8 @@ Shader "NaeDosi/City"
         CBUFFER_END
         TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
         TEXTURE2D(_RoadSnow); SAMPLER(sampler_RoadSnow);
+        TEXTURE2D(_WaterMap); SAMPLER(sampler_WaterMap);
+        float4 _SkyTopC, _SkyHorizonC; float _WaterAmb;
         float _Night, _Snow, _Time0;
         // World-space scale of the map: positions are in metres, the web map's z runs the other way.
         float _MapSize;
@@ -196,6 +198,7 @@ Shader "NaeDosi/City"
                 float3 emit = _Emit.rgb;
                 float smooth = _Smooth;
                 float2 gp = float2(i.ws.x, -i.ws.z); // the web map's ground coordinates
+                float waterFresnel = 0;
                 if (_Mode < 0.5)
                 {
                     col = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv0).rgb;
@@ -241,7 +244,21 @@ Shader "NaeDosi/City"
                 else
                 {
                     float2 wv = float2(sin(gp.x * 0.21 + _Time0 * 1.3) + sin(gp.y * 0.13 - _Time0 * 0.9) * 0.6, cos(gp.y * 0.19 + _Time0 * 1.1) + sin((gp.x + gp.y) * 0.09 + _Time0 * 0.7) * 0.6);
-                    n = normalize(n + float3(wv.x * 0.06, 0.0, -wv.y * 0.06));
+                    // Finer ripples on top of the long waves.
+                    float2 fw = float2(vn(gp * 0.35 + _Time0 * 0.6) - 0.5, vn(gp * 0.35 - _Time0 * 0.5 + 17.0) - 0.5);
+                    n = normalize(n + float3(wv.x * 0.06 + fw.x * 0.12, 0.0, -(wv.y * 0.06 + fw.y * 0.12)));
+                    // Depth from the shore: shallow water by the banks is lighter and greener, open water deep blue.
+                    float2 wuv = gp / max(_MapSize, 1);
+                    float shore = (any(wuv < 0) || any(wuv > 1)) ? 1 : SAMPLE_TEXTURE2D(_WaterMap, sampler_WaterMap, wuv).r;
+                    float depth = smoothstep(0.0, 0.6, shore);
+                    col = lerp(float3(0.1, 0.4, 0.42), col, depth);
+                    smooth = 0.7;
+                    // Foam where the water meets the land, breaking up as it moves.
+                    float band = 1.0 - smoothstep(0.08, 0.2, shore);
+                    float froth = vn(gp * 0.9 + float2(_Time0 * 0.4, -_Time0 * 0.3));
+                    float foam = band * smoothstep(0.35, 0.65, froth + 0.25 * sin(shore * 60.0 - _Time0 * 2.0));
+                    col = lerp(col, float3(0.9, 0.94, 0.95), foam * 0.85);
+                    waterFresnel = (1 - foam) * pow(1.0 - saturate(dot(normalize(GetWorldSpaceNormalizeViewDir(i.ws)), n)), 5.0);
                 }
 
                 InputData d = (InputData)0;
@@ -249,7 +266,9 @@ Shader "NaeDosi/City"
                 d.normalWS = n;
                 d.viewDirectionWS = GetWorldSpaceNormalizeViewDir(i.ws);
                 d.shadowCoord = TransformWorldToShadowCoord(i.ws);
-                d.fogCoord = i.fog;
+                // Fog per pixel: the water and the land past the map edge are a few huge triangles.
+                float fogF = ComputeFogFactor(TransformWorldToHClip(i.ws).z);
+                d.fogCoord = fogF;
                 d.bakedGI = SampleSH(n);
                 d.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(i.cs);
                 d.shadowMask = half4(1, 1, 1, 1);
@@ -257,12 +276,15 @@ Shader "NaeDosi/City"
                 s.albedo = col;
                 s.metallic = _Metal;
                 s.smoothness = smooth;
-                s.occlusion = 1;
+                // Water: little of the bright sky-and-studio ambient soaks into it, so it stays a deep blue as on the web.
+                s.occlusion = _Mode > 2.5 && _Mode < 3.5 ? _WaterAmb : 1;
                 s.emission = emit;
                 s.alpha = 1;
                 s.normalTS = float3(0, 0, 1);
                 half4 c = UniversalFragmentPBR(d, s);
-                c.rgb = MixFog(c.rgb, i.fog);
+                // Water mirrors the sky at a glancing angle.
+                if (waterFresnel > 0) { float3 r = reflect(-d.viewDirectionWS, n); float3 sky = lerp(_SkyHorizonC.rgb, _SkyTopC.rgb, pow(saturate(r.y), 0.55)); c.rgb = lerp(c.rgb, sky * 0.85, saturate(waterFresnel) * 0.3); }
+                c.rgb = MixFog(c.rgb, fogF);
                 return c;
             }
             ENDHLSL

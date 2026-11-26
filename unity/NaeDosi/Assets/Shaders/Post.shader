@@ -20,7 +20,7 @@ Shader "NaeDosi/Post"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareNormalsTexture.hlsl"
 
-            float2 _Fade; float _InkStrength; float _Night;
+            float2 _Fade; float _InkStrength; float _Night; float _ArtStyle; float _TiltShift; float _TiltFocus;
 
             float lin(float2 uv) { return LinearEyeDepth(SampleSceneDepth(uv), _ZBufferParams); }
             float3 nrm(float2 uv) { return SampleSceneNormals(uv); }
@@ -46,6 +46,18 @@ Shader "NaeDosi/Post"
             {
                 float2 uv = i.texcoord;
                 float3 col = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv).rgb;
+                // 미니어처 (tilt-shift): the bands above and below the focus line blur, like a photo of a model town.
+                if (_TiltShift > 0.5)
+                {
+                    float blur = smoothstep(0.12, 0.42, abs(uv.y - _TiltFocus)) * 7.0;
+                    if (blur > 0.05)
+                    {
+                        static const float2 DISC[12] = { float2(-0.326, -0.406), float2(-0.840, -0.074), float2(-0.696, 0.457), float2(-0.203, 0.621), float2(0.962, -0.195), float2(0.473, -0.480), float2(0.519, 0.767), float2(0.185, -0.893), float2(0.507, 0.064), float2(0.896, 0.412), float2(-0.322, -0.933), float2(-0.792, -0.598) };
+                        float3 acc = col;
+                        for (int k = 0; k < 12; k++) acc += SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv + DISC[k] * blur * _ScreenSize.zw).rgb;
+                        col = acc / 13.0;
+                    }
+                }
                 float raw = SampleSceneDepth(uv);
                 #if UNITY_REVERSED_Z
                     bool sky = raw <= 0.000002;
@@ -64,11 +76,22 @@ Shader "NaeDosi/Post"
                     float normalEdge = smoothstep(0.35, 0.9, nd);
                     float edge = max(depthEdge, normalEdge * 0.75);
                     float fade = 1.0 - smoothstep(_Fade.x, _Fade.y, d0);
-                    float3 ink = col * float3(0.5, 0.44, 0.4);
+                    if (_ArtStyle > 0.5)
+                    {
+                        // 툰: three or four flat bands of light, bolder ink that reaches further.
+                        float l0 = max(dot(col, float3(0.2126, 0.7152, 0.0722)), 1e-4);
+                        float g = pow(l0, 1.0 / 2.2) * 4.0;
+                        float q = (floor(g) + smoothstep(0.4, 0.6, frac(g))) / 4.0;
+                        col *= pow(max(q, 0.06), 2.2) / l0;
+                        edge = smoothstep(0.15, 0.6, edge);
+                        fade = 1.0 - smoothstep(_Fade.x * 1.6, _Fade.y * 1.6, d0);
+                    }
+                    float3 ink = col * (_ArtStyle > 0.5 ? float3(0.26, 0.22, 0.2) : float3(0.5, 0.44, 0.4));
                     col = lerp(col, ink, edge * fade * _InkStrength);
                 }
                 float lum = dot(col, float3(0.2126, 0.7152, 0.0722));
-                col = lerp(lum.xxx, col, 1.08);
+                col = lerp(lum.xxx, col, _ArtStyle > 0.5 ? 1.2 : 1.08);
+                if (_TiltShift > 0.5) col = lerp(lum.xxx, col, 1.12);
                 col *= lerp(float3(1.035, 1.0, 0.955), float3(0.98, 0.99, 1.03), _Night);
                 float2 c = uv - 0.5;
                 col *= 1.0 - 0.12 * smoothstep(0.45, 0.95, length(c * float2(1.25, 1.0)));
