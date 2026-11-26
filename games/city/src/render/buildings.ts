@@ -1,6 +1,7 @@
-import { pocketKind, pockets } from '../sim/pockets';
+import { isPocket, onRoad, pocketKind, pockets } from '../sim/pockets';
+import { freeLots, growthBlock, reachesEdge } from '../sim/diagnose';
 import * as THREE from 'three';
-import { CELL, KINDS, N, Road, VARIANTS, variantOf } from '../sim/defs';
+import { CELL, KINDS, N, Road, VARIANTS, variantOf, Zone } from '../sim/defs';
 import { AVENUE_SPILL, HALF_WIDTH, KERB_W, nearestCurve } from '../sim/curves';
 import { DIAG } from '../sim/graph';
 import { network } from '../sim/network';
@@ -565,6 +566,15 @@ function rawParts(b: Building, w: World): Part[] {
       box(0, 0, 0, 8.4, 7.5, 8, '#efe9e1', STYLE.apt, '#c0392b');
       box(0, 0, 3.8, 6, 4, 0.6, '#b03a2e');
       box(-3, 7.5, -2.5, 2.2, 6, 2.2, '#efe9e1');
+      break;
+    case 'snowbase':
+      // 제설기지: a salt dome and an orange plough truck in front of a low shed.
+      box(-2, 0, -2, 5.5, 3.2, 5, '#e3ded2', STYLE.plain);
+      shape('cyl', 2.6, 0, 1.4, 3.6, 2.6, 3.6, '#b9b4a8');
+      shape('cyl', 2.6, 2.6, 1.4, 2.4, 1.0, 2.4, '#f2f2ee');
+      box(-2.2, 0, 3.2, 2, 1.6, 3.4, '#e8812b');
+      box(-2.2, 1.6, 2.4, 1.9, 0.9, 1.4, '#2c2f33');
+      box(-2.2, 0, 5.1, 2.8, 0.7, 0.3, '#f3c623');
       break;
     case 'metro':
       // A Korean subway exit: a glass canopy over the stairs and a lit station sign.
@@ -1224,6 +1234,8 @@ export class BuildingLayer {
   private slots = {} as Record<Shape, Slot>;
   private mats: Record<Shape, THREE.Material>;
   private born = new Map<number, number>();
+  /** A building has just gone up (not when a city is first drawn). */
+  onBorn?: (b: Building) => void;
   private first = true;
   private cache = new Map<number, { key: string; parts: Part[] }>();
   private icons: THREE.Sprite[] = [];
@@ -1251,7 +1263,7 @@ export class BuildingLayer {
     };
     (Object.keys(GEOS) as Shape[]).forEach((s) => this.alloc(s, s === 'box' ? 4096 : 512));
     // Problem badges: a round pictogram on a card-stock ring, coral for what needs fixing, slate for empty houses.
-    for (const k of ['power', 'water', 'road', 'gone', 'park']) {
+    for (const k of ['power', 'water', 'road', 'gone', 'park', 'jam', 'stall']) {
       const c = document.createElement('canvas');
       c.width = c.height = 128;
       drawIcon(c.getContext('2d')!, k);
@@ -1297,7 +1309,7 @@ export class BuildingLayer {
     const live = new Set<number>();
     w.buildings.forEach((b) => {
       live.add(b.id);
-      if (!this.born.has(b.id)) this.born.set(b.id, this.first ? -99 : now);
+      if (!this.born.has(b.id)) { this.born.set(b.id, this.first ? -99 : now); if (!this.first) this.onBorn?.(b); }
       const key = `${b.kind}:${b.floors}:${w.ver.roads}`;
       let e = this.cache.get(b.id);
       if (!e || e.key !== key) { e = { key, parts: parts(b, w) }; this.cache.set(b.id, e); }
@@ -1349,6 +1361,71 @@ export class BuildingLayer {
   /** Light the windows of buildings that just got (or lost) power without a full rebuild. */
   refreshInfo(w: World) { this.update(w, performance.now() / 1000, true); }
 
+  private stalls: THREE.Sprite[] = [];
+
+  /**
+   * 미입주: a "!" over zoned land that stays empty when the city can't fill it (no demand, too few
+   * jobs, high taxes, a street that doesn't reach the edge...). One per block of empty lots; tapping
+   * a lot says why. Worked out every few seconds.
+   */
+  updateStalls(w: World) {
+    const lots = freeLots(w);
+    const why: Record<number, boolean> = {};
+    for (const z of [Zone.R, Zone.C, Zone.I]) why[z] = !!growthBlock(w, z, lots);
+    const B = 6, seen = new Map<number, { x: number; y: number; n: number }>();
+    for (let i = 0; i < N * N; i++) {
+      const z = w.zone[i];
+      if (!z || w.road[i] || w.bld[i] >= 0 || isPocket(w, i) || !onRoad(w, i)) continue;
+      if (!why[z] && reachesEdge(w, i)) continue;
+      const x = i % N, y = (i / N) | 0, k = ((y / B) | 0) * 1000 + ((x / B) | 0);
+      const e = seen.get(k);
+      if (e) { e.x += x; e.y += y; e.n++; } else seen.set(k, { x, y, n: 1 });
+    }
+    let n = 0;
+    for (const e of seen.values()) {
+      if (e.n < 3 || n >= 60) continue;
+      let sp = this.stalls[n];
+      if (!sp) { sp = new THREE.Sprite(this.iconTex.stall); sp.renderOrder = 10; this.stalls[n] = sp; this.group.add(sp); }
+      sp.position.set((e.x / e.n + 0.5) * CELL, 7, (e.y / e.n + 0.5) * CELL);
+      sp.scale.set(6, 6, 1);
+      sp.visible = true;
+      n++;
+    }
+    for (let i = n; i < this.stalls.length; i++) this.stalls[i].visible = false;
+  }
+
+  private jams: THREE.Sprite[] = [];
+  private jamOn = new Set<number>();
+
+  /**
+   * 막힘: a badge over each badly jammed stretch of road. It comes up when a road runs well over
+   * what it can carry for a while (the smoothed congestion), and goes away only once the queue has
+   * clearly drained, so a fix shows: the badge disappears as the cars get moving.
+   */
+  updateJams(w: World) {
+    const ON = 1.15, OFF = 0.75, GAP = 4;
+    const next = new Set<number>();
+    for (const c of this.jamOn) if (w.traffic[c] > OFF && (w.road[c] || w.roadAlt[c])) next.add(c);
+    // The worst cells first, one badge per few cells of road.
+    const cand: number[] = [];
+    for (let i = 0; i < N * N; i++) if (w.traffic[i] >= ON && (w.road[i] || w.roadAlt[i])) cand.push(i);
+    cand.sort((a, b) => w.traffic[b] - w.traffic[a]);
+    const near = (c: number) => { for (const o of next) if (Math.abs((o % N) - (c % N)) <= GAP && Math.abs(((o / N) | 0) - ((c / N) | 0)) <= GAP) return true; return false; };
+    for (const c of cand) { if (next.size >= 40) break; if (!near(c)) next.add(c); }
+    this.jamOn = next;
+    let n = 0;
+    for (const c of next) {
+      let sp = this.jams[n];
+      if (!sp) { sp = new THREE.Sprite(this.iconTex.jam); sp.renderOrder = 10; this.jams[n] = sp; this.group.add(sp); }
+      const alt = !w.road[c] && w.roadAlt[c];
+      sp.position.set((c % N) * CELL + CELL / 2, (alt ? 12 : 0) + 9, ((c / N) | 0) * CELL + CELL / 2);
+      sp.scale.set(7, 7, 1);
+      sp.visible = true;
+      n++;
+    }
+    for (let i = n; i < this.jams.length; i++) this.jams[i].visible = false;
+  }
+
   /** Problem icons over buildings: no power, no water, no road, abandoned. */
   /** `parking`: the 주차 map is open, so every building short of spaces gets a P; otherwise only the worst do. */
   updateIcons(w: World, showAll: boolean, parking = false) {
@@ -1389,12 +1466,27 @@ function drawIcon(g: CanvasRenderingContext2D, k: string) {
   g.fillStyle = '#fbf8ee';
   g.beginPath(); g.arc(64, 62, R + 6, 0, Math.PI * 2); g.fill();
   g.restore();
-  g.fillStyle = k === 'gone' ? '#5b616b' : k === 'water' ? '#2f7fc8' : k === 'road' ? '#e0892f' : k === 'park' ? '#2f5fa8' : '#f0644f';
+  g.fillStyle = k === 'stall' ? '#e8a21f' : k === 'jam' ? '#d8452f' : k === 'gone' ? '#5b616b' : k === 'water' ? '#2f7fc8' : k === 'road' ? '#e0892f' : k === 'park' ? '#2f5fa8' : '#f0644f';
   g.beginPath(); g.arc(64, 62, R, 0, Math.PI * 2); g.fill();
   g.fillStyle = g.strokeStyle = '#fbf8ee';
   g.lineJoin = g.lineCap = 'round';
   g.beginPath();
-  if (k === 'park') {
+  if (k === 'stall') {
+    // An exclamation mark: this land is waiting for something.
+    g.fillRect(56, 26, 16, 46);
+    g.beginPath(); g.arc(64, 90, 9, 0, Math.PI * 2); g.fill();
+  } else if (k === 'jam') {
+    // Two cars nose to tail: a queue.
+    const car = (x: number, y: number, s2: number) => {
+      g.beginPath();
+      g.moveTo(x - 20 * s2, y + 6 * s2); g.lineTo(x - 20 * s2, y - 4 * s2); g.lineTo(x - 12 * s2, y - 6 * s2); g.lineTo(x - 6 * s2, y - 16 * s2);
+      g.lineTo(x + 10 * s2, y - 16 * s2); g.lineTo(x + 16 * s2, y - 6 * s2); g.lineTo(x + 20 * s2, y - 4 * s2); g.lineTo(x + 20 * s2, y + 6 * s2); g.closePath(); g.fill();
+      g.fillStyle = '#d8452f';
+      g.beginPath(); g.arc(x - 11 * s2, y + 7 * s2, 5 * s2, 0, Math.PI * 2); g.arc(x + 11 * s2, y + 7 * s2, 5 * s2, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#fbf8ee';
+    };
+    car(48, 54, 0.85); car(80, 80, 1);
+  } else if (k === 'park') {
     // A parking sign: the bold P.
     g.font = '700 70px system-ui, sans-serif';
     g.textAlign = 'center';

@@ -1,6 +1,8 @@
 import { Road, ROAD_SPEED } from './defs';
+import { HALF_WIDTH, KERB_W } from './curves';
 import { cellOf, NN, roadTypeOf } from './graph';
 import { clearOf, conflicts, isJunction, laneCount, linkLen, nodes, stopBack, turnCos, turnOf, type Nodes } from './junctions';
+import { snowSlow } from './hazards';
 import { axisOf, greenAge, Light, lightFor } from './signals';
 import type { Car, Traffic } from './traffic';
 import type { World } from './world';
@@ -93,9 +95,13 @@ const laneAhead = (w: World, c: Car, j: number): 0 | 1 => { const l = laneWant(w
 /** The speed a driver wants on a link, m/s (sped up). */
 function wanted(w: World, c: Car, a: number, b: number): number {
   const ra = roadTypeOf(w, a) || Road.Street, rb = roadTypeOf(w, b) || Road.Street;
-  const r = ra === Road.Avenue && rb === Road.Avenue ? Road.Avenue : Road.Street;
+  const r = ra === Road.Highway && rb === Road.Highway ? Road.Highway : ra !== Road.Street && rb !== Road.Street ? Road.Avenue : Road.Street;
   let v = ROAD_SPEED[r] * PACE * (0.92 + c.look * 0.16);
+  // Through a 톨게이트, slowly.
+  if ((a < NN && w.hwy[a] & 2) || (b < NN && w.hwy[b] & 2)) v = Math.min(v, ROAD_SPEED[Road.Street] * PACE * 0.45);
   if (c.kind === 1 || c.kind === 2) v *= 0.85;
+  // On snow, carefully.
+  v *= snowSlow(w, cellOf(a));
   // Past cars parked along a street, a bit slower.
   if (r === Road.Street && a < NN && w.parked[a] > 0) v *= 0.85;
   return v;
@@ -182,6 +188,19 @@ function step(w: World, tr: Traffic, nd: Nodes, h: number, done: Car[]) {
         }
         c.line = d;
       } else c.line = Infinity;
+      // People on a zebra beside a junction: stop short of it (coming in, or turning out).
+      if (c.ghost <= 0 && tr.crossings.size) {
+        // The zebra's middle, metres out from the junction's centre (as the walkers draw it: render/people.ts).
+        const zebra = (j: number) => { const t = (roadTypeOf(w, j) || 1) as 1 | 2; return HALF_WIDTH[t] + KERB_W[t] + 1.6; };
+        // Coming in: the zebra lies on the cell just before the junction, which may be the next link or this one.
+        let d = Infinity;
+        const front = x + len / 2;
+        if (tr.crossings.get(a) === b) d = L - front - (zebra(b) + 1.6);
+        else if (i + 2 < p.length && tr.crossings.get(b) === p[i + 2]) d = L - front + linkLen(b, p[i + 2]) - (zebra(p[i + 2]) + 1.6);
+        // Turning out of the junction across it.
+        else if (tr.crossings.get(b) === a) d = zebra(a) - 1.6 - front;
+        if (d > -0.5 && d < s) { s = Math.max(0.1, d); vl = 0; }
+      }
       c.gap = s;
       // Intelligent driver model.
       let acc = A * (1 - (c.v / v0) ** 4);
@@ -220,6 +239,7 @@ function step(w: World, tr: Traffic, nd: Nodes, h: number, done: Car[]) {
       x -= L;
       c.i++;
       a = p[c.i]; b = p[c.i + 1]; L = linkLen(a, b);
+      if (a < NN && w.hwy[a] & 2) w.tollPass++;
       c.lane = pickLane(w, groups, c);
     }
     c.t = finished ? 1 : x / L;

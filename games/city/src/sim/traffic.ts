@@ -3,7 +3,7 @@ import { linkLen } from './junctions';
 import { noCarTrip } from './attractions';
 import { KINDS, N, ROAD_CAPACITY, ROAD_SPEED, Zone } from './defs';
 import { network } from './network';
-import { cellOf, forEachNeighbour, NN, roadTypeOf } from './graph';
+import { cellOf, forEachDriveStep, NN, roadTypeOf } from './graph';
 
 import { parkedSqueeze } from './parking';
 import { tryTransit } from './transit';
@@ -70,12 +70,14 @@ export interface Traffic {
   trips: number;
   /** Seconds of driving so far: the traffic lights run on it. */
   clock: number;
+  /** Zebras people are on right now (zebra cell → the junction beside it): cars stop short of them. Filled by the walkers drawn on screen. */
+  crossings: Map<number, number>;
   /** Cars owed to the roads: trips start at a rate, not to fill a quota. */
   owed: number;
 }
 
 export function createTraffic(): Traffic {
-  return { cars: [], load: new Uint16Array(NN * 2), routes: new Map(), routesVer: -1, tripTime: 0, trips: 0, clock: 0, owed: 0 };
+  return { cars: [], load: new Uint16Array(NN * 2), routes: new Map(), routesVer: -1, tripTime: 0, trips: 0, clock: 0, owed: 0, crossings: new Map() };
 }
 
 /** Rush hours fill the roads; nights are quiet. */
@@ -184,10 +186,15 @@ export function closeDay(w: World, tr: Traffic) {
   w.stats.congestion = n ? sum / n : 0;
 }
 
+/** A road cell on the map's edge in this road network, where trips leave town: any of them, 고속도로 ends twice as often. */
 function edgeCellOf(w: World, comp: Int32Array, id: number): number {
-  for (let y = 0; y < N; y++) { const i = y * N; if (w.road[i] && comp[i] === id) return i; }
-  for (let x = 0; x < N; x++) { if (w.road[x] && comp[x] === id) return x; }
-  return -1;
+  const ends: number[] = [];
+  for (let k = 0; k < N; k++) for (const i of [k * N, k * N + N - 1, k, (N - 1) * N + k]) {
+    if (!w.road[i] || comp[i] !== id) continue;
+    ends.push(i);
+    if (w.road[i] === 3) ends.push(i);
+  }
+  return ends.length ? ends[Math.floor(rand(w) * ends.length)] : -1;
 }
 
 /* ---------------------------------------------------------------- routing */
@@ -215,7 +222,7 @@ function astar(w: World, from: number, to: number): Int32Array | null {
     const c = heap.pop();
     if (c === to) break;
     const gc = g.get(c)!;
-    forEachNeighbour(w, c, (n, len) => {
+    forEachDriveStep(w, c, (n, len) => {
       const cost = gc + len / ROAD_SPEED[roadTypeOf(w, n) as 1 | 2];
       if (cost < (g.get(n) ?? Infinity)) {
         g.set(n, cost);
@@ -284,7 +291,7 @@ function cruise(w: World, c: Car): boolean {
   const steps = 3 + Math.floor(rand(w) * 4);
   for (let k = 0; k < steps; k++) {
     const nb: number[] = [];
-    forEachNeighbour(w, cur, (n) => { if (n < NN && n !== prev) nb.push(n); });
+    forEachDriveStep(w, cur, (n) => { if (n < NN && n !== prev) nb.push(n); });
     if (!nb.length) break;
     prev = cur;
     cur = nb[Math.floor(rand(w) * nb.length)];

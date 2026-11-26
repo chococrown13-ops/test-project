@@ -112,6 +112,9 @@ export class VehicleLayer {
 
   /** How far right of the centre line each car is drawn: eased, so a change of lane is a smooth move across. */
   private side = new WeakMap<Car, number>();
+  /** Where every moving car is drawn this frame (x, z pairs; not those standing at a stop line), for the walkers to look out for. */
+  readonly spots = new Float32Array(MAX_CARS * 2);
+  nSpots = 0;
   private lastClock = 0;
 
   update(w: World, tr: Traffic) {
@@ -122,6 +125,7 @@ export class VehicleLayer {
     const dt = Math.max(0, Math.min(0.5, tr.clock - this.lastClock));
     this.lastClock = tr.clock;
     const ease = 1 - Math.exp(-dt * 6);
+    let spots = 0;
     for (const car of tr.cars) {
       // Average two points along the path so cars round the corners.
       // Cars are drawn where the simulation has them: it keeps them apart and in their lanes.
@@ -138,12 +142,14 @@ export class VehicleLayer {
       // Heading, then the nose up or down the slope (ramps).
       q.setFromAxisAngle(up, Math.atan2(-dz, dx)).multiply(pitch.setFromAxisAngle(fwdZ, Math.atan2(b.y - a.y, Math.hypot(dx, dz))));
       p.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+      if (car.v > 1 && spots < MAX_CARS) { this.spots[spots * 2] = p.x; this.spots[spots * 2 + 1] = p.z; spots++; }
       m.compose(p, q, one);
       this.meshes[k].setMatrixAt(i, m);
       const pal = k === 0 ? CAR_COLORS : k === 1 ? BUS_COLORS : k === 2 ? TRUCK_COLORS : SCOOTER_COLORS;
       c.set(pal[Math.floor(car.look * 997) % pal.length]);
       this.meshes[k].setColorAt(i, c);
     }
+    this.nSpots = spots;
     this.meshes.forEach((mesh, k) => {
       mesh.count = n[k];
       mesh.instanceMatrix.needsUpdate = true;
@@ -160,8 +166,15 @@ function laneOff(w: World, car: Car, s: number): number {
   const node = path[f < 0.5 ? i : i + 1];
   // Avenue lanes 2.5 m wide at 1.25 and 3.75 m (kerb at 5 m), squeezed in a little past parked cars;
   // the street lane at 1.75 m (kerb at 3.5 m), further in past parked cars. Scooters keep to the kerb side.
+  if (roadTypeOf(w, node) === Road.Highway) return car.kind === 3 ? 5.2 : car.lane ? 4.6 : 1.9;
   const avenue = roadTypeOf(w, node) === Road.Avenue;
   const parked = node < NN && w.parked[node] > 0;
+  // One-way: the whole road goes one way, two lanes either side of the middle.
+  if (node < NN && w.oneway[node]) {
+    const half = avenue ? 2.4 : 1.3;
+    if (car.kind === 3) return car.lane ? half + 0.6 : -half + 0.4;
+    return car.lane ? half : -half + (parked ? 0.6 : 0);
+  }
   if (avenue) {
     if (car.kind === 3) return car.lane ? (parked ? 3.0 : 4.1) : 1.6;
     return car.lane ? (parked ? 2.6 : 3.75) : parked ? 0.85 : 1.25;

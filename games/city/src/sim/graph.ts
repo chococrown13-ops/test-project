@@ -21,8 +21,8 @@ export const cellOf = (node: number) => (node >= NN ? node - NN : node);
 export const isAlt = (node: number) => node >= NN;
 
 /** Road type of a node: 0 none, 1 street, 2 avenue. */
-export function roadTypeOf(w: World, node: number): 0 | 1 | 2 {
-  return (node >= NN ? w.roadAlt[node - NN] : w.road[node]) as 0 | 1 | 2;
+export function roadTypeOf(w: World, node: number): 0 | 1 | 2 | 3 {
+  return (node >= NN ? w.roadAlt[node - NN] : w.road[node]) as 0 | 1 | 2 | 3;
 }
 
 function orth(c: number, out: number[]) {
@@ -63,6 +63,53 @@ export function rampExit(w: World, c: number): number {
 
 export const isRamp = (w: World, c: number) => w.roadAlt[c] !== Road.None && altNeighbours(w, c).length <= 1;
 
+/** One-way codes: the step each allows (1 east, 2 south, 3 west, 4 north). */
+export const ONEWAY_STEP: [number, number][] = [[0, 0], [1, 0], [0, 1], [-1, 0], [0, -1]];
+const axisOfCode = (o: number) => (o === 1 || o === 3 ? 0 : 1);
+
+/**
+ * Two one-way roads laid side by side (a 왕복 4차선 made of a pair of carriageways): no link
+ * across between them, except where a road carries on beyond the pair (a real crossing).
+ */
+function pairGap(w: World, a: number, b: number): boolean {
+  const oa = w.oneway[a], ob = w.oneway[b];
+  if (!oa || !ob || axisOfCode(oa) !== axisOfCode(ob)) return false;
+  const dx = (b % N) - (a % N), dy = ((b / N) | 0) - ((a / N) | 0);
+  // The link has to run across the pair's axis.
+  if ((axisOfCode(oa) === 0) !== (dx === 0)) return false;
+  const beyondB = b + dx + dy * N, beforeA = a - dx - dy * N;
+  const ok = (c: number) => c >= 0 && c < NN && Math.abs((c % N) - (a % N)) <= 2 && !!w.road[c] && !w.oneway[c];
+  return !ok(beyondB) && !ok(beforeA);
+}
+
+/** A 고속도로 joins ordinary roads only at a 나들목; highways meet each other freely (a 분기점). */
+export function highwayLinkOk(w: World, a: number, b: number): boolean {
+  const ha = w.road[a] === 3, hb = w.road[b] === 3;
+  if (ha === hb) return true;
+  return ha ? (w.hwy[a] & 1) !== 0 : (w.hwy[b] & 1) !== 0;
+}
+
+/** Whether traffic may drive from ground cell a to its neighbour b, given the one-way roads. */
+export function driveOk(w: World, a: number, b: number): boolean {
+  if (a >= NN || b >= NN) return true;
+  const dx = Math.sign((b % N) - (a % N)), dy = Math.sign(((b / N) | 0) - ((a / N) | 0));
+  if (dx && dy) return true;
+  for (const c of [a, b]) {
+    const o = w.oneway[c];
+    if (!o) continue;
+    const [ox, oy] = ONEWAY_STEP[o];
+    // Along the one-way axis only forwards; across it (a side street) is fine.
+    if (ox !== 0 && dx !== 0 && dx !== ox) return false;
+    if (oy !== 0 && dy !== 0 && dy !== oy) return false;
+  }
+  return true;
+}
+
+/** Like forEachNeighbour, but only the steps a car may drive (one-way roads). */
+export function forEachDriveStep(w: World, node: number, fn: (n: number, len: number) => void) {
+  forEachNeighbour(w, node, (n, len) => { if (driveOk(w, node, n)) fn(n, len); });
+}
+
 /** Calls fn for every node reachable in one step, with the step's length in cells. */
 export function forEachNeighbour(w: World, node: number, fn: (n: number, len: number) => void) {
   if (node < NN) {
@@ -70,7 +117,7 @@ export function forEachNeighbour(w: World, node: number, fn: (n: number, len: nu
     if (!w.road[c]) return;
     const nb = orth(c, []);
     // Beside a curve only the links it really makes count (no shortcuts across the verge).
-    for (const n of nb) if (w.road[n] && curveLinkOk(w, c, n)) fn(n, 1);
+    for (const n of nb) if (w.road[n] && curveLinkOk(w, c, n) && !pairGap(w, c, n) && highwayLinkOk(w, c, n)) fn(n, 1);
     const d = w.diag[c];
     if (d) {
       const x = c % N, y = (c / N) | 0;

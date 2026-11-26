@@ -24,6 +24,8 @@ import { VehicleLayer } from './vehicles';
 import { Fireworks } from './fireworks';
 import { PeopleLayer } from './people';
 import { SignalLayer } from './signals';
+import { HighwayLayer } from './highway';
+import { HazardLayer } from './hazards';
 
 const smooth = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 export type Quality = 'high' | 'normal';
@@ -39,8 +41,13 @@ export class CityScene {
   readonly fireworks = new Fireworks();
   readonly people = new PeopleLayer();
   readonly signals = new SignalLayer();
+  readonly highway = new HighwayLayer();
+  readonly hazards = new HazardLayer();
   /** Game time per real second right now (0 when paused): people walk at this pace. */
   pace = 0;
+  /** Always day: no night, the light stays at early afternoon. */
+  dayLock = false;
+  private stallTimer = 0;
   readonly preview = new PreviewLayer();
   transit = new TransitLayer();
   /** The line being drawn, if any. */
@@ -77,7 +84,7 @@ export class CityScene {
     this.view = new CityCamera(1);
     this.ground = new GroundLayer(sim.w);
     this.roads = new RoadLayer(this.ground.tex);
-    this.scene.add(this.ground.group, this.roads.group, this.buildings.group, this.vehicles.group, this.transit.group, this.preview.group, this.fireworks.group, this.people.group, this.signals.group);
+    this.scene.add(this.ground.group, this.roads.group, this.buildings.group, this.vehicles.group, this.transit.group, this.preview.group, this.fireworks.group, this.people.group, this.signals.group, this.highway.group, this.hazards.group);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.bias = -0.0004;
@@ -271,7 +278,8 @@ export class CityScene {
     const w = this.sim.w;
     this.view.update(dt);
     shared.uTime.value = now;
-    this.light(this.sim.clock, this.sim.w.day);
+    // 낮 고정: the sun stays at early afternoon (the clock and the calendar still run).
+    this.light(this.dayLock ? 14 : this.sim.clock, this.sim.w.day);
     // Ground cells under bus routes, for the median bus lanes.
     const bk = `${w.ver.transit}:${w.ver.roads}:${w.lines.length}`;
     if (bk !== this.busKey) {
@@ -289,9 +297,20 @@ export class CityScene {
     shared.uSnow.value += (snow - shared.uSnow.value) * Math.min(1, dt * 0.8);
     this.buildings.heightAt = (x, z) => this.ground.heightAt(x, z);
     this.buildings.update(w, now);
+    // Laying out a bus or subway line (or looking at the transit map): the buildings sink flat so the
+    // streets, stops and routes underneath can be seen.
+    const flat = !!this.draft || this.overlay === 'transit';
+    const sy = this.buildings.group.scale.y, want = flat ? 0.04 : 1;
+    if (Math.abs(sy - want) > 0.001) this.buildings.group.scale.y = sy + (want - sy) * Math.min(1, dt * 8);
+    // Their badges would squash with them: hide those meanwhile.
+    if (flat) for (const o of this.buildings.group.children) if ((o as THREE.Sprite).isSprite) o.visible = false;
     this.vehicles.update(w, this.sim.tr);
     this.signals.update(w, this.sim.tr.clock, this.view.dist);
-    this.people.update(w, dt, this.pace, shared.uNight.value, this.view.dist, this.sim.tr.clock);
+    this.highway.update(w);
+    this.hazards.heightAt = (x, z) => this.ground.heightAt(x, z);
+    this.hazards.update(w, dt, this.view.target);
+    this.people.crossings = this.sim.tr.crossings;
+    this.people.update(w, dt, this.pace, shared.uNight.value, this.view.dist, this.sim.tr.clock, this.vehicles);
     this.transit.update(w, w.day * DAY_SECONDS + this.sim.acc, this.draft);
     // Ground repaint: on edits right away, and for live overlays a few times a second.
     const ver = `${w.ver.roads}:${w.ver.zones}:${w.ver.buildings}:${month}`;
@@ -306,6 +325,8 @@ export class CityScene {
     if (this.iconTimer <= 0) {
       this.iconTimer = 0.5;
       this.buildings.updateIcons(w, this.overlay === 'power' || this.overlay === 'water', this.overlay === 'parking');
+      this.buildings.updateJams(w);
+      if ((this.stallTimer -= 0.5) <= 0) { this.stallTimer = 3; this.buildings.updateStalls(w); }
       this.buildings.refreshInfo(w);
     }
     // Bloom only earns its cost at night, when windows and street lights glow.

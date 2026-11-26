@@ -552,10 +552,7 @@ function afterFight() {
     history[g.round] = won ? 'w' : draw ? 'd' : 'l';
     g.log = [...(g.log ?? []), { round: g.round, res: history[g.round], vs: mine.creeps ? theme().creepName : g.players[fightOpp]?.name ?? '', lost: Math.max(0, (hpBefore.get(0) ?? 0) - p.hp), arena: mine.ctx.arena ?? '' }];
     const lost = (hpBefore.get(0) ?? 0) - p.hp;
-    // Who did the work on our side.
-    const ours = (fightCombat?.f ?? []).filter((f) => f.side === meSide).sort((a, b) => b.dealt - a.dealt).slice(0, 3);
-    const top = ours[0]?.dealt || 1;
-    const chart = ours.length ? `<div class="dmg"><small>가장 많이 때린 말</small>${ours.map((f) => `<span>${pic(f.def.id, 'pic', f.star)}<i>${nameAt(f.def, f.star)}${'★'.repeat(f.star)}</i><em><b style="width:${(f.dealt / top) * 100}%"></b></em><u class="num">${Math.round(f.dealt).toLocaleString('ko-KR')}</u></span>`).join('')}</div>` : '';
+    const chart = recapHtml(meSide);
     banner(won ? (mine.creeps ? `${theme().creepName} 승리!` : '이겼어요!') : draw ? '비겼어요' : '졌어요',
       won ? (mine.creeps ? `${itemWord()}와 엽전을 얻었어요` : '+1냥, 연승 중이면 더 받아요') : `체력 -${lost}`, won ? 'win' : 'lose', chart);
   }
@@ -572,7 +569,7 @@ function afterFight() {
     if (!room) save(g!);
     renderAll();
     roundNews(prevArena, prevSeason);
-  }, mine ? 2600 : 0);
+  }, mine ? 4600 : 0);
 }
 
 let prevArena = '', prevSeason = -1;
@@ -582,6 +579,17 @@ function roundNews(arena: string, season: number) {
   if (G.season >= 0 && G.season !== season) toast(`${josa(SEASON_NAME[G.season], '이', '가')} 왔어요! ${Object.values(TRAITS).find((t) => t.season === G.season)?.name} 요괴가 두 배로 세지고, 경기장은 ${josa(ARENAS[G.arena].name, '이에요', '예요')}.`, 'good');
   else if (G.arena !== arena) toast(`이번 경기장: ${ARENAS[G.arena].name}. ${ARENAS[G.arena].text}`);
   else if (isCreepRound(G.round)) toast(`${G.round}라운드는 ${josa(theme().creepName, '이에요', '예요')}. ${theme().creepText}.`);
+}
+
+/** After a fight: what each of our pieces did. Damage dealt, health given back, damage taken. */
+function recapHtml(side: number): string {
+  const ours = (fightCombat?.f ?? []).filter((f) => f.side === side).sort((a, b) => b.dealt - a.dealt);
+  if (!ours.length) return '';
+  const max = (k: 'dealt' | 'healed' | 'taken') => Math.max(1, ...ours.map((f) => f[k]));
+  const top = { dealt: max('dealt'), healed: max('healed'), taken: max('taken') };
+  const cell = (f: (typeof ours)[number], k: 'dealt' | 'healed' | 'taken') =>
+    `<em class="${k}"><b style="width:${(f[k] / top[k]) * 100}%"></b><u class="num">${Math.round(f[k]).toLocaleString('ko-KR')}</u></em>`;
+  return `<div class="dmg"><div class="dmg-h"><span></span><span class="dealt">피해량</span><span class="healed">회복량</span><span class="taken">받은 피해</span></div>${ours.map((f) => `<div class="dmg-r${f.alive ? '' : ' down'}">${pic(f.def.id, 'pic', f.star)}${cell(f, 'dealt')}${cell(f, 'healed')}${cell(f, 'taken')}</div>`).join('')}</div>`;
 }
 
 function banner(title: string, sub: string, tone: string, extra = '') {
@@ -601,6 +609,7 @@ function finish() {
     board: p.board.slice().sort((a, b) => BY_ID[b.id].tier * b.star - BY_ID[a.id].tier * a.star).slice(0, 6).map((u) => ({ id: u.id, star: u.star })),
     traits: boardTraits(p).filter((t) => t.step).slice(0, 4).map((t) => `${TRAITS[t.trait].name} ${t.n}`),
     log: g!.log ?? [],
+    ...(room ? { online: true, seats: g!.players.length, people: g!.players.filter((q) => !q.bot).map((q) => ({ name: q.name, place: q === p ? place : q.alive ? (g!.over ? 1 : 0) : q.place, ...(q === p ? { me: true } : {}) })) } : {}),
   });
   $('againBtn').textContent = '테마 고르고 한 판 더';
   $('endKicker').textContent = place === 1 ? '마지막까지 남았어요' : '한 판이 끝났어요';
@@ -664,21 +673,48 @@ function renderBook() {
 }
 /* ----------------------------------------------------------- records */
 
+/** Names typed by people: shown as text, never as markup. */
+const escapeHtml = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
 function renderRecords() {
   const all = records();
   const when = (t: number) => new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const wins = all.filter((r) => r.place === 1).length, top4 = all.filter((r) => r.place <= 4).length;
-  const avg = all.length ? (all.reduce((s2, r) => s2 + r.place, 0) / all.length).toFixed(1) : '-';
-  $('recSum').innerHTML = all.length ? `<span>판 수 <b class="num">${all.length}</b></span><span>1등 <b class="num">${wins}</b></span><span>4등 안 <b class="num">${top4}</b></span><span>평균 등수 <b class="num">${avg}</b></span>` : '';
+  // 전적: all games, then alone and with friends apart, the last ten, and each friend head to head.
+  const line = (name: string, rs: GameRecord[]) => {
+    if (!rs.length) return '';
+    const wins = rs.filter((r) => r.place === 1).length, top4 = rs.filter((r) => r.place <= Math.ceil((r.seats ?? 8) / 2)).length;
+    const avg = (rs.reduce((s2, r) => s2 + r.place, 0) / rs.length).toFixed(1);
+    return `<tr><th scope="row">${name}</th><td class="num">${rs.length}</td><td class="num">${wins}</td><td class="num">${Math.round((top4 / rs.length) * 100)}%</td><td class="num">${avg}</td></tr>`;
+  };
+  const solo = all.filter((r) => !r.online), net = all.filter((r) => r.online);
+  const recent = all.slice(0, 10).reverse();
+  const form = recent.length ? `<div class="rec-form" aria-label="최근 ${recent.length}판 등수, 오래된 판부터">${recent.map((r) => `<i class="num p${Math.min(r.place, 8)}" style="--h:${Math.max(12, 100 - (r.place - 1) * 12)}%" title="${r.place}등">${r.place}</i>`).join('')}</div>` : '';
+  const vs = new Map<string, { games: number; ahead: number }>();
+  for (const r of net) {
+    const mine = r.people?.find((q) => q.me);
+    if (!mine) continue;
+    for (const q of r.people ?? []) {
+      if (q.me) continue;
+      const e = vs.get(q.name) ?? { games: 0, ahead: 0 };
+      e.games++;
+      // A friend still in when this player went out finished above.
+      if (q.place !== 0 && mine.place < q.place) e.ahead++;
+      vs.set(q.name, e);
+    }
+  }
+  const friends = [...vs.entries()].sort((a2, b2) => b2[1].games - a2[1].games).slice(0, 8);
+  const friendTable = friends.length ? `<h3 class="rec-h">친구와 맞대결</h3><table class="rec-tab"><thead><tr><th scope="col">친구</th><th scope="col">같이 한 판</th><th scope="col">내가 앞선 판</th></tr></thead><tbody>${friends.map(([n, e]) => `<tr><th scope="row">${escapeHtml(n)}</th><td class="num">${e.games}</td><td class="num">${e.ahead} <small>(${Math.round((e.ahead / e.games) * 100)}%)</small></td></tr>`).join('')}</tbody></table>` : '';
+  $('recSum').innerHTML = all.length ? `<table class="rec-tab"><thead><tr><th scope="col"></th><th scope="col">판 수</th><th scope="col">1등</th><th scope="col">절반 안</th><th scope="col">평균 등수</th></tr></thead><tbody>${line('전체', all)}${line('혼자', solo)}${line('친구와', net)}</tbody></table>${form ? `<h3 class="rec-h">최근 ${recent.length}판</h3>${form}` : ''}${friendTable}<h3 class="rec-h">판마다</h3>` : '';
   $('recList').innerHTML = all.length ? all.map((r: GameRecord, i) => {
     const T = themeById(r.theme);
     useTheme(T.id);
     const pieces = r.board.filter((u) => BY_ID[u.id]).map((u) => `<span title="${nameAt(BY_ID[u.id], u.star)}">${pic(u.id, 'pic', u.star)}<i>${'★'.repeat(u.star)}</i></span>`).join('');
     const pips = r.log.map((l) => `<i class="pip ${l.res}" title="${l.round}라운드 · ${l.vs} · ${l.res === 'w' ? '승' : l.res === 'l' ? `패 (체력 -${l.lost})` : '무'}">${l.round}</i>`).join('');
     return `<details class="rec${r.place === 1 ? ' first' : ''}"${i === 0 ? ' open' : ''}>
-      <summary><b class="place num">${r.place}등</b><span>${T.title} · ${r.rounds}라운드</span><small>${when(r.at)}</small></summary>
+      <summary><b class="place num">${r.place}등</b><span>${T.title} · ${r.rounds}라운드${r.online ? ` · 친구와 ${r.seats ?? ''}명` : ''}</span><small>${when(r.at)}</small></summary>
       <div class="rec-board">${pieces}</div>
       ${r.traits.length ? `<div class="rec-traits">${r.traits.map((t) => `<span class="chip">${t}</span>`).join('')}</div>` : ''}
+      ${r.people?.length ? `<div class="rec-people">${r.people.map((q) => `<span class="chip${q.me ? ' me' : ''}">${escapeHtml(q.name)} ${q.place ? `${q.place}등` : '생존'}</span>`).join('')}</div>` : ''}
       ${pips ? `<div class="rec-log">${pips}</div>` : ''}
     </details>`;
   }).join('') : '<p class="t-empty">아직 끝낸 판이 없어요. 한 판을 끝까지 하면 여기에 남아요.</p>';
@@ -932,7 +968,7 @@ function finishOnlineFight(mine: Match | null, hpBefore: Map<number, number>) {
     history[g.round] = won ? 'w' : draw ? 'd' : 'l';
     g.log = [...(g.log ?? []), { round: g.round, res: history[g.round], vs: mine.creeps ? theme().creepName : g.players[fightOpp]?.name ?? '', lost: Math.max(0, (hpBefore.get(mySeat) ?? 0) - p.hp), arena: mine.ctx.arena ?? '' }];
     banner(won ? (mine.creeps ? `${theme().creepName} 승리!` : '이겼어요!') : draw ? '비겼어요' : '졌어요',
-      won ? '다른 사람들이 끝나기를 기다려요' : `체력 -${(hpBefore.get(mySeat) ?? 0) - p.hp}`, won ? 'win' : 'lose');
+      won ? '다른 사람들이 끝나기를 기다려요' : `체력 -${(hpBefore.get(mySeat) ?? 0) - p.hp}`, won ? 'win' : 'lose', recapHtml(meSide));
   }
   renderAll();
   setTimeout(() => {
@@ -940,7 +976,7 @@ function finishOnlineFight(mine: Match | null, hpBefore: Map<number, number>) {
     if (!p.alive || g!.over) { finish(); }
     if (room?.isHost) { doneSeats.add(mySeat); hostCheck(); }
     else room?.send({ t: 'done' });
-  }, mine ? 2400 : 0);
+  }, mine ? 4400 : 0);
 }
 
 /** A new round has come (host: just made; friend: just received). */

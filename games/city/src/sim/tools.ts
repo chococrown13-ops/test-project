@@ -1,6 +1,6 @@
 import { attractionProblem } from './attractions';
 import { specProblem } from './special';
-import { BRIDGE_MULT, Ground, KINDS, Level, LEVEL_COST, LEVEL_NAME, N, Road, ROAD_COST, UNIQUE, Zone, ZONE_DEPTH, type BuildingKind } from './defs';
+import { BRIDGE_MULT, Ground, KINDS, Level, LEVEL_COST, LEVEL_NAME, N, Road, ROAD_COST, UNIQUE, Zone, ZONE_DEPTH, type BuildingKind, IC_COST, TOLL_COST } from './defs';
 import { DIAG, isRamp, oppositeDiag } from './graph';
 import { bezLength, coverCells, curveCells, curveInfo, curveProblem, pruneCurves, type Curve } from './curves';
 import { findAccess, invalidateNetwork } from './network';
@@ -60,6 +60,9 @@ export function placeRoad(w: World, cells: number[], type: Road, grid = true): s
   if (cells.some((i) => w.ground[i] === Ground.Mountain)) return '산에는 터널로만 길을 낼 수 있어요.';
   if (cells.some((i) => w.roadAlt[i] && isRamp(w, i))) return '고가도로나 지하도로의 진입로와 겹쳐요.';
   if (roadBlocked(w, cells)) return '시설물이 있는 곳에는 도로를 놓을 수 없어요.';
+  // A 고속도로 never meets ordinary roads at grade: it crosses them on a 고가도로 or 지하차도, and joins them at a 나들목.
+  if (type === Road.Highway && cells.some((i) => w.road[i] && w.road[i] !== Road.Highway)) return '고속도로는 다른 도로와 평면으로 만날 수 없어요. 고가도로나 지하차도로 넘기고, 이을 곳에는 나들목을 두세요.';
+  if (type !== Road.Highway && cells.some((i) => w.road[i] === Road.Highway)) return '고속도로를 가로지르는 길은 고가도로나 지하차도로 놓아 주세요.';
   const cost = roadCost(w, cells, type);
   if (cost > w.money) return `예산이 부족해요. (${cost.toLocaleString('ko-KR')}만 원 필요)`;
   w.money -= cost;
@@ -76,6 +79,120 @@ export function placeRoad(w: World, cells: number[], type: Road, grid = true): s
     const bit = DIAG.find(([ex, ey]) => ex === dx && ey === dy)![2];
     w.diag[a] |= bit;
     w.diag[b] |= oppositeDiag(bit);
+  }
+  if (type === Road.Street) pairCarriageways(w, cells);
+  w.ver.roads++;
+  w.ver.zones++;
+  invalidateNetwork();
+  return null;
+}
+
+/** Whether a grid road cell runs straight along an axis (0 east-west, 1 north-south): its two neighbours on it are road. */
+function runsAlong(w: World, i: number, axis: 0 | 1): boolean {
+  const x = i % N, y = (i / N) | 0;
+  if (!w.road[i] || w.road[i] !== Road.Street) return false;
+  return axis === 0 ? x > 0 && x < N - 1 && !!w.road[i - 1] && !!w.road[i + 1] : y > 0 && y < N - 1 && !!w.road[i - N] && !!w.road[i + N];
+}
+
+/**
+ * Two streets laid right next to each other become one 왕복 4차선: each turns one-way, in
+ * opposite directions, traffic keeping right (east on the southern one, west on the northern;
+ * south on the western, north on the eastern).
+ */
+export function pairCarriageways(w: World, cells: number[]) {
+  for (const i of cells) {
+    for (const axis of [0, 1] as const) {
+      if (!runsAlong(w, i, axis)) continue;
+      for (const side of [-1, 1]) {
+        const j = axis === 0 ? i + side * N : i + side;
+        if (j < 0 || j >= N * N || (axis === 1 && ((j % N) - (i % N)) !== side) || !runsAlong(w, j, axis)) continue;
+        const [lo, hi] = side > 0 ? [i, j] : [j, i];
+        // lo is north (or west) of hi.
+        if (axis === 0) { w.oneway[lo] = 3; w.oneway[hi] = 1; } else { w.oneway[lo] = 2; w.oneway[hi] = 4; }
+      }
+    }
+  }
+}
+
+/**
+ * 나들목: on a 고속도로 cell with an ordinary road beside it, ramps join the two (the only place a
+ * highway meets other roads). 톨게이트: booths across a straight stretch of highway; every car
+ * through pays, and slows down to do so.
+ */
+export function placeHighwayPart(w: World, i: number, part: 'ic' | 'toll'): string | null {
+  if (w.road[i] !== Road.Highway) return '고속도로 위를 눌러 주세요.';
+  const x = i % N, y = (i / N) | 0;
+  const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => inside(x + dx, y + dy)).map(([dx, dy]) => idx(x + dx, y + dy));
+  if (part === 'ic') {
+    if (w.hwy[i] & 1) return '이미 나들목이에요.';
+    if (!nb.some((n) => w.road[n] && w.road[n] !== Road.Highway)) return '나들목은 일반 도로와 바로 붙은 고속도로 칸에 둘 수 있어요. 옆에 도로를 먼저 내 주세요.';
+    if (IC_COST > w.money) return `예산이 부족해요. (${IC_COST.toLocaleString('ko-KR')}만 원 필요)`;
+    w.money -= IC_COST;
+    w.hwy[i] |= 1;
+  } else {
+    if (w.hwy[i] & 2) return '이미 톨게이트가 있어요.';
+    const hw = nb.filter((n) => w.road[n] === Road.Highway);
+    const straight = hw.length === 2 && ((hw[0] % N) === (hw[1] % N) || ((hw[0] / N) | 0) === ((hw[1] / N) | 0));
+    if (!straight || w.hwy[i] & 1) return '톨게이트는 고속도로가 곧게 뻗은 칸에 둘 수 있어요 (나들목이나 분기점 말고).';
+    if (TOLL_COST > w.money) return `예산이 부족해요. (${TOLL_COST.toLocaleString('ko-KR')}만 원 필요)`;
+    w.money -= TOLL_COST;
+    w.hwy[i] |= 2;
+  }
+  w.ver.roads++;
+  invalidateNetwork();
+  return null;
+}
+
+/** Cost of making grid road cells one-way: just the signs and paint. */
+export const ONEWAY_COST = 20;
+
+/**
+ * 일방통행: a drag along a road makes it one-way in the direction dragged (a drag again over a
+ * road already one-way that way makes it two-way again). Only straight grid road counts.
+ */
+export function setOneWay(w: World, cells: number[]): string | null {
+  if (cells.length < 2) return '도로를 따라 두 칸 이상 끌어 주세요.';
+  const a = cells[0], b = cells[cells.length - 1];
+  const dx = Math.sign((b % N) - (a % N)), dy = Math.sign(((b / N) | 0) - ((a / N) | 0));
+  if (dx && dy) return '일방통행은 곧은 길에만 정할 수 있어요.';
+  const code = dx > 0 ? 1 : dx < 0 ? 3 : dy > 0 ? 2 : 4;
+  const on = cells.filter((i) => w.road[i] && w.road[i] !== Road.Highway && !w.roadAlt[i]);
+  if (!on.length) return '도로 위로 끌어 주세요.';
+  const undo = on.every((i) => w.oneway[i] === code);
+  const cost = undo ? 0 : on.length * ONEWAY_COST;
+  if (cost > w.money) return `예산이 부족해요. (${cost.toLocaleString('ko-KR')}만 원 필요)`;
+  w.money -= cost;
+  for (const i of on) w.oneway[i] = undo ? 0 : code;
+  w.ver.roads++;
+  invalidateNetwork();
+  return null;
+}
+
+/**
+ * 도로 넓히기: streets under a drag become avenues (paying the difference); a curved street the
+ * drag touches widens as a whole. Lots the wider road now covers are cleared.
+ */
+export function widenRoad(w: World, cells: number[]): string | null {
+  const grid = cells.filter((i) => w.road[i] === Road.Street);
+  const touched = w.curves.filter((c) => c.t === Road.Street && c.cells.some((i) => cells.includes(i)));
+  const all = new Set<number>(grid);
+  for (const c of touched) for (const i of c.cells) if (w.road[i] === Road.Street) all.add(i);
+  if (!all.size) return '넓힐 일반 도로가 없어요. 일반 도로 위로 끌어 주세요.';
+  const list = [...all];
+  if (list.some((i) => w.ground[i] === Ground.Mountain)) return '산 속 길은 넓힐 수 없어요.';
+  const cost = roadCost(w, list, Road.Avenue);
+  if (cost > w.money) return `예산이 부족해요. (${cost.toLocaleString('ko-KR')}만 원 필요)`;
+  w.money -= cost;
+  for (const i of list) { w.road[i] = Road.Avenue; w.oneway[i] = 0;
+      w.hwy[i] = 0; }
+  for (const c of touched) {
+    c.t = Road.Avenue;
+    for (const i of coverCells(c)) {
+      if (w.road[i]) continue;
+      const id = w.bld[i];
+      if (id >= 0 && KINDS[w.buildings.get(id)!.kind].zone) demolish(w, id);
+      w.zone[i] = Zone.None;
+    }
   }
   w.ver.roads++;
   w.ver.zones++;
@@ -156,6 +273,8 @@ export function placeAltRoad(w: World, drag: number[], level: Level): string | n
       const x = i % N, y = (i / N) | 0;
       for (const [dx, dy, bit] of DIAG) if (w.diag[i] & bit && inside(x + dx, y + dy)) w.diag[idx(x + dx, y + dy)] &= ~oppositeDiag(bit);
       w.diag[i] = 0;
+      w.oneway[i] = 0;
+      w.hwy[i] = 0;
     }
     w.roadAlt[i] = Road.Avenue;
     w.altLevel[i] = level;
@@ -176,6 +295,7 @@ export function roadDistance(w: World, x: number, y: number): number {
       const nx = x + dx * d, ny = y + dy * d;
       if (!inside(nx, ny)) break;
       const i = idx(nx, ny);
+      if (w.road[i] === Road.Highway) break;
       if (w.road[i]) { best = Math.min(best, d); break; }
       if (w.ground[i] === Ground.Water) break;
     }
@@ -312,6 +432,8 @@ export function bulldoze(w: World, cells: number[]): number {
           w.diag[idx(x + dx, y + dy)] &= ~oppositeDiag(bit);
         }
         w.diag[i] = 0;
+        w.oneway[i] = 0;
+      w.hwy[i] = 0;
         roads++;
       }
     }

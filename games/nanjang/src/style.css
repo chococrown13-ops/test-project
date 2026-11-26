@@ -289,14 +289,17 @@ body.fighting .tray { display: none; }
 .i-live { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: var(--text-xs); color: var(--color-muted); background: var(--color-paper-2); padding: 6px 8px; border-radius: 8px; }
 .i-live b { color: var(--color-ink); } .i-live .dead { color: var(--hp-enemy); font-weight: 800; }
 
-.banner .dmg { display: grid; gap: 4px; margin-top: 8px; min-width: 260px; }
-.banner .dmg small { font-size: 11px; opacity: 0.7; text-align: left; }
-.banner .dmg span { display: grid; grid-template-columns: 30px 88px 1fr 46px; gap: 6px; align-items: center; font-size: 12px; }
-.banner .dmg .pic { width: 30px; height: 30px; object-fit: contain; }
-.banner .dmg i { font-style: normal; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.banner .dmg em { display: block; height: 8px; border-radius: 4px; background: color-mix(in oklab, #fff 15%, transparent); overflow: hidden; }
-.banner .dmg em b { display: block; height: 100%; background: var(--brass); font-size: 0; }
-.banner .dmg u { text-decoration: none; text-align: right; }
+.banner .dmg { display: grid; gap: 3px; margin-top: 8px; min-width: min(360px, 80vw); }
+.banner .dmg-h, .banner .dmg-r { display: grid; grid-template-columns: 28px repeat(3, minmax(0, 1fr)); gap: 6px; align-items: center; }
+.banner .dmg-h span { font-size: 11px; opacity: 0.8; text-align: left; }
+.banner .dmg-r.down { opacity: 0.55; }
+.banner .dmg .pic { width: 28px; height: 28px; object-fit: contain; }
+.banner .dmg em { position: relative; display: block; height: 16px; border-radius: 4px; background: color-mix(in oklab, #fff 12%, transparent); overflow: hidden; font-style: normal; }
+.banner .dmg em b { display: block; height: 100%; font-size: 0; }
+.banner .dmg em.dealt b, .banner .dmg-h .dealt { color: #f2b84a; } .banner .dmg em.dealt b { background: #e8a33a; }
+.banner .dmg em.healed b { background: #4fb86a; } .banner .dmg-h .healed { color: #7ddc8a; }
+.banner .dmg em.taken b { background: #7a8fb8; } .banner .dmg-h .taken { color: #a9bce0; }
+.banner .dmg u { position: absolute; inset: 0 4px 0 auto; display: flex; align-items: center; text-decoration: none; font-size: 11px; color: #fff; text-shadow: 0 1px 2px rgb(0 0 0 / 0.7); }
 
 .style-pick { display: flex; align-items: center; gap: 10px; justify-content: center; font-size: var(--text-sm); font-weight: 700; color: var(--color-muted); }
 .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--color-paper-3); }
@@ -509,7 +512,7 @@ body.fighting .tray { display: none; }
 
 /* Status badges over a fighter, and effect words that rise from it. */
 .plabel .status { display: flex; gap: 2px; min-height: 0; }
-.plabel .status b { font-size: 10px; font-weight: 800; line-height: 1; padding: 2px 4px; border-radius: 5px; color: #fff; white-space: nowrap; box-shadow: 0 1px 2px oklch(15% 0.03 30 / 0.5); }
+.plabel .status b { width: 7px; height: 7px; padding: 0; border-radius: 50%; font-size: 0; box-shadow: 0 0 0 1px #fff, 0 1px 2px oklch(15% 0.03 30 / 0.5); }
 .plabel .status b.stun { background: #e0a800; color: #2a1d17; }
 .plabel .status b.silence { background: #8a4fd8; }
 .plabel .status b.shield { background: #3d8bd9; }
@@ -522,7 +525,7 @@ body.fighting .tray { display: none; }
 .pop.shield { color: #a8d8ff; }
 .pop.crit { color: #ffb84a; font-size: 14px; }
 .pop.miss { color: #e8e8e8; font-size: 11px; }
-@media (max-width: 600px) { .fightbar { width: calc(100% - 12px); } .plabel .status b { font-size: 9px; padding: 1px 3px; } }
+@media (max-width: 600px) { .fightbar { width: calc(100% - 12px); } }
 
 /* ===== Zoom buttons, music, evolution, records, landscape-only ===== */
 .zoom { position: fixed; right: max(10px, env(safe-area-inset-right)); bottom: 200px; display: grid; gap: 6px; z-index: 4; }
@@ -543,8 +546,18 @@ body.dragging .zoom { opacity: 0.3; pointer-events: none; }
 .evo-line i { font-style: normal; white-space: nowrap; }
 .evo-line em { font-style: normal; opacity: 0.5; }
 .book-u p small { display: block; margin-top: 3px; font-weight: 700; color: var(--lacquer); }
-.rec-sum { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 10px; font-size: 13px; }
-.rec-sum b { font-size: var(--text-lg); margin-left: 3px; }
+.rec-sum { display: grid; gap: 6px; margin: 4px 0 10px; font-size: 13px; }
+.rec-tab { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rec-tab th, .rec-tab td { padding: 4px 6px; border-bottom: 1px solid color-mix(in oklab, currentColor 15%, transparent); text-align: right; }
+.rec-tab th:first-child, .rec-tab thead th:first-child { text-align: left; }
+.rec-tab thead th { font-weight: 600; opacity: 0.7; font-size: 12px; }
+.rec-tab small { opacity: 0.65; }
+.rec-h { margin: 8px 0 2px; font-size: 13px; opacity: 0.8; }
+.rec-form { display: flex; align-items: flex-end; gap: 4px; height: 54px; }
+.rec-form i { flex: 1; height: var(--h); min-width: 0; border-radius: 4px 4px 0 0; background: #c9b37a; font-style: normal; font-size: 10px; display: grid; align-items: start; justify-items: center; color: #3a2e12; padding-top: 2px; }
+.rec-form i.p1 { background: #f2b632; } .rec-form i.p2, .rec-form i.p3, .rec-form i.p4 { background: #dcc27a; }
+.rec-people { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.rec-people .chip.me { font-weight: 700; }
 .rec-list { display: grid; gap: 8px; overflow: auto; max-height: min(64vh, 560px); }
 .rec { border: 1px solid var(--color-edge); border-radius: 12px; padding: 6px 10px; background: var(--color-card); }
 .rec.first { border-color: #d9b44a; box-shadow: 0 0 0 2px color-mix(in oklab, #f4d27a 50%, transparent); }
@@ -645,3 +658,7 @@ body.dragging .zoom { opacity: 0.3; pointer-events: none; }
 .plabel .bar .ticks { position: absolute; inset: 0; background: repeating-linear-gradient(to right, transparent 0 calc(var(--seg, 100%) - 1px), rgba(12, 10, 16, 0.6) calc(var(--seg, 100%) - 1px) var(--seg, 100%)); pointer-events: none; }
 .plabel.prep .pbars .bars { display: none; }
 @media (max-width: 900px) { .plabel { width: 52px; } .plabel .bar { width: 40px; } .plabel .bar.hp { height: 6px; } }
+/* 전적: the summary and the list scroll together; chips readable on the light card. */
+#recs .panel { max-height: 92vh; overflow: auto; }
+#recs .rec-list { max-height: none; overflow: visible; }
+.rec .chip, .rec-people .chip { background: #efe6cf; color: #4a3a1a; border: 0; }

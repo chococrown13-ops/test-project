@@ -23,7 +23,7 @@
         <div id="date" class="date">2026년 3월 1일</div>
       </div>
       <dl class="stats">
-        <div class="stat"><dt>인구</dt><dd id="pop" class="num">0</dd></div>
+        <div class="stat"><dt>인구</dt><dd id="pop" class="num">0</dd><div id="tier" class="tier" hidden><i><b id="tierBar"></b></i><span id="tierText"></span></div></div>
         <div class="stat"><dt>자금</dt><dd id="money" class="num">0</dd></div>
         <div class="stat hide-s"><dt>행복</dt><dd id="happy" class="num">없음</dd></div>
       </dl>
@@ -68,6 +68,28 @@
         <div class="row"><button class="btn" data-close-slots>닫기</button></div>
       </div>
     </div>
+    <div id="visit" class="overlay" hidden>
+      <div class="card hero visit-card">
+        <h2>도시 구경</h2>
+        <section>
+          <h3>친구 도시 구경하기</h3>
+          <p class="hint">친구가 '내 도시 보여주기'로 받은 코드 다섯 자리를 넣어요. 보기만 하고, 친구 도시는 바뀌지 않아요.</p>
+          <div class="visit-row"><input id="visitCode" maxlength="5" placeholder="코드" autocomplete="off" autocapitalize="characters" spellcheck="false" /><button class="btn primary" data-visit="go">구경하기</button></div>
+        </section>
+        <section id="showBox">
+          <h3>내 도시 보여주기</h3>
+          <p class="hint">코드를 친구에게 알려 주면 친구가 지금 내 도시를 볼 수 있어요. 창을 닫거나 그만두면 끝나요.</p>
+          <div id="showState"></div>
+        </section>
+        <section>
+          <h3>파일로 주고받기</h3>
+          <p class="hint">도시를 파일로 내보내 메신저로 보내고, 받은 파일을 열어 구경해요.</p>
+          <div class="visit-row"><button class="btn" data-visit="export" id="exportBtn">파일로 내보내기</button><label class="btn" for="visitFile">파일 열어 구경하기</label><input id="visitFile" type="file" accept=".city,text/plain" hidden /></div>
+        </section>
+        <div class="row"><button class="btn" data-visit="close">닫기</button></div>
+      </div>
+    </div>
+    <div id="visitBar" class="visit-bar" hidden><span id="visitText"></span><button class="btn small primary" id="visitHome">돌아가기</button></div>
     <div id="start" class="overlay">
       <div class="card hero">
         <h1>내 도시 더 크게</h1>
@@ -82,6 +104,7 @@
         <div class="row">
           <button id="newBtn" class="btn primary">새 도시 시작</button>
           <button id="loadBtn" class="btn" hidden>불러오기</button>
+          <button id="visitBtn" class="btn">친구 도시 구경</button>
         </div>
         <dl class="howto">
           <div><dt>PC</dt><dd>좌클릭으로 건설, 우클릭 드래그로 회전, 휠로 확대, WASD로 이동</dd></div>

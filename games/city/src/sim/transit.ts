@@ -1,5 +1,5 @@
 import { CELL, Ground, KINDS, N, Road } from './defs';
-import { cellOf, forEachNeighbour } from './graph';
+import { cellOf, forEachDriveStep } from './graph';
 import { invalidateNetwork } from './network';
 import { addBuilding, demolish } from './tools';
 import { idx, notify, type World } from './world';
@@ -191,7 +191,7 @@ function bfs(w: World, a: number, b: number): number[] | null {
   for (let h = 0; h < q.length; h++) {
     const c = q[h];
     if (c === b) break;
-    forEachNeighbour(w, c, (n) => { if (prev[n] < 0) { prev[n] = c; q.push(n); } });
+    forEachDriveStep(w, c, (n) => { if (prev[n] < 0) { prev[n] = c; q.push(n); } });
   }
   if (prev[b] < 0) return null;
   const out = [b];

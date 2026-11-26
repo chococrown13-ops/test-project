@@ -3,7 +3,7 @@ import { COLS, type Combat, DT, type Ev, HALF, ROWS, step } from '../sim/combat'
 import type { Piece, Player } from '../sim/game';
 import { BENCH } from '../sim/game';
 import { ARENAS, BUSH, ICE, MUD, ROCK, WATER } from '../sim/arena';
-import { BY_ID, itemDef, type Palette, theme, TRAITS } from '../sim/units';
+import { BY_ID, itemDef, type Palette, theme } from '../sim/units';
 import { buildPiece, type PieceObj } from './pieces';
 
 /**
@@ -559,29 +559,258 @@ export class Table {
         break;
       }
       // No damage numbers: the bars say enough. Effects get a word and a ring.
-      case 'hit': if (e.crit) this.number(e.b, '치명타!', 'crit'); break;
-      case 'miss': this.number(e.b, '회피', 'miss'); break;
-      case 'heal': { const b = S(e.b); if (!b) break; this.number(e.b, `회복 +${e.v}`, 'heal'); this.ring(b.x, b.z, '#5fd17a', 0.5); this.sparkle(b.x, b.z, '#7ddc8a'); break; }
-      case 'shield': { const b = S(e.b); if (!b) break; this.number(e.b, '보호막', 'shield'); this.ring(b.x, b.z, '#8ec5ff', 0.5); break; }
-      case 'stun': { const b = S(e.b); if (!b) break; this.number(e.b, '기절!', 'stun'); this.ring(b.x, b.z, '#ffd84a', 0.4); break; }
-      case 'silence': { const b = S(e.b); if (!b) break; this.number(e.b, '침묵!', 'silence'); this.ring(b.x, b.z, '#b07cff', 0.4); break; }
+      // No words over the pieces: every effect is shown by its own mark.
+      case 'hit': if (e.crit) { const b = S(e.b); if (b) { this.crescent(b, S(e.a) ?? b, '#ff4a3a', 1); this.burst(b.x, b.z, '#ffe27a'); } } break;
+      case 'miss': { const b = S(e.b); if (b) this.afterimage(b, '#e8eef2'); break; }
+      case 'heal': { const b = S(e.b); if (!b) break; this.ring(b.x, b.z, '#5fd17a', 0.5); this.sparkle(b.x, b.z, '#7ddc8a'); break; }
+      case 'shield': { const b = S(e.b); if (!b) break; this.ring(b.x, b.z, '#8ec5ff', 0.5); break; }
+      case 'stun': { const b = S(e.b); if (!b) break; this.stars(b, '#ffe27a'); this.ring(b.x, b.z, '#ffd84a', 0.4); break; }
+      case 'silence': { const b = S(e.b); if (!b) break; this.whirl(b, '#b07cff'); this.ring(b.x, b.z, '#b07cff', 0.4); break; }
       case 'cast': this.castFx(e); break;
+      case 'up': this.upFx(e); break;
       case 'die': S(e.a).dead = 0.001; break;
     }
   }
 
+  /**
+   * Every skill has its own look, so a fight can be read without words: what was cast, by whom, on whom.
+   * Shapes, not just colours: bolts, beams, rocks from the sky, spikes from the ground, bubbles, waves.
+   */
   private castFx(e: Extract<Ev, { k: 'cast' }>) {
-    const a = this.shown.get(e.a)!, b = e.b !== undefined ? this.shown.get(e.b) : undefined;
-    const colour: Record<string, string> = {
-      bonk: '#f2c94c', foxfire: '#6ec6ff', snipe: '#f4efe2', drag: '#4fa3b5', guardup: '#cfe8ff', taunt: '#e0a96d', boulder: '#9b8f80', blink: '#b9a7d9',
-      wave: '#4fa3b5', heal: '#7ddc8a', roar: '#f29b30', judge: '#ffd84a', ttukttak: '#f2c94c', charm: '#ff8fb1', reap: '#3b3b46', shell: '#9fd3a8',
-      mountain: '#c7f0c2', devour: '#8c9099', beam: '#7fd1d9', burst: '#fff2a8',
-    };
-    const col = colour[e.skill] ?? '#ffffff';
-    this.ring(a.x, a.z, col, 0.9);
-    if (b && b !== a && ['foxfire', 'snipe', 'charm', 'reap', 'heal', 'boulder', 'mountain'].includes(e.skill)) this.shot(a, b, col, 0.14);
-    if (e.cells) for (const [x, y] of e.cells) { const p = this.pos(x, y); this.flash(p.x, p.z, col); }
-    if (b && (e.skill === 'bonk' || e.skill === 'charm' || e.skill === 'drag')) this.ring(b.x, b.z, col, 0.6);
+    const a = this.shown.get(e.a), b = e.b !== undefined ? this.shown.get(e.b) : undefined;
+    if (!a) return;
+    const t = b ?? a;
+    const cells = (col: string, stagger = 0) => { if (e.cells) e.cells.forEach(([x, y], k) => { const p = this.pos(x, y); this.later(k * stagger, () => this.flash(p.x, p.z, col)); }); };
+    switch (e.skill) {
+      case 'bonk': this.fall(t, '#e8c25a', 0.28, 'box'); this.stars(t, '#ffe27a'); break;
+      case 'foxfire': for (let k = 0; k < 3; k++) this.later(k * 0.08, () => this.bolt(a, t, k === 1 ? '#bfe6ff' : '#5ab8ff')); break;
+      case 'snipe': this.beam(a, t, '#fffdf2', 0.05, 0.2); this.target(t, '#ff5a4a'); break;
+      case 'drag': this.beam(a, t, '#4fa3b5', 0.09, 0.35); this.ripple(t.x, t.z, '#7fd3e6', 3); break;
+      case 'guardup': this.dome(a, '#bfe0ff'); break;
+      case 'taunt': this.wave(a.x, a.z, '#f0a45a', 2.2); this.dome(a, '#f6c48d'); break;
+      case 'boulder': this.fall(t, '#9b8f80', 0.42, 'rock'); cells('#b9ad9c', 0.03); break;
+      case 'blink': this.afterimage(a, '#b9a7d9'); break;
+      case 'wave': cells('#4fa3b5', 0.04); this.ripple(t.x, t.z, '#9ad8ea', 4); break;
+      case 'heal': this.pillar(t, '#7ddc8a', 0.5); this.sparkle(t.x, t.z, '#b4f0bd'); break;
+      case 'roar': this.wave(a.x, a.z, '#f29b30', 2.8); this.wave(a.x, a.z, '#ffd08a', 1.8); break;
+      case 'judge': this.pillar(t, '#ffe15a', 0.35, 3.2); this.later(0.12, () => this.wave(t.x, t.z, '#fff1a8', 1.2)); break;
+      case 'ttukttak': for (let k = 0; k < 3; k++) this.later(k * 0.1, () => this.fall(t, '#f2c94c', 0.16, 'box')); break;
+      case 'charm': this.hearts(a, t, '#ff8fb1'); break;
+      case 'reap': this.crescent(t, a, '#3b3b46', 1.7); break;
+      case 'shell': this.dome(a, '#9fd3a8'); this.spikes(a.x, a.z, '#7bb886', 6, 0.55); break;
+      case 'mountain': this.spikes(t.x, t.z, '#c7f0c2', 7, 0.75); cells('#9fd09a', 0.03); break;
+      case 'devour': this.implode(t, '#55585f'); break;
+      case 'beam': this.beam(a, t, '#7fd1d9', 0.16, 0.45); cells('#bdeef2'); break;
+      case 'burst': this.blast(t, '#fff2a8'); break;
+      default: this.ring(a.x, a.z, '#ffffff', 0.9);
+    }
+  }
+
+  /** The extra an evolved skill does, each with its own mark (tests: render/scene.ts handles every Up). */
+  private upFx(e: Extract<Ev, { k: 'up' }>) {
+    const a = this.shown.get(e.a), b = e.b !== undefined ? this.shown.get(e.b) : undefined;
+    if (!a) return;
+    switch (e.up) {
+      case 'thorns': this.spikes(a.x, a.z, '#e0554a', 8, 0.45); break;
+      case 'share': if (b) { this.beam(a, b, '#8ec5ff', 0.05, 0.4); this.dome(b, '#cfe6ff'); } break;
+      case 'twin': if (b) this.beam(a, b, '#c59bff', 0.06, 0.3); break;
+      case 'splash': if (b) this.wave(b.x, b.z, '#ff9a4a', 1.3); break;
+      case 'manaback': this.motesIn(a, '#6ea8ff'); break;
+      case 'drain': if (b) this.stream(b, a, '#e04a5a'); break;
+      case 'haste': this.whirl(a, '#ffe27a'); break;
+      case 'chill': if (b) this.ice(b); break;
+      case 'rally': if (b) this.arrow(b, '#ffcf4a'); break;
+      case 'execute': if (b) this.crescent(b, a, '#c0283a', 1.2); break;
+    }
+  }
+
+  /** Run something a little later (in fight time). */
+  private later(delay: number, fn: () => void) {
+    if (delay <= 0) { fn(); return; }
+    let done = false;
+    this.fx.push({ obj: new THREE.Object3D(), t: -delay, life: 0.001, update: (k) => { if (k >= 0 && !done) { done = true; fn(); } } });
+  }
+
+  private mat(color: string, opacity = 1) { return new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide }); }
+
+  /** A straight line of light from one piece to another that fades. */
+  private beam(a: Shown, b: Shown, color: string, width: number, life: number) {
+    const from = new THREE.Vector3(a.x, 0.6, a.z), to = new THREE.Vector3(b.x, 0.6, b.z);
+    const len = from.distanceTo(to) || 0.01;
+    const g = new THREE.Group();
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(width * 0.45, width * 0.45, len, 8, 1, true), this.mat('#ffffff'));
+    const glow = new THREE.Mesh(new THREE.CylinderGeometry(width, width, len, 10, 1, true), this.mat(color, 0.7));
+    g.add(core, glow);
+    g.position.copy(from).lerp(to, 0.5);
+    g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
+    this.scene.add(g);
+    this.fx.push({ obj: g, t: 0, life, update: (k) => { const s = 1 - k * 0.7; g.scale.set(s, 1, s); (glow.material as THREE.MeshBasicMaterial).opacity = 0.7 * (1 - k); (core.material as THREE.MeshBasicMaterial).opacity = 1 - k; } });
+  }
+
+  /** Something falling from the sky onto a piece: a rock or a block, landing with dust. */
+  private fall(t: Shown, color: string, r: number, kind: 'rock' | 'box') {
+    const m = new THREE.Mesh(kind === 'rock' ? new THREE.DodecahedronGeometry(r, 0) : new THREE.BoxGeometry(r, r, r), new THREE.MeshLambertMaterial({ color }));
+    m.castShadow = true;
+    this.scene.add(m);
+    let landed = false;
+    this.fx.push({ obj: m, t: 0, life: 0.5, update: (k) => {
+      const f = Math.min(1, k / 0.55);
+      m.position.set(t.x, 0.4 + (1 - f * f) * 3.2, t.z);
+      m.rotation.set(k * 6, k * 4, 0);
+      if (f >= 1 && !landed) { landed = true; for (let i = 0; i < 4; i++) this.puff(t.x + (Math.random() - 0.5) * 0.5, t.z + (Math.random() - 0.5) * 0.5, '#d8cfbf', 0.2, 0.16); this.ring(t.x, t.z, color, 0.7); }
+      if (k > 0.8) m.scale.setScalar(Math.max(0.01, (1 - k) / 0.2));
+    } });
+  }
+
+  /** Little stars circling a head: dazed. */
+  private stars(t: Shown, color: string) {
+    for (let i = 0; i < 3; i++) {
+      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.07, 0), this.mat(color));
+      this.scene.add(m);
+      this.fx.push({ obj: m, t: 0, life: 0.9, update: (k) => { const ang = k * 9 + (i * Math.PI * 2) / 3; m.position.set(t.x + Math.cos(ang) * 0.28, 1.15, t.z + Math.sin(ang) * 0.28); (m.material as THREE.MeshBasicMaterial).opacity = k < 0.8 ? 1 : (1 - k) * 5; } });
+    }
+  }
+
+  /** A crosshair on the ground under a target. */
+  private target(t: Shown, color: string) {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.RingGeometry(0.32, 0.38, 28), this.mat(color)));
+    for (let i = 0; i < 4; i++) { const bar = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.22), this.mat(color)); const ang = (i * Math.PI) / 2; bar.position.set(Math.cos(ang) * 0.46, Math.sin(ang) * 0.46, 0); bar.rotation.z = ang + Math.PI / 2; g.add(bar); }
+    g.rotation.x = -Math.PI / 2; g.position.set(t.x, 0.08, t.z);
+    this.scene.add(g);
+    this.fx.push({ obj: g, t: 0, life: 0.6, update: (k) => { g.scale.setScalar(1.6 - Math.min(1, k * 3) * 0.6); g.rotation.z = k * 2; g.children.forEach((c) => (((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 1 - k)); } });
+  }
+
+  /** Rings of water spreading one after another. */
+  private ripple(x: number, z: number, color: string, n: number) { for (let i = 0; i < n; i++) this.later(i * 0.1, () => this.ring(x, z, color, 0.6 + i * 0.2)); }
+
+  /** A bubble over a piece: a shield. */
+  private dome(s: Shown, color: string) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.55, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2), this.mat(color, 0.4));
+    m.position.set(s.x, 0.05, s.z);
+    this.scene.add(m);
+    this.fx.push({ obj: m, t: 0, life: 0.8, update: (k) => { m.position.set(s.x, 0.05, s.z); m.scale.setScalar(0.4 + Math.min(1, k * 4) * 0.8); (m.material as THREE.MeshBasicMaterial).opacity = 0.45 * (k < 0.6 ? 1 : (1 - k) / 0.4); } });
+  }
+
+  /** A flat disc rolling out across the ground: a shout, a slam. */
+  private wave(x: number, z: number, color: string, radius: number) {
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.32, 36), this.mat(color, 0.8));
+    m.rotation.x = -Math.PI / 2; m.position.set(x, 0.09, z);
+    this.scene.add(m);
+    this.fx.push({ obj: m, t: 0, life: 0.45, update: (k) => { m.scale.setScalar(0.5 + k * radius * 3); (m.material as THREE.MeshBasicMaterial).opacity = 0.8 * (1 - k); } });
+  }
+
+  /** A column of light standing on a piece (from the sky when tall). */
+  private pillar(t: Shown, color: string, r: number, h = 1.8) {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 16, 1, true), this.mat(color, 0.5));
+    m.position.set(t.x, h / 2, t.z);
+    this.scene.add(m);
+    this.fx.push({ obj: m, t: 0, life: 0.6, update: (k) => { m.scale.set(1 - k * 0.6, Math.min(1, k * 5), 1 - k * 0.6); m.position.y = (h / 2) * Math.min(1, k * 5); (m.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - k); } });
+  }
+
+  /** Where a piece was, a fading copy of its puff of smoke. */
+  private afterimage(s: Shown, color: string) { this.puff(s.x, s.z, color, 0.5, 0.35); this.later(0.1, () => this.puff(s.x, s.z, color, 0.5, 0.25)); }
+
+  /** Hearts floating from one piece to another. */
+  private hearts(a: Shown, b: Shown, color: string) {
+    for (let i = 0; i < 3; i++) {
+      const sh = new THREE.Shape();
+      sh.moveTo(0, -0.1); sh.bezierCurveTo(-0.18, 0.02, -0.08, 0.16, 0, 0.06); sh.bezierCurveTo(0.08, 0.16, 0.18, 0.02, 0, -0.1);
+      const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), this.mat(color));
+      this.scene.add(m);
+      this.fx.push({ obj: m, t: -i * 0.08, life: 0.5, update: (k) => { const q = Math.max(0, k); m.position.set(a.x + (b.x - a.x) * q, 0.7 + Math.sin(q * Math.PI) * 0.5 + i * 0.08, a.z + (b.z - a.z) * q); m.lookAt(this.camera.position); m.scale.setScalar(1 + Math.sin(q * 20) * 0.15); (m.material as THREE.MeshBasicMaterial).opacity = q <= 0 ? 0 : 1 - Math.max(0, q - 0.8) * 5; } });
+    }
+  }
+
+  /** A big curved blade sweeping across a piece. */
+  private crescent(b: Shown, a: Shown, color: string, size: number) {
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.35 * size, 0.55 * size, 28, 1, 0, Math.PI), this.mat(color, 0.9));
+    m.position.set(b.x, 0.6, b.z);
+    m.lookAt(a.x, 0.6, a.z);
+    this.scene.add(m);
+    this.fx.push({ obj: m, t: 0, life: 0.4, update: (k) => { m.rotation.z = -1.2 + k * 2.6; m.scale.setScalar(0.8 + k * 0.4); (m.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - k); } });
+  }
+
+  /** Spikes thrust up out of the ground round a point. */
+  private spikes(x: number, z: number, color: string, n: number, r: number) {
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2 + Math.random() * 0.4, d = r * (0.6 + Math.random() * 0.5);
+      const m = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.45, 5), new THREE.MeshLambertMaterial({ color, transparent: true }));
+      m.position.set(x + Math.cos(ang) * d, 0, z + Math.sin(ang) * d);
+      m.rotation.set(Math.sin(ang) * 0.35, 0, -Math.cos(ang) * 0.35);
+      this.scene.add(m);
+      this.fx.push({ obj: m, t: -i * 0.02, life: 0.55, update: (k) => { const q = Math.max(0, k); m.position.y = Math.min(1, q * 5) * 0.22 - (q > 0.7 ? (q - 0.7) * 1.2 : 0); (m.material as THREE.MeshLambertMaterial).opacity = q > 0.7 ? 1 - (q - 0.7) / 0.3 : 1; } });
+    }
+  }
+
+  /** Dark motes pulled into a point: swallowed up. */
+  private implode(t: Shown, color: string) {
+    for (let i = 0; i < 10; i++) {
+      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.06, 0), this.mat(color));
+      const ang = (i / 10) * Math.PI * 2, y = 0.3 + Math.random() * 0.6;
+      this.scene.add(m);
+      this.fx.push({ obj: m, t: 0, life: 0.5, update: (k) => { const d = 0.9 * (1 - k); m.position.set(t.x + Math.cos(ang + k * 3) * d, y * (1 - k) + 0.5 * k, t.z + Math.sin(ang + k * 3) * d); } });
+    }
+    this.later(0.45, () => this.puff(t.x, t.z, '#2b2d33', 0.55, 0.3));
+  }
+
+  /** A burst of light: a ball that swells and scatters sparks. */
+  private blast(t: Shown, color: string) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12), this.mat(color, 0.8));
+    m.position.set(t.x, 0.55, t.z);
+    this.scene.add(m);
+    this.fx.push({ obj: m, t: 0, life: 0.4, update: (k) => { m.scale.setScalar(0.5 + k * 2.4); (m.material as THREE.MeshBasicMaterial).opacity = 0.8 * (1 - k); } });
+    this.burst(t.x, t.z, '#ffffff'); this.burst(t.x, t.z, color);
+  }
+
+  /** Blue motes spiralling into a piece: mana coming back. */
+  private motesIn(s: Shown, color: string) {
+    for (let i = 0; i < 6; i++) {
+      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.05, 0), this.mat(color));
+      const ang = (i / 6) * Math.PI * 2;
+      this.scene.add(m);
+      this.fx.push({ obj: m, t: -i * 0.04, life: 0.5, update: (k) => { const q = Math.max(0, k), d = 0.7 * (1 - q); m.position.set(s.x + Math.cos(ang + q * 4) * d, 0.3 + q * 0.8, s.z + Math.sin(ang + q * 4) * d); (m.material as THREE.MeshBasicMaterial).opacity = q <= 0 ? 0 : 1; } });
+    }
+  }
+
+  /** Red drops flowing from one piece to another: life drunk. */
+  private stream(from: Shown, to: Shown, color: string) {
+    for (let i = 0; i < 5; i++) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), this.mat(color));
+      this.scene.add(m);
+      this.fx.push({ obj: m, t: -i * 0.05, life: 0.4, update: (k) => { const q = Math.max(0, k); m.position.set(from.x + (to.x - from.x) * q, 0.6 + Math.sin(q * Math.PI) * 0.35, from.z + (to.z - from.z) * q); (m.material as THREE.MeshBasicMaterial).opacity = q <= 0 ? 0 : 1; } });
+    }
+  }
+
+  /** Streaks whirling round a piece: hurrying. */
+  private whirl(s: Shown, color: string) {
+    for (let i = 0; i < 3; i++) {
+      const m = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.47, 20, 1, 0, Math.PI * 0.5), this.mat(color, 0.9));
+      m.rotation.x = -Math.PI / 2;
+      this.scene.add(m);
+      this.fx.push({ obj: m, t: 0, life: 0.6, update: (k) => { m.position.set(s.x, 0.2 + i * 0.3 + k * 0.2, s.z); m.rotation.z = k * 10 + i * 2; (m.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - k); } });
+    }
+  }
+
+  /** Ice crystals closing round a piece: frozen. */
+  private ice(s: Shown) {
+    for (let i = 0; i < 5; i++) {
+      const ang = (i / 5) * Math.PI * 2;
+      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.12, 0), this.mat(i % 2 ? '#e8f8ff' : '#9fdcff', 0.85));
+      m.scale.set(0.6, 1.6, 0.6);
+      this.scene.add(m);
+      this.fx.push({ obj: m, t: 0, life: 0.8, update: (k) => { const d = 0.5 - Math.min(1, k * 4) * 0.22; m.position.set(s.x + Math.cos(ang) * d, 0.25 + (i % 2) * 0.25, s.z + Math.sin(ang) * d); (m.material as THREE.MeshBasicMaterial).opacity = k < 0.75 ? 0.85 : (1 - k) * 3.4; } });
+    }
+  }
+
+  /** A golden arrow rising over a piece: stronger. */
+  private arrow(s: Shown, color: string) {
+    const g = new THREE.Group();
+    const head = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.16, 4), this.mat(color));
+    const stem = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.05), this.mat(color));
+    head.position.y = 0.16; g.add(head, stem);
+    this.scene.add(g);
+    this.fx.push({ obj: g, t: 0, life: 0.7, update: (k) => { g.position.set(s.x + 0.25, 0.7 + k * 0.6, s.z); g.children.forEach((c) => (((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 1 - k)); } });
   }
 
   /* ----------------------------------------------------------- effects */
@@ -624,13 +853,6 @@ export class Table {
     }
   }
 
-  private shot(a: Shown, b: Shown, color: string, r: number) {
-    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), new THREE.MeshBasicMaterial({ color }));
-    this.scene.add(m);
-    const from = new THREE.Vector3(a.x, 0.6, a.z);
-    this.fx.push({ obj: m, t: 0, life: 0.25, update: (k) => { m.position.lerpVectors(from, new THREE.Vector3(b.x, 0.6, b.z), k); m.position.y += Math.sin(k * Math.PI) * 0.4; } });
-  }
-
   private ring(x: number, z: number, color: string, size: number) {
     const m = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.38, 24), new THREE.MeshBasicMaterial({ color, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
     m.rotation.x = -Math.PI / 2; m.position.set(x, 0.1, z);
@@ -663,23 +885,7 @@ export class Table {
     }
   }
 
-  private number(key: number, text: string, cls: string) {
-    const s = this.shown.get(key);
-    if (!s) return;
-    const el = document.createElement('div');
-    el.className = `pop ${cls}`;
-    el.textContent = text;
-    this.labels.appendChild(el);
-    const v = new THREE.Vector3();
-    const dx = (Math.random() - 0.5) * 0.3;
-    this.fx.push({ obj: new THREE.Object3D(), t: 0, life: 0.8, update: (k) => {
-      v.set(s.x + dx, 1.1 + k * 0.6, s.z).project(this.camera);
-      const r = this.canvas.getBoundingClientRect();
-      el.style.transform = `translate(${((v.x + 1) / 2) * r.width}px, ${((1 - v.y) / 2) * r.height}px) translate(-50%, -50%)`;
-      el.style.opacity = `${k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3}`;
-      if (k >= 1) el.remove();
-    } });
-  }
+
 
   /* ------------------------------------------------------------ frame */
 
@@ -743,13 +949,11 @@ export class Table {
         s.obj.stun.visible = f.alive && f.stunT > 0;
         s.obj.stun.rotation.y = t * 4;
         s.obj.stun.scale.setScalar(1.4);
-        // Status badges over the bars: only rewritten when they change.
-        const top = f.alive ? f.stk.filter((x) => x.n > 0 && x.st.on !== 'low').sort((a, b) => b.n - a.n)[0] : undefined;
-        const st = !f.alive ? '' : [f.stunT > 0 ? 'stun' : '', f.silenceT > 0 ? 'silence' : '', f.shield > 1 ? 'shield' : '', f.tauntBy >= 0 ? 'taunt' : '', f.asBuffT > 0 ? 'fast' : '', top ? `stk:${TRAITS[top.t].name}:${top.n}` : ''].filter(Boolean).join(' ');
+        // Status over the bars as small coloured dots, no words (stunned, silenced, taunted, hurried).
+        const st = !f.alive ? '' : [f.stunT > 0 ? 'stun' : '', f.silenceT > 0 ? 'silence' : '', f.tauntBy >= 0 ? 'taunt' : '', f.asBuffT > 0 ? 'fast' : ''].filter(Boolean).join(' ');
         if (st !== s.stKey) {
           s.stKey = st;
-          const NAME: Record<string, string> = { stun: '기절', silence: '침묵', shield: '보호막', taunt: '도발됨', fast: '빨라짐' };
-          s.st.innerHTML = st ? st.split(' ').map((k) => k.startsWith('stk:') ? `<b class="stk">${k.split(':')[1]} ×${k.split(':')[2]}</b>` : `<b class="${k}">${NAME[k]}</b>`).join('') : '';
+          s.st.innerHTML = st ? st.split(' ').map((k) => `<b class="${k}"></b>`).join('') : '';
         }
         // The shield sits right after the health left (squeezing the bar when the two pass the maximum).
         const total = Math.max(f.maxHp, Math.max(0, f.hp) + f.shield);

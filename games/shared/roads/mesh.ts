@@ -10,7 +10,10 @@ import { buildGeometry, type Geometry, type Network } from './network';
  * streets, stop lines and zebra crossings where roads meet.
  */
 
-export interface RoadColours { asphalt: string; avenue: string; pavement: string; yellow: string; white: string }
+/** Direction of a one-way tag code: 1 east (+x), 2 south (+z), 3 west, 4 north. */
+const ONEWAY_DIR: Record<number, [number, number]> = { 1: [1, 0], 2: [0, 1], 3: [-1, 0], 4: [0, -1] };
+
+export interface RoadColours { asphalt: string; avenue: string; highway?: string; pavement: string; yellow: string; white: string }
 export const COLOURS: RoadColours = { asphalt: '#8d8a84', avenue: '#6c6d71', pavement: '#d9d1c1', yellow: '#e9bf3a', white: '#f3f1ea' };
 
 type H = (x: number, z: number) => number;
@@ -68,7 +71,7 @@ export function buildRoadMeshes(net: Network, opts: RoadMeshOptions = {}, geo: G
   const C = { ...COLOURS, ...opts.colours };
   const col = (s: string) => new THREE.Color(s);
   const asphalt = new Builder(h), pave = new Builder(h), paint = new Builder(h);
-  const A = { street: col(C.asphalt), avenue: col(C.avenue) }, P = col(C.pavement), Y = col(C.yellow), W = col(C.white);
+  const A = { street: col(C.asphalt), avenue: col(C.avenue), highway: col(C.highway ?? C.avenue) }, P = col(C.pavement), Y = col(C.yellow), W = col(C.white);
   // Heights above the ground: asphalt sits a little proud of it (no z-fighting), kerbs higher, paint on the asphalt.
   const ASPH = opts.heights?.asphalt ?? 0.06, KERB_H = opts.heights?.kerb ?? 0.2, PAINT = opts.heights?.paint ?? ASPH + 0.03;
   const ZD = opts.zebra ?? 4;
@@ -107,7 +110,7 @@ export function buildRoadMeshes(net: Network, opts: RoadMeshOptions = {}, geo: G
     if (contour.length < 3) continue;
     const tris = THREE.ShapeUtils.triangulateShape(contour, []);
     // Junctions take the darker avenue colour if any avenue meets there.
-    const k = net.at(j.node).some((e) => e.kind === 'avenue') ? A.avenue : A.street;
+    const k = net.at(j.node).some((e) => e.kind === 'highway') ? A.highway : net.at(j.node).some((e) => e.kind === 'avenue') ? A.avenue : A.street;
     for (const [a, b, c] of tris) asphalt.tri(j.ring[a], j.ring[b], j.ring[c], ASPH, k);
     // Pavement round each corner: the kerb curve widened outward (away from the junction centre).
     const node = net.nodes.get(j.node)!.p;
@@ -160,7 +163,41 @@ export function buildRoadMeshes(net: Network, opts: RoadMeshOptions = {}, geo: G
         if (r.kind === 'avenue') for (let a = t0 + 2; a < t1 - 1; a += 8) line(-0.075, 0.075, W, a, Math.min(a + 3, t1));
         continue;
       }
-      if (r.kind === 'avenue') {
+      // One-way (tag "ow:<1 east, 2 south, 3 west, 4 north>"): white lane dashes down the middle instead of
+      // the yellow centre line, an arrow every so often, and one stop line across the whole width where it comes in.
+      const ow = e.tag?.startsWith('ow:') ? ONEWAY_DIR[Number(e.tag.slice(3))] : undefined;
+      if (ow) {
+        const mid = pathAt(e.path, (t0 + t1) / 2);
+        const fwd = mid.d.x * ow[0] + mid.d.z * ow[1] >= 0 ? 1 : -1;
+        for (let a = t0 + 2; a < t1 - 1; a += 8) line(-0.075, 0.075, W, a, Math.min(a + 3, t1));
+        if (r.kind === 'avenue') for (const sg of [1, -1]) for (let a = t0 + 2; a < t1 - 1; a += 8) line(sg * T.half * 0.5 - 0.075, sg * T.half * 0.5 + 0.075, W, a, Math.min(a + 3, t1));
+        const lanesAt = r.kind === 'avenue' ? [-T.half * 0.75, -T.half * 0.25, T.half * 0.25, T.half * 0.75] : [-T.half * 0.5, T.half * 0.5];
+        for (let a = t0 + 6; a < t1 - 4; a += 22) {
+          const q = pathAt(e.path, a);
+          for (const o of lanesAt) {
+            const along = (k: number) => mul(q.d, k * fwd);
+            const c = offsetPoint(q, o);
+            const tail = add(c, along(-1.6)), neck = add(c, along(0.6)), tip = add(c, along(1.8));
+            const side = (p: V, k: number) => offsetPoint({ p, d: q.d } as typeof q, k);
+            paint.quad(side(tail, -0.12), side(tail, 0.12), side(neck, 0.12), side(neck, -0.12), PAINT, W);
+            paint.quad(side(neck, -0.5), side(neck, 0.5), tip, tip, PAINT, W);
+          }
+        }
+        for (const [atA, j] of [[true, ja], [false, jb]] as [boolean, boolean][]) {
+          if (!j) continue;
+          const tEdge = atA ? r.t0 : r.t1, dir = atA ? 1 : -1;
+          const zs = tEdge + dir * 0.5, ze = tEdge + dir * (ZD + 0.5);
+          for (let o = -T.half + 0.4; o < T.half - 0.4; o += 0.9) line(o, o + 0.45, W, Math.min(zs, ze), Math.max(zs, ze));
+          // Traffic arrives at end A when it runs against the path, at end B when with it.
+          if ((atA && fwd < 0) || (!atA && fwd > 0)) {
+            const q = pathAt(e.path, tEdge + dir * (ZD + 1.5));
+            const a0 = offsetPoint(q, -T.half + 0.2), a1 = offsetPoint(q, T.half - 0.2), along = mul(q.d, 0.4);
+            paint.quad(a0, a1, add(a1, along), add(a0, along), PAINT, W);
+          }
+        }
+        continue;
+      }
+      if (r.kind === 'avenue' || r.kind === 'highway') {
         line(0.15, 0.3, Y); line(-0.3, -0.15, Y);
         const lw = T.half / Math.max(1, T.lanes);
         // 중앙버스전용차로: the inner lane each way red, with blue edge lines, where buses run.
@@ -180,9 +217,9 @@ export function buildRoadMeshes(net: Network, opts: RoadMeshOptions = {}, geo: G
         // White dashes between the lanes: 3 m painted every 8 m (the bus lane's edge is solid blue instead).
         for (let k = bus ? 2 : 1; k < T.lanes; k++) for (let a = t0 + 2; a < t1 - 1; a += 8) for (const sg of [1, -1]) line(sg * k * lw - 0.075, sg * k * lw + 0.075, W, a, Math.min(a + 3, t1));
       } else line(-0.075, 0.075, Y);
-      // Stop line and zebra on each end meeting a junction.
+      // Stop line and zebra on each end meeting a junction (none on an expressway: no one walks there).
       for (const [atA, j] of [[true, ja], [false, jb]] as [boolean, boolean][]) {
-        if (!j) continue;
+        if (!j || r.kind === 'highway') continue;
         const tEdge = atA ? r.t0 : r.t1, dir = atA ? 1 : -1;
         // Zebra: 45 cm bars, 45 cm apart, 4 m deep, right at the junction mouth.
         const zs = tEdge + dir * 0.5, ze = tEdge + dir * (ZD + 0.5);

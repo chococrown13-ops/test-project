@@ -20,6 +20,8 @@ export const TYPES = {
   street: { half: 3.5, kerb: 2, lanes: 1 },
   /** 4-lane avenue: 16 m of asphalt (two 4 m lanes each way), 2.5 m pavements. */
   avenue: { half: 8, kerb: 2.5, lanes: 2 },
+  /** Expressway: wide, two lanes each way, a narrow hard shoulder instead of a pavement. */
+  highway: { half: 9, kerb: 1, lanes: 2 },
 } as const satisfies Record<string, RoadType>;
 export type Kind = keyof typeof TYPES;
 

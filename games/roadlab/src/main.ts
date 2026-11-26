@@ -78,7 +78,7 @@ function snap(p: V): { p: V; node?: number } {
 }
 
 /** Minimum arc radius a road type can take. */
-const MIN_R: Record<Kind, number> = { street: 8, avenue: 20 };
+const MIN_R: Record<Kind, number> = { street: 8, avenue: 20, highway: 40 };
 
 function candidate(): { path: Path; why: string | null } | null {
   if (!hover || !picks.length) return null;

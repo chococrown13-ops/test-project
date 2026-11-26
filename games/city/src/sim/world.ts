@@ -27,6 +27,8 @@ export interface Building {
   outage: number;
   abandoned: boolean;
   builtDay: number;
+  /** Days on fire (0 or missing: not burning). */
+  burn?: number;
 }
 
 /** 지방채: a loan paid back in equal monthly instalments. */
@@ -35,8 +37,8 @@ export interface Loan { left: number; pay: number; months: number; amount: numbe
 export interface MonthReport {
   month: number;
   /** V: visitors' spending (관광). */
-  income: { R: number; C: number; I: number; T: number; V?: number; G?: number; S?: number };
-  expense: { roads: number; facilities: number; services: number; transit: number; debt?: number };
+  income: { R: number; C: number; I: number; T: number; V?: number; G?: number; S?: number; H?: number };
+  expense: { roads: number; facilities: number; services: number; transit: number; debt?: number; snow?: number };
   pop: number;
   jobs: number;
 }
@@ -66,6 +68,20 @@ export interface World {
   altLevel: Uint8Array;
   /** Diagonal links of the ground road: 1 NE, 2 SE, 4 SW, 8 NW. */
   diag: Uint8Array;
+  /** 일방통행: the one way traffic may go along a grid road cell (0 both ways; 1 east, 2 south, 3 west, 4 north). */
+  oneway: Uint8Array;
+  /** 고속도로 cells: 1 a 나들목 (joins the ordinary road beside it), 2 a 톨게이트. */
+  hwy: Uint8Array;
+  /** Cars through a 톨게이트 this month. */
+  tollPass: number;
+  /** Snow lying on each road cell, 0-100 (see hazards.ts). */
+  snow: Uint8Array;
+  /** The 한파 forecast or under way: snow falls from day `start` until `end`. */
+  cold?: { start: number; end: number } | null;
+  /** The day the last 한파 began. */
+  coldLast?: number;
+  /** Setting: no fires or cold snaps. */
+  noHazards?: boolean;
   /** Curved roads drawn over their chains of road cells (see curves.ts). */
   curves: Curve[];
   /** 회전교차로 (see roundabout.ts). */
@@ -186,6 +202,10 @@ export function createWorld(seed = 20261028, name = '새솔시', map: MapKind = 
     roadAlt: new Uint8Array(size),
     altLevel: new Uint8Array(size),
     diag: new Uint8Array(size),
+    oneway: new Uint8Array(size),
+    hwy: new Uint8Array(size),
+    tollPass: 0,
+    snow: new Uint8Array(size),
     curves: [],
     roundabouts: [],
     parked: new Uint8Array(size),

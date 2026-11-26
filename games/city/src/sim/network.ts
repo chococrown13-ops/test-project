@@ -1,4 +1,4 @@
-import { Ground, KINDS, N, SEWAGE_CAPACITY, ZONE_DEPTH } from './defs';
+import { Ground, KINDS, N, Road, SEWAGE_CAPACITY, ZONE_DEPTH } from './defs';
 import { forEachNeighbour, NN, nodeExists } from './graph';
 import { idx, inside, type Building, type World, bw, bh, lotsOf } from './world';
 
@@ -57,6 +57,8 @@ export function findAccess(w: World, b: { x: number; y: number; size: number; sx
       const x = x0 + dx * d, y = y0 + dy * d;
       if (!inside(x, y)) return;
       const i = idx(x, y);
+      // A 고속도로 has no frontage: nothing opens onto it.
+      if (w.road[i] === Road.Highway) return;
       if (w.road[i]) { if (d < bestD) { bestD = d; best = i; } return; }
       if (w.ground[i] !== Ground.Land) return;
     }

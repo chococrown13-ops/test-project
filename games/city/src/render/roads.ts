@@ -96,13 +96,22 @@ class Builder {
   }
 }
 
-const ASPHALT = { [Road.Street]: 0x5a5d61, [Road.Avenue]: 0x4b4e53 } as const;
+const ASPHALT = { [Road.Street]: 0x5a5d61, [Road.Avenue]: 0x4b4e53, [Road.Highway]: 0x45484d } as const;
 const WALK = 0xbdb7ab;
 const WHITE = 0xeeeeea;
 const YELLOW = 0xf2c53d;
 const CONCRETE = 0xb4b1a9;
 const PIER = 0x9d9a92;
 const MOUTH = 0x15171b;
+
+/** Snow on the road: patchy white where it lies thin, solid where deep, with darker wheel tracks. */
+const SNOW_GLSL = `float rs = texture2D(uRoadSnow, vGP).r;
+if (rs > 0.01) {
+  vec2 sp = vGP * 2560.0;
+  float n = fract(sin(dot(floor(sp * 0.7), vec2(12.9898, 78.233))) * 43758.5453);
+  float cover = smoothstep(0.0, 0.7, rs * (0.75 + 0.5 * n));
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.92, 0.95), cover * 0.92);
+}`;
 
 export class RoadLayer {
   readonly group = new THREE.Group();
@@ -127,14 +136,26 @@ export class RoadLayer {
     this.material.onBeforeCompile = (sh) => {
       sh.uniforms.uOvTex = uTex;
       sh.uniforms.uOv = this.uOv;
+      sh.uniforms.uRoadSnow = shared.uRoadSnow;
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec2 vGP;')
         .replace('#include <project_vertex>', `#include <project_vertex>\nvGP = (modelMatrix * vec4(transformed, 1.0)).xz / ${SIZE.toFixed(1)};`);
       sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying vec2 vGP;\nuniform sampler2D uOvTex;\nuniform float uOv;')
-        .replace('#include <color_fragment>', '#include <color_fragment>\nif (uOv > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uOvTex, vGP).rgb, 0.8);');
+        .replace('#include <common>', '#include <common>\nvarying vec2 vGP;\nuniform sampler2D uOvTex;\nuniform sampler2D uRoadSnow;\nuniform float uOv;')
+        .replace('#include <color_fragment>', '#include <color_fragment>\nif (uOv > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uOvTex, vGP).rgb, 0.8);\n' + SNOW_GLSL);
     };
     this.material.customProgramCacheKey = () => 'city-road';
+    // Lane paint disappears under the snow too.
+    this.paintMat.onBeforeCompile = (sh) => {
+      sh.uniforms.uRoadSnow = shared.uRoadSnow;
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec2 vGP;')
+        .replace('#include <project_vertex>', `#include <project_vertex>\nvGP = (modelMatrix * vec4(transformed, 1.0)).xz / ${SIZE.toFixed(1)};`);
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec2 vGP;\nuniform sampler2D uRoadSnow;')
+        .replace('#include <color_fragment>', '#include <color_fragment>\n' + SNOW_GLSL);
+    };
+    this.paintMat.customProgramCacheKey = () => 'city-road-paint';
 
     const pole = new THREE.CylinderGeometry(0.09, 0.12, 6.5, 5).translate(0, 3.25, 0);
     this.poles = new THREE.InstancedMesh(pole, new THREE.MeshStandardMaterial({ color: '#8c9196', roughness: 0.6 }), N * N);
@@ -203,7 +224,7 @@ export class RoadLayer {
       zebra: 2.2,
       // Roads leaving the map's west edge run on, no cap there.
       capAt: (p) => p.x > 0 && !rampFeet.has(cellAt(p.x, p.z)),
-      colours: { asphalt: hex(ASPHALT[Road.Street]), avenue: hex(ASPHALT[Road.Avenue]), pavement: hex(WALK), yellow: hex(YELLOW), white: hex(WHITE) },
+      colours: { asphalt: hex(ASPHALT[Road.Street]), avenue: hex(ASPHALT[Road.Avenue]), highway: hex(ASPHALT[Road.Highway]), pavement: hex(WALK), yellow: hex(YELLOW), white: hex(WHITE) },
       busAt: (x, z) => { const i = cellAt(x, z); return i >= 0 && bus.cells.has(i) && !water(x, z); },
       materials: { asphalt: this.material, pavement: this.material, paint: this.paintMat },
       plain: (e) => e.tag === RING,
@@ -234,7 +255,7 @@ export class RoadLayer {
       heights: { asphalt: 0.12, kerb: 0.32, paint: 0.14 },
       zebra: 2.2,
       capAt: () => false,
-      colours: { asphalt: hex(ASPHALT[Road.Street]), avenue: hex(ASPHALT[Road.Avenue]), pavement: hex(CONCRETE), yellow: hex(YELLOW), white: hex(WHITE) },
+      colours: { asphalt: hex(ASPHALT[Road.Street]), avenue: hex(ASPHALT[Road.Avenue]), highway: hex(ASPHALT[Road.Highway]), pavement: hex(CONCRETE), yellow: hex(YELLOW), white: hex(WHITE) },
       materials: { asphalt: this.material, pavement: this.material, paint: this.paintMat },
     }, flyGeo);
     decks(b, w, fly.net, flyGeo, fly.heightAt);

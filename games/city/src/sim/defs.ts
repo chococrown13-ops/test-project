@@ -9,7 +9,7 @@ export const CELL = 10;
 // Plain objects rather than enums so every file compiles on its own (Vite/esbuild).
 export const Zone = { None: 0, R: 1, C: 2, I: 3 } as const;
 export type Zone = (typeof Zone)[keyof typeof Zone];
-export const Road = { None: 0, Street: 1, Avenue: 2 } as const;
+export const Road = { None: 0, Street: 1, Avenue: 2, Highway: 3 } as const;
 export type Road = (typeof Road)[keyof typeof Road];
 export const Ground = { Land: 0, Water: 1, Mountain: 2 } as const;
 export type Ground = (typeof Ground)[keyof typeof Ground];
@@ -27,7 +27,7 @@ export type BuildingKind =
   | 'r1' | 'r2' | 'r3'
   | 'c1' | 'c2' | 'c3'
   | 'i1' | 'i2' | 'i3'
-  | 'coal' | 'solar' | 'water' | 'well' | 'sewage' | 'park' | 'school' | 'police' | 'fire' | 'clinic' | 'metro'
+  | 'coal' | 'solar' | 'water' | 'well' | 'sewage' | 'park' | 'school' | 'police' | 'fire' | 'clinic' | 'snowbase' | 'metro'
   | 'market' | 'riverpark' | 'palace' | 'tower'
   | 'parking' | 'parktower'
   | 'office' | 'post' | 'library' | 'terminal' | 'ktx' | 'bike' | 'trailhead' | 'jjim'
@@ -67,6 +67,7 @@ export const KINDS: Record<BuildingKind, KindDef> = {
   school: { name: '초등학교', size: 2, power: 8, water: 6, cost: 4500, upkeep: 220, floors: [3, 4], desc: '반경 내 교육 · 땅값 상승' },
   police: { name: '경찰서', size: 1, power: 4, water: 2, cost: 2500, upkeep: 150, floors: [3, 3], desc: '반경 내 치안' },
   fire: { name: '소방서', size: 1, power: 4, water: 3, cost: 2500, upkeep: 150, floors: [2, 2], desc: '반경 내 화재 안전' },
+  snowbase: { name: '제설기지', size: 1, power: 3, water: 1, cost: 2000, upkeep: 80, floors: [1, 1], desc: '한파 때 반경 18칸 도로의 눈을 치워요 · 염화칼슘 비용은 쓴 만큼' },
   clinic: { name: '보건소', size: 1, power: 5, water: 4, cost: 3000, upkeep: 170, floors: [3, 3], desc: '반경 내 건강' },
   // Built and paid for through its subway line (transit.ts).
   metro: { name: '지하철역', size: 1, power: 6, water: 2, floors: [1, 1], desc: '역 주변 땅값 상승 (역세권)' },
@@ -121,12 +122,14 @@ export const UNIQUE: BuildingKind[] = ['palace', 'tower', 'ktx'];
 
 export const SEWAGE_CAPACITY = 600;
 
-export const ROAD_COST = { [Road.Street]: 40, [Road.Avenue]: 110 } as const;
-export const ROAD_UPKEEP = { [Road.Street]: 0.4, [Road.Avenue]: 1 } as const;
+export const ROAD_COST = { [Road.Street]: 40, [Road.Avenue]: 110, [Road.Highway]: 260 } as const;
+export const ROAD_UPKEEP = { [Road.Street]: 0.4, [Road.Avenue]: 1, [Road.Highway]: 2 } as const;
 export const BRIDGE_MULT = 4;
 /** Vehicles a road cell carries comfortably. */
-export const ROAD_CAPACITY = { [Road.Street]: 3, [Road.Avenue]: 7 } as const;
-export const ROAD_SPEED = { [Road.Street]: 9, [Road.Avenue]: 15 } as const; // m/s
+export const ROAD_CAPACITY = { [Road.Street]: 3, [Road.Avenue]: 7, [Road.Highway]: 14 } as const;
+export const ROAD_SPEED = { [Road.Street]: 9, [Road.Avenue]: 15, [Road.Highway]: 27 } as const; // m/s
+/** 고속도로: 나들목 and 톨게이트, and what a car pays at a 톨게이트 (만 원, a counted car stands for many). */
+export const IC_COST = 900, TOLL_COST = 1500, TOLL_FEE = 1.5;
 
 /** Cells from a road within which zoning is allowed. */
 export const ZONE_DEPTH = 3;

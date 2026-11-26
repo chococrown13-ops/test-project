@@ -1,11 +1,11 @@
-import { KINDS, Level, LEVEL_COST, Road, ROAD_COST, Zone, type BuildingKind } from '../sim/defs';
+import { IC_COST, KINDS, Level, LEVEL_COST, Road, ROAD_COST, TOLL_COST, Zone, type BuildingKind } from '../sim/defs';
 import { BUS_TYPES, type BusType, TRANSIT_COST } from '../sim/transit';
 import { ROUNDABOUT_COST } from '../sim/roundabout';
-import { TREE_COST } from '../sim/tools';
+import { ONEWAY_COST, TREE_COST } from '../sim/tools';
 
 export type ToolId =
   | 'select' | 'street' | 'avenue' | 'elevated' | 'underpass' | 'tunnel' | 'zoneR' | 'zoneC' | 'zoneI' | 'dezone' | 'bulldoze' | 'bus' | 'metro'
-  | 'busVillage' | 'busTrunk' | 'busExpress' | 'roundabout' | 'trees'
+  | 'busVillage' | 'busTrunk' | 'busExpress' | 'roundabout' | 'trees' | 'widen' | 'oneway' | 'highway' | 'ic' | 'toll'
   | `build:${BuildingKind}`;
 
 export interface ToolDef {
@@ -26,6 +26,12 @@ export interface ToolDef {
   roundabout?: boolean;
   /** Plants (or takes out) 가로수 along roads. */
   trees?: boolean;
+  /** Widens streets under a drag into avenues. */
+  widen?: boolean;
+  /** Makes a road one-way in the direction dragged (or two-way again). */
+  oneway?: boolean;
+  /** A 나들목 or a 톨게이트 on a 고속도로 cell. */
+  hwyPart?: 'ic' | 'toll';
 }
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}만`;
@@ -38,7 +44,12 @@ export const CATEGORIES: Category[] = [
   { id: 'road', name: '도로', key: 'Z', tools: [
     { id: 'street', name: '일반 도로', price: `칸당 ${won(ROAD_COST[Road.Street])}`, road: Road.Street },
     { id: 'avenue', name: '4차선 대로', price: `칸당 ${won(ROAD_COST[Road.Avenue])}`, road: Road.Avenue },
+    { id: 'widen', name: '대로로 넓히기', price: `칸당 ${won(ROAD_COST[Road.Avenue] - ROAD_COST[Road.Street])}`, widen: true },
+    { id: 'oneway', name: '일방통행', price: `칸당 ${won(ONEWAY_COST)}`, oneway: true },
     { id: 'roundabout', name: '회전교차로', price: won(ROUNDABOUT_COST[Road.Street]), roundabout: true },
+    { id: 'highway', name: '고속도로', price: `칸당 ${won(ROAD_COST[Road.Highway])}`, road: Road.Highway },
+    { id: 'ic', name: '나들목', price: won(IC_COST), hwyPart: 'ic' },
+    { id: 'toll', name: '톨게이트', price: won(TOLL_COST), hwyPart: 'toll' },
     { id: 'trees', name: '가로수', price: `칸당 ${won(TREE_COST)}`, trees: true, swatch: '#5e8f45' },
     { id: 'elevated', name: '고가도로', price: `칸당 ${won(ROAD_COST[Road.Avenue] * LEVEL_COST[Level.Elevated])}`, level: Level.Elevated },
     { id: 'underpass', name: '지하차도', price: `칸당 ${won(ROAD_COST[Road.Avenue] * LEVEL_COST[Level.Underpass])}`, level: Level.Underpass },
@@ -53,7 +64,7 @@ export const CATEGORIES: Category[] = [
   ] },
   { id: 'power', name: '전기', key: 'C', tools: [fac('coal'), fac('solar')] },
   { id: 'water', name: '상하수도', key: 'V', tools: [fac('water'), fac('well'), fac('sewage')] },
-  { id: 'service', name: '공공', key: 'B', tools: [fac('school'), fac('police'), fac('fire'), fac('clinic'), fac('office'), fac('post'), fac('library')] },
+  { id: 'service', name: '공공', key: 'B', tools: [fac('school'), fac('police'), fac('fire'), fac('snowbase'), fac('clinic'), fac('office'), fac('post'), fac('library')] },
   { id: 'transit', name: '대중교통', key: 'N', tools: [
     { id: 'busVillage', name: BUS_TYPES.village.name, price: `정류장당 ${won(BUS_TYPES.village.cost.stop)}`, line: 'bus', bus: 'village', swatch: BUS_TYPES.village.color },
     { id: 'bus', name: BUS_TYPES.branch.name, price: `정류장당 ${won(BUS_TYPES.branch.cost.stop)}`, line: 'bus', bus: 'branch', swatch: BUS_TYPES.branch.color },

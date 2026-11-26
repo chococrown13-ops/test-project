@@ -1,6 +1,6 @@
 import { CELL, Ground, Level, N, Road } from '../sim/defs';
 import { curveInfo, curvePath, HALF_WIDTH, KERB_W } from '../sim/curves';
-import { altNeighbours, forEachNeighbour, NN } from '../sim/graph';
+import { altNeighbours, forEachNeighbour, NN, rampExit } from '../sim/graph';
 import { deckHeightAt } from './roadheight';
 import { ringOf } from '../sim/roundabout';
 import type { World } from '../sim/world';
@@ -22,8 +22,9 @@ import { type Kind, Network, type RoadType } from '../../../shared/roads/network
 export const CITY_TYPES: Record<Kind, RoadType> = {
   street: { half: HALF_WIDTH[Road.Street], kerb: KERB_W[Road.Street], lanes: 1 },
   avenue: { half: HALF_WIDTH[Road.Avenue], kerb: KERB_W[Road.Avenue], lanes: 2 },
+  highway: { half: HALF_WIDTH[Road.Highway], kerb: KERB_W[Road.Highway], lanes: 2 },
 };
-const KIND: Record<number, Kind> = { [Road.Street]: 'street', [Road.Avenue]: 'avenue' };
+const KIND: Record<number, Kind> = { [Road.Street]: 'street', [Road.Avenue]: 'avenue', [Road.Highway]: 'highway' };
 
 const centre = (i: number): V => ({ x: (i % N) * CELL + CELL / 2, z: ((i / N) | 0) * CELL + CELL / 2 });
 
@@ -191,6 +192,8 @@ export function buildCityNetwork(w: World): Network {
     // A change of road type makes a node, except next to a curve: the curve's junction is the node there.
     const curveish = (c: number) => own[c] === 1 || pos.has(c);
     if ((w.road[l[0]] !== w.road[i] && !curveish(l[0])) || (w.road[l[1]] !== w.road[i] && !curveish(l[1]))) return true;
+    // So does the start or end of a one-way stretch.
+    if (w.oneway[l[0]] !== w.oneway[i] || w.oneway[l[1]] !== w.oneway[i]) return true;
     // A bridge starts and ends at a node, so its deck lines up with the run.
     return (w.ground[l[0]] === Ground.Water) !== (w.ground[i] === Ground.Water) || (w.ground[l[1]] === Ground.Water) !== (w.ground[i] === Ground.Water);
   };
@@ -210,7 +213,9 @@ export function buildCityNetwork(w: World): Network {
       const a = node(i), b = node(cur);
       if (a === b) continue;
       const kind = KIND[Math.min(w.road[i], w.road[first]) as 1 | 2] ?? 'street';
-      net.addEdge(a, b, [{ kind: 'line', a: net.nodes.get(a)!.p, b: net.nodes.get(b)!.p }], kind);
+      // A one-way run carries its direction (east, south, west, north) for the arrows and lines.
+      const ow = w.oneway[first] && (w.oneway[i] === w.oneway[first] || isNode(i)) && (w.oneway[cur] === w.oneway[first] || isNode(cur)) ? w.oneway[first] : 0;
+      net.addEdge(a, b, [{ kind: 'line', a: net.nodes.get(a)!.p, b: net.nodes.get(b)!.p }], kind, ow ? `${ONEWAY_TAG}${ow}` : undefined);
     }
     // Roads running off the west edge of the map lead on toward the next town.
     if (i % N === 0 && !own[i]) {
@@ -218,10 +223,24 @@ export function buildCityNetwork(w: World): Network {
       net.addEdge(node(i), off.id, [{ kind: 'line', a: net.nodes.get(node(i))!.p, b: off.p }], KIND[w.road[i]] ?? 'street');
     }
   }
+  // Where a ramp rises from the ground road, the road runs on to the ramp's foot (the edge of its
+  // cell) so the asphalt meets the ramp with no gap of grass between.
+  for (let r = 0; r < N * N; r++) {
+    if (!w.roadAlt[r]) continue;
+    const e = rampExit(w, r);
+    if (e < 0 || !w.road[e] || own[e]) continue;
+    const p = centre(e), q = centre(r);
+    const foot = { x: p.x + (q.x - p.x) * 0.499, z: p.z + (q.z - p.z) * 0.499 };
+    const end = net.node(foot);
+    net.addEdge(node(e), end.id, [{ kind: 'line', a: net.nodes.get(node(e))!.p, b: end.p }], 'avenue');
+  }
   net.simplify();
   if (w.roundabouts.length) { addRoundabouts(net, w); net.simplify(); }
   return net;
 }
+
+/** Edge tag of a one-way road, followed by its direction code (1 east, 2 south, 3 west, 4 north). */
+export const ONEWAY_TAG = 'ow:';
 
 /** Edge tag of a roundabout's ring. */
 export const RING = 'ring';
