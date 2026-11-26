@@ -73,7 +73,8 @@ Shader "NaeDosi/City"
                 o.nw = TransformObjectToWorldNormal(i.nrm);
                 float4 tint = UNITY_ACCESS_INSTANCED_PROP(Props, _Tint);
                 if (tint.a <= 0) tint = float4(1, 1, 1, 1);
-                o.col = i.col * float4(tint.rgb, 1); o.uv0 = i.uv0; o.info = i.uv1; o.sign = i.uv2; o.loc = i.uv3;
+                o.col = i.col * float4(tint.rgb, 1);
+                if (_Mode > 4.5 && _Mode < 5.5 && min(i.col.r, min(i.col.g, i.col.b)) < 0.95) o.col = i.col; o.uv0 = i.uv0; o.info = i.uv1; o.sign = i.uv2; o.loc = i.uv3;
                 o.fog = ComputeFogFactor(p.positionCS.z);
                 return o;
             }
@@ -226,6 +227,17 @@ Shader "NaeDosi/City"
                     }
                 }
                 else if (_Mode < 2.5) facade(i, col, emit);
+                else if (_Mode > 5.5)
+                {
+                    // Buses and trains: windows and signs glow at night.
+                    emit += float3(1, 0.86, 0.6) * i.info.x * _Night;
+                }
+                else if (_Mode > 3.5 && _Mode < 4.5)
+                {
+                    // Vehicles: headlights (positive) and tail lights (negative) glow, brighter at night.
+                    float gl = i.info.x;
+                    emit += (gl > 0 ? float3(1, 0.92, 0.75) * gl : float3(1, 0.08, 0.05) * -gl) * (0.15 + _Night);
+                }
                 else
                 {
                     float2 wv = float2(sin(gp.x * 0.21 + _Time0 * 1.3) + sin(gp.y * 0.13 - _Time0 * 0.9) * 0.6, cos(gp.y * 0.19 + _Time0 * 1.1) + sin((gp.x + gp.y) * 0.09 + _Time0 * 0.7) * 0.6);

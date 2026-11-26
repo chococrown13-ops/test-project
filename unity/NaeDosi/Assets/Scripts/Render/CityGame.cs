@@ -20,6 +20,14 @@ namespace NaeDosi.Render
         public GroundView ground;
         public RoadView roads;
         public BuildingView buildings;
+        public VehicleView vehicles;
+        public PeopleView people;
+        public StreetView streets;
+        public TransitView transit;
+        public EffectsView effects;
+        public BadgeView badges;
+        Shader ghost;
+        float iconTimer, stallTimer;
         public bool dayLock;
         public static float envGain = 1f, reflGain = 1f, upGain = 3.0f;
         Cubemap reflCube; float lastEnv = -1;
@@ -51,6 +59,7 @@ namespace NaeDosi.Render
             I = this;
             Application.targetFrameRate = 60;
             shader = Shader.Find("NaeDosi/City");
+            ghost = Shader.Find("NaeDosi/Ghost");
             foreach (var c in FindObjectsByType<Camera>(FindObjectsSortMode.None)) if (c.gameObject != gameObject) Destroy(c.gameObject);
             foreach (var l in FindObjectsByType<Light>(FindObjectsSortMode.None)) Destroy(l.gameObject);
             foreach (var v in FindObjectsByType<Volume>(FindObjectsSortMode.None)) Destroy(v.gameObject);
@@ -117,6 +126,14 @@ namespace NaeDosi.Render
             ground = new GroundView(w, world, shader);
             roads = new RoadView(world, shader, ground.tex);
             buildings = new BuildingView(world, shader) { heightAt = (x, z) => ground.HeightAt(x, z) };
+            vehicles ??= new VehicleView(shader);
+            people ??= new PeopleView(shader);
+            streets = new StreetView(world, shader, ghost);
+            transit = new TransitView(world, shader, ghost);
+            effects ??= new EffectsView(ghost, shader);
+            effects.heightAt = (x, z) => ground.HeightAt(x, z);
+            badges ??= new BadgeView(Shader.Find("NaeDosi/Badge"));
+            iconTimer = 0; stallTimer = 0;
             paintVer = ""; busKey = "";
             ground.overlay = overlay;
         }
@@ -236,13 +253,37 @@ namespace NaeDosi.Render
                 ground.Paint(w);
                 ground.PlantTrees(w);
             }
-            // Snow lying on the roads.
+            // Snow lying on the roads (row 0 is the map's north edge, as the shader reads it).
             var px = roadSnow.GetPixelData<byte>(0);
             bool any = false;
-            for (int i = 0; i < N * N; i++) { int x = i % N, y = i / N; byte v = w.snow[i]; int k = (N - 1 - y) * N + x; if (px[k] != v) { px[k] = v; any = true; } }
+            for (int i = 0; i < N * N; i++) { byte v = (byte)Math.Min(255, w.snow[i] * 2.55); if (px[i] != v) { px[i] = v; any = true; } }
             if (any) roadSnow.Apply(false);
+
+            double pace = speed * SimLoop.GAME_PACE;
+            vehicles.Update(w, sim.tr);
+            streets.Update(w, sim.tr.clock, view.dist);
+            people.Update(w, sim.tr, dt, pace, night, view.dist, vehicles.spots);
+            var ui = NaeDosi.Ui.CityUi.I;
+            transit.showRoutes = transitDraft || overlay == "transit";
+            transit.Update(w, w.day * SimLoop.DAY_SECONDS + sim.acc, ui != null ? ui.draft : null, vehicles.busPoses);
+            effects.Update(w, dt, view.tx, view.tz, night);
+            iconTimer -= dt;
+            if (iconTimer <= 0)
+            {
+                iconTimer = 0.5f;
+                badges.UpdateIcons(w, overlay == "power" || overlay == "water", overlay == "parking");
+                badges.UpdateJams(w);
+                if ((stallTimer -= 0.5f) <= 0) { stallTimer = 3; badges.UpdateStalls(w); }
+            }
+            badges.hidden = transitDraft || overlay == "transit";
             ground.Draw();
             roads.Draw();
+            vehicles.Draw();
+            people.Draw();
+            streets.Draw();
+            transit.Draw();
+            effects.Draw();
+            badges.Draw();
         }
 
         /// <summary>Put the camera straight on a view (for comparison shots).</summary>
