@@ -1,6 +1,7 @@
-import { pocketKind, pockets } from '../sim/pockets';
+import { isPocket, onRoad, pocketKind, pockets } from '../sim/pockets';
+import { freeLots, growthBlock, reachesEdge } from '../sim/diagnose';
 import * as THREE from 'three';
-import { CELL, KINDS, N, Road, VARIANTS, variantOf } from '../sim/defs';
+import { CELL, KINDS, N, Road, VARIANTS, variantOf, Zone } from '../sim/defs';
 import { AVENUE_SPILL, HALF_WIDTH, KERB_W, nearestCurve } from '../sim/curves';
 import { DIAG } from '../sim/graph';
 import { network } from '../sim/network';
@@ -1251,7 +1252,7 @@ export class BuildingLayer {
     };
     (Object.keys(GEOS) as Shape[]).forEach((s) => this.alloc(s, s === 'box' ? 4096 : 512));
     // Problem badges: a round pictogram on a card-stock ring, coral for what needs fixing, slate for empty houses.
-    for (const k of ['power', 'water', 'road', 'gone', 'park', 'jam']) {
+    for (const k of ['power', 'water', 'road', 'gone', 'park', 'jam', 'stall']) {
       const c = document.createElement('canvas');
       c.width = c.height = 128;
       drawIcon(c.getContext('2d')!, k);
@@ -1349,6 +1350,39 @@ export class BuildingLayer {
   /** Light the windows of buildings that just got (or lost) power without a full rebuild. */
   refreshInfo(w: World) { this.update(w, performance.now() / 1000, true); }
 
+  private stalls: THREE.Sprite[] = [];
+
+  /**
+   * 미입주: a "!" over zoned land that stays empty when the city can't fill it (no demand, too few
+   * jobs, high taxes, a street that doesn't reach the edge...). One per block of empty lots; tapping
+   * a lot says why. Worked out every few seconds.
+   */
+  updateStalls(w: World) {
+    const lots = freeLots(w);
+    const why: Record<number, boolean> = {};
+    for (const z of [Zone.R, Zone.C, Zone.I]) why[z] = !!growthBlock(w, z, lots);
+    const B = 6, seen = new Map<number, { x: number; y: number; n: number }>();
+    for (let i = 0; i < N * N; i++) {
+      const z = w.zone[i];
+      if (!z || w.road[i] || w.bld[i] >= 0 || isPocket(w, i) || !onRoad(w, i)) continue;
+      if (!why[z] && reachesEdge(w, i)) continue;
+      const x = i % N, y = (i / N) | 0, k = ((y / B) | 0) * 1000 + ((x / B) | 0);
+      const e = seen.get(k);
+      if (e) { e.x += x; e.y += y; e.n++; } else seen.set(k, { x, y, n: 1 });
+    }
+    let n = 0;
+    for (const e of seen.values()) {
+      if (e.n < 3 || n >= 60) continue;
+      let sp = this.stalls[n];
+      if (!sp) { sp = new THREE.Sprite(this.iconTex.stall); sp.renderOrder = 10; this.stalls[n] = sp; this.group.add(sp); }
+      sp.position.set((e.x / e.n + 0.5) * CELL, 7, (e.y / e.n + 0.5) * CELL);
+      sp.scale.set(6, 6, 1);
+      sp.visible = true;
+      n++;
+    }
+    for (let i = n; i < this.stalls.length; i++) this.stalls[i].visible = false;
+  }
+
   private jams: THREE.Sprite[] = [];
   private jamOn = new Set<number>();
 
@@ -1421,12 +1455,16 @@ function drawIcon(g: CanvasRenderingContext2D, k: string) {
   g.fillStyle = '#fbf8ee';
   g.beginPath(); g.arc(64, 62, R + 6, 0, Math.PI * 2); g.fill();
   g.restore();
-  g.fillStyle = k === 'jam' ? '#d8452f' : k === 'gone' ? '#5b616b' : k === 'water' ? '#2f7fc8' : k === 'road' ? '#e0892f' : k === 'park' ? '#2f5fa8' : '#f0644f';
+  g.fillStyle = k === 'stall' ? '#e8a21f' : k === 'jam' ? '#d8452f' : k === 'gone' ? '#5b616b' : k === 'water' ? '#2f7fc8' : k === 'road' ? '#e0892f' : k === 'park' ? '#2f5fa8' : '#f0644f';
   g.beginPath(); g.arc(64, 62, R, 0, Math.PI * 2); g.fill();
   g.fillStyle = g.strokeStyle = '#fbf8ee';
   g.lineJoin = g.lineCap = 'round';
   g.beginPath();
-  if (k === 'jam') {
+  if (k === 'stall') {
+    // An exclamation mark: this land is waiting for something.
+    g.fillRect(56, 26, 16, 46);
+    g.beginPath(); g.arc(64, 90, 9, 0, Math.PI * 2); g.fill();
+  } else if (k === 'jam') {
     // Two cars nose to tail: a queue.
     const car = (x: number, y: number, s2: number) => {
       g.beginPath();

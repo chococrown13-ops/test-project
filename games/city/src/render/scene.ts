@@ -43,6 +43,7 @@ export class CityScene {
   pace = 0;
   /** Always day: no night, the light stays at early afternoon. */
   dayLock = false;
+  private stallTimer = 0;
   readonly preview = new PreviewLayer();
   transit = new TransitLayer();
   /** The line being drawn, if any. */
@@ -310,6 +311,7 @@ export class CityScene {
       this.iconTimer = 0.5;
       this.buildings.updateIcons(w, this.overlay === 'power' || this.overlay === 'water', this.overlay === 'parking');
       this.buildings.updateJams(w);
+      if ((this.stallTimer -= 0.5) <= 0) { this.stallTimer = 3; this.buildings.updateStalls(w); }
       this.buildings.refreshInfo(w);
     }
     // Bloom only earns its cost at night, when windows and street lights glow.
