@@ -28,6 +28,9 @@ export interface Fighter {
   alive: boolean;
   dodge: number; double: number; lifesteal: number; crit: number; leap: boolean; skillMul: number; manaRegen: number; regen: number; ramp: number;
   dealt: number;
+  /** Health given back (to itself or friends) and damage taken (after armour, shields included). */
+  healed: number;
+  taken: number;
   /** Skill upgrades from evolving, and the thorns one leaves on (reflect share, seconds left). */
   ups: Up[]; thorns: number; thornsT: number;
   /** Trait stacks building up (n so far), and whether the low-health shield has gone off. */
@@ -47,6 +50,7 @@ export type Ev =
   | { k: 'shield'; a: number; b: number; v: number }
   | { k: 'stun'; b: number; t: number }
   | { k: 'silence'; b: number; t: number }
+  | { k: 'up'; a: number; up: string; b?: number }
   | { k: 'die'; a: number };
 
 export interface Combat { t: number; f: Fighter[]; grid: Int16Array; rng: Rng; over: boolean; winner: 0 | 1 | -1; arena: string; season: number;
@@ -83,7 +87,7 @@ export function setup(a: Placed[], b: Placed[], seed: number, ctx: Ctx = {}): Co
         hp: def.hp * m, maxHp: def.hp * m, ad: def.ad * m, as: def.as, range: def.range, armor: def.armor + teamArmor, mr: def.mr + teamArmor * 0.5,
         mana: def.manaStart, maxMana: def.mana,
         shield: 0, shieldT: 0, stunT: 0, silenceT: 0, atkT: 0.2, moveT: 0, target: -1, tauntBy: -1, tauntT: 0, asBuff: 0, asBuffT: 0,
-        alive: true, dodge: 0, double: 0, lifesteal: 0, crit: 0, leap: false, skillMul: SKILL_MUL[p.star], manaRegen: 0, regen: 0, ramp: 0, dealt: 0,
+        alive: true, dodge: 0, double: 0, lifesteal: 0, crit: 0, leap: false, skillMul: SKILL_MUL[p.star], manaRegen: 0, regen: 0, ramp: 0, dealt: 0, healed: 0, taken: 0,
         ups: upsAt(def, p.star), thorns: 0, thornsT: 0, stk: [], lowDone: false,
       };
       let adK = 1, asK = 1, hpK = 1;
@@ -190,8 +194,9 @@ function place(c: Combat, f: Fighter, x: number, y: number) {
 function deal(c: Combat, ev: Ev[], src: Fighter, dst: Fighter, amount: number, magic: boolean, crit = false): number {
   if (!dst.alive) return 0;
   const sk = c.casting?.by === src ? c.casting : null;
-  if (sk && src.ups.includes('execute') && dst.hp < dst.maxHp * 0.4) amount *= 1.5;
+  if (sk && src.ups.includes('execute') && dst.hp < dst.maxHp * 0.4) { amount *= 1.5; ev.push({ k: 'up', a: src.key, up: 'execute', b: dst.key }); }
   let v = amount * (100 / (100 + Math.max(0, magic ? dst.mr : dst.armor)));
+  dst.taken += Math.min(dst.hp + dst.shield, v);
   if (dst.shield > 0) { const s = Math.min(dst.shield, v); dst.shield -= s; v -= s; }
   const done = Math.min(dst.hp, v);
   dst.hp -= v;
@@ -215,6 +220,7 @@ function heal(_c: Combat, ev: Ev[], src: Fighter, dst: Fighter, v: number, show 
   if (!dst.alive) return;
   const h = Math.min(dst.maxHp - dst.hp, v);
   dst.hp += h;
+  src.healed += h;
   if (show && h > 0) ev.push({ k: 'heal', a: src.key, b: dst.key, v: Math.round(h) });
 }
 
@@ -305,30 +311,31 @@ function upgrades(c: Combat, ev: Ev[], f: Fighter, t: Fighter, hits: { f: Fighte
   const total = hits.reduce((a, h) => a + h.v, 0);
   const hit = new Set(hits.map((h) => h.f.key));
   for (const u of f.ups) switch (u) {
-    case 'thorns': f.thorns = 0.3; f.thornsT = 5; break;
+    case 'thorns': f.thorns = 0.3; f.thornsT = 5; ev.push({ k: 'up', a: f.key, up: u }); break;
     case 'share': {
       const v = friends(c, f).filter((o) => o !== f).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp || a.key - b.key)[0];
-      if (v) shield(ev, f, v, 200 * f.skillMul, 4);
+      if (v) { ev.push({ k: 'up', a: f.key, up: u, b: v.key }); shield(ev, f, v, 200 * f.skillMul, 4); }
       break;
     }
     case 'twin': {
       if (!total) break;
       const from = hits[0]?.f ?? t;
       const o = foes(c, f).filter((x) => !hit.has(x.key)).sort((a, b) => cheb(a, from) - cheb(b, from) || a.key - b.key)[0];
-      if (o) { ev.push({ k: 'cast', a: f.key, skill: f.def.skill, b: o.key }); deal(c, ev, f, o, Math.max(...hits.map((h) => h.v)) * 0.6, true); }
+      if (o) { ev.push({ k: 'up', a: from.key, up: u, b: o.key }); ev.push({ k: 'cast', a: f.key, skill: f.def.skill, b: o.key }); deal(c, ev, f, o, Math.max(...hits.map((h) => h.v)) * 0.6, true); }
       break;
     }
     case 'splash': {
       const near = new Set<Fighter>();
       for (const h of hits) for (const o of around(c, h.f.x, h.f.y, 1, f.side)) if (!hit.has(o.key)) near.add(o);
+      for (const h of hits) ev.push({ k: 'up', a: f.key, up: u, b: h.f.key });
       for (const o of near) deal(c, ev, f, o, (total / Math.max(1, hits.length)) * 0.4, true);
       break;
     }
-    case 'manaback': f.mana = Math.max(f.mana, f.maxMana * 0.3); break;
-    case 'drain': if (total) heal(c, ev, f, f, total * 0.35); break;
-    case 'haste': f.asBuff = Math.max(f.asBuff, 0.35); f.asBuffT = Math.max(f.asBuffT, 5); break;
-    case 'chill': for (const h of hits) if (h.f.alive) stun(ev, h.f, 0.8); break;
-    case 'rally': for (const o of friends(c, f)) o.ad *= 1.08; break;
+    case 'manaback': f.mana = Math.max(f.mana, f.maxMana * 0.3); ev.push({ k: 'up', a: f.key, up: u }); break;
+    case 'drain': if (total) { for (const h of hits) ev.push({ k: 'up', a: f.key, up: u, b: h.f.key }); heal(c, ev, f, f, total * 0.35); } break;
+    case 'haste': f.asBuff = Math.max(f.asBuff, 0.35); f.asBuffT = Math.max(f.asBuffT, 5); ev.push({ k: 'up', a: f.key, up: u }); break;
+    case 'chill': for (const h of hits) if (h.f.alive) { ev.push({ k: 'up', a: f.key, up: u, b: h.f.key }); stun(ev, h.f, 0.8); } break;
+    case 'rally': for (const o of friends(c, f)) { o.ad *= 1.08; ev.push({ k: 'up', a: f.key, up: u, b: o.key }); } break;
     case 'execute': break; // applied as the skill lands (see deal)
   }
 }
