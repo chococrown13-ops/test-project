@@ -215,3 +215,6 @@ Label, .txt { margin: 0; padding: 0; white-space: normal; -unity-text-align: mid
 .draw .unity-base-popup-field__input { min-height: 32px; border-radius: 14px; background-color: var(--card); border-color: var(--muted); }
 .credit { margin-top: 16px; opacity: 0.8; }
 .bell-glyph { font-size: 15px; -unity-text-align: middle-center; }
+.visit-code > .unity-base-text-field__input { min-height: 40px; min-width: 120px; font-size: 20px; letter-spacing: 6px; border-radius: 10px; border-color: var(--edge); background-color: var(--paper); -unity-font-definition: url("project://database/Assets/UI/Fonts/NanumB.asset"); }
+.show-code { font-size: 34px; letter-spacing: 6px; }
+.visit-card .t-h3 { font-size: 19px; }

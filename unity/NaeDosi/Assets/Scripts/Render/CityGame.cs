@@ -126,6 +126,7 @@ namespace NaeDosi.Render
             ground = new GroundView(w, world, shader);
             roads = new RoadView(world, shader, ground.tex);
             buildings = new BuildingView(world, shader) { heightAt = (x, z) => ground.HeightAt(x, z) };
+            buildings.onBorn = b => { if (KINDS[b.kind].zone != 0) Sfx.Play("grow"); };
             vehicles ??= new VehicleView(shader);
             people ??= new PeopleView(shader);
             streets = new StreetView(world, shader, ghost);
@@ -260,6 +261,7 @@ namespace NaeDosi.Render
             if (any) roadSnow.Apply(false);
 
             double pace = speed * SimLoop.GAME_PACE;
+            Synth.Night(night);
             vehicles.Update(w, sim.tr);
             streets.Update(w, sim.tr.clock, view.dist);
             people.Update(w, sim.tr, dt, pace, night, view.dist, vehicles.spots);

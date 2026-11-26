@@ -74,7 +74,7 @@ namespace NaeDosi.Ui
             RenderMapChips();
             kdraw = Korea.Saved();
             RenderDraw();
-            root.Q<TextField>(className: "t-input")?.RegisterValueChangedCallback(_ => nameTouched = true);
+            root.Q<TextField>("nameInput")?.RegisterValueChangedCallback(_ => nameTouched = true);
             ShowStart(true);
             FocusStart();
         }
@@ -406,7 +406,7 @@ namespace NaeDosi.Ui
             {
                 picked = A("data-pick");
                 var t = Korea.Tiles.FirstOrDefault(x => x.id == picked);
-                if (t != null && !nameTouched) { var tf = root.Q<TextField>(className: "t-input"); if (tf != null) { tf.SetValueWithoutNotify(t.name.Length > 10 ? t.name.Substring(0, 10) : t.name); } }
+                if (t != null && !nameTouched) { var tf = root.Q<TextField>("nameInput"); if (tf != null) { tf.SetValueWithoutNotify(t.name.Length > 10 ? t.name.Substring(0, 10) : t.name); } }
                 RenderDraw(); return;
             }
             if (A("data-open") != null) { var lw = Slots.Load(A("data-open")); if (lw != null) { UseWorld(lw); Show(slots, false); Begin(); Toast($"{lw.name}을(를) 불러왔어요.", "good"); } else Toast("이 저장은 열 수 없어요.", "warn"); return; }
@@ -548,7 +548,7 @@ namespace NaeDosi.Ui
 
         void NewCity()
         {
-            string name = (root.Q<TextField>(className: "t-input")?.value ?? "").Trim();
+            string name = (root.Q<TextField>("nameInput")?.value ?? "").Trim();
             if (name == "") name = "새솔시";
             if (name.Length > 10) name = name.Substring(0, 10);
             double seed = Math.Floor(UnityEngine.Random.value * 1e9);
@@ -615,6 +615,9 @@ namespace NaeDosi.Ui
             Html.Fill(visit, h, OnAct);
             Show(visit, true);
         }
+
+        public void RefreshVisit() { if (Shown(visit)) OpenVisit(); }
+        public void CloseVisit() => Show(visit, false);
 
         void VisitAct(string act, VisualElement e)
         {
