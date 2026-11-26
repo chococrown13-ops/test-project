@@ -552,10 +552,7 @@ function afterFight() {
     history[g.round] = won ? 'w' : draw ? 'd' : 'l';
     g.log = [...(g.log ?? []), { round: g.round, res: history[g.round], vs: mine.creeps ? theme().creepName : g.players[fightOpp]?.name ?? '', lost: Math.max(0, (hpBefore.get(0) ?? 0) - p.hp), arena: mine.ctx.arena ?? '' }];
     const lost = (hpBefore.get(0) ?? 0) - p.hp;
-    // Who did the work on our side.
-    const ours = (fightCombat?.f ?? []).filter((f) => f.side === meSide).sort((a, b) => b.dealt - a.dealt).slice(0, 3);
-    const top = ours[0]?.dealt || 1;
-    const chart = ours.length ? `<div class="dmg"><small>가장 많이 때린 말</small>${ours.map((f) => `<span>${pic(f.def.id, 'pic', f.star)}<i>${nameAt(f.def, f.star)}${'★'.repeat(f.star)}</i><em><b style="width:${(f.dealt / top) * 100}%"></b></em><u class="num">${Math.round(f.dealt).toLocaleString('ko-KR')}</u></span>`).join('')}</div>` : '';
+    const chart = recapHtml(meSide);
     banner(won ? (mine.creeps ? `${theme().creepName} 승리!` : '이겼어요!') : draw ? '비겼어요' : '졌어요',
       won ? (mine.creeps ? `${itemWord()}와 엽전을 얻었어요` : '+1냥, 연승 중이면 더 받아요') : `체력 -${lost}`, won ? 'win' : 'lose', chart);
   }
@@ -572,7 +569,7 @@ function afterFight() {
     if (!room) save(g!);
     renderAll();
     roundNews(prevArena, prevSeason);
-  }, mine ? 2600 : 0);
+  }, mine ? 4600 : 0);
 }
 
 let prevArena = '', prevSeason = -1;
@@ -582,6 +579,17 @@ function roundNews(arena: string, season: number) {
   if (G.season >= 0 && G.season !== season) toast(`${josa(SEASON_NAME[G.season], '이', '가')} 왔어요! ${Object.values(TRAITS).find((t) => t.season === G.season)?.name} 요괴가 두 배로 세지고, 경기장은 ${josa(ARENAS[G.arena].name, '이에요', '예요')}.`, 'good');
   else if (G.arena !== arena) toast(`이번 경기장: ${ARENAS[G.arena].name}. ${ARENAS[G.arena].text}`);
   else if (isCreepRound(G.round)) toast(`${G.round}라운드는 ${josa(theme().creepName, '이에요', '예요')}. ${theme().creepText}.`);
+}
+
+/** After a fight: what each of our pieces did. Damage dealt, health given back, damage taken. */
+function recapHtml(side: number): string {
+  const ours = (fightCombat?.f ?? []).filter((f) => f.side === side).sort((a, b) => b.dealt - a.dealt);
+  if (!ours.length) return '';
+  const max = (k: 'dealt' | 'healed' | 'taken') => Math.max(1, ...ours.map((f) => f[k]));
+  const top = { dealt: max('dealt'), healed: max('healed'), taken: max('taken') };
+  const cell = (f: (typeof ours)[number], k: 'dealt' | 'healed' | 'taken') =>
+    `<em class="${k}"><b style="width:${(f[k] / top[k]) * 100}%"></b><u class="num">${Math.round(f[k]).toLocaleString('ko-KR')}</u></em>`;
+  return `<div class="dmg"><div class="dmg-h"><span></span><span class="dealt">피해량</span><span class="healed">회복량</span><span class="taken">받은 피해</span></div>${ours.map((f) => `<div class="dmg-r${f.alive ? '' : ' down'}">${pic(f.def.id, 'pic', f.star)}${cell(f, 'dealt')}${cell(f, 'healed')}${cell(f, 'taken')}</div>`).join('')}</div>`;
 }
 
 function banner(title: string, sub: string, tone: string, extra = '') {
@@ -932,7 +940,7 @@ function finishOnlineFight(mine: Match | null, hpBefore: Map<number, number>) {
     history[g.round] = won ? 'w' : draw ? 'd' : 'l';
     g.log = [...(g.log ?? []), { round: g.round, res: history[g.round], vs: mine.creeps ? theme().creepName : g.players[fightOpp]?.name ?? '', lost: Math.max(0, (hpBefore.get(mySeat) ?? 0) - p.hp), arena: mine.ctx.arena ?? '' }];
     banner(won ? (mine.creeps ? `${theme().creepName} 승리!` : '이겼어요!') : draw ? '비겼어요' : '졌어요',
-      won ? '다른 사람들이 끝나기를 기다려요' : `체력 -${(hpBefore.get(mySeat) ?? 0) - p.hp}`, won ? 'win' : 'lose');
+      won ? '다른 사람들이 끝나기를 기다려요' : `체력 -${(hpBefore.get(mySeat) ?? 0) - p.hp}`, won ? 'win' : 'lose', recapHtml(meSide));
   }
   renderAll();
   setTimeout(() => {
@@ -940,7 +948,7 @@ function finishOnlineFight(mine: Match | null, hpBefore: Map<number, number>) {
     if (!p.alive || g!.over) { finish(); }
     if (room?.isHost) { doneSeats.add(mySeat); hostCheck(); }
     else room?.send({ t: 'done' });
-  }, mine ? 2400 : 0);
+  }, mine ? 4400 : 0);
 }
 
 /** A new round has come (host: just made; friend: just received). */
