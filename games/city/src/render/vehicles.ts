@@ -114,6 +114,8 @@ export class VehicleLayer {
   private side = new WeakMap<Car, number>();
   /** Where every moving car is drawn this frame (x, z pairs; not those standing at a stop line), for the walkers to look out for. */
   readonly spots = new Float32Array(MAX_CARS * 2);
+  /** Where each line's buses are this frame (drawn by the transit layer in the line's colour). */
+  readonly buses: { line: number; m: THREE.Matrix4 }[] = [];
   nSpots = 0;
   private lastClock = 0;
 
@@ -125,7 +127,7 @@ export class VehicleLayer {
     const dt = Math.max(0, Math.min(0.5, tr.clock - this.lastClock));
     this.lastClock = tr.clock;
     const ease = 1 - Math.exp(-dt * 6);
-    let spots = 0;
+    let spots = 0, nb = 0;
     for (const car of tr.cars) {
       // Average two points along the path so cars round the corners.
       // Cars are drawn where the simulation has them: it keeps them apart and in their lanes.
@@ -138,6 +140,14 @@ export class VehicleLayer {
       sample(w, car, st + 0.3, off, b);
       const dx = b.x - a.x, dz = b.z - a.z;
       if (dx * dx + dz * dz < 1e-4) continue;
+      if (car.bus !== undefined) {
+        q.setFromAxisAngle(up, Math.atan2(-dz, dx)).multiply(pitch.setFromAxisAngle(fwdZ, Math.atan2(b.y - a.y, Math.hypot(dx, dz))));
+        p.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+        if (car.v > 1 && spots < MAX_CARS) { this.spots[spots * 2] = p.x; this.spots[spots * 2 + 1] = p.z; spots++; }
+        const e = this.buses[nb] ?? (this.buses[nb] = { line: 0, m: new THREE.Matrix4() });
+        e.line = car.bus; e.m.compose(p, q, one); nb++;
+        continue;
+      }
       const k = car.kind, i = n[k]++;
       // Heading, then the nose up or down the slope (ramps).
       q.setFromAxisAngle(up, Math.atan2(-dz, dx)).multiply(pitch.setFromAxisAngle(fwdZ, Math.atan2(b.y - a.y, Math.hypot(dx, dz))));
@@ -150,6 +160,7 @@ export class VehicleLayer {
       this.meshes[k].setColorAt(i, c);
     }
     this.nSpots = spots;
+    this.buses.length = nb;
     this.meshes.forEach((mesh, k) => {
       mesh.count = n[k];
       mesh.instanceMatrix.needsUpdate = true;

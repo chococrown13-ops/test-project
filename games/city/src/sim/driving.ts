@@ -40,7 +40,7 @@ const PED = 2;
 /** Seconds at the line before a car stops giving way to cars arriving at the same time. */
 const YIELD_WAIT = 6;
 /** Seconds without moving before a car squeezes past, and how long that lasts. */
-const STUCK = 30, GHOST = 2.5;
+const STUCK = 30;
 const STEP = 0.1;
 
 /** Why cars were held at a line, for tests. */
@@ -214,6 +214,12 @@ function step(w: World, tr: Traffic, nd: Nodes, h: number, done: Car[]) {
 
   // Move.
   for (const c of tr.cars) {
+    // A bus standing at its stop while people get on and off.
+    if (c.dwell) {
+      c.dwell -= h; c.v = 0; c.age += h;
+      if (c.dwell > 0) continue;
+      c.dwell = 0;
+    }
     const p = c.path, last = p.length - 1, len = LENGTH[c.kind];
     let a = p[c.i], b = p[c.i + 1], L = linkLen(a, b);
     const v1 = Math.max(0, c.v + c.acc * h);
@@ -240,6 +246,8 @@ function step(w: World, tr: Traffic, nd: Nodes, h: number, done: Car[]) {
       c.i++;
       a = p[c.i]; b = p[c.i + 1]; L = linkLen(a, b);
       if (a < NN && w.hwy[a] & 2) w.tollPass++;
+      // A bus pulls up at each stop it comes to (not in the middle of a junction).
+      if (c.stops?.has(a) && !isJunction(nd, a) && c.jn < 0) { c.dwell = 2.5; x = 0; }
       c.lane = pickLane(w, groups, c);
     }
     c.t = finished ? 1 : x / L;
@@ -251,7 +259,12 @@ function step(w: World, tr: Traffic, nd: Nodes, h: number, done: Car[]) {
     }
     if (c.v < 0.5) c.stuck += h; else c.stuck = 0;
     if (c.ghost > 0) c.ghost -= h;
-    else if (c.stuck > STUCK) { c.ghost = GHOST; c.stuck = 0; why.ghost++;  }
+    else if (c.stuck > STUCK) {
+      // Hopelessly stuck (a knot of cars all waiting on each other): the driver gives up and takes
+      // another way, off the map, instead of driving through the cars in front. Buses wait it out.
+      c.stuck = 0; why.ghost++;
+      if (c.bus === undefined) { c.cruised = true; finished = true; }
+    }
     if (finished) { c.done = true; done.push(c); }
   }
 }

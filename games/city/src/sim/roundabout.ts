@@ -51,6 +51,17 @@ export function roundaboutCells(rb: Roundabout | { cell: number; t: Road }): num
   return out;
 }
 
+let maskCache: { key: string; m: Uint8Array } | null = null;
+/** 1 on every ground cell a roundabout's ring, island or pavement covers (no lights, no walkers there). */
+export function ringMask(w: World): Uint8Array {
+  const key = `${w.ver.roads}:${w.roundabouts.map((r) => r.cell).join(',')}`;
+  if (maskCache && maskCache.key === key) return maskCache.m;
+  const m = new Uint8Array(NN);
+  for (const rb of w.roundabouts) for (const i of roundaboutCells(rb)) m[i] = 1;
+  maskCache = { key, m };
+  return m;
+}
+
 /** The size a roundabout on this cell would take: an avenue's if one runs into it. */
 export function roundaboutType(w: World, cell: number): Road {
   let t = w.road[cell] === Road.Avenue ? Road.Avenue : Road.Street;

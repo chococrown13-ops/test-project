@@ -6,7 +6,7 @@ import { network } from './network';
 import { cellOf, forEachDriveStep, NN, roadTypeOf } from './graph';
 
 import { parkedSqueeze } from './parking';
-import { tryTransit } from './transit';
+import { busCount, busRoute, stopKerb, tryTransit } from './transit';
 import { rand, type World } from './world';
 
 /**
@@ -43,6 +43,11 @@ export interface Car {
   line: number;
   ok: boolean;
   done?: boolean;
+  /** A 시내버스 on its line (the line's id): round and round its route, stopping at the stops. */
+  bus?: number;
+  /** Its stops, and seconds left standing at one. */
+  stops?: Set<number>;
+  dwell?: number;
   /** For tests: the car this one is waiting behind or for. */
   by?: Car | null;
   held?: Car | null;
@@ -150,8 +155,11 @@ export function stepTraffic(w: World, tr: Traffic, dt: number, hour: number) {
       tr.owed--;
     }
   }
+  syncBuses(w, tr);
   // Move.
   for (const c of drive(w, tr, dt)) {
+    // A bus at the end of its round starts the next one where it is (the route ends where it began).
+    if (c.bus !== undefined) { c.done = false; c.i = 0; c.t = 0; c.jn = c.jf = c.jt = -1; tr.cars.push(c); continue; }
     if (!c.cruised && cruise(w, c)) { c.done = false; tr.cars.push(c); continue; }
     tr.tripTime += c.age;
     tr.trips++;
@@ -306,4 +314,43 @@ function cruise(w: World, c: Car): boolean {
   c.jn = -1;
   c.at = -1;
   return true;
+}
+
+/**
+ * The buses of every bus line drive in the traffic like everyone else (they wait at lights, queue
+ * behind cars and give way in junctions), round and round the line's route. Lines that change get
+ * fresh buses; missing ones join one at a time, spread round the route, where the road is clear.
+ */
+function syncBuses(w: World, tr: Traffic) {
+  const want = new Map<number, { path: Int32Array; n: number; stops: Set<number> }>();
+  for (const l of w.lines) {
+    if (l.kind !== 'bus') continue;
+    const path = busRoute(w, l.stops, l.id);
+    if (path && path.length > 2) want.set(l.id, { path, n: busCount(w, l), stops: new Set(l.stops.map((i) => stopKerb(w, i).cell)) });
+  }
+  const have = new Map<number, number>();
+  let gone = false;
+  for (const c of tr.cars) {
+    if (c.bus === undefined) continue;
+    const x = want.get(c.bus);
+    if (!x || c.path !== x.path || (have.get(c.bus) ?? 0) >= x.n) { c.done = true; gone = true; continue; }
+    c.stops = x.stops;
+    have.set(c.bus, (have.get(c.bus) ?? 0) + 1);
+  }
+  if (gone) tr.cars = tr.cars.filter((c) => !c.done);
+  for (const [id, x] of want) {
+    const k = have.get(id) ?? 0;
+    if (k >= x.n) continue;
+    const L = x.path.length - 1;
+    // Try a few places round the route for one that's clear.
+    for (let tries = 0; tries < 6; tries++) {
+      const i = Math.floor(((k + tries / 6) * L) / x.n) % L;
+      const a = x.path[i], b = x.path[i + 1];
+      if (tr.cars.some((c) => (c.path[c.i] === a && c.path[c.i + 1] === b) || (c.path[c.i + 1] === a) || (c.jn === a))) continue;
+      const bus = newCar(x.path, 1, (id * 0.618) % 1);
+      bus.i = i; bus.bus = id; bus.stops = x.stops;
+      tr.cars.push(bus);
+      break;
+    }
+  }
 }
