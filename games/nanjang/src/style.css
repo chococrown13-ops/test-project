@@ -512,7 +512,7 @@ body.fighting .tray { display: none; }
 
 /* Status badges over a fighter, and effect words that rise from it. */
 .plabel .status { display: flex; gap: 2px; min-height: 0; }
-.plabel .status b { font-size: 10px; font-weight: 800; line-height: 1; padding: 2px 4px; border-radius: 5px; color: #fff; white-space: nowrap; box-shadow: 0 1px 2px oklch(15% 0.03 30 / 0.5); }
+.plabel .status b { width: 7px; height: 7px; padding: 0; border-radius: 50%; font-size: 0; box-shadow: 0 0 0 1px #fff, 0 1px 2px oklch(15% 0.03 30 / 0.5); }
 .plabel .status b.stun { background: #e0a800; color: #2a1d17; }
 .plabel .status b.silence { background: #8a4fd8; }
 .plabel .status b.shield { background: #3d8bd9; }
@@ -525,7 +525,7 @@ body.fighting .tray { display: none; }
 .pop.shield { color: #a8d8ff; }
 .pop.crit { color: #ffb84a; font-size: 14px; }
 .pop.miss { color: #e8e8e8; font-size: 11px; }
-@media (max-width: 600px) { .fightbar { width: calc(100% - 12px); } .plabel .status b { font-size: 9px; padding: 1px 3px; } }
+@media (max-width: 600px) { .fightbar { width: calc(100% - 12px); } }
 
 /* ===== Zoom buttons, music, evolution, records, landscape-only ===== */
 .zoom { position: fixed; right: max(10px, env(safe-area-inset-right)); bottom: 200px; display: grid; gap: 6px; z-index: 4; }

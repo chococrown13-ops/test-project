@@ -3,7 +3,7 @@ import { COLS, type Combat, DT, type Ev, HALF, ROWS, step } from '../sim/combat'
 import type { Piece, Player } from '../sim/game';
 import { BENCH } from '../sim/game';
 import { ARENAS, BUSH, ICE, MUD, ROCK, WATER } from '../sim/arena';
-import { BY_ID, itemDef, type Palette, theme, TRAITS } from '../sim/units';
+import { BY_ID, itemDef, type Palette, theme } from '../sim/units';
 import { buildPiece, type PieceObj } from './pieces';
 
 /**
@@ -559,12 +559,13 @@ export class Table {
         break;
       }
       // No damage numbers: the bars say enough. Effects get a word and a ring.
-      case 'hit': if (e.crit) this.number(e.b, '치명타!', 'crit'); break;
-      case 'miss': this.number(e.b, '회피', 'miss'); break;
-      case 'heal': { const b = S(e.b); if (!b) break; this.number(e.b, `회복 +${e.v}`, 'heal'); this.ring(b.x, b.z, '#5fd17a', 0.5); this.sparkle(b.x, b.z, '#7ddc8a'); break; }
-      case 'shield': { const b = S(e.b); if (!b) break; this.number(e.b, '보호막', 'shield'); this.ring(b.x, b.z, '#8ec5ff', 0.5); break; }
-      case 'stun': { const b = S(e.b); if (!b) break; this.number(e.b, '기절!', 'stun'); this.ring(b.x, b.z, '#ffd84a', 0.4); break; }
-      case 'silence': { const b = S(e.b); if (!b) break; this.number(e.b, '침묵!', 'silence'); this.ring(b.x, b.z, '#b07cff', 0.4); break; }
+      // No words over the pieces: every effect is shown by its own mark.
+      case 'hit': if (e.crit) { const b = S(e.b); if (b) { this.crescent(b, S(e.a) ?? b, '#ff4a3a', 1); this.burst(b.x, b.z, '#ffe27a'); } } break;
+      case 'miss': { const b = S(e.b); if (b) this.afterimage(b, '#e8eef2'); break; }
+      case 'heal': { const b = S(e.b); if (!b) break; this.ring(b.x, b.z, '#5fd17a', 0.5); this.sparkle(b.x, b.z, '#7ddc8a'); break; }
+      case 'shield': { const b = S(e.b); if (!b) break; this.ring(b.x, b.z, '#8ec5ff', 0.5); break; }
+      case 'stun': { const b = S(e.b); if (!b) break; this.stars(b, '#ffe27a'); this.ring(b.x, b.z, '#ffd84a', 0.4); break; }
+      case 'silence': { const b = S(e.b); if (!b) break; this.whirl(b, '#b07cff'); this.ring(b.x, b.z, '#b07cff', 0.4); break; }
       case 'cast': this.castFx(e); break;
       case 'up': this.upFx(e); break;
       case 'die': S(e.a).dead = 0.001; break;
@@ -884,23 +885,7 @@ export class Table {
     }
   }
 
-  private number(key: number, text: string, cls: string) {
-    const s = this.shown.get(key);
-    if (!s) return;
-    const el = document.createElement('div');
-    el.className = `pop ${cls}`;
-    el.textContent = text;
-    this.labels.appendChild(el);
-    const v = new THREE.Vector3();
-    const dx = (Math.random() - 0.5) * 0.3;
-    this.fx.push({ obj: new THREE.Object3D(), t: 0, life: 0.8, update: (k) => {
-      v.set(s.x + dx, 1.1 + k * 0.6, s.z).project(this.camera);
-      const r = this.canvas.getBoundingClientRect();
-      el.style.transform = `translate(${((v.x + 1) / 2) * r.width}px, ${((1 - v.y) / 2) * r.height}px) translate(-50%, -50%)`;
-      el.style.opacity = `${k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3}`;
-      if (k >= 1) el.remove();
-    } });
-  }
+
 
   /* ------------------------------------------------------------ frame */
 
@@ -964,13 +949,11 @@ export class Table {
         s.obj.stun.visible = f.alive && f.stunT > 0;
         s.obj.stun.rotation.y = t * 4;
         s.obj.stun.scale.setScalar(1.4);
-        // Status badges over the bars: only rewritten when they change.
-        const top = f.alive ? f.stk.filter((x) => x.n > 0 && x.st.on !== 'low').sort((a, b) => b.n - a.n)[0] : undefined;
-        const st = !f.alive ? '' : [f.stunT > 0 ? 'stun' : '', f.silenceT > 0 ? 'silence' : '', f.shield > 1 ? 'shield' : '', f.tauntBy >= 0 ? 'taunt' : '', f.asBuffT > 0 ? 'fast' : '', top ? `stk:${TRAITS[top.t].name}:${top.n}` : ''].filter(Boolean).join(' ');
+        // Status over the bars as small coloured dots, no words (stunned, silenced, taunted, hurried).
+        const st = !f.alive ? '' : [f.stunT > 0 ? 'stun' : '', f.silenceT > 0 ? 'silence' : '', f.tauntBy >= 0 ? 'taunt' : '', f.asBuffT > 0 ? 'fast' : ''].filter(Boolean).join(' ');
         if (st !== s.stKey) {
           s.stKey = st;
-          const NAME: Record<string, string> = { stun: '기절', silence: '침묵', shield: '보호막', taunt: '도발됨', fast: '빨라짐' };
-          s.st.innerHTML = st ? st.split(' ').map((k) => k.startsWith('stk:') ? `<b class="stk">${k.split(':')[1]} ×${k.split(':')[2]}</b>` : `<b class="${k}">${NAME[k]}</b>`).join('') : '';
+          s.st.innerHTML = st ? st.split(' ').map((k) => `<b class="${k}"></b>`).join('') : '';
         }
         // The shield sits right after the health left (squeezing the bar when the two pass the maximum).
         const total = Math.max(f.maxHp, Math.max(0, f.hp) + f.shield);
