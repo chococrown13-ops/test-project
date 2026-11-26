@@ -41,6 +41,8 @@ export class CityScene {
   readonly signals = new SignalLayer();
   /** Game time per real second right now (0 when paused): people walk at this pace. */
   pace = 0;
+  /** Always day: no night, the light stays at early afternoon. */
+  dayLock = false;
   readonly preview = new PreviewLayer();
   transit = new TransitLayer();
   /** The line being drawn, if any. */
@@ -271,7 +273,8 @@ export class CityScene {
     const w = this.sim.w;
     this.view.update(dt);
     shared.uTime.value = now;
-    this.light(this.sim.clock, this.sim.w.day);
+    // 낮 고정: the sun stays at early afternoon (the clock and the calendar still run).
+    this.light(this.dayLock ? 14 : this.sim.clock, this.sim.w.day);
     // Ground cells under bus routes, for the median bus lanes.
     const bk = `${w.ver.transit}:${w.ver.roads}:${w.lines.length}`;
     if (bk !== this.busKey) {
@@ -306,6 +309,7 @@ export class CityScene {
     if (this.iconTimer <= 0) {
       this.iconTimer = 0.5;
       this.buildings.updateIcons(w, this.overlay === 'power' || this.overlay === 'water', this.overlay === 'parking');
+      this.buildings.updateJams(w);
       this.buildings.refreshInfo(w);
     }
     // Bloom only earns its cost at night, when windows and street lights glow.

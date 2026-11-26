@@ -28,6 +28,15 @@ export function updateTop(w: World) {
   $('cityName').textContent = w.name;
   $('date').textContent = dateText(w.day);
   $('pop').textContent = num(w.stats.pop);
+  // How far to the next tier of buildings.
+  const next = !tierOpen(w, 2) ? 2 : !tierOpen(w, 3) ? 3 : 0;
+  $('tier').hidden = !next;
+  if (next) {
+    const goal = TIER_POP[next as 2 | 3], from = next === 3 ? TIER_POP[2] : 0;
+    ($('tierBar') as HTMLElement).style.width = `${Math.max(0, Math.min(100, ((w.stats.pop - from) / (goal - from)) * 100))}%`;
+    $('tierText').textContent = `${next}단계까지 ${num(Math.max(0, goal - w.stats.pop))}명`;
+    $('tier').title = `인구 ${num(goal)}명이 되면 ${next === 2 ? '빌라·저층 아파트, 근린 상가, 제조 공장' : '고층 아파트, 오피스 타워, 지식산업센터'}이 들어설 수 있어요.`;
+  }
   const m = $('money');
   m.textContent = won(w.money);
   m.classList.toggle('neg', w.money < 0);
@@ -342,12 +351,13 @@ export function draftHtml(w: World, kind: LineKind, stops: number[], bus: BusTyp
 
 const STYLE_NAME = { lowpoly: '로우폴리', toon: '툰', pixel: '픽셀' } as const;
 
-export function menuHtml(w: World, quality: 'high' | 'normal', style: keyof typeof STYLE_NAME = 'lowpoly', music = { on: false, volume: 0.6 }): string {
+export function menuHtml(w: World, quality: 'high' | 'normal', style: keyof typeof STYLE_NAME = 'lowpoly', music = { on: false, volume: 0.6 }, dayLock = false): string {
   let h = head('메뉴');
   h += `<p class="hint">${esc(w.name)}, ${dateText(w.day)}</p><div class="menu">`;
   h += '<button class="btn" data-act="save">저장하기</button><button class="btn" data-act="slots">불러오기 (저장한 도시들)</button><button class="btn" data-act="new">새 도시</button><button class="btn" data-act="help">조작법</button>';
   h += `<button class="btn" data-act="quality" aria-pressed="${quality === 'high'}">그래픽 품질: ${quality === 'high' ? '높음' : '보통'}</button>`;
   h += `<button class="btn" data-act="style">그림체: ${STYLE_NAME[style]}</button>`;
+  h += `<button class="btn" data-act="daylock" aria-pressed="${dayLock}">시간: ${dayLock ? '낮 고정' : '밤낮 바뀜'}</button>`;
   h += `<button class="btn" data-act="music" aria-pressed="${music.on}">배경음악: ${music.on ? '켜짐' : '꺼짐'}</button>`;
   h += `<div class="vol"><span>음량</span><button class="btn small" data-act="vol-" aria-label="음량 줄이기">−</button><b>${Math.round(music.volume * 10)}</b><button class="btn small" data-act="vol+" aria-label="음량 키우기">+</button></div></div>`;
   h += '<h4>최근 소식</h4><ol class="log">' + w.notices.slice(0, 20).map((n) => `<li><span>${dateText(n.day)}</span>${esc(n.text)}</li>`).join('') + '</ol>';

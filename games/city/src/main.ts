@@ -31,6 +31,9 @@ let sim: Sim = createSim(createWorld());
 const scene = new CityScene(canvas, sim);
 // Phones start on normal quality; the choice is remembered per browser.
 const QKEY = 'city.quality';
+/** 낮 고정, remembered per browser. */
+const DKEY = 'city.daylock';
+try { scene.dayLock = localStorage.getItem(DKEY) === '1'; } catch { /* storage blocked */ }
 const SKEY = 'city.style';
 let savedQ: string | null = null;
 try { savedQ = localStorage.getItem(QKEY); } catch { /* storage blocked */ }
@@ -213,7 +216,7 @@ function renderPanel(force = false) {
   const stamp = panel === 'budget' ? `${w.reports.length}:${w.tax.R}${w.tax.C}${w.tax.I}` : panel === 'stats' ? `${w.day}:${scene.overlay}` : panel === 'lines' ? `${w.ver.transit}:${w.reports.length}:${confirmLine}` : panel === 'notices' ? `${w.notices.length}:${w.notices[0]?.text}` : panel;
   if (!force && stamp === panelStamp) return;
   panelStamp = stamp;
-  $('panel').innerHTML = panel === 'budget' ? budgetHtml(w) : panel === 'stats' ? statsHtml(w, scene.overlay) : panel === 'menu' ? menuHtml(w, scene.quality, scene.style, { on: bgm.on, volume: bgm.volume }) : panel === 'lines' ? linesHtml(w, confirmLine) : panel === 'notices' ? noticesHtml(w) : HELP;
+  $('panel').innerHTML = panel === 'budget' ? budgetHtml(w) : panel === 'stats' ? statsHtml(w, scene.overlay) : panel === 'menu' ? menuHtml(w, scene.quality, scene.style, { on: bgm.on, volume: bgm.volume }, scene.dayLock) : panel === 'lines' ? linesHtml(w, confirmLine) : panel === 'notices' ? noticesHtml(w) : HELP;
 }
 function openInfo(x: number, y: number) {
   infoCell = { x, y };
@@ -263,6 +266,12 @@ for (const id of ['info', 'panel']) {
     if (t.dataset.act === 'vol-' || t.dataset.act === 'vol+') {
       bgm.setVolume(Math.round((bgm.volume + (t.dataset.act === 'vol+' ? 0.1 : -0.1)) * 10) / 10);
       try { localStorage.setItem('city.volume', String(bgm.volume)); } catch { /* storage blocked */ }
+      renderPanel(true);
+      return;
+    }
+    if (t.dataset.act === 'daylock') {
+      scene.dayLock = !scene.dayLock;
+      try { localStorage.setItem(DKEY, scene.dayLock ? '1' : ''); } catch { /* storage blocked */ }
       renderPanel(true);
       return;
     }
