@@ -310,8 +310,27 @@ export function rectCells(x0: number, y0: number, x1: number, y1: number): numbe
   return out;
 }
 
+/**
+ * Beside a junction a diagonal road comes into, the junction's asphalt spreads over the corner of the
+ * lot (it is one wide square, not a cross): no building there.
+ */
+function besideSlantJunction(w: World, i: number): boolean {
+  const x = i % N, y = (i / N) | 0;
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const nx = x + dx, ny = y + dy;
+    if (nx < 0 || ny < 0 || nx >= N || ny >= N) continue;
+    const c = ny * N + nx;
+    if (!w.road[c] || !w.diag[c]) continue;
+    let deg = 0;
+    for (let b = 0; b < 4; b++) if (w.diag[c] & (1 << b)) deg++;
+    for (const [ex, ey] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const mx = nx + ex, my = ny + ey; if (mx >= 0 && my >= 0 && mx < N && my < N && w.road[my * N + mx]) deg++; }
+    if (deg >= 3) return true;
+  }
+  return false;
+}
+
 export function zoneable(w: World, i: number): boolean {
-  if (w.road[i] || w.ground[i] !== Ground.Land || altBlocksGround(w, i) || curveInfo(w).cover[i]) return false;
+  if (w.road[i] || w.ground[i] !== Ground.Land || altBlocksGround(w, i) || curveInfo(w).cover[i] || besideSlantJunction(w, i)) return false;
   const id = w.bld[i];
   if (id >= 0 && !KINDS[w.buildings.get(id)!.kind].zone) return false;
   return roadDistance(w, i % N, (i / N) | 0) <= ZONE_DEPTH;
