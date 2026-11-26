@@ -165,6 +165,34 @@ export function pruneLines(w: World) {
 const routeCache = new Map<number, { key: string; path: Int32Array | null }>();
 
 /** The road cells a bus drives, stop to stop and back to the first. */
+/**
+ * Where a bus stop's shelter stands and the bus pulls up: on the stop's cell if the road there just
+ * runs straight on, else on the next cell along that does (never in a junction or on its crossing),
+ * on the pavement side with no road.
+ */
+export function stopKerb(w: World, i: number): { cell: number; side: [number, number] } {
+  const D: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const road = (x: number, y: number) => x >= 0 && y >= 0 && x < N && y < N && w.road[y * N + x] !== 0;
+  const straight = (c: number) => {
+    const x = c % N, y = (c / N) | 0;
+    const ew = road(x - 1, y) || road(x + 1, y), ns = road(x, y - 1) || road(x, y + 1);
+    if (ew === ns) return null;
+    // Across the road: the side with no road beside it.
+    const sides: [number, number][] = ew ? [[0, 1], [0, -1]] : [[1, 0], [-1, 0]];
+    return sides.find(([dx, dy]) => !road(x + dx, y + dy)) ?? null;
+  };
+  const here = straight(i);
+  if (here) return { cell: i, side: here };
+  const x = i % N, y = (i / N) | 0;
+  for (const [dx, dy] of D) {
+    const c = (y + dy) * N + x + dx;
+    if (!road(x + dx, y + dy)) continue;
+    const s = straight(c);
+    if (s) return { cell: c, side: s };
+  }
+  return { cell: i, side: [0, -1] };
+}
+
 export function busRoute(w: World, stops: number[], lineId = -1): Int32Array | null {
   const key = `${w.ver.roads}:${stops.join(',')}`;
   const hit = lineId >= 0 ? routeCache.get(lineId) : undefined;

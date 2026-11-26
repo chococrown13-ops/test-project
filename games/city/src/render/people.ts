@@ -3,6 +3,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { CELL, KINDS, N, Zone } from '../sim/defs';
 import { HALF_WIDTH, KERB_W } from '../sim/curves';
 import { forEachNeighbour, NN } from '../sim/graph';
+import { isJunction, nodes } from '../sim/junctions';
+import { ringMask } from '../sim/roundabout';
 import { axisOf, greenAge, Light, lightFor, signalCells } from '../sim/signals';
 
 /** Walkers step out onto a crossing only this soon after the green man comes on (seconds), and cross this much faster. */
@@ -59,10 +61,14 @@ export class PeopleLayer {
   }
 
   private findStarts(w: World) {
-    const key = `${w.ver.buildings}:${w.ver.roads}`;
+    const key = `${w.ver.buildings}:${w.ver.roads}:${w.roundabouts.length}`;
     if (key === this.startsKey) return;
     this.startsKey = key;
+    // The streets changed: whoever was walking where there's no pavement now goes home.
+    const gone = ringMask(w);
+    this.walkers = this.walkers.filter((wk) => wk.path.every((c) => c < NN && w.road[c] && !gone[c]));
     const starts: number[] = [];
+    const ring = ringMask(w);
     w.buildings.forEach((b) => {
       const d = KINDS[b.kind];
       if (b.abandoned) return;
@@ -72,7 +78,7 @@ export class PeopleLayer {
       for (let y = b.y - 1; y <= b.y + (b.sy ?? b.size); y++) for (let x = b.x - 1; x <= b.x + (b.sx ?? b.size); x++) {
         if (x < 0 || y < 0 || x >= N || y >= N) continue;
         const i = y * N + x;
-        if (w.road[i] && w.road[i] !== 3 && !w.roadAlt[i] && w.ground[i] === 0) for (let k = 0; k < weight; k++) starts.push(i);
+        if (w.road[i] && w.road[i] !== 3 && !w.roadAlt[i] && w.ground[i] === 0 && !ring[i]) for (let k = 0; k < weight; k++) starts.push(i);
       }
     });
     this.starts = starts;
@@ -82,6 +88,8 @@ export class PeopleLayer {
   private spawn(w: World): Walker | null {
     if (!this.starts.length) return null;
     let cur = this.starts[(Math.random() * this.starts.length) | 0];
+    // Not through a roundabout: its grid cells are under the ring and the island, not pavement.
+    const ring = ringMask(w);
     const path = [cur];
     const len = 4 + ((Math.random() * 10) | 0);
     // Which pavement they walk on (right of travel +1, left -1). At a junction they go straight on or
@@ -92,7 +100,7 @@ export class PeopleLayer {
       const next: number[] = [];
       const dx = prev >= 0 ? (cur % N) - (prev % N) : 0, dy = prev >= 0 ? ((cur / N) | 0) - ((prev / N) | 0) : 0;
       forEachNeighbour(w, cur, (n) => {
-        if (n >= NN || n === prev || w.ground[n] !== 0 || w.roadAlt[n] || w.road[n] === 3) return;
+        if (n >= NN || n === prev || w.ground[n] !== 0 || w.roadAlt[n] || w.road[n] === 3 || ring[n]) return;
         if (prev >= 0) {
           const ex = (n % N) - (cur % N), ez = ((n / N) | 0) - ((cur / N) | 0);
           const turn = dx * ez - dy * ex; // > 0 a right turn (screen z points south)
@@ -106,6 +114,15 @@ export class PeopleLayer {
       const n = ahead !== undefined && Math.random() < 0.75 ? ahead : next[(Math.random() * next.length) | 0];
       prev = cur; cur = n; path.push(n);
     }
+    // Not across a junction on the slant (there is no crossing that way: walk up to it and stop), and
+    // never starting or ending in the middle of a junction.
+    const nd = nodes(w);
+    const slant = (a: number, b: number) => (a % N) !== (b % N) && ((a / N) | 0) !== ((b / N) | 0);
+    for (let j = 1; j < path.length - 1; j++) {
+      if (isJunction(nd, path[j]) && (slant(path[j - 1], path[j]) || slant(path[j], path[j + 1]))) { path.length = j; break; }
+    }
+    while (path.length && isJunction(nd, path[path.length - 1])) path.pop();
+    while (path.length && isJunction(nd, path[0])) path.shift();
     if (path.length < 2) return null;
     return { path, i: 0, t: Math.random(), side, speed: WALK * (0.8 + Math.random() * 0.4), look: Math.random() };
   }
@@ -176,7 +193,8 @@ export class PeopleLayer {
       }
       const dx = (b.x - a.x) / L, dz = (b.z - a.z) / L;
       const cell = wk.path[wk.i];
-      const t = (w.road[cell] || 1) as 1 | 2;
+      // The wider of the two roads this step joins: round the corner of an avenue on its pavement, not its kerb.
+      const t = Math.max(w.road[cell] || 1, w.road[wk.path[wk.i + 1]] || 1) as 1 | 2;
       let off = wk.side * (HALF_WIDTH[t] + KERB_W[t] * 0.5) + (wk.look - 0.5) * 0.5;
       // Going straight past a side street: step out to its zebra (painted just beyond the junction's edge) to cross.
       wk.hurry = false;
@@ -193,8 +211,9 @@ export class PeopleLayer {
             const dist = Math.abs(wk.i + wk.t - j) * CELL;
             const k = Math.max(0, Math.min(1, (HALF_WIDTH[st] + 2.5 - dist) / 2));
             off += Math.sign(off) * (zebra - Math.abs(off)) * k;
-            wk.hurry = k > 0;
-            if (k > 0 && this.crossings) this.crossings.set(sc, pc);
+            wk.hurry = k > 0 && !hold;
+            // Only while actually out on the crossing: someone waiting at the kerb doesn't hold the cars up.
+            if (k > 0 && !hold && this.crossings) this.crossings.set(sc, pc);
           }
         }
       }

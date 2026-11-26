@@ -1,14 +1,11 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CELL, N, Road } from '../sim/defs';
-import { BUS_TYPES, type BusType, busCount, busRoute, busTypeOf, type LineKind, STATION_AREA } from '../sim/transit';
+import { BUS_TYPES, type BusType, busRoute, stopKerb, busTypeOf, type LineKind, STATION_AREA } from '../sim/transit';
 import type { World } from '../sim/world';
 import { shared } from './materials';
-import { nodeCentre, roadY } from './roadheight';
-import { onRing } from './ringpath';
-import { roadTypeOf } from '../sim/graph';
+import { nodeCentre } from './roadheight';
 
-const BUS_SPEED = 2.4; // cells per second at 1x
 const TRAIN_SPEED = 7;
 const MAX_BUSES = 400;
 
@@ -67,6 +64,9 @@ export class TransitLayer {
   }
 
   /** `time` is simulated seconds, so vehicles stop when the game is paused. */
+  /** The buses as the traffic has them this frame (render/vehicles.ts). */
+  busPoses: { line: number; m: THREE.Matrix4 }[] = [];
+
   update(w: World, time: number, draft: { kind: LineKind; stops: number[]; bus?: BusType } | null) {
     const ver = `${w.ver.transit}:${w.ver.roads}:${w.lines.length}`;
     if (ver !== this.ver) { this.ver = ver; this.rebuild(w); }
@@ -103,14 +103,12 @@ export class TransitLayer {
 
   /** A bus shelter on the kerb: roof, glass back panel and a pole sign in the line colour. */
   private shelter(w: World, i: number, color: string) {
-    const x = i % N, y = Math.floor(i / N);
-    const road = (dx: number, dy: number) => { const nx = x + dx, ny = y + dy; return nx >= 0 && ny >= 0 && nx < N && ny < N && w.road[ny * N + nx] !== Road.None; };
-    const side = [[0, -1], [0, 1], [-1, 0], [1, 0]].find(([dx, dy]) => !road(dx, dy)) ?? [0, -1];
-    const c = centre(i);
+    const k = stopKerb(w, i), side = k.side;
+    const c = centre(k.cell);
     const g = new THREE.Group();
     // On the pavement: an avenue's is narrower and further out.
     // On the pavement, in the middle of it.
-    const off = w.road[i] === Road.Avenue ? 5.75 : 4.25;
+    const off = w.road[k.cell] === Road.Avenue ? 5.75 : 4.25;
     g.position.set(c.x + side[0] * off, 0.3, c.z + side[1] * off);
     g.rotation.y = Math.atan2(side[0], side[1]);
     const add = (geo: THREE.BufferGeometry, m: THREE.Material, px: number, py: number, pz: number) => { const mesh = new THREE.Mesh(geo, m); mesh.position.set(px, py, pz); mesh.castShadow = true; g.add(mesh); };
@@ -134,26 +132,13 @@ export class TransitLayer {
   }
 
   private moveVehicles(w: World, time: number) {
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), pitch = new THREE.Quaternion(), fwdZ = new THREE.Vector3(0, 0, 1), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), small = new THREE.Vector3(0.62, 0.85, 0.85), coach = new THREE.Vector3(1.05, 1.15, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), small = new THREE.Vector3(0.62, 0.85, 0.85), coach = new THREE.Vector3(1.05, 1.15, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
     const t = time;
     let nb = 0, nt = 0;
     for (const l of w.lines) {
       c.set(l.color);
-      if (l.kind === 'bus') {
-        const path = busRoute(w, l.stops, l.id);
-        if (!path || path.length < 2) continue;
-        const n = busCount(w, l), L = path.length - 1;
-        // 마을버스 are small; 광역버스 are tall coaches.
-        const bt = busTypeOf(l), size = bt === 'village' ? small : bt === 'express' ? coach : one;
-        for (let k = 0; k < n && nb < MAX_BUSES; k++) {
-          const s = (t * BUS_SPEED + (k * L) / n) % L;
-          const a = along(w, path, s - 0.35, true), b = along(w, path, s + 0.35, true);
-          q.setFromAxisAngle(up, Math.atan2(-(b.z - a.z), b.x - a.x)).multiply(pitch.setFromAxisAngle(fwdZ, Math.atan2(b.y - a.y, Math.hypot(b.x - a.x, b.z - a.z))));
-          p.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
-          this.buses.setMatrixAt(nb, m.compose(p, q, size));
-          this.buses.setColorAt(nb++, c);
-        }
-      } else if (this.showRoutes) {
+      if (l.kind === 'bus') continue;
+      if (this.showRoutes) {
         const pts = l.stops.map(centre);
         const lens = pts.slice(1).map((v, k) => Math.hypot(v.x - pts[k].x, v.z - pts[k].z));
         const total = lens.reduce((a, b) => a + b, 0);
@@ -175,29 +160,24 @@ export class TransitLayer {
         }
       }
     }
+    // Buses: where the traffic has them, in the line's colour and size.
+    const byId = new Map(w.lines.map((l) => [l.id, l]));
+    const sc = new THREE.Vector3(), pp = new THREE.Vector3(), qq = new THREE.Quaternion(), ss = new THREE.Vector3();
+    for (const b of this.busPoses) {
+      const l = byId.get(b.line);
+      if (!l || nb >= MAX_BUSES) continue;
+      const bt = busTypeOf(l);
+      sc.copy(bt === 'village' ? small : bt === 'express' ? coach : one);
+      b.m.decompose(pp, qq, ss);
+      this.buses.setMatrixAt(nb, m.compose(pp, qq, sc));
+      this.buses.setColorAt(nb++, c.set(l.color));
+    }
     for (const [mesh, n] of [[this.buses, nb], [this.trains, nt]] as const) {
       mesh.count = n;
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
   }
-}
-
-/** Point along a cell path at parameter s, in the right-hand lane. */
-function along(w: World, path: Int32Array, s: number, loop: boolean) {
-  const L = path.length - 1;
-  if (loop) s = ((s % L) + L) % L; else s = Math.max(0, Math.min(L, s));
-  const i = Math.min(L - 1, Math.floor(s)), f = s - i;
-  const a = nodeCentre(path[i], w), b = nodeCentre(path[i + 1], w);
-  const len = Math.hypot(b.x - a.x, b.z - a.z) || 1;
-  const dx = (b.x - a.x) / len, dz = (b.z - a.z) / len;
-  // Inner lane of an avenue (its 중앙버스전용차로), or the one lane each way of a street.
-  const node = path[f < 0.5 ? i : i + 1];
-  const lane = roadTypeOf(w, node) === Road.Avenue ? 1.25 : node < w.parked.length && w.parked[node] ? 1.2 : 1.7;
-  let x = a.x + (b.x - a.x) * f - dz * lane, z = a.z + (b.z - a.z) * f + dx * lane;
-  const ring = onRing(w, path, s, 1.75);
-  if (ring) { x = ring.x; z = ring.z; }
-  return { x, z, y: roadY(w, path[i], path[i + 1], f, x, z) };
 }
 
 /** A flat coloured band through points, for route maps. */

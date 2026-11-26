@@ -54,6 +54,10 @@ export class SignalLayer {
         // Only on a corner that's pavement: not where the road (a diagonal, a wider junction) carries on.
         const nx = x + sx, ny = y + sz;
         if (nx < 0 || ny < 0 || nx >= N || ny >= N || w.road[ny * N + nx]) continue;
+        // Nor toward the next cell of the same wide junction (cells side by side all with lights, or a
+        // diagonal road beside): that corner is in the middle of the asphalt.
+        const ex = y * N + nx, ez = ny * N + x;
+        if (at[ex] || at[ez] || (w.road[ex] && w.diag[ex]) || (w.road[ez] && w.diag[ez])) continue;
         p.set(cx + sx * h, 0, cz + sz * h);
         m.compose(p, q, one);
         this.poles.setMatrixAt(n, m);
