@@ -5,7 +5,7 @@ import { shared } from './render/materials';
 /** Background music (made in code, starts on the first tap). */
 const bgm = new Bgm();
 import { CELL, Ground, KINDS, Level, LEVEL_NAME, N, Road, SERVICE, Zone } from './sim/defs';
-import { deleteSlot, listSlots, loadLocal, saveLocal } from './sim/save';
+import { deleteSlot, deserialize, listSlots, loadLocal, saveLocal, serialize } from './sim/save';
 import { repayLoan, takeLoan } from './sim/economy';
 import { updateParking } from './sim/parking';
 import { createSim, GAME_PACE, tick, type Sim } from './sim/sim';
@@ -28,6 +28,31 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const canvas = $<HTMLCanvasElement>('view');
 
 let sim: Sim = createSim(createWorld());
+
+/* ---------------------------------------------------------------- undo */
+
+/** The city as it was before each of the last few changes the player made (newest last). */
+const undoStack: string[] = [];
+const UNDO_MAX = 10;
+const changeSig = () => { const w = sim.w; return `${JSON.stringify(w.ver)}:${w.money}:${w.buildings.size}:${w.lines.length}:${w.roundabouts.length}:${w.noAvenueParking}:${w.transferDiscount}`; };
+/** Run a change; if it changed the city, it can be taken back. */
+function undoable<T>(fn: () => T): T {
+  const before = changeSig(), snap = serialize(sim.w);
+  const r = fn();
+  if (changeSig() !== before) { undoStack.push(snap); if (undoStack.length > UNDO_MAX) undoStack.shift(); renderCats(); }
+  return r;
+}
+/** 되돌리기: back to just before the last change (its cost comes back too). */
+function undoLast() {
+  const snap = undoStack.pop();
+  if (!snap) { toast('되돌릴 공사가 없어요.', 'info'); return; }
+  sim = createSim(deserialize(snap));
+  scene.setSim(sim);
+  closeInfo();
+  draft = null; bend = null; scene.preview.clear();
+  toast('방금 한 공사를 되돌렸어요.', 'good');
+  renderCats();
+}
 const scene = new CityScene(canvas, sim);
 // Phones start on normal quality; the choice is remembered per browser.
 const QKEY = 'city.quality';
@@ -78,7 +103,7 @@ focusStart();
 
 function renderCats() {
   $('cats').innerHTML = CATEGORIES.map((c) => `<button class="cat" data-cat="${c.id}" aria-pressed="${c.id === cat}" aria-keyshortcuts="${c.key}">${c.name}</button>`).join('')
-    + `<span class="cats-rule" aria-hidden="true"></span><button class="cat" data-panel="stats" aria-pressed="${panel === 'stats'}">현황</button><button class="cat" data-panel="budget" aria-pressed="${panel === 'budget'}">예산</button>`;
+    + `<span class="cats-rule" aria-hidden="true"></span><button class="cat" data-undo ${undoStack.length ? '' : 'disabled'} aria-keyshortcuts="Control+Z" title="되돌리기 (Ctrl+Z)">되돌리기</button><button class="cat" data-panel="stats" aria-pressed="${panel === 'stats'}">현황</button><button class="cat" data-panel="budget" aria-pressed="${panel === 'budget'}">예산</button>`;
   const tools = $('tools');
   const c = CATEGORIES.find((k) => k.id === cat);
   tools.hidden = !c || (c.tools.length < 2 && c.id !== 'transit');
@@ -127,26 +152,27 @@ function setTool(t: ToolId) {
 $('dock').addEventListener('click', (e) => {
   const el = (e.target as HTMLElement).closest('button');
   if (!el) return;
+  if (el.dataset.undo !== undefined) { undoLast(); return; }
   if (el.dataset.cat) selectCategory(el.dataset.cat); else if (el.dataset.tool) setTool(el.dataset.tool as ToolId);
   else if (el.dataset.panel) openPanel(el.dataset.panel as PanelKind);
   else if (el.dataset.roadmode) setRoadMode(el.dataset.roadmode as RoadMode);
   else if (el.dataset.policy === 'noAvenueParking') {
     const w = sim.w;
-    w.noAvenueParking = !w.noAvenueParking;
+    undoable(() => { w.noAvenueParking = !w.noAvenueParking; });
     updateParking(w);
     toast(w.noAvenueParking ? '대로에 차를 세울 수 없어요. 차가 잘 빠지지만 주변 주차난은 늘어요.' : '대로 갓길 주차를 다시 허용했어요.', 'info');
     renderCats();
   }
   else if (el.dataset.policy === 'transferDiscount') {
     const w = sim.w;
-    w.transferDiscount = !w.transferDiscount;
+    undoable(() => { w.transferDiscount = !w.transferDiscount; });
     toast(w.transferDiscount ? '갈아타도 요금을 한 번만 내요. 환승하는 승객이 크게 늘지만 요금 수입은 줄어요.' : '갈아탈 때마다 요금을 따로 받아요. 수입은 늘지만 갈아타는 사람이 줄어요.', 'info');
     renderCats();
   }
   else if (el.dataset.draft && draft) {
     if (el.dataset.draft === 'undo') draft.stops.pop();
     if (el.dataset.draft === 'cancel') { cat = null; setTool('select'); return; }
-    if (el.dataset.draft === 'done') finishDraft();
+    if (el.dataset.draft === 'done') undoable(finishDraft);
     if (el.dataset.draft.startsWith('up:')) {
       // Same stops, bigger bus: switch to that bus's tool (which keeps the stops drawn so far).
       const bus = el.dataset.draft.slice(3) as BusType;
@@ -235,14 +261,14 @@ for (const id of ['info', 'panel']) {
     if (!t) return;
     if (t.dataset.close !== undefined) { if (id === 'info') closeInfo(); else closePanel(); }
     if (t.dataset.demolish) {
-      bulldoze(sim.w, (() => { const b = sim.w.buildings.get(Number(t.dataset.demolish)); return b ? [idx(b.x, b.y)] : []; })());
+      undoable(() => bulldoze(sim.w, (() => { const b = sim.w.buildings.get(Number(t.dataset.demolish)); return b ? [idx(b.x, b.y)] : []; })()));
       closeInfo();
     }
     if (t.dataset.ov) { scene.setOverlay(t.dataset.ov as Overlay); scene.transit.showRoutes = t.dataset.ov === 'transit' || !!draft; renderPanel(true); }
     if (t.dataset.removeLine) {
       const id = Number(t.dataset.removeLine);
       // Closing a line takes two presses: 폐선, then 폐선 확인.
-      if (t.dataset.confirmed !== undefined) { removeLine(sim.w, id); confirmLine = null; } else confirmLine = id;
+      if (t.dataset.confirmed !== undefined) { undoable(() => removeLine(sim.w, id)); confirmLine = null; } else confirmLine = id;
       renderPanel(true);
       renderCats();
     }
@@ -615,8 +641,8 @@ function endPointer(e: PointerEvent) {
     }
     return;
   }
-  if (bend?.active) { if (e.type === 'pointerup') commitCurve(); else bend.active = false; return; }
-  if (drag && e.type === 'pointerup') commit();
+  if (bend?.active) { if (e.type === 'pointerup') undoable(commitCurve); else bend.active = false; return; }
+  if (drag && e.type === 'pointerup') undoable(commit);
   drag = null;
   if (bend) { preview(); return; }
   if (e.pointerType !== 'mouse') { hover = null; scene.preview.clear(); hideTip(); } else preview();
@@ -632,7 +658,8 @@ window.addEventListener('keydown', (e) => {
   if (k === 'escape' && bend) { bend = null; scene.preview.clear(); preview(); return; }
   if (k === 'escape') { cat = null; setTool('select'); closeInfo(); closePanel(); return; }
   if (!running) return;
-  if (draft && k === 'enter') { finishDraft(); return; }
+  if (k === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undoLast(); return; }
+  if (draft && k === 'enter') { undoable(finishDraft); return; }
   if (draft && k === 'backspace') { draft.stops.pop(); renderDraft(); return; }
   if (k === 't' && cat === 'road') { setRoadMode(ROAD_MODES[(ROAD_MODES.findIndex((m) => m.id === roadMode) + 1) % ROAD_MODES.length].id); return; }
   const hot = CATEGORIES.find((c) => c.key.toLowerCase() === k);
@@ -647,6 +674,7 @@ window.addEventListener('blur', () => scene.view.keys.clear());
 /* --------------------------------------------------------------- start */
 
 function useWorld(w: ReturnType<typeof createWorld>) {
+  undoStack.length = 0;
   sim = createSim(w);
   scene.setSim(sim);
   resetToasts(w);
