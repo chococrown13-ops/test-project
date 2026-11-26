@@ -40,3 +40,4 @@ crashlytics-build.properties
 *.aab
 *.unitypackage
 *.app
+/Captures/
