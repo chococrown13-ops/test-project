@@ -84,12 +84,7 @@ function roomIn(groups: Map<number, Car[]>, a: number, b: number, lane: number):
 function pickLane(w: World, groups: Map<number, Car[]>, c: Car): 0 | 1 {
   const want = laneWant(w, c, c.i);
   const a = c.path[c.i], b = c.path[c.i + 1];
-  if (want >= 0) {
-    // Into the lane for the turn, but not on top of a car just ahead in it: wait a link if the turn
-    // isn't at the very next junction (there are more chances to move over before it).
-    if (want !== c.lane && roomIn(groups, a, b, want) < LENGTH[c.kind] / 2 + S0 && !isJunction(nodes(w), b)) return c.lane;
-    return want as 0 | 1;
-  }
+  if (want >= 0) return want as 0 | 1;
   const here = roomIn(groups, a, b, c.lane), there = roomIn(groups, a, b, 1 - c.lane);
   return there > here + 6 ? (1 - c.lane) as 0 | 1 : c.lane;
 }
