@@ -34,7 +34,7 @@ namespace NaeDosi.Render
         Texture2D roadSnow;
         string paintVer = "", busKey = "";
         HashSet<int> busCells = new HashSet<int>();
-        float snow;
+        float snow, paintTimer;
         Transform world;
 
         static readonly int NIGHT = Shader.PropertyToID("_Night"), SNOW = Shader.PropertyToID("_Snow"), TIME0 = Shader.PropertyToID("_Time0"), MAPSIZE = Shader.PropertyToID("_MapSize"), ROADSNOW = Shader.PropertyToID("_RoadSnow");
@@ -103,20 +103,38 @@ namespace NaeDosi.Render
             Shader.SetGlobalFloat(MAPSIZE, N * CELL);
 
             world = new GameObject("World").transform;
-            var demo = Resources.Load<TextAsset>("Cities/demo");
-            var w = demo != null ? Save.unpack(demo.text) : WorldOps.createWorld(7);
-            SetWorld(w ?? WorldOps.createWorld(7));
+            dayLock = PlayerPrefs.GetInt("city.daylock", 0) == 1;
+            quality = PlayerPrefs.GetInt("city.quality", 1) == 1;
+            SetWorld(WorldOps.createWorld());
+            SetQuality(quality);
         }
 
         /// <summary>Swap in a different city (new game or load).</summary>
-        public void SetWorld(World w)
+        public void SetWorld(World w, bool keepCamera = false)
         {
             foreach (Transform t in world) Destroy(t.gameObject);
             sim = SimLoop.createSim(w);
             ground = new GroundView(w, world, shader);
-            roads = new RoadView(world, shader);
+            roads = new RoadView(world, shader, ground.tex);
             buildings = new BuildingView(world, shader) { heightAt = (x, z) => ground.HeightAt(x, z) };
             paintVer = ""; busKey = "";
+            ground.overlay = overlay;
+        }
+
+        /// <summary>A transit line is being drawn: buildings sink flat so the streets show.</summary>
+        public bool transitDraft;
+        public string overlay = "none";
+        public bool quality = true;
+        public void SetOverlay(string o) { overlay = o; ground.overlay = o; roads.trafficOverlay = o == "traffic"; paintVer = ""; }
+        public void ForceRepaint() { paintVer = ""; }
+        /// <summary>High: sharp shadows and multisampling; normal: lighter for phones.</summary>
+        public void SetQuality(bool high)
+        {
+            quality = high;
+            var a = UniversalRenderPipeline.asset;
+            if (a != null) { a.msaaSampleCount = high ? 4 : 1; a.renderScale = high ? 1f : 0.8f; }
+            QualitySettings.shadows = UnityEngine.ShadowQuality.All;
+            sun.shadowResolution = high ? UnityEngine.Rendering.LightShadowResolution.High : UnityEngine.Rendering.LightShadowResolution.Medium;
         }
 
         static float Smooth(float a, float b, float x) { float t = Mathf.Clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); }
@@ -183,7 +201,6 @@ namespace NaeDosi.Render
         void Update()
         {
             float dt = Mathf.Min(0.1f, Time.deltaTime);
-            Controls(dt);
             SimLoop.tick(sim, dt, speed);
             var w = sim.w;
             view.Update(dt);
@@ -206,9 +223,15 @@ namespace NaeDosi.Render
             snow += (want - snow) * Mathf.Min(1, dt * 0.8f);
             Shader.SetGlobalFloat(SNOW, snow);
             buildings.Update(w, night);
+            // Laying out a line (or looking at the transit map): buildings sink flat.
+            float want2 = transitDraft || overlay == "transit" ? 0.04f : 1f;
+            var bs = buildings.root.transform.localScale;
+            if (Mathf.Abs(bs.y - want2) > 0.001f) buildings.root.transform.localScale = new Vector3(1, bs.y + (want2 - bs.y) * Mathf.Min(1, dt * 8), 1);
             string ver = $"{w.ver.roads}:{w.ver.zones}:{w.ver.buildings}:{month}";
-            if (ver != paintVer)
+            paintTimer -= dt;
+            if (ver != paintVer || (overlay != "none" && paintTimer <= 0))
             {
+                paintTimer = 0.5f;
                 paintVer = ver;
                 ground.Paint(w);
                 ground.PlantTrees(w);
@@ -220,30 +243,6 @@ namespace NaeDosi.Render
             if (any) roadSnow.Apply(false);
             ground.Draw();
             roads.Draw();
-        }
-
-        Vector2 lastMouse; int drag; // 0 none, 1 pan, 2 rotate
-
-        void Controls(float dt)
-        {
-            var k = Keyboard.current; var m = Mouse.current;
-            if (k != null)
-                view.Keys(k.wKey.isPressed || k.upArrowKey.isPressed, k.sKey.isPressed || k.downArrowKey.isPressed, k.aKey.isPressed || k.leftArrowKey.isPressed, k.dKey.isPressed || k.rightArrowKey.isPressed,
-                    k.qKey.isPressed, k.eKey.isPressed, k.rKey.isPressed || k.equalsKey.isPressed, k.fKey.isPressed || k.minusKey.isPressed, dt);
-            if (m == null) return;
-            var pos = m.position.ReadValue();
-            if (m.rightButton.wasPressedThisFrame) { drag = 2; lastMouse = pos; }
-            else if (m.middleButton.wasPressedThisFrame || m.leftButton.wasPressedThisFrame) { drag = 1; lastMouse = pos; }
-            if (!m.rightButton.isPressed && !m.middleButton.isPressed && !m.leftButton.isPressed) drag = 0;
-            if (drag != 0)
-            {
-                var d = pos - lastMouse; lastMouse = pos;
-                // Screen y runs up in Unity, down in the browser.
-                if (drag == 1) view.PanPixels(d.x, -d.y, Screen.height);
-                else view.Rotate(-d.x * 0.006, -d.y * 0.004);
-            }
-            float wheel = m.scroll.ReadValue().y;
-            if (Mathf.Abs(wheel) > 0.01f) view.Zoom(Math.Exp(-Math.Sign(wheel) * 0.12));
         }
 
         /// <summary>Put the camera straight on a view (for comparison shots).</summary>

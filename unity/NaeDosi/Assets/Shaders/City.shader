@@ -16,6 +16,7 @@ Shader "NaeDosi/City"
         [HDR] _Emit ("Emission", Color) = (0,0,0,0)
         _Cull ("Cull", Float) = 2
         _Off ("Depth offset", Float) = 0
+        _RoadOv ("Traffic overlay", Float) = 0
     }
     SubShader
     {
@@ -25,7 +26,7 @@ Shader "NaeDosi/City"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
         CBUFFER_START(UnityPerMaterial)
             float4 _BaseMap_ST;
-            float _Mode, _Smooth, _Metal, _Cull;
+            float _Mode, _Smooth, _Metal, _Cull, _RoadOv, _Off;
             float4 _Emit;
         CBUFFER_END
         TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
@@ -211,6 +212,7 @@ Shader "NaeDosi/City"
                 }
                 else if (_Mode < 1.5)
                 {
+                    if (_RoadOv > 0.5 && _MapSize > 0) col = lerp(col, SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, float2(gp.x / _MapSize, 1 - gp.y / _MapSize)).rgb, 0.8);
                     if (_MapSize > 0)
                     {
                         float rs = SAMPLE_TEXTURE2D(_RoadSnow, sampler_RoadSnow, gp / _MapSize).r;

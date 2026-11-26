@@ -22,6 +22,10 @@ namespace NaeDosi.Render
         int shapeVer = -1;
         string treeVer = "";
         public int month = 3;
+        public string overlay = "none";
+        public bool showZoneable;
+        /// <summary>While placing a facility with a site rule: where it can go.</summary>
+        public string showSites;
         readonly Material landMat, farMat, waterMat;
         public readonly Instances pines, rounds;
 
@@ -200,6 +204,20 @@ namespace NaeDosi.Render
         {
             int R = N * TX;
             var cover = Curves.curveInfo(w).cover;
+            byte[] sites = null;
+            if (showSites != null)
+            {
+                sites = new byte[N * N];
+                int ss = KINDS[showSites].size;
+                double money = w.money;
+                w.money = 1e12;
+                for (int y = 0; y + ss <= N; y++) for (int x = 0; x + ss <= N; x++)
+                {
+                    if (Tools.placeProblem(w, showSites, x, y) != null) continue;
+                    for (int dy = 0; dy < ss; dy++) for (int dx = 0; dx < ss; dx++) sites[(y + dy) * N + x + dx] = 1;
+                }
+                w.money = money;
+            }
             for (int y = 0; y < N; y++) for (int x = 0; x < N; x++)
             {
                 int i = WorldOps.idx(x, y);
@@ -228,6 +246,15 @@ namespace NaeDosi.Render
                 }
                 else if (Bank(w, x, y)) { r = 196; g = 184; b = 140; }
                 else { r = gr; g = gg; b = gb; }
+                if (showZoneable && w.zone[i] == 0 && w.road[i] == 0 && bd == null && cover[i] == 0 && w.ground[i] != Ground.Water && Tools.roadDistance(w, x, y) <= ZONE_DEPTH)
+                { r = r * 0.8 + 255 * 0.2; g = g * 0.8 + 255 * 0.2; b = b * 0.8 + 255 * 0.2; line = true; }
+                if (sites != null && sites[i] != 0) { r = r * 0.55 + 120 * 0.45; g = g * 0.55 + 205 * 0.45; b = b * 0.55 + 255 * 0.45; line = true; }
+                if (overlay != "none" && w.ground[i] != Ground.Water)
+                {
+                    double? ov = OverlayValue(w, overlay, i);
+                    if (ov != null) { var c = Heat(ov.Value); r = r * 0.25 + c[0] * 0.75; g = g * 0.25 + c[1] * 0.75; b = b * 0.25 + c[2] * 0.75; }
+                    else { r *= 0.55; g *= 0.55; b *= 0.55; }
+                }
                 for (int ty = 0; ty < TX; ty++) for (int tx = 0; tx < TX; tx++)
                 {
                     bool edge = line && (tx == 0 || ty == 0);
@@ -239,6 +266,49 @@ namespace NaeDosi.Render
             }
             tex.SetPixels32(px);
             tex.Apply(false);
+        }
+
+        /// <summary>Five-stop heat scale: green (good) to red (bad).</summary>
+        static double[] Heat(double v)
+        {
+            double t = Math.Max(0, Math.Min(1, v));
+            double[][] st = { new double[] { 46, 160, 90 }, new double[] { 140, 200, 70 }, new double[] { 240, 210, 60 }, new double[] { 240, 130, 50 }, new double[] { 210, 50, 50 } };
+            double f = t * 4; int i = Math.Min(3, (int)Math.Floor(f)); double k = f - i;
+            var a = st[i]; var b = st[i + 1];
+            return new[] { a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k };
+        }
+
+        /// <summary>0 = good, 1 = bad; null = not applicable here.</summary>
+        static double? OverlayValue(World w, string ov, int i)
+        {
+            switch (ov)
+            {
+                case "traffic": return w.road[i] != 0 ? Math.Min(1, w.traffic[i] / 1.3) : (double?)null;
+                case "transit": return w.transit[i] == 2 ? 0 : w.transit[i] != 0 ? 0.35 : 1;
+                case "land": return (70 - w.land[i]) / 50.0;
+                case "pollution": return w.pollution[i] > 2 ? w.pollution[i] / 60.0 : 0;
+                case "edu": return w.edu[i] != 0 ? 0 : 1;
+                case "safety": return w.safety[i] != 0 ? 0 : 1;
+                case "health": return w.health[i] != 0 ? 0 : 1;
+                case "fire": return w.fire[i] != 0 ? 0 : 1;
+                case "parking":
+                {
+                    if (w.road[i] != 0) return w.parked[i] != 0 ? Math.Min(1, w.parked[i] / 4.0) * 0.7 : (double?)null;
+                    int id = w.bld[i];
+                    if (id < 0) return null;
+                    var b = w.buildings[id];
+                    if (Parking.LOT_SPACES(b.kind) > 0) return 0;
+                    return KINDS[b.kind].zone != 0 ? w.parkPress[i] / 100.0 : (double?)null;
+                }
+                case "power": case "water":
+                {
+                    int id = w.bld[i];
+                    if (id < 0) return null;
+                    var b = w.buildings[id];
+                    return (ov == "power" ? b.powered : b.watered) ? 0 : 1;
+                }
+                default: return null;
+            }
         }
 
         static string SeasonOf(int m) => m == 4 ? "blossom" : m >= 3 && m <= 5 ? "spring" : m >= 6 && m <= 9 ? "summer" : m >= 10 && m <= 11 ? "autumn" : "winter";

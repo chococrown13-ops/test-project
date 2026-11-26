@@ -14,12 +14,15 @@ namespace NaeDosi.Render
         List<(double x, double z, bool cherry, double s)> spots = new List<(double, double, bool, double)>();
         readonly List<GameObject> parts = new List<GameObject>();
 
-        public RoadView(Transform parent, Shader shader)
+        public bool trafficOverlay { set { roadMat.SetFloat("_RoadOv", value ? 1 : 0); } }
+
+        public RoadView(Transform parent, Shader shader, Texture groundTex = null)
         {
             root = new GameObject("Roads");
             root.transform.SetParent(parent, false);
             roadMat = new Material(shader) { name = "road" };
             roadMat.SetFloat("_Mode", 1); roadMat.SetFloat("_Smooth", 0.08f);
+            if (groundTex != null) roadMat.SetTexture("_BaseMap", groundTex);
             paintMat = new Material(shader) { name = "paint" };
             paintMat.SetFloat("_Mode", 1); paintMat.SetFloat("_Smooth", 0.4f);
             paintMat.renderQueue = 2010; paintMat.SetFloat("_Off", -2);
