@@ -6,6 +6,10 @@ export interface GameRecord {
   board: { id: string; star: number }[];
   traits: string[];
   log: RoundLog[];
+  /** With friends: how many seats, and the people (not the computer) with where they finished (0: still in when this one went out). */
+  online?: boolean;
+  seats?: number;
+  people?: { name: string; place: number; me?: boolean }[];
 }
 
 const KEY = 'nanjang.records';

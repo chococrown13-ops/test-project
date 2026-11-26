@@ -546,8 +546,18 @@ body.dragging .zoom { opacity: 0.3; pointer-events: none; }
 .evo-line i { font-style: normal; white-space: nowrap; }
 .evo-line em { font-style: normal; opacity: 0.5; }
 .book-u p small { display: block; margin-top: 3px; font-weight: 700; color: var(--lacquer); }
-.rec-sum { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 10px; font-size: 13px; }
-.rec-sum b { font-size: var(--text-lg); margin-left: 3px; }
+.rec-sum { display: grid; gap: 6px; margin: 4px 0 10px; font-size: 13px; }
+.rec-tab { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rec-tab th, .rec-tab td { padding: 4px 6px; border-bottom: 1px solid color-mix(in oklab, currentColor 15%, transparent); text-align: right; }
+.rec-tab th:first-child, .rec-tab thead th:first-child { text-align: left; }
+.rec-tab thead th { font-weight: 600; opacity: 0.7; font-size: 12px; }
+.rec-tab small { opacity: 0.65; }
+.rec-h { margin: 8px 0 2px; font-size: 13px; opacity: 0.8; }
+.rec-form { display: flex; align-items: flex-end; gap: 4px; height: 54px; }
+.rec-form i { flex: 1; height: var(--h); min-width: 0; border-radius: 4px 4px 0 0; background: #c9b37a; font-style: normal; font-size: 10px; display: grid; align-items: start; justify-items: center; color: #3a2e12; padding-top: 2px; }
+.rec-form i.p1 { background: #f2b632; } .rec-form i.p2, .rec-form i.p3, .rec-form i.p4 { background: #dcc27a; }
+.rec-people { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.rec-people .chip.me { font-weight: 700; }
 .rec-list { display: grid; gap: 8px; overflow: auto; max-height: min(64vh, 560px); }
 .rec { border: 1px solid var(--color-edge); border-radius: 12px; padding: 6px 10px; background: var(--color-card); }
 .rec.first { border-color: #d9b44a; box-shadow: 0 0 0 2px color-mix(in oklab, #f4d27a 50%, transparent); }
@@ -648,3 +658,7 @@ body.dragging .zoom { opacity: 0.3; pointer-events: none; }
 .plabel .bar .ticks { position: absolute; inset: 0; background: repeating-linear-gradient(to right, transparent 0 calc(var(--seg, 100%) - 1px), rgba(12, 10, 16, 0.6) calc(var(--seg, 100%) - 1px) var(--seg, 100%)); pointer-events: none; }
 .plabel.prep .pbars .bars { display: none; }
 @media (max-width: 900px) { .plabel { width: 52px; } .plabel .bar { width: 40px; } .plabel .bar.hp { height: 6px; } }
+/* 전적: the summary and the list scroll together; chips readable on the light card. */
+#recs .panel { max-height: 92vh; overflow: auto; }
+#recs .rec-list { max-height: none; overflow: visible; }
+.rec .chip, .rec-people .chip { background: #efe6cf; color: #4a3a1a; border: 0; }
