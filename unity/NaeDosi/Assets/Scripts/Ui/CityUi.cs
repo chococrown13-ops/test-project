@@ -1099,7 +1099,16 @@ namespace NaeDosi.Ui
                 }
             }
             var m = Mouse.current;
-            if (m == null || Time.unscaledTime - lastTouchAt < 0.8f) return false;
+            if (m == null) return false;
+            // After any touch the browser keeps a fake mouse parked where the finger last was; taken as a hover, it would
+            // leave the tool's ghost (a service's coverage ring, say) on screen. Only a real mouse, moved well after the last
+            // touch, brings the mouse back.
+            if (lastTouchAt > -99)
+            {
+                bool real = Time.unscaledTime - lastTouchAt > 1.5f && (m.delta.ReadValue().sqrMagnitude > 1f || m.leftButton.wasPressedThisFrame || m.scroll.ReadValue().sqrMagnitude > 0);
+                if (!real) return false;
+                lastTouchAt = -99;
+            }
             p.pos = m.position.ReadValue();
             p.lDown = m.leftButton.wasPressedThisFrame; p.lUp = m.leftButton.wasReleasedThisFrame;
             p.rDown = m.rightButton.wasPressedThisFrame; p.rUp = m.rightButton.wasReleasedThisFrame;
