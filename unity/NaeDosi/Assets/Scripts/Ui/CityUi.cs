@@ -160,6 +160,7 @@ namespace NaeDosi.Ui
             if (!layoutKnown || compact != layoutCompact || portrait != layoutPortrait)
             {
                 layoutKnown = true; layoutCompact = compact; layoutPortrait = portrait;
+                Debug.Log($"[layout] {Screen.width}x{Screen.height} dpi {Screen.dpi} css {w:F0}x{h:F0} compact {compact} portrait {portrait}");
                 root.EnableInClassList("compact", compact);
                 root.EnableInClassList("portrait", compact && portrait);
                 root.EnableInClassList("landscape", compact && !portrait);
