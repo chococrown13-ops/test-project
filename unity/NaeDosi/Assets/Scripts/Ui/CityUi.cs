@@ -1252,6 +1252,14 @@ namespace NaeDosi.Ui
         int saveDay;
         bool firstGesture;
 
+        /// <summary>Phones close a hidden browser tab without warning: save the city whenever the page loses focus.</summary>
+        void OnApplicationFocus(bool focus)
+        {
+            if (focus || !running || visiting != null || G == null) return;
+            var w = G.sim?.w;
+            if (w != null) Slots.Save(w);
+        }
+
         void Update()
         {
             if (G == null || root == null) return;
