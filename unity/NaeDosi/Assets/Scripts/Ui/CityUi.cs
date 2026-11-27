@@ -56,7 +56,7 @@ namespace NaeDosi.Ui
         {
             I = this;
             preview = new PreviewView(Shader.Find("NaeDosi/Ghost"));
-            var ps = ScriptableObject.CreateInstance<PanelSettings>();
+            var ps = panelSettings = ScriptableObject.CreateInstance<PanelSettings>();
             ps.themeStyleSheet = Resources.Load<ThemeStyleSheet>("UI/Runtime");
             // CSS pixels: 96 dpi, so the browser's zoom and a phone's pixel ratio size it like the web page.
             ps.scaleMode = PanelScaleMode.ConstantPhysicalSize;
@@ -132,7 +132,7 @@ namespace NaeDosi.Ui
     <div class='row'><button id='newBtn' class='btn primary' data-act='newCity'>새 도시 시작</button><button id='loadBtn' class='btn' data-act='slots' hidden>불러오기</button><button id='visitBtn' class='btn' data-act='visit'>친구 도시 구경</button></div>
     <dl class='howto'>
       <div><dt>PC</dt><dd>좌클릭으로 건설, 우클릭 드래그로 회전, 휠로 확대, WASD로 이동</dd></div>
-      <div><dt>모바일</dt><dd>한 손가락으로 건설(선택 중일 땐 이동), 두 손가락으로 이동, 확대, 회전</dd></div>
+      <div><dt>모바일</dt><dd>한 손가락으로 건설(선택 중일 땐 이동), 두 손가락으로 이동·확대·회전, 함께 위아래로 밀면 기울이기</dd></div>
     </dl>
     <p class='map-desc credit'>지도 데이터: 행정구역 통계청(southkorea-maps), 토지피복 © ESA WorldCover 2021 (CC BY 4.0), 고도 AWS Terrain Tiles (Mapzen, SRTM 등)</p>
   </div>
@@ -140,6 +140,61 @@ namespace NaeDosi.Ui
 </div>";
 
         VisualElement E(string id) => root.Q(id);
+
+        // ---------------------------------------------------------------- phone layout
+
+        PanelSettings panelSettings;
+        bool layoutCompact, layoutPortrait, layoutKnown;
+        ScrollView toolsScroll, catsScroll;
+
+        /// <summary>
+        /// Phones (short side under ~560 CSS px) get a tighter layout: everything a little smaller, the tool and category rows in
+        /// one line each that slides sideways, the top bar wrapping onto two lines when upright, and windows kept to one side
+        /// so the city stays in view. The goal card always sits just under the top bar, however tall it has become.
+        /// </summary>
+        void Responsive()
+        {
+            float dpi = Screen.dpi > 0 ? Screen.dpi : 96;
+            float w = Screen.width * 96f / dpi, h = Screen.height * 96f / dpi;
+            bool compact = Mathf.Min(w, h) < 560, portrait = h > w * 1.05f;
+            if (!layoutKnown || compact != layoutCompact || portrait != layoutPortrait)
+            {
+                layoutKnown = true; layoutCompact = compact; layoutPortrait = portrait;
+                root.EnableInClassList("compact", compact);
+                root.EnableInClassList("portrait", compact && portrait);
+                root.EnableInClassList("landscape", compact && !portrait);
+                if (panelSettings != null) panelSettings.scale = compact ? 0.9f : 1f;
+                Slide(ref toolsScroll, E("tools"), compact);
+                Slide(ref catsScroll, E("cats"), compact);
+            }
+            var top = E("top"); var goal = E("goal");
+            if (top != null && goal != null && top.layout.height > 0) goal.style.top = top.layout.yMax + 8;
+        }
+
+        /// <summary>Puts a row into a sideways-scrolling strip on phones, and back into the dock on bigger screens.</summary>
+        void Slide(ref ScrollView sv, VisualElement row, bool on)
+        {
+            if (row == null) return;
+            var dock = E("dock");
+            if (sv == null)
+            {
+                sv = new ScrollView(ScrollViewMode.Horizontal) { horizontalScrollerVisibility = ScrollerVisibility.Hidden, verticalScrollerVisibility = ScrollerVisibility.Hidden };
+                sv.AddToClassList("slide");
+                sv.touchScrollBehavior = ScrollView.TouchScrollBehavior.Clamped;
+            }
+            if (on && row.parent != sv.contentContainer)
+            {
+                int ix = dock.IndexOf(row);
+                dock.Insert(ix, sv);
+                sv.Add(row);
+            }
+            else if (!on && row.parent == sv.contentContainer)
+            {
+                int ix = dock.IndexOf(sv);
+                dock.Insert(ix, row);
+                sv.RemoveFromHierarchy();
+            }
+        }
         Label L(string id) => root.Q<Label>(id);
 
         void BuildLayout()
@@ -1173,11 +1228,12 @@ namespace NaeDosi.Ui
         void Update()
         {
             if (G == null || root == null) return;
-            if (!firstGesture && ((Mouse.current?.leftButton.wasPressedThisFrame ?? false) || (Keyboard.current?.anyKey.wasPressedThisFrame ?? false)))
+            if (!firstGesture && ((Mouse.current?.leftButton.wasPressedThisFrame ?? false) || (Touchscreen.current?.primaryTouch.press.wasPressedThisFrame ?? false) || (Keyboard.current?.anyKey.wasPressedThisFrame ?? false)))
             {
                 firstGesture = true;
                 if (PlayerPrefs.GetString("city.music", "on") != "off" && !Bgm.On) SetMusic(true);
             }
+            Responsive();
             Pointer();
             Keys();
             if (!running) G.view.Rotate(Time.deltaTime * 0.05, 0);
