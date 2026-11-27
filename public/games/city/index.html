@@ -35,7 +35,8 @@
       productName: "내 도시 더 크게",
       productVersion: "0.1.0",
       matchWebGLToCanvasSize: true,
-      devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+      // Phones draw at 1.25x at most: their screens are dense and their GPUs small, so full resolution would stutter.
+      devicePixelRatio: Math.min(window.devicePixelRatio || 1, /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 1.25 : 2),
     }, function (p) { document.getElementById('bar').style.width = Math.round(p * 100) + '%'; })
       .then(function (u) { window.unityInstance = u; document.getElementById('loading').remove(); canvas.focus(); })
       .catch(function (e) { document.getElementById('msg').textContent = '불러오지 못했어요: ' + e; });

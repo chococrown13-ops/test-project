@@ -446,6 +446,11 @@ namespace NaeDosi.Ui
                 case "daylock": G.dayLock = !G.dayLock; PlayerPrefs.SetInt("city.daylock", G.dayLock ? 1 : 0); RenderPanel(true); break;
                 case "quality": G.SetQuality(!G.quality); PlayerPrefs.SetInt("city.quality", G.quality ? 1 : 0); RenderPanel(true); break;
                 case "newCity": NewCity(); break;
+                case "freeroad": case "freecurve":
+                    SetTool("freeroad"); G.free.curve = A("data-act") == "freecurve"; G.free.Cancel(); ClosePanel();
+                    Toast(G.free.curve ? "곡선: 시작점 → 굽힐 곳 → 끝점 순서로 클릭. 이어서 계속 그릴 수 있어요. Esc나 오른쪽 클릭으로 끝내요." : "직선: 시작점과 끝점을 클릭. 이어서 계속 그릴 수 있어요. 다른 길과 겹치면 교차로가 생겨요. Esc나 오른쪽 클릭으로 끝내요.", "info");
+                    break;
+                case "freeclear": G.free.Clear(); Toast("자유 도로를 모두 지웠어요.", "info"); break;
                 case "style": G.artStyle = (G.artStyle + 1) % 3; PlayerPrefs.SetInt("city.style", G.artStyle); RenderPanel(true); break;
                 case "tilt": G.tiltShift = !G.tiltShift; PlayerPrefs.SetInt("city.tilt", G.tiltShift ? 1 : 0); RenderPanel(true); break;
                 case "visitHome": LeaveVisit(); break;
@@ -949,19 +954,99 @@ namespace NaeDosi.Ui
 
         (int x, int y, double wx, double wz)? CellAt(Vector2 screen) => G.view.Pick(screen);
 
+        /// <summary>One pointer for the frame: the mouse on a computer, one finger on a phone.</summary>
+        struct Ptr { public Vector2 pos; public bool lDown, lUp, rDown, rUp, mDown, mUp; public float wheel; }
+
+        float lastTouchAt = -99;
+        bool gesture;             // two fingers are (or were, until every finger lifts) steering the camera
+        Vector2 gMid; float gDist, gAng; bool gHas;
+
+        /// <summary>
+        /// Phones: one finger builds (or, with nothing chosen, moves the map); two fingers move, pinch to zoom, twist to turn,
+        /// and slide up or down together to tilt. Browsers also fake mouse clicks after a tap: those are ignored for a moment.
+        /// </summary>
+        bool ReadPtr(out Ptr p)
+        {
+            p = default;
+            var ts = Touchscreen.current;
+            if (ts != null)
+            {
+                var down = new List<UnityEngine.InputSystem.Controls.TouchControl>();
+                UnityEngine.InputSystem.Controls.TouchControl ended = null;
+                foreach (var t in ts.touches)
+                {
+                    if (t.press.isPressed) down.Add(t);
+                    else if (t.press.wasReleasedThisFrame) ended = t;
+                }
+                if (down.Count > 0 || ended != null) lastTouchAt = Time.unscaledTime;
+                if (down.Count >= 2)
+                {
+                    if (!gesture)
+                    {
+                        gesture = true; gHas = false;
+                        // A second finger means the first wasn't building: drop what it started.
+                        drag = null; bend = null; camMode = 0; hover = null; preview.Clear(); HideTip(); Preview();
+                    }
+                    Vector2 a = down[0].position.ReadValue(), b = down[1].position.ReadValue();
+                    Vector2 mid = (a + b) / 2; float dist = Mathf.Max(1, (a - b).magnitude), ang = Mathf.Atan2(b.y - a.y, b.x - a.x);
+                    if (gHas)
+                    {
+                        var dm = mid - gMid;
+                        float twist = Mathf.DeltaAngle(gAng * Mathf.Rad2Deg, ang * Mathf.Rad2Deg) * Mathf.Deg2Rad;
+                        float pinch = dist / gDist;
+                        // Both fingers sliding up or down together (with little pinch) tilts; otherwise the pair drags the map.
+                        if (Mathf.Abs(pinch - 1) < 0.01f && Mathf.Abs(dm.y) > Mathf.Abs(dm.x) * 2.5f && Mathf.Abs(dm.y) > 1.5f) G.view.Rotate(0, -dm.y * 0.004);
+                        else G.view.PanPixels(dm.x, -dm.y, Screen.height);
+                        if (Mathf.Abs(pinch - 1) > 0.002f) G.view.Zoom(gDist / dist);
+                        if (Mathf.Abs(twist) > 0.002f) G.view.Rotate(twist, 0);
+                    }
+                    gMid = mid; gDist = dist; gAng = ang; gHas = true;
+                    return false;
+                }
+                if (gesture)
+                {
+                    if (down.Count == 0) gesture = false;
+                    return false; // wait until every finger is up before a lone finger acts again
+                }
+                if (down.Count == 1)
+                {
+                    var t = down[0];
+                    p.pos = t.position.ReadValue();
+                    p.lDown = t.press.wasPressedThisFrame;
+                    return true;
+                }
+                if (ended != null)
+                {
+                    p.pos = ended.position.ReadValue();
+                    p.lUp = true;
+                    touchLift = true;
+                    return true;
+                }
+            }
+            var m = Mouse.current;
+            if (m == null || Time.unscaledTime - lastTouchAt < 0.8f) return false;
+            p.pos = m.position.ReadValue();
+            p.lDown = m.leftButton.wasPressedThisFrame; p.lUp = m.leftButton.wasReleasedThisFrame;
+            p.rDown = m.rightButton.wasPressedThisFrame; p.rUp = m.rightButton.wasReleasedThisFrame;
+            p.mDown = m.middleButton.wasPressedThisFrame; p.mUp = m.middleButton.wasReleasedThisFrame;
+            p.wheel = m.scroll.ReadValue().y;
+            return true;
+        }
+        bool touchLift;
+
         void Pointer()
         {
-            var m = Mouse.current;
-            if (m == null) return;
-            var pos = m.position.ReadValue();
+            touchLift = false;
+            if (!ReadPtr(out var m)) return;
+            var pos = m.pos;
             bool overUi = OverUi(pos);
             bool startShown = Shown(start) || Shown(slots) || Shown(visit);
             // Wheel zoom.
-            float wheel = m.scroll.ReadValue().y;
+            float wheel = m.wheel;
             if (Mathf.Abs(wheel) > 0.01f && !overUi && !startShown) G.view.Zoom(Math.Exp(-Math.Sign(wheel) * 0.12));
             if (startShown) return;
 
-            bool lDown = m.leftButton.wasPressedThisFrame, rDown = m.rightButton.wasPressedThisFrame, mDown = m.middleButton.wasPressedThisFrame;
+            bool lDown = m.lDown, rDown = m.rDown, mDown = m.mDown;
             if ((lDown || rDown || mDown) && !overUi)
             {
                 if (rDown) { camMode = 2; camLast = pos; camMoved = false; camButton = 1; }
@@ -969,6 +1054,7 @@ namespace NaeDosi.Ui
                 else
                 {
                     var c = CellAt(pos);
+                    if (tool == "freeroad") { if (c != null) G.free.Click(c.Value.wx, c.Value.wz); return; }
                     if (c != null)
                     {
                         var cv = c.Value;
@@ -985,7 +1071,7 @@ namespace NaeDosi.Ui
                 if (camMode == 1) G.view.PanPixels(d.x, -d.y, Screen.height);
                 else G.view.Rotate(-d.x * 0.006, -d.y * 0.004);
                 camLast = pos;
-                bool up = camButton == 1 ? m.rightButton.wasReleasedThisFrame : camButton == 2 ? m.middleButton.wasReleasedThisFrame : m.leftButton.wasReleasedThisFrame;
+                bool up = camButton == 1 ? m.rUp : camButton == 2 ? m.mUp : m.lUp;
                 if (up)
                 {
                     int was = camMode; camMode = 0;
@@ -997,6 +1083,7 @@ namespace NaeDosi.Ui
                 }
                 return;
             }
+            if (tool == "freeroad") { if (!overUi) { var fc = CellAt(pos); if (fc != null) G.free.Hover(fc.Value.wx, fc.Value.wz); } return; }
             // Hover and drag.
             if (!overUi || drag != null || bend != null)
             {
@@ -1018,13 +1105,15 @@ namespace NaeDosi.Ui
                 }
             }
             else if (hover != null && drag == null) { hover = null; preview.Clear(); HideTip(); }
-            if (m.leftButton.wasReleasedThisFrame)
+            if (m.lUp)
             {
                 if (bend != null && bend.active) { Undoable(CommitCurve); return; }
                 if (drag != null) Undoable(Commit);
                 drag = null;
                 Preview();
             }
+            // A finger has no hover: once it lifts, the ghost goes (a curve waiting for its bend point keeps its own).
+            if (touchLift && bend == null) { hover = null; preview.Clear(); HideTip(); }
         }
 
         void Keys()
@@ -1035,7 +1124,7 @@ namespace NaeDosi.Ui
             if (k.escapeKey.wasPressedThisFrame)
             {
                 if (bend != null) { bend = null; preview.Clear(); Preview(); return; }
-                cat = null; SetTool("select"); CloseInfo(); ClosePanel(); return;
+                G.free?.Cancel(); cat = null; SetTool("select"); CloseInfo(); ClosePanel(); return;
             }
             if (!running) return;
             bool ctrl = k.ctrlKey.isPressed || k.leftCommandKey.isPressed;

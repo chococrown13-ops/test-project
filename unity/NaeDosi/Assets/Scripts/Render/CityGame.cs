@@ -26,6 +26,7 @@ namespace NaeDosi.Render
         public TransitView transit;
         public EffectsView effects;
         public BadgeView badges;
+        public FreeRoads free;
         Shader ghost;
         float iconTimer, stallTimer;
         public bool dayLock;
@@ -123,7 +124,7 @@ namespace NaeDosi.Render
             artStyle = PlayerPrefs.GetInt("city.style", 0);
             tiltShift = PlayerPrefs.GetInt("city.tilt", 0) == 1;
             MakeClouds();
-            quality = PlayerPrefs.GetInt("city.quality", 1) == 1;
+            quality = PlayerPrefs.GetInt("city.quality", Application.isMobilePlatform ? 0 : 1) == 1; // phones start on the lighter setting
             SetWorld(WorldOps.createWorld());
             SetQuality(quality);
         }
@@ -138,6 +139,7 @@ namespace NaeDosi.Render
             buildings = new BuildingView(world, shader) { heightAt = (x, z) => ground.HeightAt(x, z) };
             buildings.onBorn = b => { if (KINDS[b.kind].zone != 0) Sfx.Play("grow"); };
             vehicles ??= new VehicleView(shader);
+            free ??= new FreeRoads(shader, (x, z) => ground.HeightAt(x, z), vehicles.CarMesh, vehicles.Mat);
             people ??= new PeopleView(shader);
             streets = new StreetView(world, shader, ghost);
             transit = new TransitView(world, shader, ghost);
@@ -299,6 +301,7 @@ namespace NaeDosi.Render
             ground.Draw();
             roads.Draw();
             vehicles.Draw();
+            if (free != null) { free.Update(Time.deltaTime); free.Draw(); }
             people.Draw();
             streets.Draw();
             transit.Draw();
