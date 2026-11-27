@@ -124,7 +124,7 @@ namespace NaeDosi.Render
             artStyle = PlayerPrefs.GetInt("city.style", 0);
             tiltShift = PlayerPrefs.GetInt("city.tilt", 0) == 1;
             MakeClouds();
-            quality = PlayerPrefs.GetInt("city.quality", 1) == 1;
+            quality = PlayerPrefs.GetInt("city.quality", Application.isMobilePlatform ? 0 : 1) == 1; // phones start on the lighter setting
             SetWorld(WorldOps.createWorld());
             SetQuality(quality);
         }
