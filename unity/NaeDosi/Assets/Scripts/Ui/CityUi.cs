@@ -683,6 +683,8 @@ namespace NaeDosi.Ui
             string when(long t) => t != 0 ? DateTimeOffset.FromUnixTimeMilliseconds(t).ToLocalTime().ToString("M. d. HH:mm", CultureInfo.InvariantCulture) : "예전 저장";
             string items = list.Count > 0 ? string.Concat(list.Select(x => $"<div class=\"slot\"><div><b>{Hud.esc(x.name)}</b><small>{(x.pop > 0 ? $"인구 {Hud.num(x.pop)} · {x.day / 360 + 1}년차 · " : "")}{when(x.at)}</small></div><button class=\"btn primary small\" data-open=\"{x.id}\">열기</button><button class=\"btn small\" data-del=\"{x.id}\">지우기</button></div>")) : "<p class=\"hint\">저장한 도시가 없어요.</p>";
             Html.Fill(slots, $"<div class=\"card hero slots-card\"><h2>저장한 도시</h2><div class=\"slot-list\">{items}</div><div class=\"row\"><button class=\"btn\" data-close-slots>닫기</button></div></div>", OnAct);
+            // The start card comes later in the layout and would cover this list: bring it to the front.
+            slots.BringToFront();
             Show(slots, true);
         }
 
@@ -695,6 +697,7 @@ namespace NaeDosi.Ui
                 + Visit.SectionHtml(mine)
                 + "<div class=\"row\"><button class=\"btn\" data-visit=\"close\">닫기</button></div></div>";
             Html.Fill(visit, h, OnAct);
+            visit.BringToFront();
             Show(visit, true);
         }
 
