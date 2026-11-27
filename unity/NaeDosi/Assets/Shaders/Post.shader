@@ -79,8 +79,8 @@ Shader "NaeDosi/Post"
                     if (_ArtStyle > 1.5)
                     {
                         // 실사: air between the eye and far things turns them paler and bluer.
-                        float haze = 1.0 - exp(-d0 * 0.0016);
-                        col = lerp(col, _SkyHorizonC.rgb * 0.95, haze * 0.55 * (1.0 - _Night * 0.7));
+                        float haze = 1.0 - exp(-d0 * 0.0009);
+                        col = lerp(col, _SkyHorizonC.rgb * 0.95, haze * 0.4 * (1.0 - _Night * 0.7));
                     }
                     if (abs(_ArtStyle - 1.0) < 0.5)
                     {

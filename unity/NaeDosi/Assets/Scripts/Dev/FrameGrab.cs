@@ -28,7 +28,7 @@ public sealed class FrameGrab : MonoBehaviour
             step?.Invoke(i);
             yield return new WaitForEndOfFrame();
             var t = ScreenCapture.CaptureScreenshotAsTexture();
-            File.WriteAllBytes(Path.Combine(dir, $"f{i:0000}.jpg"), t.EncodeToJPG(90));
+            File.WriteAllBytes(Path.Combine(dir, $"f{i:0000}.png"), t.EncodeToPNG());
             Destroy(t);
         }
         Time.captureFramerate = 0;
