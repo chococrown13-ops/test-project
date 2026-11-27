@@ -132,7 +132,7 @@ namespace NaeDosi.Ui
     <div class='row'><button id='newBtn' class='btn primary' data-act='newCity'>새 도시 시작</button><button id='loadBtn' class='btn' data-act='slots' hidden>불러오기</button><button id='visitBtn' class='btn' data-act='visit'>친구 도시 구경</button></div>
     <dl class='howto'>
       <div><dt>PC</dt><dd>좌클릭으로 건설, 우클릭 드래그로 회전, 휠로 확대, WASD로 이동</dd></div>
-      <div><dt>모바일</dt><dd>한 손가락으로 건설(선택 중일 땐 이동), 두 손가락으로 이동, 확대, 회전</dd></div>
+      <div><dt>모바일</dt><dd>한 손가락으로 건설(선택 중일 땐 이동), 두 손가락으로 이동·확대·회전, 함께 위아래로 밀면 기울이기</dd></div>
     </dl>
     <p class='map-desc credit'>지도 데이터: 행정구역 통계청(southkorea-maps), 토지피복 © ESA WorldCover 2021 (CC BY 4.0), 고도 AWS Terrain Tiles (Mapzen, SRTM 등)</p>
   </div>
@@ -160,7 +160,6 @@ namespace NaeDosi.Ui
             if (!layoutKnown || compact != layoutCompact || portrait != layoutPortrait)
             {
                 layoutKnown = true; layoutCompact = compact; layoutPortrait = portrait;
-                Debug.Log($"[layout] {Screen.width}x{Screen.height} dpi {Screen.dpi} css {w:F0}x{h:F0} compact {compact} portrait {portrait}");
                 root.EnableInClassList("compact", compact);
                 root.EnableInClassList("portrait", compact && portrait);
                 root.EnableInClassList("landscape", compact && !portrait);

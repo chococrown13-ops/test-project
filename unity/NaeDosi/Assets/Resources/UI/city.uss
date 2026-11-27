@@ -256,3 +256,18 @@ Label, .txt { margin: 0; padding: 0; white-space: normal; -unity-text-align: mid
 /* Sideways: windows run down the right edge between the top bar and the dock, leaving the city on the left. */
 .landscape .sheet, .landscape .sheet.wide { right: 4px; top: 54px; bottom: 108px; width: 300px; max-height: none; }
 .landscape #goal { width: 230px; }
+/* The start card on a phone: smaller, nothing squashed; sideways there is room only for what you must choose. */
+.compact .overlay { padding: 6px; }
+.compact .hero { padding: 16px 16px 14px 16px; }
+.compact .hero > * { flex-shrink: 0; }
+.compact .hero .t-h1 { font-size: 32px; }
+.compact .hero .lead { font-size: 13px; margin-top: 6px; }
+.landscape .hero { width: 520px; padding: 12px 16px 10px 16px; }
+.landscape .hero .t-h1 { font-size: 24px; }
+.landscape .hero .lead, .landscape .howto, .landscape .credit { display: none; }
+.compact .field { margin-top: 10px; }
+.compact .field .unity-text-field > .unity-base-text-field__input { min-height: 38px; }
+.compact .row { margin-top: 10px; }
+.compact .row .btn { min-height: 40px; font-size: 14px; }
+.compact .howto { margin-top: 12px; }
+.landscape .field { margin-top: 6px; }
