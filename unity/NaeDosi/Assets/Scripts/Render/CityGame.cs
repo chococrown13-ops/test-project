@@ -26,7 +26,6 @@ namespace NaeDosi.Render
         public TransitView transit;
         public EffectsView effects;
         public BadgeView badges;
-        public FreeRoads free;
         Shader ghost;
         float iconTimer, stallTimer;
         public bool dayLock;
@@ -139,7 +138,6 @@ namespace NaeDosi.Render
             buildings = new BuildingView(world, shader) { heightAt = (x, z) => ground.HeightAt(x, z) };
             buildings.onBorn = b => { if (KINDS[b.kind].zone != 0) Sfx.Play("grow"); };
             vehicles ??= new VehicleView(shader);
-            free ??= new FreeRoads(shader, (x, z) => ground.HeightAt(x, z), vehicles.CarMesh, vehicles.Mat);
             people ??= new PeopleView(shader);
             streets = new StreetView(world, shader, ghost);
             transit = new TransitView(world, shader, ghost);
@@ -163,7 +161,15 @@ namespace NaeDosi.Render
         {
             quality = high;
             var a = UniversalRenderPipeline.asset;
-            if (a != null) { a.msaaSampleCount = high ? 4 : 1; a.renderScale = high ? 1f : 0.8f; }
+            if (a != null)
+            {
+                a.msaaSampleCount = high ? 4 : 1;
+                // The page runs at the screen's full pixel density so the HUD is sharp; on phones the city itself is drawn
+                // at about 1.5 CSS pixels' worth (1.2 on the lighter setting) and scaled up, which a 3x screen hides well.
+                float ratio = Mathf.Max(1f, (Screen.dpi > 0 ? Screen.dpi : 96f) / 96f);
+                float phone = Application.isMobilePlatform ? Mathf.Clamp(1.5f / ratio, 0.34f, 1f) : (ratio > 2.01f ? 2f / ratio : 1f);
+                a.renderScale = (high ? 1f : 0.8f) * phone;
+            }
             QualitySettings.shadows = UnityEngine.ShadowQuality.All;
             sun.shadowResolution = high ? UnityEngine.Rendering.LightShadowResolution.High : UnityEngine.Rendering.LightShadowResolution.Medium;
         }
@@ -301,7 +307,6 @@ namespace NaeDosi.Render
             ground.Draw();
             roads.Draw();
             vehicles.Draw();
-            if (free != null) { free.Update(Time.deltaTime); free.Draw(); }
             people.Draw();
             streets.Draw();
             transit.Draw();

@@ -271,3 +271,7 @@ Label, .txt { margin: 0; padding: 0; white-space: normal; -unity-text-align: mid
 .compact .row .btn { min-height: 40px; font-size: 14px; }
 .compact .howto { margin-top: 12px; }
 .landscape .field { margin-top: 6px; }
+/* Phones: the dock is one paper sheet down to the screen's edge (the home bar's strip included, padded in CityUi.Responsive). */
+.compact #dock { bottom: 0; left: 0; right: 0; background-color: var(--paper); border-top-left-radius: 20px; border-top-right-radius: 20px; border-width: 1px 0 0 0; border-color: rgba(18,22,28,0.1); padding-top: 2px; }
+.compact .cats, .compact .tools { background-color: rgba(0,0,0,0); border-width: 0; margin: 0 4px; border-radius: 0; }
+.compact .tools { border-bottom-width: 1px; border-color: var(--rule); }

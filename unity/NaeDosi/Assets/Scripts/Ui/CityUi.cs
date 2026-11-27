@@ -176,9 +176,21 @@ namespace NaeDosi.Ui
                 var sc = E("screen");
                 if (sc != null)
                 {
-                    sc.style.top = SafeArea.Top / k; sc.style.bottom = SafeArea.Bottom / k;
+                    // On phones the dock's paper runs under the home bar instead of leaving a strip of map below it.
+                    sc.style.top = SafeArea.Top / k; sc.style.bottom = compact ? 0 : SafeArea.Bottom / k;
+                    var dk = E("dock");
+                    if (dk != null) dk.style.paddingBottom = compact ? SafeArea.Bottom / k + 4 : new StyleLength(StyleKeyword.Null);
                     sc.style.left = SafeArea.Left / k; sc.style.right = SafeArea.Right / k;
                 }
+            }
+            // Windows open just above the dock, however tall it is.
+            var dock = E("dock");
+            foreach (var id in new[] { "panel", "info" })
+            {
+                var sh = E(id);
+                if (sh == null) continue;
+                if (compact && dock != null && dock.layout.height > 0) sh.style.bottom = dock.layout.height + 6;
+                else sh.style.bottom = new StyleLength(StyleKeyword.Null);
             }
             var top = E("top"); var goal = E("goal");
             if (top != null && goal != null && top.layout.height > 0) goal.style.top = top.layout.yMax + 8;
@@ -514,11 +526,6 @@ namespace NaeDosi.Ui
                 case "daylock": G.dayLock = !G.dayLock; PlayerPrefs.SetInt("city.daylock", G.dayLock ? 1 : 0); RenderPanel(true); break;
                 case "quality": G.SetQuality(!G.quality); PlayerPrefs.SetInt("city.quality", G.quality ? 1 : 0); RenderPanel(true); break;
                 case "newCity": NewCity(); break;
-                case "freeroad": case "freecurve":
-                    SetTool("freeroad"); G.free.curve = A("data-act") == "freecurve"; G.free.Cancel(); ClosePanel();
-                    Toast(G.free.curve ? "곡선: 시작점 → 굽힐 곳 → 끝점 순서로 클릭. 이어서 계속 그릴 수 있어요. Esc나 오른쪽 클릭으로 끝내요." : "직선: 시작점과 끝점을 클릭. 이어서 계속 그릴 수 있어요. 다른 길과 겹치면 교차로가 생겨요. Esc나 오른쪽 클릭으로 끝내요.", "info");
-                    break;
-                case "freeclear": G.free.Clear(); Toast("자유 도로를 모두 지웠어요.", "info"); break;
                 case "style": G.artStyle = (G.artStyle + 1) % 3; PlayerPrefs.SetInt("city.style", G.artStyle); RenderPanel(true); break;
                 case "tilt": G.tiltShift = !G.tiltShift; PlayerPrefs.SetInt("city.tilt", G.tiltShift ? 1 : 0); RenderPanel(true); break;
                 case "visitHome": LeaveVisit(); break;
@@ -1122,7 +1129,6 @@ namespace NaeDosi.Ui
                 else
                 {
                     var c = CellAt(pos);
-                    if (tool == "freeroad") { if (c != null) G.free.Click(c.Value.wx, c.Value.wz); return; }
                     if (c != null)
                     {
                         var cv = c.Value;
@@ -1151,7 +1157,6 @@ namespace NaeDosi.Ui
                 }
                 return;
             }
-            if (tool == "freeroad") { if (!overUi) { var fc = CellAt(pos); if (fc != null) G.free.Hover(fc.Value.wx, fc.Value.wz); } return; }
             // Hover and drag.
             if (!overUi || drag != null || bend != null)
             {
@@ -1192,7 +1197,7 @@ namespace NaeDosi.Ui
             if (k.escapeKey.wasPressedThisFrame)
             {
                 if (bend != null) { bend = null; preview.Clear(); Preview(); return; }
-                G.free?.Cancel(); cat = null; SetTool("select"); CloseInfo(); ClosePanel(); return;
+                cat = null; SetTool("select"); CloseInfo(); ClosePanel(); return;
             }
             if (!running) return;
             bool ctrl = k.ctrlKey.isPressed || k.leftCommandKey.isPressed;
