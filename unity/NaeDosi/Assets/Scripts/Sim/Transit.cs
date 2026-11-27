@@ -159,6 +159,13 @@ namespace NaeDosi
                 var s = straight(c);
                 if (s != null) return (c, s.Value);
             }
+            // A 45° road: its neighbours are corner to corner; the kerb is square to the road, on whichever side is open.
+            foreach (var (dx, dy) in new[] { (1, 1), (1, -1) })
+            {
+                if (!road(x0 + dx, y0 + dy) && !road(x0 - dx, y0 - dy)) continue;
+                if (!road(x0 + dx, y0 - dy)) return (i, (dx, -dy));
+                if (!road(x0 - dx, y0 + dy)) return (i, (-dx, dy));
+            }
             return (i, (0, -1));
         }
 

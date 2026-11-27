@@ -189,12 +189,12 @@ namespace NaeDosi.Ui
             h += "<h4>수입</h4>" + kv("주거세", won(last.incR)) + kv("상업세", won(last.incC)) + kv("산업세", won(last.incI)) + kv("대중교통 요금", won(last.incT)) + kv("관광", won(last.incV)) + kv("특화 (의료관광·기술 수출)", won(last.incS)) + kv("고속도로 통행료", won(last.incH)) + kv("지방교부세 (국비)", won(last.incG != 0 ? last.incG : Economy.grantFor(w.stats.pop)));
             h += "<h4>지출</h4>" + kv("도로 유지", won(last.expRoads)) + kv("전기, 상하수도 시설", won(last.expFacilities)) + kv("공공 서비스", won(last.expServices)) + kv("대중교통 운영", won(last.expTransit)) + (last.expSnow != 0 ? kv("제설 (염화칼슘)", won(last.expSnow)) : "") + (w.loans.Count > 0 || last.expDebt != 0 ? kv("대출 상환", won(last.expDebt)) : "");
             double net = inc - exp;
-            h += $"<div class=\"kv total\"><span class=\"k\">월 수지</span>{state(net >= 0 ? "ok" : "no", $"{(net >= 0 ? "+" : "−")}{won(Math.Abs(net))}")}</div>";
+            h += $"<div class=\"kv total\"><span class=\"k\">월 수지</span>{state(net >= 0 ? "ok" : "no", $"{(net >= 0 ? "+" : "-")}{won(Math.Abs(net))}")}</div>";
             h += "<h4>세율</h4><p class=\"hint\">높일수록 수입은 늘고 이사 오려는 사람과 가게는 줄어요. 보통 9~12%가 알맞고, 15%를 넘으면 수요가 크게 줄어요.</p>";
             foreach (var (k, n) in new[] { ("R", "주거"), ("C", "상업"), ("I", "산업") })
             {
                 double t = k == "R" ? w.taxR : k == "C" ? w.taxC : w.taxI;
-                h += $"<div class=\"tax\"><label>{n}</label><button class=\"btn small step\" data-taxstep=\"{k}:-1\">−</button><input type=\"range\" min=\"0\" max=\"20\" step=\"1\" value=\"{t}\" data-tax=\"{k}\" /><button class=\"btn small step\" data-taxstep=\"{k}:1\">+</button><b>{t}%</b></div>";
+                h += $"<div class=\"tax\"><label>{n}</label><button class=\"btn small step\" data-taxstep=\"{k}:-1\">-</button><input type=\"range\" min=\"0\" max=\"20\" step=\"1\" value=\"{t}\" data-tax=\"{k}\" /><button class=\"btn small step\" data-taxstep=\"{k}:1\">+</button><b>{t}%</b></div>";
             }
             h += "<div class=\"loan-row\"><button class=\"btn small\" data-taxpreset=\"8\">세금 낮게 (8%) · 성장 우선</button><button class=\"btn small\" data-taxpreset=\"10\">보통 (10%)</button><button class=\"btn small\" data-taxpreset=\"13\">세금 높게 (13%) · 수입 우선</button></div>";
             h += "<h4>지방채 (대출)</h4><p class=\"hint\">돈이 모자랄 때 빌려 쓰고 5년 동안 매달 나눠 갚아요 (연 3.5%). 도시가 크면 지방교부세도 늘어요.</p>";
@@ -308,7 +308,7 @@ namespace NaeDosi.Ui
             h += $"<button class=\"btn\" data-act=\"hazards\">재해 (화재·한파): {(hazards ? "켜짐" : "꺼짐")}</button>";
             h += $"<button class=\"btn\" data-act=\"music\">배경음악: {(musicOn ? "켜짐" : "꺼짐")}</button>";
             h += $"<button class=\"btn\" data-act=\"sfx\">효과음: {(effects ? "켜짐" : "꺼짐")}</button>";
-            h += $"<div class=\"vol\"><span>음량</span><button class=\"btn small\" data-act=\"vol-\">−</button><b>{Math.Round(volume * 10)}</b><button class=\"btn small\" data-act=\"vol+\">+</button></div></div>";
+            h += $"<div class=\"vol\"><span>음량</span><button class=\"btn small\" data-act=\"vol-\">-</button><b>{Math.Round(volume * 10)}</b><button class=\"btn small\" data-act=\"vol+\">+</button></div></div>";
             h += "<h4>최근 소식</h4><ol class=\"log\">" + string.Concat(w.notices.Take(20).Select(n => $"<li><span>{dateText(n.day)}</span> {esc(n.text)}</li>")) + "</ol>";
             return h;
         }
