@@ -226,7 +226,7 @@ namespace NaeDosi.Render
             Shader.SetGlobalFloat("_InkStrength", artStyle == 2 ? 0.12f : (artStyle == 1 ? 0.9f : 0.55f) - night * 0.2f);
             Shader.SetGlobalFloat("_Real", artStyle == 2 ? 1 : 0);
             bool real = artStyle == 2;
-            if (real != realMeshes || ground != realFor) { realMeshes = real; realFor = ground; ground?.SetReal(real); roads?.SetReal(real); vehicles?.SetReal(real); } BuildingView.Real = real;
+            if (real != realMeshes || ground != realFor) { realMeshes = real; realFor = ground; ground?.SetReal(real); roads?.SetReal(real); vehicles?.SetReal(real); people?.SetReal(real); } BuildingView.Real = real;
             Shader.SetGlobalFloat("_ArtStyle", artStyle);
             Shader.SetGlobalFloat("_TiltShift", tiltShift ? 1 : 0);
             Shader.SetGlobalFloat("_TiltFocus", 0.47f);

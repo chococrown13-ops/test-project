@@ -63,7 +63,7 @@ Shader "NaeDosi/City"
             struct V2F
             {
                 float4 cs : SV_POSITION; float3 ws : TEXCOORD0; float3 nw : TEXCOORD1; float4 col : COLOR;
-                float2 uv0 : TEXCOORD2; float4 info : TEXCOORD3; float4 sign : TEXCOORD4; float4 loc : TEXCOORD5; float fog : TEXCOORD6;
+                float2 uv0 : TEXCOORD2; float4 info : TEXCOORD3; float4 sign : TEXCOORD4; float4 loc : TEXCOORD5; float fog : TEXCOORD6; float4 raw : TEXCOORD7;
             };
 
             V2F vert(A i)
@@ -76,7 +76,7 @@ Shader "NaeDosi/City"
                 float4 tint = UNITY_ACCESS_INSTANCED_PROP(Props, _Tint);
                 if (tint.a <= 0) tint = float4(1, 1, 1, 1);
                 o.col = i.col * float4(tint.rgb, 1);
-                if (_Mode > 4.5 && _Mode < 5.5 && min(i.col.r, min(i.col.g, i.col.b)) < 0.95) o.col = i.col; o.uv0 = i.uv0; o.info = i.uv1; o.sign = i.uv2; o.loc = i.uv3;
+                o.raw = i.col; o.uv0 = i.uv0; o.info = i.uv1; o.sign = i.uv2; o.loc = i.uv3;
                 o.fog = ComputeFogFactor(p.positionCS.z);
                 return o;
             }
@@ -221,6 +221,8 @@ Shader "NaeDosi/City"
             {
                 float3 n = normalize(i.nw);
                 float3 col = i.col.rgb;
+                // People: only the shirt (white in the mesh) takes the walker's colour; trousers, skin and hair keep their own.
+                if (_Mode > 4.5 && _Mode < 5.5 && min(i.raw.r, min(i.raw.g, i.raw.b)) < 0.95) col = i.raw.rgb;
                 float3 emit = _Emit.rgb;
                 float smooth = _Smooth;
                 float2 gp = float2(i.ws.x, -i.ws.z); // the web map's ground coordinates
@@ -267,7 +269,7 @@ Shader "NaeDosi/City"
                     float gl = i.info.x;
                     emit += (gl > 0 ? float3(1, 0.92, 0.75) * gl : float3(1, 0.08, 0.05) * -gl) * (0.15 + _Night);
                 }
-                else
+                else if (_Mode > 2.5 && _Mode < 3.5)
                 {
                     float2 wv = float2(sin(gp.x * 0.21 + _Time0 * 1.3) + sin(gp.y * 0.13 - _Time0 * 0.9) * 0.6, cos(gp.y * 0.19 + _Time0 * 1.1) + sin((gp.x + gp.y) * 0.09 + _Time0 * 0.7) * 0.6);
                     // Finer ripples on top of the long waves.

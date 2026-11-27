@@ -127,12 +127,42 @@ namespace NaeDosi.Render
         void Emit(Layer L, Building b, List<Part> ps, double g, World w)
         {
             double bas = b.kind == "tower" ? heightAt(b.x * CELL + CELL / 2.0, b.y * CELL + CELL / 2.0) : 0;
+            if (Real && b.id >= 0) ps = WithRoofKit(b, ps);
             foreach (var p in ps)
             {
                 string mk = MatKey(p.shape);
                 if (!L.batches.TryGetValue(mk, out var bt)) { bt = new Batch(); L.batches[mk] = bt; }
                 Geo.Add(bt, p, b, g, bas);
             }
+        }
+
+        /// <summary>
+        /// 실사: the tallest flat roof gets what real roofs carry: air-conditioner units, a stair hut, a water tank
+        /// on taller blocks, a low parapet round the edge. Placed the same way every time from the building's id.
+        /// </summary>
+        static List<Part> WithRoofKit(Building b, List<Part> ps)
+        {
+            Part top = null;
+            foreach (var p in ps) if (p.shape == "box" && p.sx >= 4 && p.sz >= 4 && (top == null || p.y + p.sy > top.y + top.sy)) top = p;
+            if (top == null) return ps;
+            foreach (var p in ps) if (p != top && (p.shape == "gable" || p.shape == "hip" || p.shape == "hanok" || p.shape == "prism" || p.shape == "vault") && p.y + p.sy > top.y + top.sy - 0.1) return ps; // a pitched roof sits on it
+            var o = new List<Part>(ps);
+            double cs = Math.Cos(top.rot), ss = Math.Sin(top.rot), y = top.y + top.sy;
+            var rng = new System.Random(b.id * 7919 + 1);
+            void put(string shape, double lx, double lz, double sx, double sy, double sz, string colour)
+            {
+                o.Add(new Part { shape = shape, x = top.x + lx * cs + lz * ss, y = y, z = top.z - lx * ss + lz * cs, sx = sx, sy = sy, sz = sz, rot = top.rot, color = colour, style = 5 });
+            }
+            double hx = top.sx / 2, hz = top.sz / 2, t = 0.18;
+            put("box", 0, hz - t / 2, top.sx, 0.5, t, top.color); put("box", 0, -hz + t / 2, top.sx, 0.5, t, top.color);
+            put("box", hx - t / 2, 0, t, 0.5, top.sz - 2 * t, top.color); put("box", -hx + t / 2, 0, t, 0.5, top.sz - 2 * t, top.color);
+            int units = 1 + (int)(top.sx * top.sz / 40);
+            for (int i = 0; i < Math.Min(units, 6); i++)
+                put("box", (rng.NextDouble() - 0.5) * (top.sx - 2.2), (rng.NextDouble() - 0.5) * (top.sz - 2.2), 1.0, 0.7, 0.75, "#b9bdc1");
+            if (top.sy > 7) put("box", hx - 1.6, -hz + 1.5, 2.2, 2.4, 2.0, top.color);
+            bool hasTank = false; foreach (var p in ps) if (p.shape == "cyl" && p.y >= top.y + top.sy - 0.1) hasTank = true;
+            if (top.sy > 12 && !hasTank) put("cyl", -hx + 1.6, hz - 1.6, 1.8, 1.6, 1.8, "#d4d7da");
+            return o;
         }
 
         void Flush(Layer L, string name)

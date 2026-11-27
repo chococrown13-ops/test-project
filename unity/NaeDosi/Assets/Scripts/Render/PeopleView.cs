@@ -34,6 +34,26 @@ namespace NaeDosi.Render
             var mat = new Material(shader) { enableInstancing = true, name = "people" };
             mat.SetFloat("_Mode", 5); mat.SetFloat("_Smooth", 0.2f);
             mesh = new Instances(m, mat) { shadows = false };
+            plain = m; real = RealWalker();
+        }
+
+        Mesh plain, real;
+        public void SetReal(bool r) { mesh.mesh = r ? real : plain; }
+
+        /// <summary>실사: two legs and shoes, a shirt with arms, hands, a neck, a rounder head with hair.</summary>
+        static Mesh RealWalker()
+        {
+            var pants = new Color(0.14f, 0.16f, 0.22f); var skin = new Color(0.86f, 0.68f, 0.55f); var hair = new Color(0.08f, 0.06f, 0.05f); var shoe = new Color(0.1f, 0.09f, 0.09f);
+            var s = new MeshKit.Shape()
+                .Box(new Vector3(0.1f, 0.05f, 0), new Vector3(0.26f, 0.1f, 0.14f), shoe).Box(new Vector3(-0.1f, 0.05f, 0), new Vector3(0.26f, 0.1f, 0.14f), shoe)
+                .Box(new Vector3(0.1f, 0.48f, 0), new Vector3(0.15f, 0.78f, 0.16f), pants).Box(new Vector3(-0.1f, 0.48f, 0), new Vector3(0.15f, 0.78f, 0.16f), pants)
+                .Cylinder(0.19f, 0.16f, 0.86f, 1.46f, 8, Color.white, 1.25f, 1, 0.75f)
+                .Box(new Vector3(0.3f, 1.17f, 0), new Vector3(0.12f, 0.56f, 0.13f), Color.white).Box(new Vector3(-0.3f, 1.17f, 0), new Vector3(0.12f, 0.56f, 0.13f), Color.white)
+                .Box(new Vector3(0.3f, 0.84f, 0), new Vector3(0.1f, 0.12f, 0.1f), skin).Box(new Vector3(-0.3f, 0.84f, 0), new Vector3(0.1f, 0.12f, 0.1f), skin)
+                .Cylinder(0.06f, 0.06f, 1.46f, 1.54f, 6, skin)
+                .Blob(0.13f, new Vector3(0, 1.66f, 0), skin, new Vector3(0.9f, 1.1f, 0.95f), 1, 0.05f)
+                .Blob(0.135f, new Vector3(0, 1.72f, -0.02f), hair, new Vector3(0.95f, 0.8f, 1f), 2, 0.1f);
+            return s.ToMesh("walker-real");
         }
 
         static Color C(string hex) { ColorUtility.TryParseHtmlString(hex, out var c); return c.linear; }
