@@ -146,6 +146,7 @@ namespace NaeDosi.Ui
         PanelSettings panelSettings;
         bool layoutCompact, layoutPortrait, layoutKnown;
         ScrollView toolsScroll, catsScroll;
+        float safeNext;
 
         /// <summary>
         /// Phones (short side under ~560 CSS px) get a tighter layout: everything a little smaller, the tool and category rows in
@@ -166,6 +167,18 @@ namespace NaeDosi.Ui
                 if (panelSettings != null) panelSettings.scale = compact ? 0.9f : 1f;
                 Slide(ref toolsScroll, E("tools"), compact);
                 Slide(ref catsScroll, E("cats"), compact);
+            }
+            // Keep the HUD clear of the notch or Dynamic Island, rounded corners and the home bar (checked twice a second: it turns with the phone).
+            if (Time.unscaledTime >= safeNext)
+            {
+                safeNext = Time.unscaledTime + 0.5f;
+                float k = compact ? 0.9f : 1f;
+                var sc = E("screen");
+                if (sc != null)
+                {
+                    sc.style.top = SafeArea.Top / k; sc.style.bottom = SafeArea.Bottom / k;
+                    sc.style.left = SafeArea.Left / k; sc.style.right = SafeArea.Right / k;
+                }
             }
             var top = E("top"); var goal = E("goal");
             if (top != null && goal != null && top.layout.height > 0) goal.style.top = top.layout.yMax + 8;

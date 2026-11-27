@@ -21,6 +21,7 @@
 </head>
 <body>
   <canvas id="unity-canvas" tabindex="-1"></canvas>
+  <div id="safe-probe" style="position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none; padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);"></div>
   <div id="loading"><div class="box"><h1>내 도시 더 크게</h1><div class="bar"><i id="bar"></i></div><p id="msg">도시를 불러오는 중이에요…</p><p><a href="web.html">예전 웹판으로 하기</a></p></div></div>
   <script src="Build/city.loader.js"></script>
   <script>
@@ -35,8 +36,8 @@
       productName: "내 도시 더 크게",
       productVersion: "0.1.0",
       matchWebGLToCanvasSize: true,
-      // Phones draw at 1.25x at most: their screens are dense and their GPUs small, so full resolution would stutter.
-      devicePixelRatio: Math.min(window.devicePixelRatio || 1, /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 1.25 : 2),
+      // Phones draw below their full pixel density (3x on recent ones), which would stutter: 1.5x on recent phones with six or more cores, 1.25x otherwise.
+      devicePixelRatio: Math.min(window.devicePixelRatio || 1, /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? ((navigator.hardwareConcurrency || 4) >= 6 ? 1.5 : 1.25) : 2),
     }, function (p) { document.getElementById('bar').style.width = Math.round(p * 100) + '%'; })
       .then(function (u) { window.unityInstance = u; document.getElementById('loading').remove(); canvas.focus(); })
       .catch(function (e) { document.getElementById('msg').textContent = '불러오지 못했어요: ' + e; });
