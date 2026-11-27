@@ -127,7 +127,8 @@ namespace NaeDosi.Ui
         public static string Decode(string s)
         {
             if (s.IndexOf('&') < 0) return s;
-            return s.Replace("&lt;", "<").Replace("&gt;", ">").Replace("&quot;", "\"").Replace("&#39;", "'").Replace("&nbsp;", " ").Replace("&amp;", "&");
+            // The Nanum fonts have no U+2212 minus sign; it would show as an empty box.
+            return s.Replace('−', '-').Replace("&lt;", "<").Replace("&gt;", ">").Replace("&quot;", "\"").Replace("&#39;", "'").Replace("&nbsp;", " ").Replace("&amp;", "&");
         }
 
         /// <summary>Replace the host's children with the elements for this HTML.</summary>

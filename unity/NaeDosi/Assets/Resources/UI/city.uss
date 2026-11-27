@@ -36,7 +36,7 @@ Label, .txt { margin: 0; padding: 0; white-space: normal; -unity-text-align: mid
 .btn.danger { background-color: var(--accent-3); border-color: var(--accent-3-deep); }
 .btn.ghost { background-color: rgba(0,0,0,0); border-width: 0; color: var(--muted); }
 .btn.small { min-height: 32px; padding: 0 12px; font-size: 12px; }
-.btn.icon { width: 40px; padding: 0; }
+.btn.icon { width: 40px; padding: 0; align-items: center; justify-content: center; }
 .x { min-height: 32px; padding: 0 12px; border-radius: 16px; border-width: 0; background-color: var(--paper-3); color: var(--muted); font-size: 12px; margin-left: auto; }
 .sw { width: 12px; height: 12px; border-radius: 4px; border-width: 1px; border-color: rgba(18,22,28,0.18); flex-shrink: 0; margin-right: 8px; }
 
@@ -214,7 +214,8 @@ Label, .txt { margin: 0; padding: 0; white-space: normal; -unity-text-align: mid
 .draw-img { width: 100%; aspect-ratio: 1; height: 116px; border-radius: 12px; background-color: var(--paper-2); margin-bottom: 4px; -unity-background-scale-mode: scale-to-fit; }
 .draw .unity-base-popup-field__input { min-height: 32px; border-radius: 14px; background-color: var(--card); border-color: var(--muted); }
 .credit { margin-top: 16px; opacity: 0.8; }
-.bell-glyph { font-size: 15px; -unity-text-align: middle-center; }
+.bell-glyph { font-size: 15px; -unity-text-align: middle-center; margin: 0; padding: 0; }
+.music-btn { align-items: center; justify-content: center; }
 .visit-code > .unity-base-text-field__input { min-height: 40px; min-width: 120px; font-size: 20px; letter-spacing: 6px; border-radius: 10px; border-color: var(--edge); background-color: var(--paper); -unity-font-definition: url("project://database/Assets/UI/Fonts/NanumB.asset"); }
 .show-code { font-size: 34px; letter-spacing: 6px; }
 .visit-card .t-h3 { font-size: 19px; }
