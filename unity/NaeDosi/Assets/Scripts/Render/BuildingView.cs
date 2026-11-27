@@ -127,7 +127,7 @@ namespace NaeDosi.Render
         void Emit(Layer L, Building b, List<Part> ps, double g, World w)
         {
             double bas = b.kind == "tower" ? heightAt(b.x * CELL + CELL / 2.0, b.y * CELL + CELL / 2.0) : 0;
-            if (Real && b.id >= 0) ps = WithRoofKit(b, ps);
+            if (Real && b.id >= 0) ps = WithLedges(WithRoofKit(b, ps));
             foreach (var p in ps)
             {
                 string mk = MatKey(p.shape);
@@ -161,8 +161,27 @@ namespace NaeDosi.Render
                 put("box", (rng.NextDouble() - 0.5) * (top.sx - 2.2), (rng.NextDouble() - 0.5) * (top.sz - 2.2), 1.0, 0.7, 0.75, "#b9bdc1");
             if (top.sy > 7) put("box", hx - 1.6, -hz + 1.5, 2.2, 2.4, 2.0, top.color);
             bool hasTank = false; foreach (var p in ps) if (p.shape == "cyl" && p.y >= top.y + top.sy - 0.1) hasTank = true;
-            if (top.sy > 12 && !hasTank) put("cyl", -hx + 1.6, hz - 1.6, 1.8, 1.6, 1.8, "#d4d7da");
+            if (top.sy > 12 && !hasTank) put("cyl", -hx + 1.6, hz - 1.6, 1.8, 1.6, 1.8, rng.NextDouble() < 0.5 ? "#4f86c6" : "#d4d7da"); // FRP tanks, often blue
             return o;
+        }
+
+        /// <summary>실사: apartment blocks get a real slab at every floor on their long faces, so balconies stand out in 3D.</summary>
+        static List<Part> WithLedges(List<Part> ps)
+        {
+            List<Part> o = null;
+            foreach (var p in ps)
+            {
+                if (p.shape != "box" || (p.style != BuildingParts.S_APT && p.style != BuildingParts.S_SLAB) || p.sy < 6 || p.sx < 4) continue;
+                o ??= new List<Part>(ps);
+                double cs = Math.Cos(p.rot), ss = Math.Sin(p.rot), d = p.style == BuildingParts.S_SLAB ? 0.55 : 0.35;
+                foreach (int side in new[] { -1, 1 })
+                {
+                    double lz = side * (p.sz / 2 + d / 2);
+                    for (double y = p.y + 3; y < p.y + p.sy - 1; y += 3)
+                        o.Add(new Part { shape = "box", x = p.x + lz * ss, y = y - 0.12, z = p.z + lz * cs, sx = p.sx - 0.4, sy = 0.14, sz = d, rot = p.rot, color = "#d9d6cf", style = BuildingParts.S_PLAIN });
+                }
+            }
+            return o ?? ps;
         }
 
         void Flush(Layer L, string name)
@@ -399,7 +418,7 @@ namespace NaeDosi.Render
                             var lq = tri[order[j]];
                             // The local face normal's x: ±1 on the end walls.
                             Vector3 ln = Vector3.Cross(tri[k + 1] - tri[k], tri[k + 2] - tri[k]).normalized;
-                            bt.u1.Add(u1); bt.u2.Add(u2);
+                            bt.u1.Add(u1); bt.u2.Add(new Vector4(u2.x, u2.y, u2.z, Mathf.Abs(ln.x) > 0.5f ? -Mathf.Sign(ln.x) * lq.z * sz : Mathf.Sign(ln.z) * lq.x * sx)); // w: metres across the wall from its middle
                             bt.u3.Add(new Vector4(lq.y, sy, ln.x, top));
                         }
                     }

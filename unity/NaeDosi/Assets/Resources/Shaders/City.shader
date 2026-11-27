@@ -88,6 +88,21 @@ Shader "NaeDosi/City"
             // Fades fine detail out before it shimmers: 1 when a cell of noise at this scale covers many pixels, 0 when under one.
             float detail(float2 p) { float w = max(fwidth(p.x), fwidth(p.y)); return 1.0 - smoothstep(0.35, 1.0, w); }
 
+            // Seven-segment digits for apartment block numbers: segment bits a..g per digit, p in the cell's 0..1 square.
+            float seg7(float dgt, float2 p)
+            {
+                if (any(p < 0) || any(p > 1)) return 0;
+                float m = dgt < 0.5 ? 63 : dgt < 1.5 ? 6 : dgt < 2.5 ? 91 : dgt < 3.5 ? 79 : dgt < 4.5 ? 102 : dgt < 5.5 ? 109 : dgt < 6.5 ? 125 : dgt < 7.5 ? 7 : dgt < 8.5 ? 127 : 111;
+                float t = 0.17, on = 0;
+                float4 r[7] = { float4(0, 1 - t, 1, 1), float4(1 - t, 0.5, 1, 1), float4(1 - t, 0, 1, 0.5), float4(0, 0, 1, t), float4(0, 0, t, 0.5), float4(0, 0.5, t, 1), float4(0, 0.5 - t / 2, 1, 0.5 + t / 2) };
+                for (int k = 0; k < 7; k++)
+                {
+                    float bit = fmod(floor(m / exp2((float)k)), 2.0);
+                    if (bit > 0.5 && p.x >= r[k].x && p.x <= r[k].z && p.y >= r[k].y && p.y <= r[k].w) on = 1;
+                }
+                return on;
+            }
+
             // Facade: walls, windows, signs, balconies (render/materials.ts buildingMaterial).
             void facade(V2F i, inout float3 col, inout float3 emit, inout float glassAmt)
             {
@@ -196,6 +211,61 @@ Shader "NaeDosi/City"
                     }
                     col = lerp(col, glass, win * (1.0 - abandoned * 0.5));
                     glassAmt = win * (1.0 - abandoned * 0.5);
+                    if (_Real > 0.5)
+                    {
+                        float across = i.sign.w;
+                        float brand = h21(float2(i.info.y * 41.0, 3.0));
+                        float3 brandC = brand < 0.3 ? float3(0.1, 0.32, 0.2) : brand < 0.55 ? float3(0.12, 0.22, 0.45) : brand < 0.8 ? float3(0.55, 0.2, 0.1) : float3(0.35, 0.3, 0.26);
+                        // 아파트: the brand's colour round the crown, a stripe up the end wall, the block number (1xx동) near the top.
+                        if ((abs(st - 9.0) < 0.5 || abs(st - 1.0) < 0.5) && vH > 12.0)
+                        {
+                            if (wp.y > vTop - 1.3) { col = brandC; glassAmt = 0; }
+                            if (abs(i.loc.z) > 0.5)
+                            {
+                                float sx0 = across + 4.2;
+                                if (abs(sx0) < 0.9 && wp.y < vTop - 7.0 && wp.y > 3.0) { col = lerp(col, brandC, 0.85); glassAmt = 0; }
+                                float dh = 3.0, dw = 1.8, gap = 0.55, y0 = vTop - 6.0;
+                                float x0 = across + (3.0 * dw + 2.0 * gap) / 2.0;
+                                float n3 = floor(h21(float2(i.info.y * 13.0, 7.0)) * 9.0) + 1.0;
+                                float2 pp = float2(x0, wp.y - y0);
+                                float ink = 0;
+                                for (int k = 0; k < 3; k++)
+                                {
+                                    float dg = k == 0 ? 1.0 : k == 1 ? 0.0 : n3;
+                                    float2 cell = float2((pp.x - k * (dw + gap)) / dw, pp.y / dh);
+                                    ink = max(ink, seg7(dg, cell));
+                                }
+                                if (ink > 0.5) { col = brandC * 0.8; glassAmt = 0; }
+                            }
+                        }
+                        // 상가: a signboard across every upper floor, bright with white lettering, lit at night.
+                        if ((abs(st - 2.0) < 0.5 || abs(st - 10.0) < 0.5) && wp.y > 3.0 && floorIx < 6.0)
+                        {
+                            float unit = floor(u / 6.5);
+                            float pick = h21(float2(unit * 3.7 + i.info.y * 9.0, floorIx * 5.1));
+                            float3 sc = pick < 0.2 ? float3(0.75, 0.08, 0.06) : pick < 0.4 ? float3(0.05, 0.25, 0.65) : pick < 0.55 ? float3(0.95, 0.7, 0.05) : pick < 0.7 ? float3(0.05, 0.45, 0.2) : pick < 0.85 ? float3(0.9, 0.92, 0.94) : float3(0.45, 0.08, 0.35);
+                            float board = step(0.74, fv) * step(fv, 0.97) * step(0.04, frac(u / 6.5)) * step(frac(u / 6.5), 0.96);
+                            if (board > 0.5 && pick < 0.93)
+                            {
+                                float tv = (fv - 0.74) / 0.23, tu = frac(u / 6.5);
+                                float letters = step(0.3, tv) * step(tv, 0.72) * step(0.2, tu) * step(tu, 0.8) * step(0.35, frac(u * 1.25)) * step(0.3, vn(float2(u * 2.5, floorIx)));
+                                float3 txt = pick > 0.7 && pick < 0.85 ? float3(0.7, 0.05, 0.05) : float3(0.97, 0.97, 0.95);
+                                col = lerp(sc, txt, letters);
+                                glassAmt = 0;
+                                emit += col * 0.7 * _Night * i.info.z;
+                            }
+                        }
+                        // 빌라: red brick with pale mortar.
+                        if (st < 0.5)
+                        {
+                            float2 wb = float2(u, wp.y);
+                            float row = floor(wb.y / 0.09);
+                            float bx = frac(wb.x / 0.23 + fmod(row, 2.0) * 0.5), by = frac(wb.y / 0.09);
+                            float mortar = max(step(bx, 0.07), step(by, 0.13)) * (1.0 - win);
+                            float dd = detail(wb * 11.0);
+                            col *= lerp(1.0, lerp(0.88 + 0.2 * h21(float2(floor(wb.x / 0.23 + fmod(row, 2.0) * 0.5), row)), 1.35, mortar), dd);
+                        }
+                    }
                     if (_Real > 0.5 && st < 10.5)
                     {
                         // A frame round every pane where the window pattern changes, and a ledge shadow just under it.
@@ -325,7 +395,19 @@ Shader "NaeDosi/City"
                             col = lerp(col, col * 0.72, patch * 0.8);
                             smooth = 0.12 + 0.25 * _Snow;
                         }
-                        else if (lum0 > 0.7 && flat > 0.5)
+                        else if (grey > 0.5 && flat > 0.5 && lum0 < 0.78)
+                        {
+                            // 보도블럭: grey and dull-red paving blocks in a running bond.
+                            float2 pb = gp / float2(0.3, 0.15);
+                            float rowB = floor(pb.y);
+                            float2 cell = float2(pb.x + fmod(rowB, 2.0) * 0.5, pb.y);
+                            float2 fb = frac(cell);
+                            float joint = max(step(fb.x, 0.05), step(fb.y, 0.09));
+                            float pick = h21(floor(cell));
+                            float3 block = pick > 0.78 ? col * float3(1.0, 0.72, 0.65) : col * (0.9 + 0.16 * pick);
+                            col = lerp(col * (0.92 + 0.1 * fbm(gp * 0.3)), lerp(block, col * 0.7, joint), detail(pb * 1.5));
+                        }
+                        else if (lum0 > 0.78 && flat > 0.5)
                         {
                             // Road paint, scuffed.
                             col *= 0.82 + 0.18 * vn(gp * 5.0);

@@ -190,7 +190,7 @@ namespace NaeDosi.Render
             var toSun = new Vector3((float)dx, (float)el, (float)-dz).normalized;
             sun.transform.rotation = Quaternion.LookRotation(-toSun);
             // three.js lights divide by π in the BRDF; Unity's don't.
-            sun.intensity = (0.22f + day * 2.4f) / Mathf.PI;
+            sun.intensity = (0.22f + day * 2.4f) / Mathf.PI * (artStyle == 2 ? 1.2f : 1f);
             Color sc = day < 0.1f ? new Color(0.6f, 0.7f, 1f) : new Color(1, 0.9f - dusk * 0.18f, 0.77f - dusk * 0.32f);
             sun.color = sc.gamma;
             // Hemisphere light plus the web's soft studio environment (RoomEnvironment, bright from above).

@@ -20,7 +20,7 @@ Shader "NaeDosi/Post"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareNormalsTexture.hlsl"
 
-            float2 _Fade; float _InkStrength; float _Night; float _ArtStyle; float _TiltShift; float _TiltFocus;
+            float2 _Fade; float4 _SkyHorizonC; float _InkStrength; float _Night; float _ArtStyle; float _TiltShift; float _TiltFocus;
 
             float lin(float2 uv) { return LinearEyeDepth(SampleSceneDepth(uv), _ZBufferParams); }
             float3 nrm(float2 uv) { return SampleSceneNormals(uv); }
@@ -76,6 +76,12 @@ Shader "NaeDosi/Post"
                     float normalEdge = smoothstep(0.35, 0.9, nd);
                     float edge = max(depthEdge, normalEdge * 0.75);
                     float fade = 1.0 - smoothstep(_Fade.x, _Fade.y, d0);
+                    if (_ArtStyle > 1.5)
+                    {
+                        // 실사: air between the eye and far things turns them paler and bluer.
+                        float haze = 1.0 - exp(-d0 * 0.0016);
+                        col = lerp(col, _SkyHorizonC.rgb * 0.95, haze * 0.55 * (1.0 - _Night * 0.7));
+                    }
                     if (abs(_ArtStyle - 1.0) < 0.5)
                     {
                         // 툰: three or four flat bands of light, bolder ink that reaches further.
