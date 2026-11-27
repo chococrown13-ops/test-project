@@ -446,6 +446,11 @@ namespace NaeDosi.Ui
                 case "daylock": G.dayLock = !G.dayLock; PlayerPrefs.SetInt("city.daylock", G.dayLock ? 1 : 0); RenderPanel(true); break;
                 case "quality": G.SetQuality(!G.quality); PlayerPrefs.SetInt("city.quality", G.quality ? 1 : 0); RenderPanel(true); break;
                 case "newCity": NewCity(); break;
+                case "freeroad": case "freecurve":
+                    SetTool("freeroad"); G.free.curve = A("data-act") == "freecurve"; G.free.Cancel(); ClosePanel();
+                    Toast(G.free.curve ? "곡선: 시작점 → 굽힐 곳 → 끝점 순서로 클릭. 이어서 계속 그릴 수 있어요. Esc나 오른쪽 클릭으로 끝내요." : "직선: 시작점과 끝점을 클릭. 이어서 계속 그릴 수 있어요. 다른 길과 겹치면 교차로가 생겨요. Esc나 오른쪽 클릭으로 끝내요.", "info");
+                    break;
+                case "freeclear": G.free.Clear(); Toast("자유 도로를 모두 지웠어요.", "info"); break;
                 case "style": G.artStyle = (G.artStyle + 1) % 3; PlayerPrefs.SetInt("city.style", G.artStyle); RenderPanel(true); break;
                 case "tilt": G.tiltShift = !G.tiltShift; PlayerPrefs.SetInt("city.tilt", G.tiltShift ? 1 : 0); RenderPanel(true); break;
                 case "visitHome": LeaveVisit(); break;
@@ -969,6 +974,7 @@ namespace NaeDosi.Ui
                 else
                 {
                     var c = CellAt(pos);
+                    if (tool == "freeroad") { if (c != null) G.free.Click(c.Value.wx, c.Value.wz); return; }
                     if (c != null)
                     {
                         var cv = c.Value;
@@ -997,6 +1003,7 @@ namespace NaeDosi.Ui
                 }
                 return;
             }
+            if (tool == "freeroad") { if (!overUi) { var fc = CellAt(pos); if (fc != null) G.free.Hover(fc.Value.wx, fc.Value.wz); } return; }
             // Hover and drag.
             if (!overUi || drag != null || bend != null)
             {
@@ -1035,7 +1042,7 @@ namespace NaeDosi.Ui
             if (k.escapeKey.wasPressedThisFrame)
             {
                 if (bend != null) { bend = null; preview.Clear(); Preview(); return; }
-                cat = null; SetTool("select"); CloseInfo(); ClosePanel(); return;
+                G.free?.Cancel(); cat = null; SetTool("select"); CloseInfo(); ClosePanel(); return;
             }
             if (!running) return;
             bool ctrl = k.ctrlKey.isPressed || k.leftCommandKey.isPressed;
