@@ -302,7 +302,6 @@ namespace NaeDosi.Ui
             h += $"<p class=\"hint\">{esc(w.name)}, {dateText(w.day)}</p><div class=\"menu\">";
             h += "<button class=\"btn\" data-act=\"save\">저장하기</button><button class=\"btn\" data-act=\"slots\">불러오기 (저장한 도시들)</button><button class=\"btn\" data-act=\"visit\">도시 구경 (친구 도시 보기·내 도시 보여주기)</button><button class=\"btn\" data-act=\"new\">새 도시</button><button class=\"btn\" data-act=\"help\">조작법</button>";
             h += $"<button class=\"btn\" data-act=\"quality\">그래픽 품질: {(high ? "높음" : "보통")}</button>";
-            h += "<button class=\"btn\" data-act=\"freeroad\">자유 도로 (실험): 직선</button><button class=\"btn\" data-act=\"freecurve\">자유 도로 (실험): 곡선</button><button class=\"btn\" data-act=\"freeclear\">자유 도로 모두 지우기</button>";
             h += $"<button class=\"btn\" data-act=\"style\">그림체: {(artStyle == 2 ? "실사" : artStyle == 1 ? "툰" : "로우폴리")}</button>";
             h += $"<button class=\"btn\" data-act=\"tilt\">미니어처 효과: {(tilt ? "켜짐" : "꺼짐")}</button>";
             h += $"<button class=\"btn\" data-act=\"daylock\">시간: {(dayLock ? "낮 고정" : "밤낮 바뀜")}</button>";

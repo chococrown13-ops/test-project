@@ -105,8 +105,6 @@ namespace NaeDosi.Render
         }
 
         Mesh[] plain, real;
-        public Mesh CarMesh => real[0];
-        public Material Mat => mat;
         public void SetReal(bool r)
         {
             var m = r ? real : plain;
