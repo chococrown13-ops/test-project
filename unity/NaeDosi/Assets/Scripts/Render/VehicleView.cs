@@ -36,6 +36,36 @@ namespace NaeDosi.Render
                 for (int i = 0; i < s.v.Count; i++) g.Add(new Vector4(glow, 0, 0, 0));
                 return this;
             }
+            /// <summary>Any shape already in the model's frame, as one piece with one glow.</summary>
+            public Model Add(MeshKit.Shape s, float glow = 0)
+            {
+                v.AddRange(s.v); c.AddRange(s.c);
+                for (int i = 0; i < s.v.Count; i++) g.Add(new Vector4(glow, 0, 0, 0));
+                return this;
+            }
+            /// <summary>A tyre with a grey hub at (x, z), radius r.</summary>
+            public Model Wheel(float x, float z, float r, float w = 0.24f)
+            {
+                var s = new MeshKit.Shape();
+                s.Cylinder(r, r, -w / 2, w / 2, 10, new Color(0.03f, 0.03f, 0.03f));
+                s.Cylinder(r * 0.55f, r * 0.55f, -w / 2 - 0.01f, w / 2 + 0.01f, 8, new Color(0.35f, 0.35f, 0.35f));
+                s.Turn(0, Quaternion.Euler(90, 0, 0), Vector3.zero);
+                for (int i = 0; i < s.v.Count; i++) s.v[i] += new Vector3(x, r, -z);
+                return Add(s);
+            }
+            /// <summary>A block whose top is shorter than its bottom: windscreen and rear window lean in.</summary>
+            public Model Cabin(float x0, float x1, float tx0, float tx1, float y0, float y1, float hw, float thw, float k)
+            {
+                var s = new MeshKit.Shape(); var kk = new Color(k, k, k);
+                Vector3 B(float x, float z) => new Vector3(x, y0, -z); Vector3 T(float x, float z) => new Vector3(x, y1, -z);
+                void q(Vector3 a, Vector3 b, Vector3 cc, Vector3 d) { s.Tri(a, b, cc, kk); s.Tri(a, cc, d, kk); }
+                q(T(tx0, -thw), T(tx0, thw), T(tx1, thw), T(tx1, -thw));
+                q(B(x1, -hw), B(x1, hw), T(tx1, thw), T(tx1, -thw));
+                q(B(x0, hw), B(x0, -hw), T(tx0, -thw), T(tx0, thw));
+                q(B(x0, -hw), B(x1, -hw), T(tx1, -thw), T(tx0, -thw));
+                q(B(x1, hw), B(x0, hw), T(tx0, thw), T(tx1, thw));
+                return Add(s);
+            }
             public Model Lights(float L, float y, float w, float dx = 0)
             {
                 Box(0.08f, 0.22f, 0.4f, L / 2 + 0.02f + dx, y, w / 2 - 0.35f, 1, 2.2f); Box(0.08f, 0.22f, 0.4f, L / 2 + 0.02f + dx, y, -w / 2 + 0.35f, 1, 2.2f);
@@ -60,9 +90,26 @@ namespace NaeDosi.Render
             var truck = new Model().Box(1.9f, 1.7f, 1.75f, 1.6f, 0.3f, 0, 1).Box(0.9f, 0.6f, 1.7f, 1.9f, 1.25f, 0, 0.2f).Box(3.1f, 0.6f, 1.8f, -0.9f, 0.35f, 0, 0.75f).Lights(5.0f, 0.55f, 1.8f, 0.05f).Mesh("truck");
             var scooter = new Model().Box(1.8f, 0.5f, 0.45f, 0, 0.3f, 0, 0.3f).Box(0.5f, 1.0f, 0.5f, -0.1f, 0.8f, 0, 0.25f).Box(0.55f, 0.35f, 0.5f, 0, 1.8f, 0, 0.9f).Box(0.6f, 0.6f, 0.6f, -0.75f, 0.75f, 0, 1).Box(0.06f, 0.15f, 0.2f, 0.92f, 0.5f, 0, 1, 2.2f).Box(0.06f, 0.12f, 0.2f, -1.07f, 0.6f, 0, 0.6f, -1.6f).Mesh("scooter");
             var meshes = new[] { car, bus, truck, scooter };
+            // 실사: rounder bodies, leaning glass, real wheels.
+            var carR = new Model().Box(4.3f, 0.55f, 1.8f, 0, 0.32f, 0, 1).Cabin(-1.9f, 1.45f, -1.25f, 0.55f, 0.87f, 1.0f, 0.9f, 0.86f, 1)
+                .Cabin(-1.55f, 0.95f, -1.15f, 0.35f, 1.0f, 1.45f, 0.84f, 0.74f, 0.12f).Box(1.5f, 0.06f, 1.48f, -0.4f, 1.44f, 0, 1).Box(0.12f, 0.2f, 1.7f, 2.17f, 0.3f, 0, 0.3f).Box(0.12f, 0.2f, 1.7f, -2.17f, 0.3f, 0, 0.3f)
+                .Wheel(1.35f, 0.82f, 0.33f).Wheel(1.35f, -0.82f, 0.33f).Wheel(-1.35f, 0.82f, 0.33f).Wheel(-1.35f, -0.82f, 0.33f).Lights(4.3f, 0.6f, 1.8f).Mesh("car-real");
+            var busR = new Model().Box(10.5f, 2.3f, 2.4f, 0, 0.45f, 0, 1).Box(10.3f, 0.9f, 2.45f, 0, 1.4f, 0, 0.1f, 0.5f).Box(0.1f, 1.4f, 2.2f, 5.27f, 1.0f, 0, 0.1f, 0.5f)
+                .Wheel(3.6f, 1.05f, 0.5f, 0.3f).Wheel(3.6f, -1.05f, 0.5f, 0.3f).Wheel(-3.2f, 1.05f, 0.5f, 0.3f).Wheel(-3.2f, -1.05f, 0.5f, 0.3f).Lights(10.5f, 0.6f, 2.4f).Mesh("bus-real");
+            var truckR = new Model().Box(1.9f, 1.5f, 1.75f, 1.6f, 0.45f, 0, 1).Cabin(1.0f, 2.55f, 1.0f, 2.2f, 1.25f, 1.85f, 0.88f, 0.86f, 0.12f).Box(3.1f, 0.6f, 1.8f, -0.9f, 0.5f, 0, 0.75f).Box(3.2f, 0.15f, 1.6f, -0.3f, 0.35f, 0, 0.15f)
+                .Wheel(1.75f, 0.8f, 0.36f).Wheel(1.75f, -0.8f, 0.36f).Wheel(-1.4f, 0.8f, 0.36f).Wheel(-1.4f, -0.8f, 0.36f).Lights(5.0f, 0.6f, 1.8f, 0.05f).Mesh("truck-real");
+            plain = new[] { car, bus, truck }; real = new[] { carR, busR, truckR };
             for (int k = 0; k < 4; k++) models[k] = new Instances(meshes[k], mat);
             parked = new Instances(car, mat);
             busesByLine = new Instances(bus, mat);
+        }
+
+        Mesh[] plain, real;
+        public void SetReal(bool r)
+        {
+            var m = r ? real : plain;
+            for (int k = 0; k < 3; k++) models[k].mesh = m[k];
+            parked.mesh = m[0]; busesByLine.mesh = m[1];
         }
 
         static Color C(string hex) { ColorUtility.TryParseHtmlString(hex, out var c); return c.linear; }

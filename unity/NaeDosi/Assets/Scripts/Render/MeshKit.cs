@@ -89,6 +89,35 @@ namespace NaeDosi.Render
                 return this;
             }
 
+            /// <summary>A lumpy ball for 실사 tree crowns: an icosahedron split once, every corner pushed in or out a little.</summary>
+            public Shape Blob(float r, Vector3 centre, Color k, Vector3 scale, int seed, float lump = 0.22f)
+            {
+                float t = (1 + Mathf.Sqrt(5)) / 2;
+                var p = new[] { new Vector3(-1, t, 0), new Vector3(1, t, 0), new Vector3(-1, -t, 0), new Vector3(1, -t, 0), new Vector3(0, -1, t), new Vector3(0, 1, t), new Vector3(0, -1, -t), new Vector3(0, 1, -t), new Vector3(t, 0, -1), new Vector3(t, 0, 1), new Vector3(-t, 0, -1), new Vector3(-t, 0, 1) };
+                int[] f = { 0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2, 10, 7, 6, 7, 1, 8, 3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 4, 9, 5, 2, 4, 11, 6, 2, 10, 8, 6, 7, 9, 8, 1 };
+                // The same direction always gets the same push, so shared corners stay joined.
+                Vector3 at(Vector3 d)
+                {
+                    d.Normalize();
+                    float h = Mathf.Sin(Vector3.Dot(d, new Vector3(12.99f, 78.23f, 37.71f)) + seed * 3.17f) * 43758.55f; h -= Mathf.Floor(h);
+                    return centre + Vector3.Scale(d * r * (1 - lump * 0.5f + lump * h), scale);
+                }
+                for (int i = 0; i < f.Length; i += 3)
+                {
+                    Vector3 a = p[f[i]], b = p[f[i + 2]], c = p[f[i + 1]];
+                    Vector3 ab = (a + b) / 2, bc = (b + c) / 2, ca = (c + a) / 2;
+                    Tri(at(a), at(ab), at(ca), k); Tri(at(ab), at(b), at(bc), k); Tri(at(ca), at(bc), at(c), k); Tri(at(ab), at(bc), at(ca), k);
+                }
+                return this;
+            }
+
+            /// <summary>Turns every point added since index from onwards: used for wheels (a cylinder laid on its side) and branches.</summary>
+            public Shape Turn(int from, Quaternion q, Vector3 pivot)
+            {
+                for (int i = from; i < v.Count; i++) v[i] = pivot + q * (v[i] - pivot);
+                return this;
+            }
+
             /// <summary>An axis-aligned box centred on c (Unity space).</summary>
             public Shape Box(Vector3 c0, Vector3 size, Color k)
             {
@@ -115,6 +144,8 @@ namespace NaeDosi.Render
         public Mesh mesh;
         public Material mat;
         public bool shadows = true;
+        /// <summary>Cast shadows but never draw (the web's colorWrite:false clouds).</summary>
+        public bool shadowsOnly;
         readonly List<Matrix4x4[]> mats = new List<Matrix4x4[]>();
         readonly List<MaterialPropertyBlock> blocks = new List<MaterialPropertyBlock>();
         readonly List<int> counts = new List<int>();
@@ -141,7 +172,7 @@ namespace NaeDosi.Render
             if (mesh == null) return;
             for (int i = 0; i < mats.Count; i++)
             {
-                var rp = new RenderParams(mat) { matProps = blocks[i], shadowCastingMode = shadows ? ShadowCastingMode.On : ShadowCastingMode.Off, receiveShadows = true, worldBounds = new Bounds(new Vector3(1280, 0, -1280), new Vector3(8000, 400, 8000)) };
+                var rp = new RenderParams(mat) { matProps = blocks[i], shadowCastingMode = shadowsOnly ? ShadowCastingMode.ShadowsOnly : shadows ? ShadowCastingMode.On : ShadowCastingMode.Off, receiveShadows = true, worldBounds = new Bounds(new Vector3(1280, 0, -1280), new Vector3(8000, 400, 8000)) };
                 Graphics.RenderMeshInstanced(rp, mesh, 0, mats[i], counts[i]);
             }
         }

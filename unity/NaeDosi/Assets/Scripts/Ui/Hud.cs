@@ -296,12 +296,14 @@ namespace NaeDosi.Ui
             return $"{about}<span class=\"draft-msg\">{msg}</span>{warn}{upgrade}<button class=\"btn small\" data-draft=\"undo\"{(stops.Count > 0 ? "" : " disabled")}>되돌리기</button><button class=\"btn small\" data-draft=\"cancel\">취소</button><button class=\"btn primary small\" data-draft=\"done\"{(stops.Count >= 2 && cost <= w.money && problem == null && upgrade == "" ? "" : " disabled")}>노선 완성</button>";
         }
 
-        public static string menuHtml(World w, bool high, bool musicOn, float volume, bool dayLock, bool effects, bool hazards)
+        public static string menuHtml(World w, bool high, bool musicOn, float volume, bool dayLock, bool effects, bool hazards, int artStyle = 0, bool tilt = false)
         {
             var h = head("메뉴");
             h += $"<p class=\"hint\">{esc(w.name)}, {dateText(w.day)}</p><div class=\"menu\">";
             h += "<button class=\"btn\" data-act=\"save\">저장하기</button><button class=\"btn\" data-act=\"slots\">불러오기 (저장한 도시들)</button><button class=\"btn\" data-act=\"visit\">도시 구경 (친구 도시 보기·내 도시 보여주기)</button><button class=\"btn\" data-act=\"new\">새 도시</button><button class=\"btn\" data-act=\"help\">조작법</button>";
             h += $"<button class=\"btn\" data-act=\"quality\">그래픽 품질: {(high ? "높음" : "보통")}</button>";
+            h += $"<button class=\"btn\" data-act=\"style\">그림체: {(artStyle == 2 ? "실사" : artStyle == 1 ? "툰" : "로우폴리")}</button>";
+            h += $"<button class=\"btn\" data-act=\"tilt\">미니어처 효과: {(tilt ? "켜짐" : "꺼짐")}</button>";
             h += $"<button class=\"btn\" data-act=\"daylock\">시간: {(dayLock ? "낮 고정" : "밤낮 바뀜")}</button>";
             h += $"<button class=\"btn\" data-act=\"hazards\">재해 (화재·한파): {(hazards ? "켜짐" : "꺼짐")}</button>";
             h += $"<button class=\"btn\" data-act=\"music\">배경음악: {(musicOn ? "켜짐" : "꺼짐")}</button>";

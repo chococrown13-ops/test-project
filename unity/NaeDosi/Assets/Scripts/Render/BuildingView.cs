@@ -62,11 +62,14 @@ namespace NaeDosi.Render
         static double Now => Time.realtimeSinceStartupAsDouble;
 
         /// <summary>Rebuild the meshes when buildings change, and the rising ones every frame.</summary>
+        /// <summary>실사 swaps the lot trees for lumpier crowns (rebuilds the batches when it changes).</summary>
+        public static bool Real;
+
         public void Update(World w, float night)
         {
             neonMat.SetColor("_Emit", MeshKit.Lin("#ff2a1f") * (0.25f + night * 3f));
             double now = Now;
-            string v = $"{w.ver.buildings}:{w.ver.roads}:{w.ver.zones}";
+            string v = $"{w.ver.buildings}:{w.ver.roads}:{w.ver.zones}:{Real}";
             // Power and abandonment light or darken windows without a version change.
             long ik = 17;
             foreach (var b in w.buildings.Values) ik = ik * 31 + (b.powered ? 1 : 0) * 2 + (b.abandoned ? 1 : 0) + b.id * 7;
@@ -124,12 +127,61 @@ namespace NaeDosi.Render
         void Emit(Layer L, Building b, List<Part> ps, double g, World w)
         {
             double bas = b.kind == "tower" ? heightAt(b.x * CELL + CELL / 2.0, b.y * CELL + CELL / 2.0) : 0;
+            if (Real && b.id >= 0) ps = WithLedges(WithRoofKit(b, ps));
             foreach (var p in ps)
             {
                 string mk = MatKey(p.shape);
                 if (!L.batches.TryGetValue(mk, out var bt)) { bt = new Batch(); L.batches[mk] = bt; }
                 Geo.Add(bt, p, b, g, bas);
             }
+        }
+
+        /// <summary>
+        /// 실사: the tallest flat roof gets what real roofs carry: air-conditioner units, a stair hut, a water tank
+        /// on taller blocks, a low parapet round the edge. Placed the same way every time from the building's id.
+        /// </summary>
+        static List<Part> WithRoofKit(Building b, List<Part> ps)
+        {
+            Part top = null;
+            foreach (var p in ps) if (p.shape == "box" && p.sx >= 4 && p.sz >= 4 && (top == null || p.y + p.sy > top.y + top.sy)) top = p;
+            if (top == null) return ps;
+            foreach (var p in ps) if (p != top && (p.shape == "gable" || p.shape == "hip" || p.shape == "hanok" || p.shape == "prism" || p.shape == "vault") && p.y + p.sy > top.y + top.sy - 0.1) return ps; // a pitched roof sits on it
+            var o = new List<Part>(ps);
+            double cs = Math.Cos(top.rot), ss = Math.Sin(top.rot), y = top.y + top.sy;
+            var rng = new System.Random(b.id * 7919 + 1);
+            void put(string shape, double lx, double lz, double sx, double sy, double sz, string colour)
+            {
+                o.Add(new Part { shape = shape, x = top.x + lx * cs + lz * ss, y = y, z = top.z - lx * ss + lz * cs, sx = sx, sy = sy, sz = sz, rot = top.rot, color = colour, style = 5 });
+            }
+            double hx = top.sx / 2, hz = top.sz / 2, t = 0.18;
+            put("box", 0, hz - t / 2, top.sx, 0.5, t, top.color); put("box", 0, -hz + t / 2, top.sx, 0.5, t, top.color);
+            put("box", hx - t / 2, 0, t, 0.5, top.sz - 2 * t, top.color); put("box", -hx + t / 2, 0, t, 0.5, top.sz - 2 * t, top.color);
+            int units = 1 + (int)(top.sx * top.sz / 40);
+            for (int i = 0; i < Math.Min(units, 6); i++)
+                put("box", (rng.NextDouble() - 0.5) * (top.sx - 2.2), (rng.NextDouble() - 0.5) * (top.sz - 2.2), 1.0, 0.7, 0.75, "#b9bdc1");
+            if (top.sy > 7) put("box", hx - 1.6, -hz + 1.5, 2.2, 2.4, 2.0, top.color);
+            bool hasTank = false; foreach (var p in ps) if (p.shape == "cyl" && p.y >= top.y + top.sy - 0.1) hasTank = true;
+            if (top.sy > 12 && !hasTank) put("cyl", -hx + 1.6, hz - 1.6, 1.8, 1.6, 1.8, rng.NextDouble() < 0.5 ? "#4f86c6" : "#d4d7da"); // FRP tanks, often blue
+            return o;
+        }
+
+        /// <summary>실사: apartment blocks get a real slab at every floor on their long faces, so balconies stand out in 3D.</summary>
+        static List<Part> WithLedges(List<Part> ps)
+        {
+            List<Part> o = null;
+            foreach (var p in ps)
+            {
+                if (p.shape != "box" || (p.style != BuildingParts.S_APT && p.style != BuildingParts.S_SLAB) || p.sy < 6 || p.sx < 4) continue;
+                o ??= new List<Part>(ps);
+                double cs = Math.Cos(p.rot), ss = Math.Sin(p.rot), d = p.style == BuildingParts.S_SLAB ? 0.55 : 0.35;
+                foreach (int side in new[] { -1, 1 })
+                {
+                    double lz = side * (p.sz / 2 + d / 2);
+                    for (double y = p.y + 3; y < p.y + p.sy - 1; y += 3)
+                        o.Add(new Part { shape = "box", x = p.x + lz * ss, y = y - 0.12, z = p.z + lz * cs, sx = p.sx - 0.4, sy = 0.14, sz = d, rot = p.rot, color = "#d9d6cf", style = BuildingParts.S_PLAIN });
+                }
+            }
+            return o ?? ps;
         }
 
         void Flush(Layer L, string name)
@@ -189,6 +241,7 @@ namespace NaeDosi.Render
                 SH["vault"] = vault;
                 SH["hip"] = Hip();
                 SH["tree"] = Ico();
+                SH["treeR"] = LumpyTree();
                 SH["hanok"] = Hanok();
             }
 
@@ -249,6 +302,21 @@ namespace NaeDosi.Render
                     t.Add(Vector3.zero); t.Add(p1); t.Add(p0);
                 }
                 return Orient(t.ToArray(), new Vector3(0, 0.3f, 0));
+            }
+
+            /// <summary>실사: a crown of several lumps in the same unit box as the plain ball.</summary>
+            static Vector3[] LumpyTree()
+            {
+                var all = new List<Vector3>();
+                var rng = new System.Random(11);
+                for (int i = 0; i < 7; i++)
+                {
+                    float a = i * 2.4f, rad = i == 0 ? 0 : 0.2f;
+                    var c = new Vector3(Mathf.Cos(a) * rad, i == 0 ? 0.52f : 0.42f + 0.22f * (float)rng.NextDouble(), Mathf.Sin(a) * rad);
+                    var sh = new MeshKit.Shape().Blob(i == 0 ? 0.36f : 0.24f, c, Color.white, Vector3.one, i, 0.3f);
+                    all.AddRange(Orient(sh.v.ToArray(), c));
+                }
+                return all.ToArray();
             }
 
             static Vector3[] Ico()
@@ -314,7 +382,7 @@ namespace NaeDosi.Render
 
             public static void Add(Batch bt, Part p, Building b, double g, double bas)
             {
-                var tri = SH[p.shape];
+                var tri = SH[p.shape == "tree" && Real ? "treeR" : p.shape];
                 SN.TryGetValue(p.shape, out var sn);
                 float cs = (float)Math.Cos(p.rot), ss = (float)Math.Sin(p.rot);
                 float sx = (float)p.sx, sy = (float)(p.sy * g), sz = (float)p.sz;
@@ -350,7 +418,7 @@ namespace NaeDosi.Render
                             var lq = tri[order[j]];
                             // The local face normal's x: ±1 on the end walls.
                             Vector3 ln = Vector3.Cross(tri[k + 1] - tri[k], tri[k + 2] - tri[k]).normalized;
-                            bt.u1.Add(u1); bt.u2.Add(u2);
+                            bt.u1.Add(u1); bt.u2.Add(new Vector4(u2.x, u2.y, u2.z, Mathf.Abs(ln.x) > 0.5f ? -Mathf.Sign(ln.x) * lq.z * sz : Mathf.Sign(ln.z) * lq.x * sx)); // w: metres across the wall from its middle
                             bt.u3.Add(new Vector4(lq.y, sy, ln.x, top));
                         }
                     }

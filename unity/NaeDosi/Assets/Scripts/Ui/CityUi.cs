@@ -305,7 +305,7 @@ namespace NaeDosi.Ui
             string stamp = panel == "budget" ? $"{w.reports.Count}:{w.taxR}{w.taxC}{w.taxI}:{w.loans.Count}" : panel == "stats" ? $"{w.day}:{G.overlay}" : panel == "lines" ? $"{w.ver.transit}:{w.reports.Count}:{confirmLine}" : panel == "notices" ? $"{w.notices.Count}:{(w.notices.Count > 0 ? w.notices[0].text : "")}" : panel;
             if (!force && stamp == panelStamp) return;
             panelStamp = stamp;
-            FillSheet(panelEl, panel == "budget" ? Hud.budgetHtml(w) : panel == "stats" ? Hud.statsHtml(w, G.overlay) : panel == "menu" ? Hud.menuHtml(w, G.quality, Bgm.On, Bgm.Volume, G.dayLock, Sfx.On, !w.noHazards) : panel == "lines" ? Hud.linesHtml(w, confirmLine) : panel == "notices" ? Hud.noticesHtml(w) : Hud.HELP);
+            FillSheet(panelEl, panel == "budget" ? Hud.budgetHtml(w) : panel == "stats" ? Hud.statsHtml(w, G.overlay) : panel == "menu" ? Hud.menuHtml(w, G.quality, Bgm.On, Bgm.Volume, G.dayLock, Sfx.On, !w.noHazards, G.artStyle, G.tiltShift) : panel == "lines" ? Hud.linesHtml(w, confirmLine) : panel == "notices" ? Hud.noticesHtml(w) : Hud.HELP);
         }
 
         void OpenInfo(int x, int y) { infoCell = (x, y); ClosePanel(); Show(info, true); FillSheet(info, Hud.infoHtml(sim.w, x, y)); }
@@ -446,6 +446,8 @@ namespace NaeDosi.Ui
                 case "daylock": G.dayLock = !G.dayLock; PlayerPrefs.SetInt("city.daylock", G.dayLock ? 1 : 0); RenderPanel(true); break;
                 case "quality": G.SetQuality(!G.quality); PlayerPrefs.SetInt("city.quality", G.quality ? 1 : 0); RenderPanel(true); break;
                 case "newCity": NewCity(); break;
+                case "style": G.artStyle = (G.artStyle + 1) % 3; PlayerPrefs.SetInt("city.style", G.artStyle); RenderPanel(true); break;
+                case "tilt": G.tiltShift = !G.tiltShift; PlayerPrefs.SetInt("city.tilt", G.tiltShift ? 1 : 0); RenderPanel(true); break;
                 case "visitHome": LeaveVisit(); break;
             }
             if (A("data-act") == "music" && panel == "menu") RenderPanel(true);
