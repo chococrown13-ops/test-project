@@ -1283,7 +1283,7 @@ namespace NaeDosi.Ui
             if (infoCell != null) FillSheet(info, Hud.infoHtml(w, infoCell.Value.x, infoCell.Value.y));
             if (draft != null && draft.Value.stops.Count >= 2) RenderDraft();
             RenderPanel();
-            if (running && visiting == null && w.day >= saveDay + 30) { saveDay = w.day; Slots.Save(w); }
+            if (running && visiting == null && w.day >= saveDay + 30) { saveDay = w.day; if (!Slots.Save(w)) Toast("자동 저장을 못 했어요. 저장 공간이 모자라요. 불러오기에서 안 쓰는 도시를 지워 주세요.", "warn"); }
             Visit.Tick(w, this);
         }
 

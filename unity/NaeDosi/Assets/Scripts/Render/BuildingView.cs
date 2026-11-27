@@ -127,6 +127,7 @@ namespace NaeDosi.Render
         void Emit(Layer L, Building b, List<Part> ps, double g, World w)
         {
             double bas = b.kind == "tower" ? heightAt(b.x * CELL + CELL / 2.0, b.y * CELL + CELL / 2.0) : 0;
+            if (b.id >= 0) ps = ClampRoof(ps);
             if (Real && b.id >= 0) ps = WithLedges(WithRoofKit(b, ps));
             foreach (var p in ps)
             {
@@ -136,32 +137,95 @@ namespace NaeDosi.Render
             }
         }
 
-        /// <summary>
-        /// 실사: the tallest flat roof gets what real roofs carry: air-conditioner units, a stair hut, a water tank
-        /// on taller blocks, a low parapet round the edge. Placed the same way every time from the building's id.
-        /// </summary>
-        static List<Part> WithRoofKit(Building b, List<Part> ps)
+        static Part Copy(Part p) => new Part { shape = p.shape, x = p.x, y = p.y, z = p.z, sx = p.sx, sy = p.sy, sz = p.sz, rot = p.rot, color = p.color, style = p.style, sign = p.sign };
+
+        /// <summary>The tallest flat roof (the widest box with nothing pitched on it), or null.</summary>
+        static Part FlatTop(List<Part> ps)
         {
             Part top = null;
             foreach (var p in ps) if (p.shape == "box" && p.sx >= 4 && p.sz >= 4 && (top == null || p.y + p.sy > top.y + top.sy)) top = p;
+            if (top == null) return null;
+            foreach (var p in ps) if (p != top && (p.shape == "gable" || p.shape == "hip" || p.shape == "hanok" || p.shape == "prism" || p.shape == "vault") && p.y + p.sy > top.y + top.sy - 0.1) return null;
+            return top;
+        }
+
+        /// <summary>
+        /// Things standing on a flat roof (tanks, jars, stair huts) are pulled back inside its edge, so none hangs over the side.
+        /// Done on copies: the parts list is cached per building.
+        /// </summary>
+        static List<Part> ClampRoof(List<Part> ps)
+        {
+            var top = FlatTop(ps);
             if (top == null) return ps;
-            foreach (var p in ps) if (p != top && (p.shape == "gable" || p.shape == "hip" || p.shape == "hanok" || p.shape == "prism" || p.shape == "vault") && p.y + p.sy > top.y + top.sy - 0.1) return ps; // a pitched roof sits on it
+            double cs = Math.Cos(top.rot), ss = Math.Sin(top.rot), ry = top.y + top.sy, hx = top.sx / 2 - 0.3, hz = top.sz / 2 - 0.3;
+            List<Part> o = null;
+            for (int k = 0; k < ps.Count; k++)
+            {
+                var p = ps[k];
+                if (p == top || p.shape == "tree" || p.shape == "neon" || p.y < ry - 0.15 || p.y > ry + 3) continue;
+                double dx = p.x - top.x, dz = p.z - top.z, lx = dx * cs - dz * ss, lz = dx * ss + dz * cs;
+                double ex = Math.Max(p.sx, p.sz) / 2, ez = ex;
+                if (Math.Abs(Math.Sin(p.rot - top.rot)) < 0.01) { ex = p.sx / 2; ez = p.sz / 2; }
+                double nx = ex >= hx ? 0 : Math.Max(-hx + ex, Math.Min(hx - ex, lx)), nz = ez >= hz ? 0 : Math.Max(-hz + ez, Math.Min(hz - ez, lz));
+                if (Math.Abs(nx - lx) < 1e-3 && Math.Abs(nz - lz) < 1e-3) continue;
+                o ??= new List<Part>(ps);
+                var c = Copy(p); c.x = top.x + nx * cs + nz * ss; c.z = top.z - nx * ss + nz * cs;
+                o[k] = c;
+            }
+            return o ?? ps;
+        }
+
+        /// <summary>
+        /// 실사: the tallest flat roof gets what real roofs carry: a low parapet round the edge, air-conditioner units, a stair hut
+        /// and a water tank on taller blocks unless it already has them. Nothing new goes where something already stands, nor
+        /// over the edge. Placed the same way every time from the building's id.
+        /// </summary>
+        static List<Part> WithRoofKit(Building b, List<Part> ps)
+        {
+            var top = FlatTop(ps);
+            if (top == null) return ps;
             var o = new List<Part>(ps);
             double cs = Math.Cos(top.rot), ss = Math.Sin(top.rot), y = top.y + top.sy;
+            double hx = top.sx / 2, hz = top.sz / 2, t = 0.18;
             var rng = new System.Random(b.id * 7919 + 1);
+            // What already stands on the roof, as rectangles in the roof's own frame.
+            var taken = new List<(double x, double z, double ex, double ez)>();
+            bool hasTank = false, hasHut = false;
+            foreach (var p in ps)
+            {
+                if (p == top || p.shape == "tree" || p.y < y - 0.15 || p.y > y + 3) continue;
+                double dx = p.x - top.x, dz = p.z - top.z;
+                double e = Math.Max(p.sx, p.sz) / 2;
+                taken.Add((dx * cs - dz * ss, dx * ss + dz * cs, e, e));
+                if (p.shape == "cyl") hasTank = true;
+                if (p.shape == "box" && p.sx * p.sz >= 2.5) hasHut = true;
+            }
+            bool Free(double lx, double lz, double ex, double ez)
+            {
+                if (Math.Abs(lx) + ex > hx - t - 0.25 || Math.Abs(lz) + ez > hz - t - 0.25) return false;
+                foreach (var r in taken) if (Math.Abs(lx - r.x) < ex + r.ex + 0.25 && Math.Abs(lz - r.z) < ez + r.ez + 0.25) return false;
+                return true;
+            }
             void put(string shape, double lx, double lz, double sx, double sy, double sz, string colour)
             {
                 o.Add(new Part { shape = shape, x = top.x + lx * cs + lz * ss, y = y, z = top.z - lx * ss + lz * cs, sx = sx, sy = sy, sz = sz, rot = top.rot, color = colour, style = 5 });
+                taken.Add((lx, lz, sx / 2, sz / 2));
             }
-            double hx = top.sx / 2, hz = top.sz / 2, t = 0.18;
-            put("box", 0, hz - t / 2, top.sx, 0.5, t, top.color); put("box", 0, -hz + t / 2, top.sx, 0.5, t, top.color);
-            put("box", hx - t / 2, 0, t, 0.5, top.sz - 2 * t, top.color); put("box", -hx + t / 2, 0, t, 0.5, top.sz - 2 * t, top.color);
-            int units = 1 + (int)(top.sx * top.sz / 40);
-            for (int i = 0; i < Math.Min(units, 6); i++)
-                put("box", (rng.NextDouble() - 0.5) * (top.sx - 2.2), (rng.NextDouble() - 0.5) * (top.sz - 2.2), 1.0, 0.7, 0.75, "#b9bdc1");
-            if (top.sy > 7) put("box", hx - 1.6, -hz + 1.5, 2.2, 2.4, 2.0, top.color);
-            bool hasTank = false; foreach (var p in ps) if (p.shape == "cyl" && p.y >= top.y + top.sy - 0.1) hasTank = true;
-            if (top.sy > 12 && !hasTank) put("cyl", -hx + 1.6, hz - 1.6, 1.8, 1.6, 1.8, rng.NextDouble() < 0.5 ? "#4f86c6" : "#d4d7da"); // FRP tanks, often blue
+            // Parapet (it runs along the edge, so it isn't checked against the rest).
+            o.Add(new Part { shape = "box", x = top.x + (hz - t / 2) * ss, y = y, z = top.z + (hz - t / 2) * cs, sx = top.sx, sy = 0.5, sz = t, rot = top.rot, color = top.color, style = 5 });
+            o.Add(new Part { shape = "box", x = top.x - (hz - t / 2) * ss, y = y, z = top.z - (hz - t / 2) * cs, sx = top.sx, sy = 0.5, sz = t, rot = top.rot, color = top.color, style = 5 });
+            o.Add(new Part { shape = "box", x = top.x + (hx - t / 2) * cs, y = y, z = top.z - (hx - t / 2) * ss, sx = t, sy = 0.5, sz = top.sz - 2 * t, rot = top.rot, color = top.color, style = 5 });
+            o.Add(new Part { shape = "box", x = top.x - (hx - t / 2) * cs, y = y, z = top.z + (hx - t / 2) * ss, sx = t, sy = 0.5, sz = top.sz - 2 * t, rot = top.rot, color = top.color, style = 5 });
+            if (top.sy > 7 && !hasHut && Free(hx - 1.6, -hz + 1.5, 1.1, 1.0)) put("box", hx - 1.6, -hz + 1.5, 2.2, 2.4, 2.0, top.color);
+            if (top.sy > 12 && !hasTank && Free(-hx + 1.6, hz - 1.6, 0.9, 0.9)) put("cyl", -hx + 1.6, hz - 1.6, 1.8, 1.6, 1.8, rng.NextDouble() < 0.5 ? "#4f86c6" : "#d4d7da"); // FRP tanks, often blue
+            int units = Math.Min(6, 1 + (int)(top.sx * top.sz / 40));
+            for (int i = 0, tries = 0; i < units && tries < 40; tries++)
+            {
+                double lx = (rng.NextDouble() - 0.5) * (top.sx - 2.4), lz = (rng.NextDouble() - 0.5) * (top.sz - 2.4);
+                if (!Free(lx, lz, 0.5, 0.4)) continue;
+                put("box", lx, lz, 1.0, 0.7, 0.75, "#b9bdc1");
+                i++;
+            }
             return o;
         }
 

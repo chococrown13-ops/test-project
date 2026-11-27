@@ -121,7 +121,9 @@ namespace NaeDosi.Render
             var c = centre(k.cell);
             double off = w.road[k.cell] == Road.Avenue ? 5.75 : 4.25;
             var g = new GameObject("shelter"); g.transform.SetParent(stops.transform, false);
-            g.transform.localPosition = MeshKit.P(c.x + k.side.x * off, 0.3, c.z + k.side.y * off);
+            // A diagonal road's kerb lies along (±1, ±1): scale it to unit length so the shelter stands on the pavement, not the road.
+            double sl = Math.Sqrt(k.side.x * k.side.x + k.side.y * k.side.y);
+            g.transform.localPosition = MeshKit.P(c.x + k.side.x / sl * off, 0.3, c.z + k.side.y / sl * off);
             // three.js turns by atan2(side x, side z) about +y; mirrored, the other way.
             g.transform.localRotation = Quaternion.Euler(0, -(float)(Math.Atan2(k.side.x, k.side.y) * Mathf.Rad2Deg), 0);
             void add(Vector3 size, Material m, float px, float py, float pz, Color col)
