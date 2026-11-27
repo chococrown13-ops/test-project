@@ -111,7 +111,7 @@ Shader "NaeDosi/City"
                 float3 n = normalize(i.nw); n.z = -n.z;
                 bool side = abs(n.y) < 0.5;
                 float abandoned = i.info.w;
-                float lit = 0.0, winTint = 0.0;
+                float lit = 0.0, winTint = 0.0, aptLit = -1.0;
                 float3 vSign = i.sign.rgb;
                 float vLY = i.loc.x, vH = i.loc.y, vTop = i.loc.w;
                 float3 wp = float3(i.ws.x, i.ws.y, -i.ws.z);
@@ -216,26 +216,46 @@ Shader "NaeDosi/City"
                         float across = i.sign.w;
                         float brand = h21(float2(i.info.y * 41.0, 3.0));
                         float3 brandC = brand < 0.3 ? float3(0.1, 0.32, 0.2) : brand < 0.55 ? float3(0.12, 0.22, 0.45) : brand < 0.8 ? float3(0.55, 0.2, 0.1) : float3(0.35, 0.3, 0.26);
-                        // 아파트: the brand's colour round the crown, a stripe up the end wall, the block number (1xx동) near the top.
+                        // 아파트, as built lately: white and charcoal panels, floor-to-ceiling glass, a stone base, a lit glass crown,
+                        // and a small block number (1xx동) high on the end wall.
                         if ((abs(st - 9.0) < 0.5 || abs(st - 1.0) < 0.5) && vH > 12.0)
                         {
-                            if (wp.y > vTop - 1.3) { col = brandC; glassAmt = 0; }
-                            if (abs(i.loc.z) > 0.5)
+                            float3 white = float3(0.84, 0.85, 0.85), charcoal = float3(0.17, 0.18, 0.2), stone = float3(0.46, 0.43, 0.39);
+                            float yl = wp.y;
+                            float fl2 = frac(yl / 3.0);
+                            float uw = 3.4, cu2 = frac(u / uw), unitI = floor(u / uw);
+                            bool accent = fmod(abs(unitI) + floor(brand * 3.0), 4.0) < 0.5;
+                            bool front = abs(i.loc.z) < 0.5;
+                            float glassF = step(0.1, fl2) * step(fl2, 0.92) * step(0.06, cu2) * step(cu2, 0.94);
+                            float w2 = glassF; // the same on every face: two parts' walls often share a plane
+                            col = accent ? charcoal : white;
+                            if (fl2 < 0.1) col = lerp(col, float3(0.7, 0.71, 0.72), 0.6); // slab edge between floors
+                            if (yl < 6.0) { col = stone * (0.9 + 0.2 * h21(float2(floor(u / 1.2), floor(yl / 0.6)))); w2 = yl < 3.0 ? step(0.15, fl2) * step(0.06, cu2) * step(cu2, 0.94) : 0.0; }
+                            float crown = step(vTop - 4.5, wp.y);
+                            if (crown > 0.5)
                             {
-                                float sx0 = across + 4.2;
-                                if (abs(sx0) < 0.9 && wp.y < vTop - 7.0 && wp.y > 3.0) { col = lerp(col, brandC, 0.85); glassAmt = 0; }
-                                float dh = 3.0, dw = 1.8, gap = 0.55, y0 = vTop - 6.0;
+                                float fin = step(0.82, frac(u / 1.1));
+                                col = charcoal; w2 = 1.0 - fin;
+                                emit += (1.0 - fin) * float3(0.85, 0.9, 1.0) * 0.5 * _Night * i.info.z;
+                            }
+                            float3 g2 = lerp(float3(0.14, 0.18, 0.22), float3(0.42, 0.52, 0.6), 0.3 * fl2 + 0.25 * h21(float2(unitI, floor(yl / 3.0))));
+                            if (crown > 0.5) g2 = float3(0.3, 0.36, 0.42);
+                            col = lerp(col, g2, w2 * (1.0 - abandoned * 0.5));
+                            glassAmt = w2 * (1.0 - abandoned * 0.5);
+                            // Lit windows follow the new glass.
+                            aptLit = w2 * step(0.45, h21(float2(floor(yl / 3.0) * 7.0 + i.info.y * 91.0, unitI))) * i.info.z * (1.0 - abandoned) * (1.0 - crown);
+                            if (!front)
+                            {
+                                float dh = 1.3, dw = 0.75, gap = 0.22, y0 = vTop - 7.0;
                                 float x0 = across + (3.0 * dw + 2.0 * gap) / 2.0;
                                 float n3 = floor(h21(float2(i.info.y * 13.0, 7.0)) * 9.0) + 1.0;
-                                float2 pp = float2(x0, wp.y - y0);
                                 float ink = 0;
                                 for (int k = 0; k < 3; k++)
                                 {
                                     float dg = k == 0 ? 1.0 : k == 1 ? 0.0 : n3;
-                                    float2 cell = float2((pp.x - k * (dw + gap)) / dw, pp.y / dh);
-                                    ink = max(ink, seg7(dg, cell));
+                                    ink = max(ink, seg7(dg, float2((x0 - k * (dw + gap)) / dw, (wp.y - y0) / dh)));
                                 }
-                                if (ink > 0.5) { col = brandC * 0.8; glassAmt = 0; }
+                                if (ink > 0.5) { col = accent ? white : charcoal; glassAmt = 0; aptLit = 0; }
                             }
                         }
                         // 상가: a signboard across every upper floor, bright with white lettering, lit at night.
@@ -266,7 +286,7 @@ Shader "NaeDosi/City"
                             col *= lerp(1.0, lerp(0.88 + 0.2 * h21(float2(floor(wb.x / 0.23 + fmod(row, 2.0) * 0.5), row)), 1.35, mortar), dd);
                         }
                     }
-                    if (_Real > 0.5 && st < 10.5)
+                    if (_Real > 0.5 && st < 10.5 && aptLit < 0.0)
                     {
                         // A frame round every pane where the window pattern changes, and a ledge shadow just under it.
                         float fr = saturate(fwidth(win) * 1.5);
@@ -277,6 +297,7 @@ Shader "NaeDosi/City"
                     lit = win * on * i.info.z * (1.0 - abandoned);
                     if (abs(st - 2.0) < 0.5 && fy < 3.0 && fv > 0.85) lit = i.info.z * 0.8;
                     if (st > 10.5) lit = i.info.z * (1.0 - abandoned);
+                    if (aptLit >= 0.0) lit = aptLit;
                     if ((st < 4.5 || (st > 5.5 && st < 10.5 && st != 7.0)) && fv < 0.035 && wp.y > 2.9) col *= 0.86;
                     col *= lerp(0.6, 1.0, smoothstep(0.0, 3.2, wp.y));
                     winTint = h21(float2(floorIx * 3.1 + i.info.y * 17.0, colIx * 1.7));
