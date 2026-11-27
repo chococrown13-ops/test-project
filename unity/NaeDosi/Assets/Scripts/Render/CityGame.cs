@@ -31,6 +31,7 @@ namespace NaeDosi.Render
         public bool dayLock;
         /// <summary>그림체: 0 로우폴리, 1 툰. 미니어처: the tilt-shift blur.</summary>
         public int artStyle;
+        bool realMeshes; GroundView realFor;
         public bool tiltShift;
         Instances clouds;
         readonly List<(float x, float z, float y, float s, float r)> cloudSeeds = new List<(float, float, float, float, float)>();
@@ -224,6 +225,8 @@ namespace NaeDosi.Render
             Shader.SetGlobalVector("_Fade", new Vector4((float)(view.dist * 1.1), (float)(view.dist * 3.6), 0, 0));
             Shader.SetGlobalFloat("_InkStrength", artStyle == 2 ? 0.12f : (artStyle == 1 ? 0.9f : 0.55f) - night * 0.2f);
             Shader.SetGlobalFloat("_Real", artStyle == 2 ? 1 : 0);
+            bool real = artStyle == 2;
+            if (real != realMeshes || ground != realFor) { realMeshes = real; realFor = ground; ground?.SetReal(real); roads?.SetReal(real); vehicles?.SetReal(real); } BuildingView.Real = real;
             Shader.SetGlobalFloat("_ArtStyle", artStyle);
             Shader.SetGlobalFloat("_TiltShift", tiltShift ? 1 : 0);
             Shader.SetGlobalFloat("_TiltFocus", 0.47f);

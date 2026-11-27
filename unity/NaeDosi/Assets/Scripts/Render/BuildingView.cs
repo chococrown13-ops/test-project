@@ -62,11 +62,14 @@ namespace NaeDosi.Render
         static double Now => Time.realtimeSinceStartupAsDouble;
 
         /// <summary>Rebuild the meshes when buildings change, and the rising ones every frame.</summary>
+        /// <summary>실사 swaps the lot trees for lumpier crowns (rebuilds the batches when it changes).</summary>
+        public static bool Real;
+
         public void Update(World w, float night)
         {
             neonMat.SetColor("_Emit", MeshKit.Lin("#ff2a1f") * (0.25f + night * 3f));
             double now = Now;
-            string v = $"{w.ver.buildings}:{w.ver.roads}:{w.ver.zones}";
+            string v = $"{w.ver.buildings}:{w.ver.roads}:{w.ver.zones}:{Real}";
             // Power and abandonment light or darken windows without a version change.
             long ik = 17;
             foreach (var b in w.buildings.Values) ik = ik * 31 + (b.powered ? 1 : 0) * 2 + (b.abandoned ? 1 : 0) + b.id * 7;
@@ -189,6 +192,7 @@ namespace NaeDosi.Render
                 SH["vault"] = vault;
                 SH["hip"] = Hip();
                 SH["tree"] = Ico();
+                SH["treeR"] = LumpyTree();
                 SH["hanok"] = Hanok();
             }
 
@@ -249,6 +253,21 @@ namespace NaeDosi.Render
                     t.Add(Vector3.zero); t.Add(p1); t.Add(p0);
                 }
                 return Orient(t.ToArray(), new Vector3(0, 0.3f, 0));
+            }
+
+            /// <summary>실사: a crown of several lumps in the same unit box as the plain ball.</summary>
+            static Vector3[] LumpyTree()
+            {
+                var all = new List<Vector3>();
+                var rng = new System.Random(11);
+                for (int i = 0; i < 7; i++)
+                {
+                    float a = i * 2.4f, rad = i == 0 ? 0 : 0.2f;
+                    var c = new Vector3(Mathf.Cos(a) * rad, i == 0 ? 0.52f : 0.42f + 0.22f * (float)rng.NextDouble(), Mathf.Sin(a) * rad);
+                    var sh = new MeshKit.Shape().Blob(i == 0 ? 0.36f : 0.24f, c, Color.white, Vector3.one, i, 0.3f);
+                    all.AddRange(Orient(sh.v.ToArray(), c));
+                }
+                return all.ToArray();
             }
 
             static Vector3[] Ico()
@@ -314,7 +333,7 @@ namespace NaeDosi.Render
 
             public static void Add(Batch bt, Part p, Building b, double g, double bas)
             {
-                var tri = SH[p.shape];
+                var tri = SH[p.shape == "tree" && Real ? "treeR" : p.shape];
                 SN.TryGetValue(p.shape, out var sn);
                 float cs = (float)Math.Cos(p.rot), ss = (float)Math.Sin(p.rot);
                 float sx = (float)p.sx, sy = (float)(p.sy * g), sz = (float)p.sz;

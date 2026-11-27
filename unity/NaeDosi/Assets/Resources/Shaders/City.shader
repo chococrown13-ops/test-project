@@ -190,9 +190,19 @@ Shader "NaeDosi/City"
                         col *= 1.0 - 0.16 * smoothstep(0.55, 0.95, streak) * (1.0 - win);
                         col *= lerp(0.78, 1.0, smoothstep(0.0, 1.8, wp.y));
                         glass *= 0.55;
+                        float curtain = h21(float2(floorIx * 2.3 + i.info.y * 5.0, colIx * 4.1));
+                        if (curtain > 0.6) glass = lerp(glass, float3(0.62, 0.56, 0.46), 0.5 * step(0.45, fv) * step(fv, 0.5 + 0.4 * curtain));
+                        else if (curtain < 0.2) glass = lerp(glass, float3(0.55, 0.56, 0.56), 0.4 * step(0.5 + 0.3 * frac(fy * 9.0), fv) * step(frac(fy * 30.0), 0.6));
                     }
                     col = lerp(col, glass, win * (1.0 - abandoned * 0.5));
                     glassAmt = win * (1.0 - abandoned * 0.5);
+                    if (_Real > 0.5 && st < 10.5)
+                    {
+                        // A frame round every pane where the window pattern changes, and a ledge shadow just under it.
+                        float fr = saturate(fwidth(win) * 1.5);
+                        col = lerp(col, float3(0.82, 0.82, 0.8), fr * 0.8);
+                        glassAmt *= 1.0 - fr;
+                    }
                     float on = step(0.42, h21(float2(floorIx * 7.0 + i.info.y * 91.0, colIx)));
                     lit = win * on * i.info.z * (1.0 - abandoned);
                     if (abs(st - 2.0) < 0.5 && fy < 3.0 && fv > 0.85) lit = i.info.z * 0.8;
@@ -305,14 +315,12 @@ Shader "NaeDosi/City"
                         float grey = 1.0 - saturate(sat * 5.0);
                         if (grey > 0.5 && flat > 0.5 && lum0 < 0.55)
                         {
-                            // Asphalt: darker, grainy, patched and cracked, worn paler in the wheel tracks.
+                            // Asphalt: darker, grainy, patched, worn paler in the wheel tracks.
                             col *= 0.72;
                             col *= 0.84 + 0.32 * vn(gp * 35.0) * detail(gp * 35.0) + 0.08;
                             col *= 0.9 + 0.2 * fbm(gp * 0.25);
                             float patch = smoothstep(0.66, 0.7, fbm(gp * 0.12 + 11.0));
                             col = lerp(col, col * 0.72, patch * 0.8);
-                            float crack = 1.0 - smoothstep(0.0, 0.018, abs(fbm(gp * 0.35 + 4.0) - 0.5));
-                            col *= 1.0 - crack * 0.35 * detail(gp * 2.0);
                             smooth = 0.12 + 0.25 * _Snow;
                         }
                         else if (lum0 > 0.7 && flat > 0.5)

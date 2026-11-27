@@ -37,6 +37,24 @@ namespace NaeDosi.Render
             trunks = new Instances(new MeshKit.Shape().Cylinder(0.11f, 0.16f, 0, 2.8f, 5, Color.white).ToMesh("trunk"), treeMat);
             ginkgo = new Instances(new MeshKit.Shape().Cylinder(0, 1.25f, 2.0f, 6.4f, 7, Color.white).ToMesh("ginkgo"), treeMat);
             cherry = new Instances(new MeshKit.Shape().Ico(1.8f, new Vector3(0, 3.6f, 0), Color.white, new Vector3(1, 0.75f, 1)).ToMesh("cherry"), treeMat);
+            var gk = new MeshKit.Shape(); var ch = new MeshKit.Shape();
+            var rng = new System.Random(3);
+            for (int i = 0; i < 7; i++)
+            {
+                float y = 2.4f + i * 0.6f, r = 0.55f + 0.5f * Mathf.Sin(i / 6f * Mathf.PI) + 0.25f;
+                gk.Blob(r, new Vector3((float)rng.NextDouble() * 0.3f - 0.15f, y, (float)rng.NextDouble() * 0.3f - 0.15f), new Color(0.85f + i * 0.025f, 0.85f + i * 0.025f, 0.85f + i * 0.025f), new Vector3(1, 0.8f, 1), i, 0.3f);
+            }
+            for (int i = 0; i < 8; i++)
+            {
+                float a = i * 2.4f, rad = i == 0 ? 0 : 0.9f;
+                ch.Blob(i == 0 ? 1.3f : 0.75f, new Vector3(Mathf.Cos(a) * rad, 3.5f + (i % 3) * 0.3f, Mathf.Sin(a) * rad), Color.white, new Vector3(1, 0.75f, 1), i + 20, 0.3f);
+            }
+            ginkgoMeshes = new[] { ginkgo.mesh, gk.ToMesh("ginkgo-real") };
+            cherryMeshes = new[] { cherry.mesh, ch.ToMesh("cherry-real") };
+        }
+
+        Mesh[] ginkgoMeshes, cherryMeshes;
+        public void SetReal(bool real) { ginkgo.mesh = ginkgoMeshes[real ? 1 : 0]; cherry.mesh = cherryMeshes[real ? 1 : 0];
         }
 
         static string SeasonOf(int m) => m == 4 ? "blossom" : m >= 3 && m <= 5 ? "spring" : m >= 6 && m <= 9 ? "summer" : m >= 10 && m <= 11 ? "autumn" : "winter";

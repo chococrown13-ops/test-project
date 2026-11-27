@@ -121,6 +121,46 @@ namespace NaeDosi.Render
             treeMat.SetFloat("_Mode", 1); treeMat.SetFloat("_Smooth", 0.1f);
             pines = new Instances(pine.ToMesh("pine"), treeMat);
             rounds = new Instances(round.ToMesh("round"), treeMat);
+            pineMeshes = new[] { pines.mesh, RealPine(trunkC) };
+            roundMeshes = new[] { rounds.mesh, RealRound(trunkC) };
+        }
+
+        Mesh[] pineMeshes, roundMeshes;
+        /// <summary>실사 swaps in fuller trees: a branching trunk and a crown of many lumps; layered drooping tiers for pines.</summary>
+        public void SetReal(bool real) { pines.mesh = pineMeshes[real ? 1 : 0]; rounds.mesh = roundMeshes[real ? 1 : 0]; }
+
+        public static Mesh RealRound(Color trunkC)
+        {
+            var s = new MeshKit.Shape().Cylinder(0.2f, 0.34f, 0, 3.4f, 7, trunkC);
+            for (int b = 0; b < 3; b++)
+            {
+                int from = s.v.Count;
+                s.Cylinder(0.07f, 0.14f, 0, 1.8f, 5, trunkC, 1, 1, 1, new Vector3(0, 2.4f, 0));
+                s.Turn(from, Quaternion.Euler(0, b * 120 + 20, 0) * Quaternion.Euler(0, 0, 40), new Vector3(0, 2.4f, 0));
+            }
+            var rng = new System.Random(7);
+            for (int i = 0; i < 11; i++)
+            {
+                float a = i * 2.4f, h = (float)rng.NextDouble();
+                float rad = i == 0 ? 0 : 1.1f + 0.6f * (float)rng.NextDouble();
+                var c = new Vector3(Mathf.Cos(a) * rad, 3.6f + h * 2.2f + (i == 0 ? 0.8f : 0), Mathf.Sin(a) * rad);
+                float shade = 0.82f + 0.18f * (c.y - 3.4f) / 3f;
+                s.Blob(i == 0 ? 2.0f : 1.05f + 0.45f * (float)rng.NextDouble(), c, new Color(shade, shade, shade), new Vector3(1, 0.85f, 1), i);
+            }
+            return s.ToMesh("round-real");
+        }
+
+        public static Mesh RealPine(Color trunkC)
+        {
+            var s = new MeshKit.Shape().Cylinder(0.14f, 0.3f, 0, 6.6f, 6, trunkC);
+            for (int i = 0; i < 6; i++)
+            {
+                float y = 1.4f + i * 0.85f, r = 2.1f - i * 0.3f;
+                float shade = 0.78f + i * 0.04f;
+                s.Cylinder(0.25f, r, y, y + 1.3f, 11, new Color(shade, shade, shade));
+            }
+            s.Cylinder(0, 0.5f, 6.4f, 7.3f, 8, Color.white);
+            return s.ToMesh("pine-real");
         }
 
         GameObject Add(string name, Mesh m, Material mat, bool shadows)
